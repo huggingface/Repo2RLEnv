@@ -41,6 +41,10 @@ flowchart TD
 
 `pr_mining_lite` skips steps 3–5 entirely. The full pipeline is what gives you `test_execution` reward — actually running the tests in a sandbox to get a binary pass/fail signal.
 
+## Prerequisite: bootstrap
+
+Before this pipeline runs, the **bootstrap phase** must have produced a working Docker image for the repo (an LLM agent iterates on the Dockerfile via [RepoLaunch](https://github.com/microsoft/RepoLaunch)). Bootstrap runs once per `(repo, ref)` and is cached. See [`docs/BOOTSTRAP.md`](../BOOTSTRAP.md) for the full design. Implicit: triggered automatically on cache miss. Explicit: run `repo2rlenv bootstrap --repo ... --out ./envs/foo/` first, then `repo2rlenv generate --pipeline pr_mining --env-from ./envs/foo/`.
+
 ## Options (planned)
 
 ```python
