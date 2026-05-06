@@ -53,7 +53,9 @@ The reference repos are cloned shallowly to `references/` (gitignored).
 
 ## Adding a new pipeline
 
-The contract every pipeline must satisfy is the [`Pipeline` Protocol](../../src/repo2rlenv/pipelines/base.py):
+See the **[cookbook](./ADDING_A_PIPELINE.md)** for the full step-by-step walkthrough — covers the enum + Options + Pipeline class + tests + doc page, with template snippets and conventions taken from `pr_mining_lite`.
+
+TL;DR: every pipeline must satisfy the [`Pipeline` Protocol](../../src/repo2rlenv/pipelines/base.py):
 
 ```python
 class Pipeline(Protocol):
@@ -62,14 +64,4 @@ class Pipeline(Protocol):
     def run(self, out_dir: Path) -> PipelineResult: ...
 ```
 
-Steps:
-
-1. Add the enum value to `PipelineName` in `src/repo2rlenv/spec/input.py`
-2. Create `<NameOptions>` (Pydantic, `extra="forbid"`) in `src/repo2rlenv/spec/options.py` and register in `OPTIONS_REGISTRY`
-3. Implement `src/repo2rlenv/pipelines/<name>.py:<Name>Pipeline` matching the Protocol — declare `name: ClassVar[PipelineName]`, accept `(input, options)` in `__init__`, return `PipelineResult` from `run`
-4. Register the class in `src/repo2rlenv/pipelines/__init__.py:PIPELINES`
-5. Add a doc page here with: status, algorithm sketch + Mermaid flowchart, options table, `[metadata.repo2env.<name>]` schema, example invocation
-
-`tests/test_pipeline_contract.py` verifies every registered pipeline conforms to the Protocol — adding a new one without doing the above will fail there.
-
-Per-pipeline docs follow the same template — see [`pr_mining_lite.md`](./pr_mining_lite.md) for the canonical example.
+`tests/test_pipeline_contract.py` verifies every registered pipeline conforms to the Protocol — adding a new one without finishing the registration steps will fail there.
