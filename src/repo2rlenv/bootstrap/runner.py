@@ -13,12 +13,18 @@ import subprocess
 import tempfile
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from repo2rlenv.auth import auth_clone_url, resolve_github_token
 from repo2rlenv.bootstrap import cache as cache_mod
 from repo2rlenv.bootstrap.agent import run_agent_loop
-from repo2rlenv.bootstrap.docker import DockerError, DockerSandbox, is_docker_available
+from repo2rlenv.bootstrap.docker import (
+    DockerError,
+    DockerSandbox,
+    _run,
+    is_docker_available,
+)
 from repo2rlenv.bootstrap.language import base_image_for, detect_language
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
@@ -30,27 +36,194 @@ class BootstrapError(RuntimeError):
     """Raised when bootstrap cannot complete (after honoring `enabled=False`)."""
 
 
-def _resolve_ref_to_sha(local_clone: Path, ref: str) -> str:
-    """Convert HEAD / branch / tag / partial-SHA into a full 40-char SHA."""
-    if ref == "HEAD":
-        ref = "HEAD"
+def _resolve_head_sha(local_clone: Path) -> str:
+    """Return the full 40-char SHA at HEAD of the local clone."""
     r = subprocess.run(
-        ["git", "-C", str(local_clone), "rev-parse", ref],
+        ["git", "-C", str(local_clone), "rev-parse", "HEAD"],
         capture_output=True, text=True, check=False, timeout=30,
     )
     if r.returncode != 0:
-        raise BootstrapError(f"git rev-parse {ref!r} failed: {r.stderr.strip()}")
+        raise BootstrapError(f"git rev-parse HEAD failed: {r.stderr.strip()}")
     return r.stdout.strip()
 
 
-def _shallow_clone(repo_url: str, token: str | None, dest: Path, *, depth: int = 1) -> None:
+def _scrub_token(text: str, token: str | None) -> str:
+    return text.replace(token, "***") if token else text
+
+
+def _shallow_clone_at_ref(
+    repo_url: str, ref: str, token: str | None, dest: Path, *, depth: int = 1
+) -> None:
+    """Clone repo and check out `ref`. Works for HEAD, branch, tag, or commit SHA.
+
+    Strategy:
+      1. ref="HEAD" → plain shallow clone of default branch.
+      2. ref looks branch/tag-like → try `git clone --branch <ref>`. Works for
+         any ref ending up as a tag or branch on the remote.
+      3. Otherwise (commit SHA / fallback) → bare clone + `git fetch origin <ref>`
+         + `git checkout`.
+    """
     url = auth_clone_url(repo_url, token)
-    args = ["git", "clone", "--depth", str(depth), url, str(dest)]
-    r = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+
+    if ref in ("", "HEAD"):
+        r = subprocess.run(
+            ["git", "clone", "--depth", str(depth), url, str(dest)],
+            capture_output=True, text=True, timeout=300, check=False,
+        )
+        if r.returncode != 0:
+            raise BootstrapError(
+                f"git clone failed: {_scrub_token(r.stderr, token).strip()[:400]}"
+            )
+        return
+
+    # Try clone --branch first; works for branches and tags
+    r = subprocess.run(
+        ["git", "clone", "--depth", str(depth), "--branch", ref, url, str(dest)],
+        capture_output=True, text=True, timeout=300, check=False,
+    )
+    if r.returncode == 0:
+        return
+
+    # Fallback: clone default, then fetch + checkout the ref (handles SHAs)
+    logger.info("clone --branch %r failed, falling back to fetch-by-ref", ref)
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    r = subprocess.run(
+        ["git", "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
+        capture_output=True, text=True, timeout=300, check=False,
+    )
     if r.returncode != 0:
-        # Don't leak the token in the error message
-        scrubbed = r.stderr.replace(token or "", "***") if token else r.stderr
-        raise BootstrapError(f"git clone failed: {scrubbed.strip()[:400]}")
+        raise BootstrapError(
+            f"git clone (fallback) failed: {_scrub_token(r.stderr, token).strip()[:400]}"
+        )
+    r = subprocess.run(
+        ["git", "-C", str(dest), "fetch", "--depth", str(depth), "origin", ref],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    if r.returncode != 0:
+        raise BootstrapError(
+            f"git fetch origin {ref!r} failed (is this a valid branch/tag/commit?): "
+            f"{_scrub_token(r.stderr, token).strip()[:400]}"
+        )
+    r = subprocess.run(
+        ["git", "-C", str(dest), "checkout", ref],
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+    if r.returncode != 0:
+        raise BootstrapError(
+            f"git checkout {ref!r} failed: {_scrub_token(r.stderr, token).strip()[:400]}"
+        )
+
+
+def _resolve_repo_digest(tag: str) -> str | None:
+    """Return the pullable `repo@sha256:...` digest for a tagged image, if any.
+
+    `docker image inspect` exposes registry-qualified digests in `RepoDigests`
+    only AFTER a `docker push`. Used to upgrade `image_digest` from a local Id
+    to a real registry digest once an image has been pushed.
+    """
+    r = _run(["docker", "image", "inspect", tag, "--format", "{{json .RepoDigests}}"], timeout=15)
+    if not r.ok:
+        return None
+    try:
+        digests = json.loads(r.stdout.strip())
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if isinstance(digests, list) and digests:
+        return digests[0]
+    return None
+
+
+def _bootstrap_from_user_dockerfile(
+    repo: RepoSpec,
+    spec: BootstrapSpec,
+    llm: LLMSpec,
+    token: str | None,
+    *,
+    force: bool,
+) -> BootstrapResult:
+    """Bypass the agent loop: build the user-supplied Dockerfile directly.
+
+    Skips LLM iteration entirely. The Dockerfile is responsible for installing
+    everything; we just clone the repo and run `docker build` with the repo
+    as the build context. Cached identically to the agent-driven path.
+    """
+    dockerfile = spec.user_dockerfile
+    assert dockerfile is not None  # caller checks
+    if not dockerfile.is_file():
+        raise BootstrapError(f"user_dockerfile not found: {dockerfile}")
+
+    with tempfile.TemporaryDirectory(prefix="r2e-clone-") as tmp:
+        clone_dir = Path(tmp) / "repo"
+        logger.info("cloning %s @ %s for user_dockerfile build", repo.url, repo.ref)
+        _shallow_clone_at_ref(repo.url, repo.ref, token, clone_dir)
+        ref_sha = _resolve_head_sha(clone_dir)
+        owner_name = "/".join(repo.owner_name)
+
+        if not force:
+            cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir)
+            if cached is not None and cached.image_digest:
+                logger.info("user_dockerfile cache hit: %s", cached.image_digest)
+                return cached
+
+        # Copy the Dockerfile into the build context so its `COPY .` (etc.) just works
+        shutil.copy(dockerfile, clone_dir / "Dockerfile")
+        owner, name = repo.owner_name
+        slug = f"{owner}__{name}".replace("/", "__").lower()
+        tag_base = spec.image_registry or "local/r2e-bootstrap"
+        tag = f"{tag_base}/{slug}:{ref_sha[:12]}".lstrip("/")
+
+        start = time.monotonic()
+        r = _run(
+            [
+                "docker", "build",
+                "--platform", spec.platform,
+                "-t", tag,
+                str(clone_dir),
+            ],
+            timeout=spec.max_seconds,
+        )
+        if not r.ok:
+            raise BootstrapError(
+                f"docker build (user_dockerfile) failed: {r.stderr.strip()[:400]}"
+            )
+
+        # Inspect for the local Id; push + re-resolve if a registry was set
+        local_digest_inspect = _run(
+            ["docker", "image", "inspect", tag, "--format", "{{.Id}}"], timeout=10,
+        )
+        image_digest = (
+            local_digest_inspect.stdout.strip() if local_digest_inspect.ok else tag
+        )
+        pushed = False
+        if spec.image_registry and "/" in spec.image_registry:
+            push = _run(["docker", "push", tag], timeout=900)
+            pushed = push.ok
+            if pushed:
+                resolved = _resolve_repo_digest(tag)
+                if resolved:
+                    image_digest = resolved
+
+        result = BootstrapResult(
+            image_digest=image_digest,
+            image_tag=tag,
+            language=LanguageHint.UNKNOWN,  # we didn't detect — the user owns the image
+            repo=owner_name,
+            ref=ref_sha,
+            rebuild_cmds=[],     # caller supplied a Dockerfile; rebuild is up to them
+            test_cmds=[],
+            smoke_passed=True,   # no agent ran a smoke; trust the user
+            iterations=0,
+            build_time_sec=round(time.monotonic() - start, 2),
+            llm_provider=llm.qualified_name,
+            llm_cost_estimate_usd=0.0,
+            dockerfile_reconstruction=dockerfile.read_text(encoding="utf-8"),
+            pushed_to_registry=pushed,
+            extra={"source": "user_dockerfile", "dockerfile_path": str(dockerfile)},
+        )
+        cache_mod.save(result, spec.cache_dir)
+        logger.info("user_dockerfile bootstrap done: %s -> %s", owner_name, image_digest[:48])
+        return result
 
 
 def _reconstruct_dockerfile(base_image: str, turns: list) -> str:
@@ -104,11 +277,15 @@ def ensure_bootstrap(
             "private repo requires a GitHub token. Run `gh auth login` or set GITHUB_TOKEN."
         )
 
+    # Honor user_dockerfile override — skip agent loop entirely
+    if spec.user_dockerfile is not None:
+        return _bootstrap_from_user_dockerfile(repo, spec, llm, token, force=force)
+
     with tempfile.TemporaryDirectory(prefix="r2e-clone-") as tmp:
         clone_dir = Path(tmp) / "repo"
-        logger.info("cloning %s into %s", repo.url, clone_dir)
-        _shallow_clone(repo.url, token, clone_dir)
-        ref_sha = _resolve_ref_to_sha(clone_dir, repo.ref)
+        logger.info("cloning %s @ %s into %s", repo.url, repo.ref, clone_dir)
+        _shallow_clone_at_ref(repo.url, repo.ref, token, clone_dir)
+        ref_sha = _resolve_head_sha(clone_dir)
 
         # Cache check (after we know the resolved SHA)
         owner_name = "/".join(repo.owner_name)
@@ -199,6 +376,19 @@ def ensure_bootstrap(
             pushed = False
             if spec.image_registry and "/" in spec.image_registry:
                 pushed = sandbox.push(tag)
+                if pushed:
+                    # After push, `docker image inspect` now returns RepoDigests
+                    # like `ghcr.io/owner/foo@sha256:...` — the registry-qualified,
+                    # pullable digest. Re-resolve so downstream sandboxes can pull.
+                    resolved = _resolve_repo_digest(tag)
+                    if resolved:
+                        image_digest = resolved
+                    else:
+                        logger.warning(
+                            "push %s succeeded but RepoDigests not populated; "
+                            "image_digest stays at the local id %s",
+                            tag, image_digest,
+                        )
 
         build_time = time.monotonic() - start
         dockerfile = _reconstruct_dockerfile(base_image, outcome.transcript)
