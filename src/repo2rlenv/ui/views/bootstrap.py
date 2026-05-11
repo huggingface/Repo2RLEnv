@@ -113,12 +113,19 @@ class BootstrapView:
                 self.base_image = details["base_image"]
             self._refresh()
             return
-        # Phase start/done events: "<phase>_start", "<phase>_done", "<phase>_skipped"
+        # Phase events: "<phase>_start|_progress|_done|_skipped|_failed"
         for name in _PHASES:
             if phase == f"{name}_start":
                 self.phases[name].status = "running"
                 self.phases[name].started_at = time.monotonic()
                 self.phases[name].detail = details.get("detail", "")
+                break
+            if phase == f"{name}_progress":
+                # Live update detail without changing status — keeps the spinner spinning
+                self.phases[name].status = "running"
+                if not self.phases[name].started_at:
+                    self.phases[name].started_at = time.monotonic()
+                self.phases[name].detail = details.get("detail", self.phases[name].detail)
                 break
             if phase == f"{name}_done":
                 self.phases[name].status = "done"

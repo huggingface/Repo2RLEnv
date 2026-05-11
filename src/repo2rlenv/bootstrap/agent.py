@@ -120,6 +120,7 @@ def run_agent_loop(
     llm: LLMSpec,
     max_iterations: int = 20,
     max_seconds: int = 1800,
+    max_spend_usd: float | None = None,
     platform: str = "linux/amd64",
     on_turn: Callable[[AgentTurn, float], None] | None = None,
     on_thinking: Callable[[int], None] | None = None,
@@ -137,6 +138,14 @@ def run_agent_loop(
             return AgentOutcome(
                 success=False,
                 reason=f"timeout after {max_seconds}s",
+                iterations=step,
+                transcript=transcript,
+                total_cost_estimate_usd=total_cost,
+            )
+        if max_spend_usd is not None and total_cost >= max_spend_usd:
+            return AgentOutcome(
+                success=False,
+                reason=f"cost budget exceeded: ${total_cost:.4f} ≥ ${max_spend_usd:.2f}",
                 iterations=step,
                 transcript=transcript,
                 total_cost_estimate_usd=total_cost,

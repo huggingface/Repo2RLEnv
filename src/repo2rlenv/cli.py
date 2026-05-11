@@ -260,12 +260,16 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     llm = LLMSpec(provider=provider, model=model)
 
     repo = RepoSpec(url=args.repo, ref=args.ref, access=args.access)
+    # --max-spend-usd=0 means "no cap"; map to None so the agent loop skips the check
+    spend_cap = args.max_spend_usd if args.max_spend_usd and args.max_spend_usd > 0 else None
     spec = BootstrapSpec(
         max_iterations=args.max_iterations,
         max_seconds=args.max_seconds,
         cache_dir=Path(args.cache_dir),
         image_registry=args.image_registry,
         platform=args.platform,
+        base_image=args.base_image,
+        max_llm_spend_usd=spend_cap,
     )
     if args.language:
         try:
@@ -302,10 +306,21 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
                 on_phase=on_phase,
             )
         except BootstrapError as exc:
+            # When the user didn't pin the language or base, the failure is
+            # most likely because auto-detection picked the wrong one. Surface
+            # actionable hints instead of just dumping the agent's last error.
+            reason = str(exc)
+            if not args.language and not args.base_image:
+                reason += (
+                    "\n\nhint: language was auto-detected. If this repo is polyglot or has "
+                    "unusual markers, retry with --language <python|node|go|rust|java|c_cpp> "
+                    "or --base-image <image:tag> (e.g. --base-image ubuntu:24.04 for a "
+                    "generic Linux base)."
+                )
             if view is not None:
-                view.set_outcome(success=False, reason=str(exc))
+                view.set_outcome(success=False, reason=reason)
             else:
-                console.error(f"bootstrap error: {exc}")
+                console.error(f"bootstrap error: {reason}")
             return 1
         if view is not None:
             view.set_outcome(
@@ -428,6 +443,10 @@ def main(argv: list[str] | None = None) -> int:
     bs.add_argument("--image-registry", help="e.g. ghcr.io/myorg/r2e — pushes after build")
     bs.add_argument("--platform", default="linux/amd64", choices=["linux/amd64", "linux/arm64"])
     bs.add_argument("--language", help="override auto-detection: python|node|go|rust|java|c_cpp")
+    bs.add_argument("--base-image",
+                     help="override per-language default base (e.g. ubuntu:24.04, python:3.11-slim)")
+    bs.add_argument("--max-spend-usd", type=float, default=5.0,
+                     help="abort if cumulative LLM cost exceeds this (default 5.0; 0 = unlimited)")
     bs.add_argument("--force", action="store_true", help="ignore cache, rebuild from scratch")
     bs.set_defaults(func=cmd_bootstrap)
 

@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -51,8 +54,80 @@ def _scrub_token(text: str, token: str | None) -> str:
     return text.replace(token, "***") if token else text
 
 
+def _run_git_streaming(
+    args: list[str],
+    *,
+    token: str | None,
+    timeout: int,
+    on_progress: Callable[[str], None] | None,
+) -> subprocess.CompletedProcess[str]:
+    """Run git with --progress, streaming its stderr to on_progress.
+
+    Returns a CompletedProcess-compatible result; never raises on non-zero exit.
+    git emits its progress (Receiving objects, Resolving deltas...) on stderr.
+    """
+    if on_progress is None:
+        return subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout, check=False,
+        )
+
+    proc = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1,
+    )
+    err_buf: list[str] = []
+    out_buf: list[str] = []
+    last_line = ""
+
+    def _pump_stderr() -> None:
+        nonlocal last_line
+        assert proc.stderr is not None
+        while True:
+            chunk = proc.stderr.read(256)
+            if not chunk:
+                break
+            err_buf.append(chunk)
+            for part in re.split(r"[\r\n]+", chunk):
+                part = part.strip()
+                if not part or part == last_line:
+                    continue
+                last_line = part
+                try:
+                    on_progress(_scrub_token(part, token)[:120])
+                except Exception:
+                    pass
+
+    def _pump_stdout() -> None:
+        assert proc.stdout is not None
+        while True:
+            chunk = proc.stdout.read(1024)
+            if not chunk:
+                break
+            out_buf.append(chunk)
+
+    t_err = threading.Thread(target=_pump_stderr, daemon=True)
+    t_out = threading.Thread(target=_pump_stdout, daemon=True)
+    t_err.start()
+    t_out.start()
+    try:
+        rc = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        t_err.join(timeout=2)
+        t_out.join(timeout=2)
+        return subprocess.CompletedProcess(args, 124, "".join(out_buf), "[timeout]")
+    t_err.join(timeout=2)
+    t_out.join(timeout=2)
+    return subprocess.CompletedProcess(args, rc, "".join(out_buf), "".join(err_buf))
+
+
 def _shallow_clone_at_ref(
-    repo_url: str, ref: str, token: str | None, dest: Path, *, depth: int = 1
+    repo_url: str,
+    ref: str,
+    token: str | None,
+    dest: Path,
+    *,
+    depth: int = 1,
+    on_progress: Callable[[str], None] | None = None,
 ) -> None:
     """Clone repo and check out `ref`. Works for HEAD, branch, tag, or commit SHA.
 
@@ -66,9 +141,9 @@ def _shallow_clone_at_ref(
     url = auth_clone_url(repo_url, token)
 
     if ref in ("", "HEAD"):
-        r = subprocess.run(
-            ["git", "clone", "--depth", str(depth), url, str(dest)],
-            capture_output=True, text=True, timeout=300, check=False,
+        r = _run_git_streaming(
+            ["git", "clone", "--progress", "--depth", str(depth), url, str(dest)],
+            token=token, timeout=300, on_progress=on_progress,
         )
         if r.returncode != 0:
             raise BootstrapError(
@@ -77,9 +152,9 @@ def _shallow_clone_at_ref(
         return
 
     # Try clone --branch first; works for branches and tags
-    r = subprocess.run(
-        ["git", "clone", "--depth", str(depth), "--branch", ref, url, str(dest)],
-        capture_output=True, text=True, timeout=300, check=False,
+    r = _run_git_streaming(
+        ["git", "clone", "--progress", "--depth", str(depth), "--branch", ref, url, str(dest)],
+        token=token, timeout=300, on_progress=on_progress,
     )
     if r.returncode == 0:
         return
@@ -88,17 +163,17 @@ def _shallow_clone_at_ref(
     logger.info("clone --branch %r failed, falling back to fetch-by-ref", ref)
     if dest.exists():
         shutil.rmtree(dest, ignore_errors=True)
-    r = subprocess.run(
-        ["git", "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
-        capture_output=True, text=True, timeout=300, check=False,
+    r = _run_git_streaming(
+        ["git", "clone", "--progress", "--filter=blob:none", "--no-checkout", url, str(dest)],
+        token=token, timeout=300, on_progress=on_progress,
     )
     if r.returncode != 0:
         raise BootstrapError(
             f"git clone (fallback) failed: {_scrub_token(r.stderr, token).strip()[:400]}"
         )
-    r = subprocess.run(
-        ["git", "-C", str(dest), "fetch", "--depth", str(depth), "origin", ref],
-        capture_output=True, text=True, timeout=120, check=False,
+    r = _run_git_streaming(
+        ["git", "-C", str(dest), "fetch", "--progress", "--depth", str(depth), "origin", ref],
+        token=token, timeout=120, on_progress=on_progress,
     )
     if r.returncode != 0:
         raise BootstrapError(
@@ -294,7 +369,10 @@ def ensure_bootstrap(
         clone_dir = Path(tmp) / "repo"
         _emit("clone_start", {"detail": f"{repo.url} @ {repo.ref}"})
         logger.info("cloning %s @ %s into %s", repo.url, repo.ref, clone_dir)
-        _shallow_clone_at_ref(repo.url, repo.ref, token, clone_dir)
+        _shallow_clone_at_ref(
+            repo.url, repo.ref, token, clone_dir,
+            on_progress=lambda line: _emit("clone_progress", {"detail": line}),
+        )
         ref_sha = _resolve_head_sha(clone_dir)
         _emit("clone_done", {"detail": f"{repo.url} @ {ref_sha[:12]}"})
 
@@ -348,6 +426,7 @@ def ensure_bootstrap(
                 llm=llm,
                 max_iterations=spec.max_iterations,
                 max_seconds=spec.max_seconds,
+                max_spend_usd=spec.max_llm_spend_usd,
                 platform=spec.platform,
                 on_turn=on_turn,
                 on_thinking=on_thinking,

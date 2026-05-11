@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shlex
 import subprocess
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -85,6 +88,91 @@ def pull_image(image: str, *, platform: str | None = None, timeout: int = 600) -
     return _run(args, timeout=timeout)
 
 
+# Matches the last "<layer>: <Status> [...]  12.3MB/45.7MB" line in a chunk
+_DOCKER_PROGRESS_RE = re.compile(
+    r"(?P<status>Pulling|Downloading|Extracting|Verifying|Waiting|Pull complete|Already exists)"
+    r"[^\r\n]*",
+)
+
+
+def pull_image_streaming(
+    image: str,
+    *,
+    platform: str | None = None,
+    timeout: int = 600,
+    on_progress: Callable[[str], None] | None = None,
+) -> ExecResult:
+    """Pull an image, streaming the most recent progress line to a callback.
+
+    Docker uses carriage returns to overwrite the same line in a TTY; we read
+    chunks and split on '\\r' and '\\n' to grab the most-recent meaningful line.
+    Falls back to plain pull_image() if no callback is supplied.
+    """
+    if on_progress is None:
+        return pull_image(image, platform=platform, timeout=timeout)
+
+    args = ["docker", "pull"]
+    if platform:
+        args.extend(["--platform", platform])
+    args.append(image)
+
+    start = time.monotonic()
+    proc = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    out_buf: list[str] = []
+    last_line = ""
+
+    def _pump() -> None:
+        nonlocal last_line
+        assert proc.stdout is not None
+        while True:
+            chunk = proc.stdout.read(256)
+            if not chunk:
+                break
+            out_buf.append(chunk)
+            # Split on both \r (overwrites) and \n (new lines)
+            parts = re.split(r"[\r\n]+", chunk)
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                m = _DOCKER_PROGRESS_RE.search(part)
+                if m or part != last_line:
+                    last_line = part
+                    try:
+                        on_progress(part[:120])
+                    except Exception:
+                        pass
+
+    pump_thread = threading.Thread(target=_pump, daemon=True)
+    pump_thread.start()
+    try:
+        exit_code = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        pump_thread.join(timeout=2)
+        return ExecResult(
+            exit_code=124,
+            stdout="".join(out_buf),
+            stderr=f"[timeout after {timeout}s]",
+            duration_sec=time.monotonic() - start,
+        )
+    pump_thread.join(timeout=2)
+    full = "".join(out_buf)
+    return ExecResult(
+        exit_code=exit_code,
+        stdout=full if exit_code == 0 else "",
+        stderr=full if exit_code != 0 else "",
+        duration_sec=time.monotonic() - start,
+    )
+
+
 class DockerSandbox:
     """A long-lived Docker container the bootstrap agent runs commands in.
 
@@ -126,7 +214,21 @@ class DockerSandbox:
                 on_phase("pull_start", {"detail": base_image})
             except Exception:
                 pass
-        pull = pull_image(base_image, platform=platform, timeout=timeout)
+
+        # Wire progress lines through on_phase so the UI doesn't look frozen
+        # during long base-image pulls (golang:1.23 etc. can take 30–60s).
+        def _pull_progress(line: str) -> None:
+            if on_phase is None:
+                return
+            try:
+                on_phase("pull_progress", {"detail": line})
+            except Exception:
+                pass
+
+        pull = pull_image_streaming(
+            base_image, platform=platform, timeout=timeout,
+            on_progress=_pull_progress if on_phase is not None else None,
+        )
         if not pull.ok:
             raise DockerError(f"failed to pull {base_image!r}: {pull.stderr.strip()[:400]}")
         if on_phase is not None:
