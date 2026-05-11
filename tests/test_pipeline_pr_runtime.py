@@ -20,6 +20,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
     _files_in_patch,
     _path_is_test,
+    build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
     split_patch_and_test_patch,
@@ -158,6 +159,54 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
         test_cmds=["export PATH=/opt/bin:$PATH", "pytest --collect-only"],
     )
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
+
+
+def test_build_eval_script_preserves_test_exit_code():
+    """P1 fix: cleanup `git checkout || true` must NOT mask pytest's failure.
+
+    Harbor's verifier reads this script's exit code; if we always exit 0,
+    every model patch looks like a pass regardless of test outcome.
+    """
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+    )
+    assert "TEST_EXIT_CODE=$?" in script
+    assert "exit $TEST_EXIT_CODE" in script
+    # The capture must come AFTER the test block and BEFORE the cleanup reset
+    test_block_pos = script.find("pytest -v")
+    capture_pos = script.find("TEST_EXIT_CODE=$?")
+    final_exit_pos = script.find("exit $TEST_EXIT_CODE")
+    assert test_block_pos < capture_pos < final_exit_pos
+
+
+# --- build_environment_dockerfile --------------------------------------------
+
+
+def test_environment_dockerfile_resets_to_base_commit():
+    """P1 fix: image must be at PR base_commit, not bootstrap HEAD.
+
+    Without this, the model writes its patch against base_commit's line
+    context but Harbor tries to apply it against bootstrap-HEAD's lines,
+    so patches fail to apply.
+    """
+    dockerfile = build_environment_dockerfile(
+        bootstrap_image="local/r2e/foo:abc",
+        base_commit="d777956105fde08e01dd895dde2b86ccdf558d59",
+    )
+    assert "FROM local/r2e/foo:abc" in dockerfile
+    assert "WORKDIR /workspace" in dockerfile
+    # The reset must use the specific base_commit, not just any sha
+    assert "git reset --hard d777956105fde08e01dd895dde2b86ccdf558d59" in dockerfile
+    # And there should be a fetch in case the commit isn't in the shallow clone
+    assert "git fetch" in dockerfile
+    # Order matters: FROM → WORKDIR → fetch → reset
+    pos_from = dockerfile.find("FROM ")
+    pos_workdir = dockerfile.find("WORKDIR")
+    pos_fetch = dockerfile.find("git fetch")
+    pos_reset = dockerfile.find("git reset")
+    assert pos_from < pos_workdir < pos_fetch < pos_reset
 
 
 # --- _count_new_test_funcs ---------------------------------------------------
