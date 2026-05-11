@@ -272,15 +272,38 @@ def test_normalize_strips_short_co():
     assert normalize_test_cmds_for_runtime(["pytest --co"]) == ["pytest -v"]
 
 
-def test_normalize_adds_v_only_when_pytest():
-    """Non-pytest commands pass through untouched."""
-    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test ./..."]
-    assert normalize_test_cmds_for_runtime(["npm test"]) == ["npm test"]
-
-
 def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
+
+
+def test_normalize_go_test_gets_v_flag():
+    """`go test` without -v doesn't print --- PASS lines — parser needs them."""
+    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -v ./..."]
+    # Already verbose ⇒ no change
+    assert normalize_test_cmds_for_runtime(["go test -v ./..."]) == ["go test -v ./..."]
+
+
+def test_normalize_cargo_strips_quiet():
+    """`cargo test -q` swallows per-test lines; strip it to recover parseable output."""
+    assert normalize_test_cmds_for_runtime(["cargo test -q"]) == ["cargo test"]
+    assert normalize_test_cmds_for_runtime(["cargo test --quiet"]) == ["cargo test"]
+    # Default `cargo test` is already parseable
+    assert normalize_test_cmds_for_runtime(["cargo test"]) == ["cargo test"]
+
+
+def test_normalize_jest_adds_verbose_and_strips_silent():
+    assert normalize_test_cmds_for_runtime(["jest"]) == ["jest --verbose"]
+    assert normalize_test_cmds_for_runtime(["jest --silent"]) == ["jest --verbose"]
+    # Already verbose ⇒ keep
+    assert normalize_test_cmds_for_runtime(["jest --verbose"]) == ["jest --verbose"]
+
+
+def test_normalize_npm_test_unchanged_when_wrapper():
+    """`npm test` is a wrapper — we can't safely add jest flags through it."""
+    # Just verify it doesn't crash and doesn't corrupt the cmd
+    out = normalize_test_cmds_for_runtime(["npm test"])
+    assert out == ["npm test"]
 
 
 # --- targeted_test_cmds_for_pr ----------------------------------------------
@@ -292,9 +315,40 @@ def test_targeted_appends_test_files_to_pytest():
     assert out == ["pytest -v tests/test_foo.py tests/test_bar.py"]
 
 
-def test_targeted_passes_non_pytest_through():
-    """Non-pytest runners (go test, npm test) don't get rewritten — different arg conventions."""
-    assert targeted_test_cmds_for_pr(["go test ./..."], ["pkg/foo_test.go"]) == ["go test ./..."]
+def test_targeted_go_test_replaces_dot_dot_dot_with_packages():
+    """`go test ./...` → `go test ./pkg/foo` when the test_patch only touches pkg/foo."""
+    out = targeted_test_cmds_for_pr(
+        ["go test -v ./..."],
+        ["pkg/foo/foo_test.go", "pkg/foo/bar_test.go"],
+    )
+    # Both test files are in pkg/foo, so we get one package
+    assert out == ["go test -v ./pkg/foo"]
+
+
+def test_targeted_go_test_handles_multiple_packages():
+    out = targeted_test_cmds_for_pr(
+        ["go test -v ./..."],
+        ["pkg/a/a_test.go", "pkg/b/b_test.go"],
+    )
+    assert "./pkg/a" in out[0]
+    assert "./pkg/b" in out[0]
+
+
+def test_targeted_jest_appends_test_files():
+    """Jest accepts positional file paths like pytest."""
+    out = targeted_test_cmds_for_pr(["jest --verbose"], ["src/foo.test.ts", "src/bar.test.js"])
+    assert "src/foo.test.ts" in out[0]
+    assert "src/bar.test.js" in out[0]
+
+
+def test_targeted_cargo_no_op():
+    """Rust's filter is name-substring not file path; we don't target."""
+    out = targeted_test_cmds_for_pr(["cargo test"], ["src/lib.rs", "tests/integration_test.rs"])
+    assert out == ["cargo test"]
+
+
+def test_targeted_npm_test_passes_through():
+    """npm test is a wrapper; we can't safely append positional args."""
     assert targeted_test_cmds_for_pr(["npm test"], ["src/foo.test.ts"]) == ["npm test"]
 
 

@@ -21,7 +21,7 @@ import logging
 from dataclasses import dataclass, field
 
 from repo2rlenv.bootstrap.docker import DockerSandbox
-from repo2rlenv.log_parsers import parse_pytest
+from repo2rlenv.log_parsers import parse_logs
 
 logger = logging.getLogger(__name__)
 
@@ -148,12 +148,17 @@ def validate_pr(
     patch: str,
     test_patch: str,
     test_cmds: list[str],
+    language: str | None = None,
     timeout: int = 600,
 ) -> ValidationOutcome:
     """Run the two-stage validation and return the resulting outcome.
 
     Re-uses a shared sandbox across PRs; the `git reset --hard` at the top of
     each stage script guarantees a clean working tree.
+
+    `language` is the LanguageHint value (e.g. "python", "go") used as a
+    fallback when test_cmds doesn't name a known runner. Almost always the
+    runner is inferred from test_cmds — language is just a safety net.
     """
     if not test_cmds:
         return ValidationOutcome(
@@ -180,7 +185,7 @@ def validate_pr(
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = sandbox.exec(pre_script, timeout=timeout)
     pre_log = pre.truncated(max_chars=20_000)
-    pre_status = parse_pytest(_slice_test_output(pre_log))
+    pre_status = parse_logs(test_cmds, _slice_test_output(pre_log), language=language)
 
     # If the test_patch itself failed to apply, no point continuing.
     if "error: patch failed" in pre_log.lower() or "patch does not apply" in pre_log.lower():
@@ -200,7 +205,7 @@ def validate_pr(
     logger.info("validate_pr: running post-fix stage")
     post = sandbox.exec(post_script, timeout=timeout)
     post_log = post.truncated(max_chars=20_000)
-    post_status = parse_pytest(_slice_test_output(post_log))
+    post_status = parse_logs(test_cmds, _slice_test_output(post_log), language=language)
 
     if "error: patch failed" in post_log.lower() or "patch does not apply" in post_log.lower():
         return ValidationOutcome(

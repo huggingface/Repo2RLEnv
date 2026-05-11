@@ -275,25 +275,57 @@ def _count_new_test_funcs(test_patch: str) -> int:
 def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     """Adapt bootstrap-recorded test commands for actual per-PR execution.
 
-    Bootstrap prefers fast/tolerant commands like `pytest --collect-only`
-    (so it can declare success without running every test). For pr_runtime,
-    we need commands that *run* tests and emit PASSED/FAILED lines the log
-    parser can read.
+    Bootstrap prefers fast/tolerant commands (e.g. `pytest --collect-only`)
+    so it can declare success without running every test. For pr_runtime,
+    we need commands that *run* tests and emit per-test pass/fail lines
+    that our parsers can read.
 
-    Transforms:
-      - Drop `--collect-only` so pytest actually runs tests
-      - Add `-v` if no verbosity flag is present (forces PASSED/FAILED lines
-        in the default pytest output format)
+    Transforms (per runner):
+      pytest:
+        - Drop `--collect-only` / `--co` so pytest actually runs tests
+        - Add `-v` if no verbosity flag is present
+      go test:
+        - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
+      cargo test:
+        - Default output is already parseable; no transform needed
+      jest / npm test:
+        - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
+        - Some configs swallow stdout via `--silent`; we strip that
     """
     out: list[str] = []
     for cmd in test_cmds:
-        cleaned = re.sub(r"\s+--collect-only\b", "", cmd)
-        cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
-        # Add -v if this is a pytest invocation and no -v / --verbose is present
-        if re.search(r"\bpytest\b", cleaned) and not re.search(
-            r"\s-v\b|\s--verbose\b|-vv\b", cleaned
-        ):
-            cleaned = cleaned.rstrip() + " -v"
+        cleaned = cmd
+
+        # --- pytest ---
+        if re.search(r"\bpytest\b", cleaned):
+            cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
+            cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
+            if not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
+                cleaned = cleaned.rstrip() + " -v"
+
+        # --- go test ---
+        elif re.search(r"\bgo\s+test\b", cleaned):
+            if not re.search(r"\s-v\b", cleaned):
+                # Insert -v right after `go test`; positional args go after
+                cleaned = re.sub(r"\bgo\s+test\b", "go test -v", cleaned, count=1)
+
+        # --- cargo test ---
+        elif re.search(r"\bcargo\s+test\b", cleaned):
+            # `cargo test` already prints `test NAME ... ok/FAILED/ignored`
+            # by default — no transformation needed. If a user passed
+            # `-q`, the per-test lines disappear; strip it.
+            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
+
+        # --- jest / npm test / yarn test / pnpm test ---
+        elif re.search(r"\b(?:jest|mocha|vitest|npm\s+test|yarn\s+test|pnpm\s+test)\b", cleaned):
+            cleaned = re.sub(r"\s+--silent\b", "", cleaned)
+            # Add --verbose if the cmd is the runner itself (skip wrappers
+            # where flags need to go after `--`)
+            if re.search(r"\b(?:jest|mocha|vitest)\b", cleaned) and not re.search(
+                r"\s--verbose\b|\s--reporter\b", cleaned
+            ):
+                cleaned = cleaned.rstrip() + " --verbose"
+
         out.append(cleaned.strip())
     return out
 
@@ -301,6 +333,21 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
 # Pytest-style file extensions we know how to target. Anything else triggers
 # the fallback to "run the whole suite".
 _PYTEST_TARGETABLE_EXT = (".py",)
+_JEST_TARGETABLE_EXT = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
+
+
+def _go_packages_from_test_files(test_files: list[str]) -> list[str]:
+    """Map `pkg/foo/bar_test.go` → `./pkg/foo` for Go's package-path CLI."""
+    pkgs: list[str] = []
+    for f in test_files:
+        if not f.endswith("_test.go"):
+            continue
+        # Directory of the test file, prefixed with ./ for `go test` package syntax
+        parts = f.rsplit("/", 1)
+        pkg = "./" + parts[0] if len(parts) == 2 else "./"
+        if pkg not in pkgs:
+            pkgs.append(pkg)
+    return pkgs
 
 
 def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> list[str]:
@@ -309,45 +356,61 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     Running the whole suite on every PR is 10-50× slower than running only
     the files the PR cares about. SWE-bench-Live's harness does the same.
 
-    Rules:
-      - Only applied to pytest invocations (other runners may not support
-        positional file args reliably).
-      - Skip if the cmd already has a positional path arg (assume the user
-        meant that).
-      - Skip if no test_files are .py (e.g. test_patch only touched
-        snapshot fixtures or YAML).
-      - Otherwise: append the test files to the command.
+    Per-runner rules:
+      pytest:  append the changed .py test files as positional args
+      jest:    append the changed .js/.ts test files as positional args
+      go test: replace `./...` (or trailing nothing) with the package
+               directories containing changed `*_test.go` files
+      cargo:   no targeting — Rust's filter is name-substring, not file
+               (we'd need to introspect test names; whole-suite is fine)
+
+    Skips if the cmd already has a positional path arg.
     """
     if not test_files:
         return test_cmds
+
     py_files = [f for f in test_files if f.endswith(_PYTEST_TARGETABLE_EXT)]
-    if not py_files:
-        return test_cmds
+    js_files = [f for f in test_files if f.endswith(_JEST_TARGETABLE_EXT)]
+    go_pkgs = _go_packages_from_test_files(test_files)
 
     out: list[str] = []
     for cmd in test_cmds:
-        if not re.search(r"\bpytest\b", cmd):
-            out.append(cmd)
-            continue
-        # If cmd already contains a positional path arg (after `pytest`,
-        # token that doesn't start with `-`), don't double-up
-        tokens = cmd.split()
-        try:
-            pytest_idx = tokens.index("pytest")
-        except ValueError:
-            # `pytest` not a standalone token (e.g. `python -m pytest`)
+        # --- pytest ---
+        if re.search(r"\bpytest\b", cmd) and py_files:
+            tokens = cmd.split()
             pytest_idx = next(
-                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")), -1
+                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")),
+                -1,
             )
-        if pytest_idx >= 0:
-            tail = tokens[pytest_idx + 1 :]
-            has_path_arg = any(
-                not t.startswith("-") and (t.endswith(".py") or "/" in t) for t in tail
+            if pytest_idx >= 0:
+                tail = tokens[pytest_idx + 1 :]
+                has_path_arg = any(
+                    not t.startswith("-") and (t.endswith(".py") or "/" in t) for t in tail
+                )
+                if not has_path_arg:
+                    cmd = cmd.rstrip() + " " + " ".join(py_files)
+
+        # --- go test ---
+        elif re.search(r"\bgo\s+test\b", cmd) and go_pkgs:
+            # Replace `./...` with the targeted packages; if neither is present,
+            # append the packages
+            if "./..." in cmd:
+                cmd = cmd.replace("./...", " ".join(go_pkgs))
+            elif not re.search(r"\b\./\S+\b", cmd):
+                cmd = cmd.rstrip() + " " + " ".join(go_pkgs)
+
+        # --- jest / npx jest / mocha / vitest ---
+        elif re.search(r"\b(?:jest|mocha|vitest)\b", cmd) and js_files:
+            tokens = cmd.split()
+            # If a positional file path is already present, don't double-up
+            has_path = any(
+                not t.startswith("-") and (t.endswith(_JEST_TARGETABLE_EXT) or "/" in t)
+                for t in tokens[1:]
             )
-            if has_path_arg:
-                out.append(cmd)
-                continue
-        out.append(cmd.rstrip() + " " + " ".join(py_files))
+            if not has_path:
+                cmd = cmd.rstrip() + " " + " ".join(js_files)
+
+        out.append(cmd)
     return out
 
 
@@ -481,6 +544,7 @@ class PRRuntimePipeline:
                         patch=patch,
                         test_patch=test_patch,
                         test_cmds=targeted_cmds,
+                        language=self.bootstrap.language.value,
                         timeout=self.options.validation_timeout_sec,
                     )
                     fail_to_pass = outcome.fail_to_pass
