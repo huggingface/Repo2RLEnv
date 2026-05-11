@@ -47,6 +47,11 @@ class HarborTask:
     difficulty: str = "medium"
     category: str = "bugfix"
     keywords: list[str] = field(default_factory=list)
+    # Optional — only set for sandbox-required pipelines (e.g. pr_runtime).
+    # Lite tasks (pr_diff) leave these as None; Harbor falls back to its own
+    # default env / test runner for those.
+    environment_dockerfile: str | None = None
+    test_script: str | None = None
 
 
 def _content_hash(task: HarborTask) -> str:
@@ -66,7 +71,12 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     repo2env = dict(task.repo2env)
     repo2env.setdefault("spec_version", "0.1.0")
     repo2env.setdefault("content_hash", _content_hash(task))
-    repo2env.setdefault("reward_kinds", ["diff_similarity"])
+    # Default reward kinds — sandbox-required tasks override with
+    # test_execution as the primary signal
+    if task.test_script is not None:
+        repo2env.setdefault("reward_kinds", ["test_execution", "diff_similarity"])
+    else:
+        repo2env.setdefault("reward_kinds", ["diff_similarity"])
 
     payload: dict[str, Any] = {
         "version": "1.0",
@@ -93,5 +103,18 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     sol_dir = task_path / "solution"
     sol_dir.mkdir(exist_ok=True)
     (sol_dir / "patch.diff").write_text(task.oracle_diff, encoding="utf-8")
+
+    # Optional environment/Dockerfile + tests/test.sh — written only for
+    # sandbox-required tasks (pr_runtime, future commit_runtime, etc.).
+    if task.environment_dockerfile is not None:
+        env_dir = task_path / "environment"
+        env_dir.mkdir(exist_ok=True)
+        (env_dir / "Dockerfile").write_text(task.environment_dockerfile, encoding="utf-8")
+    if task.test_script is not None:
+        tests_dir = task_path / "tests"
+        tests_dir.mkdir(exist_ok=True)
+        (tests_dir / "test.sh").write_text(task.test_script, encoding="utf-8")
+        # mark executable; harbor expects test.sh to be runnable
+        (tests_dir / "test.sh").chmod(0o755)
 
     return task_path

@@ -49,16 +49,29 @@ class Pipeline(Protocol):
     to inherit from anything — just expose:
 
       - `name: ClassVar[PipelineName]` — the registered identifier
-      - `__init__(input: GenerationInput, options: <Options>) -> None`
+      - `requires_bootstrap: ClassVar[bool]` — True if the pipeline needs a
+        working Docker image from the bootstrap phase before it can run
+      - `__init__(input, options, bootstrap=None) -> None`
       - `run(out_dir: Path) -> PipelineResult`
 
     The `Options` arg is whatever Pydantic model is registered for `name` in
     `OPTIONS_REGISTRY`. The dispatcher in `cli.cmd_generate` validates and
     instantiates both before calling `run()`.
+
+    `bootstrap` carries the BootstrapResult (image_digest + test_cmds + ...)
+    when `requires_bootstrap=True`. cmd_generate triggers `ensure_bootstrap()`
+    automatically; lite pipelines that set `requires_bootstrap=False` get
+    `bootstrap=None`.
     """
 
     name: ClassVar[PipelineName]
+    requires_bootstrap: ClassVar[bool] = False
 
-    def __init__(self, input: GenerationInput, options: BaseModel) -> None: ...
+    def __init__(
+        self,
+        input: GenerationInput,
+        options: BaseModel,
+        bootstrap: "Any" = None,
+    ) -> None: ...
 
     def run(self, out_dir: Path) -> PipelineResult: ...

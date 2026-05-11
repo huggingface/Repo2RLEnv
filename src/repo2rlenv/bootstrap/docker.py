@@ -225,12 +225,20 @@ class DockerSandbox:
             except Exception:
                 pass
 
-        pull = pull_image_streaming(
-            base_image, platform=platform, timeout=timeout,
-            on_progress=_pull_progress if on_phase is not None else None,
-        )
-        if not pull.ok:
-            raise DockerError(f"failed to pull {base_image!r}: {pull.stderr.strip()[:400]}")
+        # If the image is already in the local Docker cache (e.g. a tag we
+        # just committed in a previous bootstrap, or a local/r2e-bootstrap/...
+        # tag that was never pushed), skip the pull — `docker pull` would
+        # fail trying to contact a registry that doesn't have it.
+        already_local = _run(
+            ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"], timeout=10,
+        ).ok
+        if not already_local:
+            pull = pull_image_streaming(
+                base_image, platform=platform, timeout=timeout,
+                on_progress=_pull_progress if on_phase is not None else None,
+            )
+            if not pull.ok:
+                raise DockerError(f"failed to pull {base_image!r}: {pull.stderr.strip()[:400]}")
         if on_phase is not None:
             try:
                 on_phase("pull_done", {"detail": base_image})
