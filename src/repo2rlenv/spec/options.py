@@ -43,6 +43,10 @@ class PRRuntimeOptions(_BaseOptions):
     max_source_files_per_pr: int = 50       # PRs touching >N source files are excluded
     min_problem_statement_words: int = 0    # Lite ≈ 40
 
+    # --- Structural filters (cheap, applied before validation) ---
+    require_new_test_funcs: bool = True     # test_patch must add ≥1 new test func/class
+    skip_ci_only: bool = True               # auto-skip when source patch is 100% under .github/
+
 
 class PRDiffOptions(_BaseOptions):
     """SWE-RL-style: text-only PR mining, no execution, no Docker."""

@@ -68,3 +68,46 @@ def test_last_write_wins_for_same_test():
     log = "SKIPPED tests/foo.py::test_x\nPASSED tests/foo.py::test_x\n"
     status = parse_pytest(log)
     assert status["tests/foo.py::test_x"] == "PASSED"
+
+
+def test_parses_verbose_progress_lines():
+    """pytest -v emits `test_name STATUS [N%]` — must be handled (P1 fix)."""
+    log = """\
+tests/test_a.py::test_one PASSED                                         [ 25%]
+tests/test_a.py::test_two FAILED                                         [ 50%]
+tests/test_b.py::test_three SKIPPED                                      [ 75%]
+"""
+    status = parse_pytest(log)
+    assert status == {
+        "tests/test_a.py::test_one": "PASSED",
+        "tests/test_a.py::test_two": "FAILED",
+        "tests/test_b.py::test_three": "SKIPPED",
+    }
+
+
+def test_ignores_random_lines_with_PASSED_in_them():
+    """Lines like 'Some thing PASSED something' shouldn't match — name must look like a test id."""
+    log = """\
+INFO     setup PASSED initialization
+some random output
+checking PASSED status
+"""
+    status = parse_pytest(log)
+    assert status == {}
+
+
+def test_handles_mixed_verbose_and_summary():
+    """Real pytest -v output has both formats — progress THEN summary."""
+    log = """\
+tests/test_a.py::test_one PASSED                                         [ 50%]
+tests/test_a.py::test_two FAILED                                         [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_two ______________________________
+    assert 1 == 2
+=========================== short test summary info ============================
+FAILED tests/test_a.py::test_two - AssertionError
+"""
+    status = parse_pytest(log)
+    assert status["tests/test_a.py::test_one"] == "PASSED"
+    assert status["tests/test_a.py::test_two"] == "FAILED"

@@ -64,18 +64,50 @@ _CLOSES_RE = re.compile(
     r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE
 )
 
-# Keywords matched on hunk file paths to decide "is this a test file?"
-# (Mirrors SWE-bench's collect/utils.py:extract_patches)
-_TEST_PATH_KEYWORDS = ("test", "tests", "e2e", "testing")
+# Path-component classifier for "is this a test file?".
+#
+# SWE-bench's heuristic is a substring match on the full path — which over-fires:
+# `docs/testing.md`, `src/click/testing.py`, etc. all become "test files".
+# We instead match on PATH COMPONENTS (split by /) and explicitly exclude
+# documentation paths.
+_TEST_DIR_NAMES = {"test", "tests", "testing", "e2e", "__tests__"}
+_DOC_PREFIX_DIRS = {"docs", "doc", "documentation", "examples", "example"}
 
 
 def _path_is_test(path: str) -> bool:
-    """True if the file path looks like a test file by SWE-bench's heuristic."""
+    """True if the file is a real test file, false for docs / src files
+    that merely contain a test keyword in their path.
+
+    Rules:
+      1. Files under a documentation root (`docs/`, `examples/`, ...) are
+         NEVER test files, even if their name contains "test".
+      2. Files inside a test directory component (any path part in
+         `_TEST_DIR_NAMES`) are test files.
+      3. Files with a pytest-style basename (`test_*.py`, `*_test.py`,
+         `*_test.go`) are test files.
+    """
     if not path:
         return False
-    # Match on any component containing a test keyword (case-insensitive)
-    lower = path.lower()
-    return any(kw in lower for kw in _TEST_PATH_KEYWORDS)
+    parts = [p.lower() for p in path.split("/") if p]
+    if not parts:
+        return False
+    # Rule 1: skip anything under a docs root
+    if parts[0] in _DOC_PREFIX_DIRS:
+        return False
+    # Rule 2: any directory component is a known test dir
+    # (excluding the last component, which is the file name)
+    for component in parts[:-1]:
+        if component in _TEST_DIR_NAMES:
+            return True
+    # Rule 3: filename-level test markers
+    basename = parts[-1]
+    if basename.startswith("test_") and (basename.endswith(".py") or basename.endswith(".js") or basename.endswith(".ts")):
+        return True
+    if basename.endswith("_test.py") or basename.endswith("_test.go") or basename.endswith(".test.ts") or basename.endswith(".test.js"):
+        return True
+    if basename.endswith(".spec.ts") or basename.endswith(".spec.js"):
+        return True
+    return False
 
 
 # Match `diff --git a/<path> b/<path>` block boundaries to split a unified diff
@@ -188,6 +220,26 @@ def _files_in_patch(unified_diff: str) -> list[str]:
     return seen
 
 
+# Lines in a test_patch that introduce a new test function/class.
+# Python: `+def test_foo(...)`, `+    def test_bar(...)`, `+class TestX`
+# JS/TS:  `+it(`, `+test(`, `+describe(` (not currently filtered)
+# Go:     `+func TestFoo(`
+_NEW_TEST_FUNC_RE = re.compile(
+    r"^\+\s*(?:def\s+test_\w+|class\s+\w*[Tt]est\w*|func\s+Test\w+|it\s*\(|test\s*\(|describe\s*\()",
+)
+
+
+def _count_new_test_funcs(test_patch: str) -> int:
+    """Count new test-function definitions added in a unified diff.
+
+    Used to filter out PRs whose test_patch is comment-only or docstring-only
+    (cosmetic changes that can't produce a FAIL_TO_PASS oracle).
+    """
+    if not test_patch.strip():
+        return 0
+    return sum(1 for line in test_patch.splitlines() if _NEW_TEST_FUNC_RE.match(line))
+
+
 def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     """Adapt bootstrap-recorded test commands for actual per-PR execution.
 
@@ -209,6 +261,55 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         if re.search(r"\bpytest\b", cleaned) and not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
             cleaned = cleaned.rstrip() + " -v"
         out.append(cleaned.strip())
+    return out
+
+
+# Pytest-style file extensions we know how to target. Anything else triggers
+# the fallback to "run the whole suite".
+_PYTEST_TARGETABLE_EXT = (".py",)
+
+
+def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> list[str]:
+    """Limit the test invocation to the file paths the PR's test_patch touches.
+
+    Running the whole suite on every PR is 10-50× slower than running only
+    the files the PR cares about. SWE-bench-Live's harness does the same.
+
+    Rules:
+      - Only applied to pytest invocations (other runners may not support
+        positional file args reliably).
+      - Skip if the cmd already has a positional path arg (assume the user
+        meant that).
+      - Skip if no test_files are .py (e.g. test_patch only touched
+        snapshot fixtures or YAML).
+      - Otherwise: append the test files to the command.
+    """
+    if not test_files:
+        return test_cmds
+    py_files = [f for f in test_files if f.endswith(_PYTEST_TARGETABLE_EXT)]
+    if not py_files:
+        return test_cmds
+
+    out: list[str] = []
+    for cmd in test_cmds:
+        if not re.search(r"\bpytest\b", cmd):
+            out.append(cmd)
+            continue
+        # If cmd already contains a positional path arg (after `pytest`,
+        # token that doesn't start with `-`), don't double-up
+        tokens = cmd.split()
+        try:
+            pytest_idx = tokens.index("pytest")
+        except ValueError:
+            # `pytest` not a standalone token (e.g. `python -m pytest`)
+            pytest_idx = next((i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")), -1)
+        if pytest_idx >= 0:
+            tail = tokens[pytest_idx + 1 :]
+            has_path_arg = any(not t.startswith("-") and (t.endswith(".py") or "/" in t) for t in tail)
+            if has_path_arg:
+                out.append(cmd)
+                continue
+        out.append(cmd.rstrip() + " " + " ".join(py_files))
     return out
 
 
@@ -304,6 +405,15 @@ class PRRuntimePipeline:
                     self._emit_progress(pr_label, "skip", "no_test_patch")
                     continue
 
+                # Structural quality filters (cheap, run before validation):
+                # - CI-only PRs: source patch is 100% under .github/
+                # - No new test functions: test_patch only edits comments/docstrings
+                structural_reason = self._structural_quality_filter(patch, test_patch)
+                if structural_reason:
+                    skip_reasons[structural_reason] = skip_reasons.get(structural_reason, 0) + 1
+                    self._emit_progress(pr_label, "skip", structural_reason)
+                    continue
+
                 # Lite-style structural filters
                 lite_reason = self._lite_filter(pr, patch)
                 if lite_reason:
@@ -320,12 +430,16 @@ class PRRuntimePipeline:
                         sandbox = self._start_validation_sandbox()
                     from repo2rlenv.pipelines.pr_runtime_validate import validate_pr
 
+                    targeted_cmds = targeted_test_cmds_for_pr(
+                        normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                        _files_in_patch(test_patch),
+                    )
                     outcome = validate_pr(
                         sandbox=sandbox,
                         base_commit=pr.base_sha,
                         patch=patch,
                         test_patch=test_patch,
-                        test_cmds=normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                        test_cmds=targeted_cmds,
                         timeout=self.options.validation_timeout_sec,
                     )
                     fail_to_pass = outcome.fail_to_pass
@@ -376,6 +490,34 @@ class PRRuntimePipeline:
         if self.options.min_problem_statement_words > 0:
             if _word_count(pr.body or "") < self.options.min_problem_statement_words:
                 return "problem_statement_too_short"
+        return None
+
+    def _structural_quality_filter(self, source_patch: str, test_patch: str) -> str | None:
+        """Cheap diff-level filters that catch over-emitted task types.
+
+        Returns a skip reason string, or None to keep.
+
+        Two filters here, both shipping a lot of false positives in v0.3:
+          1. CI-only PRs: source patch is 100% under .github/. These are
+             tooling changes (zizmor scan, publish workflows) — no real
+             code-fix signal.
+          2. No new test functions: test_patch only edits comments /
+             docstrings (e.g. typo cleanup PRs). Without a new test that
+             FAILS at base_commit, there can be no FAIL_TO_PASS oracle.
+        """
+        source_files = _files_in_patch(source_patch)
+        # Filter 1: CI-only — all source files are workflow YAMLs
+        if (
+            self.options.skip_ci_only
+            and source_files
+            and all(p.startswith(".github/") for p in source_files)
+        ):
+            return "ci_only_patch"
+        # Filter 2: test_patch must add ≥1 new test function
+        if self.options.require_new_test_funcs:
+            n_new = _count_new_test_funcs(test_patch)
+            if n_new < 1:
+                return "no_new_test_funcs"
         return None
 
     def _lite_filter(self, pr: PullRequestSummary, source_patch: str) -> str | None:
@@ -436,7 +578,10 @@ class PRRuntimePipeline:
         eval_script = build_eval_script(
             base_commit=pr.base_sha,
             test_patch=test_patch,
-            test_cmds=normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+            test_cmds=targeted_test_cmds_for_pr(
+                normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                _files_in_patch(test_patch),
+            ),
         )
         dockerfile = (
             f"# Auto-generated by Repo2RLEnv pr_runtime\n"

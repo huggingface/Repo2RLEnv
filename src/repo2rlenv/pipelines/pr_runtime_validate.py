@@ -56,6 +56,11 @@ def _build_stage_script(
     Always resets to base_commit first, then applies whichever patches the
     caller supplies (None ⇒ skip), then runs the test commands wrapped in
     START/END markers so the parser knows where output starts.
+
+    Assumes the caller has already ensured `base_commit` is fetchable in the
+    container's git object database (see `_fetch_base_commit`). The bootstrap
+    image only ships the shallow-clone HEAD, so historical PR base commits
+    aren't present until we fetch them explicitly.
     """
     parts: list[str] = [
         "set -uxo pipefail",
@@ -72,6 +77,56 @@ def _build_stage_script(
     parts.append(" && ".join(test_cmds) if test_cmds else "echo 'no test_cmds'")
     parts.append(": 'END_TEST_OUTPUT'")
     return "\n".join(parts)
+
+
+def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int = 120) -> bool:
+    """Make `base_commit` available in the container's git object db.
+
+    Bootstrap shallow-clones at depth=1, so only the bootstrap-time HEAD is
+    present. Without this fetch, `git reset --hard <historical_sha>` would
+    fail silently or reset against the wrong tree, masking validation bugs.
+
+    Strategy:
+      1. If the commit already exists locally (e.g. it IS bootstrap HEAD or
+         we fetched it on a prior PR in this sandbox), skip — fast path.
+      2. Else `git fetch --depth 1 origin <sha>` to pull just that one commit.
+         Falls back to deepening the shallow clone if the server refuses
+         a by-sha fetch.
+
+    Returns True if base_commit is now reachable, False otherwise.
+    """
+    # Fast path: already present
+    have = sandbox.exec(
+        f"git -C /workspace cat-file -e {base_commit} 2>/dev/null && echo OK",
+        timeout=15,
+    )
+    if have.ok and "OK" in have.stdout:
+        return True
+
+    # Try direct by-sha fetch (works on GitHub since 2017's uploadpack.allowAnySHA1InWant)
+    r = sandbox.exec(
+        f"cd /workspace && git fetch --depth 1 origin {base_commit}",
+        timeout=timeout,
+    )
+    if r.ok:
+        return True
+    logger.warning(
+        "validate_pr: direct fetch of %s failed (%s); deepening clone",
+        base_commit[:12], r.stderr.strip()[:200] if r.stderr else "",
+    )
+    # Fallback: unshallow. Slower but always works.
+    r = sandbox.exec(
+        "cd /workspace && git fetch --unshallow origin || git fetch --depth 1000 origin",
+        timeout=timeout * 2,
+    )
+    if not r.ok:
+        return False
+    # Re-check
+    have = sandbox.exec(
+        f"git -C /workspace cat-file -e {base_commit} 2>/dev/null && echo OK",
+        timeout=15,
+    )
+    return have.ok and "OK" in have.stdout
 
 
 def _slice_test_output(output: str) -> str:
@@ -104,6 +159,15 @@ def validate_pr(
         return ValidationOutcome(
             status="failed",
             reason="bootstrap did not record any test_cmds",
+        )
+
+    # Ensure the base commit is in the container's object db before any
+    # `git reset --hard <sha>`. Bootstrap shallow-clones at depth=1, so
+    # historical PR base commits aren't present by default.
+    if not _fetch_base_commit(sandbox, base_commit, timeout=timeout):
+        return ValidationOutcome(
+            status="failed",
+            reason=f"could not fetch base_commit {base_commit[:12]} in sandbox",
         )
 
     # Stage 1: pre-fix (apply test_patch only) — captures the "buggy" baseline.

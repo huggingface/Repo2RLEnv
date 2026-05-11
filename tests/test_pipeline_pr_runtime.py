@@ -17,11 +17,13 @@ import pytest
 
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
+    _count_new_test_funcs,
     _files_in_patch,
     _path_is_test,
     build_eval_script,
     normalize_test_cmds_for_runtime,
     split_patch_and_test_patch,
+    targeted_test_cmds_for_pr,
 )
 
 
@@ -92,12 +94,25 @@ diff --git a/src/foo.py b/tests/test_foo.py
 
 
 def test_path_is_test_heuristic():
+    # True positives: files inside test directories
     assert _path_is_test("tests/test_foo.py")
     assert _path_is_test("src/e2e/something.py")
     assert _path_is_test("module/testing/util.py")
-    assert _path_is_test("src/foo_test.py")  # "test" appears anywhere in the name
+    # True positives: filename-level markers
+    assert _path_is_test("src/foo_test.py")
+    assert _path_is_test("pkg/util_test.go")
+    assert _path_is_test("components/Foo.spec.ts")
+    # True negatives: source files
     assert not _path_is_test("src/foo.py")
     assert not _path_is_test("")
+    # True negatives: docs that happen to contain "test"/"testing" in path
+    # (THE bug we shipped — `docs/testing.md` shouldn't be classified as a test)
+    assert not _path_is_test("docs/testing.md")
+    assert not _path_is_test("docs/test_strategy.md")
+    assert not _path_is_test("examples/test_app.py")
+    # True negatives: source files with "testing" in the path
+    # (e.g. click's src/click/testing.py is the CliRunner module, not a test)
+    assert not _path_is_test("src/click/testing.py")
 
 
 def test_files_in_patch_returns_unique_paths():
@@ -145,6 +160,56 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
 
 
+# --- _count_new_test_funcs ---------------------------------------------------
+
+
+def test_count_new_test_funcs_python():
+    """Counts +def test_* and +class .*Test in unified diffs."""
+    diff = """\
++def test_one():
++    assert True
++
++    def test_method_inner(self):
++        pass
++
++class TestSomething:
++    def test_method(self):
++        pass
+"""
+    assert _count_new_test_funcs(diff) == 4
+
+
+def test_count_new_test_funcs_ignores_modifications():
+    """Lines without leading + (e.g. context lines, removals) don't count."""
+    diff = """\
+ def test_existing():
+-def test_removed():
++def test_added():
+     # context test_misleading docstring
++    # this is +just a comment with test_ word
+"""
+    # Only +def test_added() matches; everything else is removed/context/comment
+    assert _count_new_test_funcs(diff) == 1
+
+
+def test_count_new_test_funcs_handles_empty():
+    assert _count_new_test_funcs("") == 0
+    assert _count_new_test_funcs("   \n  ") == 0
+
+
+def test_count_new_test_funcs_go_and_js():
+    """Cross-language: Go's `func TestX(` and JS's `it(`/`test(`/`describe(`."""
+    diff = """\
++func TestParseConfig(t *testing.T) {
++}
++it('returns 200', () => {});
++test('returns 200', () => {});
++describe('module', () => {});
+"""
+    # 1 Go + 1 it() + 1 test() + 1 describe() = 4
+    assert _count_new_test_funcs(diff) == 4
+
+
 # --- normalize_test_cmds_for_runtime -----------------------------------------
 
 
@@ -169,6 +234,41 @@ def test_normalize_adds_v_only_when_pytest():
 def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
+
+
+# --- targeted_test_cmds_for_pr ----------------------------------------------
+
+
+def test_targeted_appends_test_files_to_pytest():
+    """pytest -v becomes pytest -v tests/foo.py when test_patch touches foo."""
+    out = targeted_test_cmds_for_pr(["pytest -v"], ["tests/test_foo.py", "tests/test_bar.py"])
+    assert out == ["pytest -v tests/test_foo.py tests/test_bar.py"]
+
+
+def test_targeted_passes_non_pytest_through():
+    """Non-pytest runners (go test, npm test) don't get rewritten — different arg conventions."""
+    assert targeted_test_cmds_for_pr(["go test ./..."], ["pkg/foo_test.go"]) == ["go test ./..."]
+    assert targeted_test_cmds_for_pr(["npm test"], ["src/foo.test.ts"]) == ["npm test"]
+
+
+def test_targeted_skips_when_no_test_files():
+    """Empty test_files → don't touch the command."""
+    assert targeted_test_cmds_for_pr(["pytest -v"], []) == ["pytest -v"]
+
+
+def test_targeted_skips_when_pytest_already_has_path():
+    """If user already passed a path argument, don't double-up."""
+    out = targeted_test_cmds_for_pr(["pytest -v tests/"], ["tests/test_foo.py"])
+    assert out == ["pytest -v tests/"]
+
+
+def test_targeted_filters_non_py_test_files():
+    """Snapshot fixtures / YAML test data shouldn't end up as pytest args."""
+    out = targeted_test_cmds_for_pr(
+        ["pytest -v"],
+        ["tests/snapshots/foo.json", "tests/test_real.py"],
+    )
+    assert out == ["pytest -v tests/test_real.py"]
 
 
 # --- pipeline contract --------------------------------------------------------
