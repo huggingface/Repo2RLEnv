@@ -251,6 +251,8 @@ def ensure_bootstrap(
     *,
     force: bool = False,
     on_turn=None,
+    on_thinking=None,
+    on_executing=None,
     on_phase=None,
 ) -> BootstrapResult:
     """Return a working bootstrap image for (repo, ref). Cached after first call.
@@ -281,11 +283,20 @@ def ensure_bootstrap(
     if spec.user_dockerfile is not None:
         return _bootstrap_from_user_dockerfile(repo, spec, llm, token, force=force)
 
+    def _emit(phase: str, details: dict | None = None) -> None:
+        if on_phase is not None:
+            try:
+                on_phase(phase, details or {})
+            except Exception as exc:
+                logger.debug("on_phase callback failed: %s", exc)
+
     with tempfile.TemporaryDirectory(prefix="r2e-clone-") as tmp:
         clone_dir = Path(tmp) / "repo"
+        _emit("clone_start", {"detail": f"{repo.url} @ {repo.ref}"})
         logger.info("cloning %s @ %s into %s", repo.url, repo.ref, clone_dir)
         _shallow_clone_at_ref(repo.url, repo.ref, token, clone_dir)
         ref_sha = _resolve_head_sha(clone_dir)
+        _emit("clone_done", {"detail": f"{repo.url} @ {ref_sha[:12]}"})
 
         # Cache check (after we know the resolved SHA)
         owner_name = "/".join(repo.owner_name)
@@ -293,6 +304,9 @@ def ensure_bootstrap(
             cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir)
             if cached is not None and cached.image_digest:
                 logger.info("bootstrap cache hit: %s", cached.image_digest)
+                for p in ("pull", "sandbox", "agent", "commit"):
+                    _emit(f"{p}_skipped", {"detail": "cache hit"})
+                _emit("push_skipped", {"detail": "cache hit"})
                 return cached
 
         # Decide language + base image
@@ -306,13 +320,24 @@ def ensure_bootstrap(
             lang = detect_language(clone_dir)
         base_image = spec.base_image or base_image_for(lang)
 
-        # Spin up sandbox
+        # Tell any listening UI about the resolved language/base so it can
+        # update its header (the CLI fills these in as "unknown" / "ubuntu" at
+        # construction time, before the clone has happened).
+        if on_phase is not None:
+            try:
+                on_phase("detected", {"language": lang.value, "base_image": base_image})
+            except Exception as exc:
+                logger.debug("on_phase callback failed: %s", exc)
+
+        # Spin up sandbox (emits its own pull_*/sandbox_* phase events)
         start = time.monotonic()
         with DockerSandbox.start(
             base_image,
             clone_dir,
             platform=spec.platform,
+            on_phase=_emit,
         ) as sandbox:
+            _emit("agent_start", {"detail": f"max {spec.max_iterations} iters"})
             # Quick sanity: git is installed in the container (most base images include it)
             outcome = run_agent_loop(
                 sandbox,
@@ -325,6 +350,8 @@ def ensure_bootstrap(
                 max_seconds=spec.max_seconds,
                 platform=spec.platform,
                 on_turn=on_turn,
+                on_thinking=on_thinking,
+                on_executing=on_executing,
             )
 
             # Always persist the transcript — even on failure — for debugging.
@@ -344,11 +371,13 @@ def ensure_bootstrap(
                 logger.warning("could not write transcript: %s", exc)
 
             if not outcome.success:
+                _emit("agent_failed", {"detail": outcome.reason[:80]})
                 raise BootstrapError(
                     f"bootstrap failed: {outcome.reason} "
                     f"(iterations={outcome.iterations}, cost≈${outcome.total_cost_estimate_usd:.2f}). "
                     f"Transcript at {failure_slot / 'transcript.jsonl'}"
                 )
+            _emit("agent_done", {"detail": f"{outcome.iterations} iters"})
 
             # Soft smoke gate — runs ALL test_cmds JOINED in one shell so PATH
             # exports etc. carry over. Treats individual test failures as fine
@@ -371,10 +400,13 @@ def ensure_bootstrap(
             owner, name = repo.owner_name
             slug = f"{owner}__{name}".replace("/", "__").lower()
             tag = f"{tag_base}/{slug}:{ref_sha[:12]}".lstrip("/")
+            _emit("commit_start", {"detail": tag})
             image_digest = sandbox.commit(tag, message=f"r2e bootstrap {owner_name}@{ref_sha[:12]}")
+            _emit("commit_done", {"detail": image_digest[-24:]})
 
             pushed = False
             if spec.image_registry and "/" in spec.image_registry:
+                _emit("push_start", {"detail": tag})
                 pushed = sandbox.push(tag)
                 if pushed:
                     # After push, `docker image inspect` now returns RepoDigests
@@ -389,6 +421,11 @@ def ensure_bootstrap(
                             "image_digest stays at the local id %s",
                             tag, image_digest,
                         )
+                    _emit("push_done", {"detail": image_digest[-24:]})
+                else:
+                    _emit("push_failed", {"detail": "see logs"})
+            else:
+                _emit("push_skipped", {"detail": "no --image-registry"})
 
         build_time = time.monotonic() - start
         dockerfile = _reconstruct_dockerfile(base_image, outcome.transcript)

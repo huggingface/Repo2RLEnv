@@ -13,11 +13,16 @@ You are inside a long-lived container. The repository is checked out at
 `/workspace`. State carries between commands — files you create, packages
 you install, and environment variables you set all persist.
 
-You have these tools. Emit EXACTLY one tool call per turn, in this format:
+You have these tools. Emit EXACTLY ONE tool call per turn, in this format:
 
   Thought: <one or two sentences of reasoning>
   Action: <TOOL_NAME>
   Input: <argument string>
+
+IMPORTANT: emit ONE Thought/Action/Input block per response, NEVER multiple.
+If you have two things to do, do the first; the next turn lets you do the
+second. Multiple Action blocks in one response cause the second to be
+parsed as part of the first command and FAIL.
 
 Tools:
 

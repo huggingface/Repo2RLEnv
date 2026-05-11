@@ -115,14 +115,26 @@ class DockerSandbox:
         workdir: str = "/workspace",
         env: dict[str, str] | None = None,
         timeout: int = 600,
+        on_phase=None,
     ) -> "DockerSandbox":
         if not is_docker_available():
             raise DockerError("Docker daemon is not running (or `docker` is not on PATH).")
         name = f"r2e-bootstrap-{uuid.uuid4().hex[:8]}"
         # Pull first so the start-up isn't conflated with image-not-found errors.
+        if on_phase is not None:
+            try:
+                on_phase("pull_start", {"detail": base_image})
+            except Exception:
+                pass
         pull = pull_image(base_image, platform=platform, timeout=timeout)
         if not pull.ok:
             raise DockerError(f"failed to pull {base_image!r}: {pull.stderr.strip()[:400]}")
+        if on_phase is not None:
+            try:
+                on_phase("pull_done", {"detail": base_image})
+                on_phase("sandbox_start", {"detail": name})
+            except Exception:
+                pass
         # IMPORTANT: we COPY the repo into the container instead of bind-mounting.
         # Bind mounts aren't captured by `docker commit`, so a bind-mounted /workspace
         # would leave the committed image with an empty repo dir. We want the repo
@@ -155,6 +167,11 @@ class DockerSandbox:
         if not cp.ok:
             _run(["docker", "rm", "-f", cid], timeout=10)
             raise DockerError(f"docker cp into container failed: {cp.stderr.strip()[:400]}")
+        if on_phase is not None:
+            try:
+                on_phase("sandbox_done", {"detail": name})
+            except Exception:
+                pass
         return cls(container_id=cid, repo_mount=str(repo_dir.resolve()), platform=platform)
 
     def exec(self, command: str, *, timeout: int = 300) -> ExecResult:

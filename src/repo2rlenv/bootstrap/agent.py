@@ -53,9 +53,12 @@ class AgentOutcome:
     total_cost_estimate_usd: float = 0.0
 
 
-# Loose regex parser — handles minor LLM formatting drift
+# Loose regex parser. Stops capturing Input at the next Action:/Thought:
+# header so a runaway LLM that emits multiple action blocks in one response
+# doesn't have its second block fed into bash as part of the first command.
 _ACTION_RE = re.compile(
-    r"Thought:\s*(?P<thought>.*?)\n+Action:\s*(?P<action>\w+)\s*\n+Input:\s*(?P<input>.*?)(?:\n\n|\Z)",
+    r"Thought:\s*(?P<thought>.*?)\n+Action:\s*(?P<action>\w+)\s*\n+Input:\s*"
+    r"(?P<input>.*?)(?=\n+Action:|\n+Thought:|\Z)",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -119,6 +122,8 @@ def run_agent_loop(
     max_seconds: int = 1800,
     platform: str = "linux/amd64",
     on_turn: Callable[[AgentTurn, float], None] | None = None,
+    on_thinking: Callable[[int], None] | None = None,
+    on_executing: Callable[[int, "AgentAction"], None] | None = None,
 ) -> AgentOutcome:
     """Drive the bootstrap agent until it succeeds, gives up, or hits a budget."""
     system = system_prompt(language=language, base_image=base_image, platform=platform)
@@ -137,6 +142,12 @@ def run_agent_loop(
                 total_cost_estimate_usd=total_cost,
             )
 
+        if on_thinking is not None:
+            try:
+                on_thinking(step)
+            except Exception as exc:
+                logger.debug("on_thinking callback failed: %s", exc)
+
         user_msg = "\n\n".join(history)
         turn_start = time.monotonic()
         response = complete(llm, system=system, user=user_msg, max_tokens=2048, temperature=0.2)
@@ -146,6 +157,12 @@ def run_agent_loop(
             "step=%d action=%s cost=$%.4f thought=%.80s",
             step, action.name, response.cost_usd, thought,
         )
+
+        if on_executing is not None and action.name not in ("INVALID", "GIVE_UP", "SAVE_SETUP"):
+            try:
+                on_executing(step, action)
+            except Exception as exc:
+                logger.debug("on_executing callback failed: %s", exc)
 
         if action.name == "INVALID":
             history.append(
