@@ -2,19 +2,13 @@ name: Release
 
 # Triggered when a GitHub Release is published.
 # Build the sdist + wheel, attach them to the Release, then publish to PyPI
-# via OIDC (trusted publisher) — no API token needed in repo secrets.
+# using the PYPI_API_TOKEN repo secret.
 #
-# One-time PyPI setup (must be done by a project maintainer once, before the
-# first run of this workflow can succeed):
-#
-#   1. Go to https://pypi.org/manage/project/repo2rlenv/settings/publishing/
-#   2. Click "Add a new pending publisher" → fill in:
-#        - PyPI Project Name: repo2rlenv
-#        - Owner:             adithya-s-k
-#        - Repository name:   Repo2RLEnv
-#        - Workflow filename: release.yml
-#        - Environment:       pypi
-#   3. Save. From then on, any tag-triggered Release will publish.
+# Prerequisite: add a project-scoped PyPI API token as a GitHub repo secret
+# named PYPI_API_TOKEN. Generate at:
+#   https://pypi.org/manage/account/token/
+# Add at:
+#   https://github.com/adithya-s-k/Repo2RLEnv/settings/secrets/actions/new
 #
 # To cut a release:
 #   git tag v0.3.0 && git push origin v0.3.0
@@ -109,16 +103,12 @@ jobs:
           retention-days: 30
 
   publish-pypi:
-    name: Publish to PyPI (trusted publisher)
+    name: Publish to PyPI (API token)
     runs-on: ubuntu-latest
     needs: [build]
     environment:
       name: pypi
       url: https://pypi.org/p/repo2rlenv
-    # Trusted-publishing requires id-token: write so GH issues the OIDC token
-    # PyPI uses to verify this workflow against the registered publisher.
-    permissions:
-      id-token: write
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -128,7 +118,10 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # Trusted publisher: no `password` field — OIDC handles it
+          # API-token auth via the PYPI_API_TOKEN repo secret. (We can move
+          # to OIDC trusted-publishing later by deleting `password:` and adding
+          # `permissions: id-token: write` + a pending publisher on pypi.org.)
+          password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: dist/
           # Skip if PyPI already has this version (allows re-runs after fix)
           skip-existing: true
