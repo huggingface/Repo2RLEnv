@@ -54,6 +54,22 @@ def _scrub_token(text: str, token: str | None) -> str:
     return text.replace(token, "***") if token else text
 
 
+def _cache_options(spec: BootstrapSpec) -> dict[str, object]:
+    """Stable, image-identity-affecting subset of the spec for the cache key.
+
+    Anything that would produce a *different* image must go here. We
+    deliberately exclude max_iterations / max_seconds / max_llm_spend_usd
+    since those bound the build process, not the result.
+    """
+    return {
+        "platform": spec.platform,
+        "base_image": spec.base_image,
+        "user_dockerfile": str(spec.user_dockerfile) if spec.user_dockerfile else None,
+        "image_registry": spec.image_registry,
+        "languages_hint": spec.languages_hint,
+    }
+
+
 def _run_git_streaming(
     args: list[str],
     *,
@@ -190,6 +206,27 @@ def _shallow_clone_at_ref(
         )
 
 
+def _scrub_clone_credentials(clone_dir: Path, repo_url: str) -> None:
+    """Reset the clone's remote URL to a token-free form.
+
+    `auth_clone_url()` embeds the GitHub PAT into the clone URL so the
+    private fetch works, but git records that exact URL in `.git/config`.
+    We later `docker cp <clone>/. <container>:/workspace` and `docker commit`,
+    which bakes `.git/config` (token and all) into the published image.
+
+    Stripping the remote URL post-clone is the simplest fix; alternatively
+    we could drop `.git/` entirely, but the bootstrap agent sometimes needs
+    git metadata (tags, blame) to make sense of the repo.
+    """
+    try:
+        subprocess.run(
+            ["git", "-C", str(clone_dir), "remote", "set-url", "origin", repo_url],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("could not scrub clone remote url (token may persist in image): %s", exc)
+
+
 def _resolve_repo_digest(tag: str) -> str | None:
     """Return the pullable `repo@sha256:...` digest for a tagged image, if any.
 
@@ -232,11 +269,15 @@ def _bootstrap_from_user_dockerfile(
         clone_dir = Path(tmp) / "repo"
         logger.info("cloning %s @ %s for user_dockerfile build", repo.url, repo.ref)
         _shallow_clone_at_ref(repo.url, repo.ref, token, clone_dir)
+        # Scrub token from .git/config before the dir becomes the Docker build context
+        if token:
+            _scrub_clone_credentials(clone_dir, repo.url)
         ref_sha = _resolve_head_sha(clone_dir)
         owner_name = "/".join(repo.owner_name)
+        cache_opts = _cache_options(spec)
 
         if not force:
-            cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir)
+            cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
             if cached is not None and cached.image_digest:
                 logger.info("user_dockerfile cache hit: %s", cached.image_digest)
                 return cached
@@ -296,7 +337,7 @@ def _bootstrap_from_user_dockerfile(
             pushed_to_registry=pushed,
             extra={"source": "user_dockerfile", "dockerfile_path": str(dockerfile)},
         )
-        cache_mod.save(result, spec.cache_dir)
+        cache_mod.save(result, spec.cache_dir, options=cache_opts)
         logger.info("user_dockerfile bootstrap done: %s -> %s", owner_name, image_digest[:48])
         return result
 
@@ -307,14 +348,26 @@ def _reconstruct_dockerfile(base_image: str, turns: list) -> str:
     Not always perfectly reproducible (commands may have depended on state
     from earlier non-BASH actions), but a useful starting point for users
     who want to rebuild without re-running the agent.
+
+    The agent operates in /workspace with the repo already present, so
+    most of its RUN commands (e.g. `pip install -e .`, `pytest`) assume
+    repo files are in CWD. We replicate that by setting WORKDIR and
+    COPYing the build context in BEFORE replaying the agent's commands.
+    Users rebuild with: `docker build -t my-image .` from the repo root.
     """
-    lines = [f"# Auto-generated from r2e-bootstrap agent transcript", f"FROM {base_image}", ""]
+    lines = [
+        "# Auto-generated from r2e-bootstrap agent transcript.",
+        "# Build from the cloned repo root: `docker build -t my-image .`",
+        f"FROM {base_image}",
+        "WORKDIR /workspace",
+        "COPY . /workspace",
+        "",
+    ]
     for t in turns:
         if getattr(t.action, "name", None) == "BASH":
             cmd = t.action.input.replace("\n", " \\\n    ")
             lines.append(f"RUN {cmd}")
     lines.append("")
-    lines.append("WORKDIR /workspace")
     return "\n".join(lines)
 
 
@@ -373,13 +426,18 @@ def ensure_bootstrap(
             repo.url, repo.ref, token, clone_dir,
             on_progress=lambda line: _emit("clone_progress", {"detail": line}),
         )
+        # Scrub the embedded token from .git/config before the clone gets
+        # copied into the sandbox and baked into the committed image.
+        if token:
+            _scrub_clone_credentials(clone_dir, repo.url)
         ref_sha = _resolve_head_sha(clone_dir)
         _emit("clone_done", {"detail": f"{repo.url} @ {ref_sha[:12]}"})
 
         # Cache check (after we know the resolved SHA)
         owner_name = "/".join(repo.owner_name)
+        cache_opts = _cache_options(spec)
         if not force:
-            cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir)
+            cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
             if cached is not None and cached.image_digest:
                 logger.info("bootstrap cache hit: %s", cached.image_digest)
                 for p in ("pull", "sandbox", "agent", "commit"):
@@ -434,7 +492,7 @@ def ensure_bootstrap(
             )
 
             # Always persist the transcript — even on failure — for debugging.
-            failure_slot = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir)
+            failure_slot = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
             failure_slot.mkdir(parents=True, exist_ok=True)
             try:
                 with (failure_slot / "transcript.jsonl").open("w", encoding="utf-8") as f:
@@ -525,13 +583,13 @@ def ensure_bootstrap(
             dockerfile_reconstruction=dockerfile,
             pushed_to_registry=pushed,
         )
-        slot = cache_mod.save(result, spec.cache_dir)
+        slot = cache_mod.save(result, spec.cache_dir, options=cache_opts)
 
         # Transcript was already written during the agent loop; just link it.
-        transcript_path = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir) / "transcript.jsonl"
+        transcript_path = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts) / "transcript.jsonl"
         if transcript_path.exists():
             result.transcript_path = transcript_path
-            cache_mod.save(result, spec.cache_dir)  # re-save with transcript path
+            cache_mod.save(result, spec.cache_dir, options=cache_opts)  # re-save with transcript path
 
         logger.info(
             "bootstrap done: %s iterations=%d time=%.1fs digest=%s",

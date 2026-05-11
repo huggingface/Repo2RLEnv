@@ -117,3 +117,62 @@ def test_user_dockerfile_missing_path_raises(tmp_path: Path):
          mock.patch.object(runner, "_resolve_head_sha", return_value="a" * 40):
         with pytest.raises(BootstrapError, match="user_dockerfile not found"):
             runner.ensure_bootstrap(repo, spec, llm, AuthSpec())
+
+
+def test_reconstructed_dockerfile_is_rebuildable():
+    """Reconstructed Dockerfile must COPY the repo before agent RUNs.
+
+    The agent runs commands inside /workspace where the repo already exists;
+    `pip install -e .` etc. assume repo files in CWD. A Dockerfile that only
+    replays RUN lines without COPY would fail immediately on rebuild.
+    """
+    from repo2rlenv.bootstrap.runner import _reconstruct_dockerfile
+
+    class FakeAction:
+        def __init__(self, name, input):
+            self.name = name
+            self.input = input
+
+    class FakeTurn:
+        def __init__(self, action):
+            self.action = action
+
+    turns = [
+        FakeTurn(FakeAction("BASH", "pip install -e .")),
+        FakeTurn(FakeAction("BASH", "pytest --collect-only")),
+        FakeTurn(FakeAction("READ_FILE", "/workspace/setup.py")),  # non-BASH skipped
+    ]
+    dockerfile = _reconstruct_dockerfile("python:3.12-slim", turns)
+    assert "FROM python:3.12-slim" in dockerfile
+    workdir_idx = dockerfile.index("WORKDIR /workspace")
+    copy_idx = dockerfile.index("COPY . /workspace")
+    first_run_idx = dockerfile.index("RUN pip install")
+    assert workdir_idx < first_run_idx and copy_idx < first_run_idx, \
+        "WORKDIR + COPY must precede any RUN line"
+    # Non-BASH actions should not become RUN lines
+    assert "READ_FILE" not in dockerfile
+
+
+def test_scrub_clone_credentials_strips_token(tmp_path: Path):
+    """After cloning with a token, .git/config should not retain the token."""
+    import subprocess as sp
+    from repo2rlenv.bootstrap.runner import _scrub_clone_credentials
+
+    fake_token = "PLACEHOLDER_TEST_TOKEN_VALUE"
+    bare_url = "https://github.com/owner/name"
+    auth_url = f"https://x-access-token:{fake_token}@github.com/owner/name"
+
+    clone_dir = tmp_path / "repo"
+    clone_dir.mkdir()
+    sp.run(["git", "init", "-q"], cwd=clone_dir, check=True)
+    sp.run(["git", "remote", "add", "origin", auth_url],
+            cwd=clone_dir, check=True)
+
+    config = (clone_dir / ".git" / "config").read_text()
+    assert fake_token in config
+
+    _scrub_clone_credentials(clone_dir, bare_url)
+
+    config = (clone_dir / ".git" / "config").read_text()
+    assert fake_token not in config, "scrub must remove the embedded token"
+    assert bare_url in config, "remote URL should now be the clean form"

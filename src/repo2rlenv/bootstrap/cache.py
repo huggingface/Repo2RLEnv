@@ -2,37 +2,69 @@
 
 Layout under cache_dir (defaults to ./envs):
 
-  <cache_dir>/<owner>__<name>/<short_commit>/
+  <cache_dir>/<owner>__<name>/<short_commit>[__<opts_hash>]/
     bootstrap.json         # BootstrapResult, serialized
     Dockerfile             # reconstructed from agent commands
     transcript.jsonl       # full agent trace
+
+The opts_hash is appended when the spec deviates from defaults along axes
+that change image identity (platform, base_image, user_dockerfile,
+image_registry). Without it, a prior `linux/amd64` build would silently
+satisfy a later `--platform linux/arm64` request from the same SHA.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import asdict, fields, is_dataclass
 from pathlib import Path
+from typing import Any
 
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 
 logger = logging.getLogger(__name__)
 
 
-def cache_key(repo: str, ref: str, cache_dir: Path) -> Path:
-    """Return the cache directory for a (repo, ref) pair."""
+def _options_hash(opts: dict[str, Any] | None) -> str:
+    """Stable 8-char hash of spec options that affect image identity.
+
+    None / empty → returns "" so existing single-config caches keep their
+    short-commit-only path (backwards compatible with v0.2 caches).
+    """
+    if not opts:
+        return ""
+    # Sort + JSON-serialize for stability; ignore None values so a
+    # default-everywhere spec hashes the same as one with explicit defaults.
+    filtered = {k: v for k, v in opts.items() if v is not None}
+    if not filtered:
+        return ""
+    payload = json.dumps(filtered, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode()).hexdigest()[:8]
+
+
+def cache_key(
+    repo: str,
+    ref: str,
+    cache_dir: Path,
+    *,
+    options: dict[str, Any] | None = None,
+) -> Path:
+    """Return the cache directory for a (repo, ref, options) tuple."""
     owner, _, name = repo.partition("/")
     if not name:
         name = owner
         owner = "_"
     short = (ref or "head")[:12]
-    return cache_dir / f"{owner}__{name}" / short
+    opts_hash = _options_hash(options)
+    slug = f"{short}__{opts_hash}" if opts_hash else short
+    return cache_dir / f"{owner}__{name}" / slug
 
 
-def save(result: BootstrapResult, cache_dir: Path) -> Path:
+def save(result: BootstrapResult, cache_dir: Path, *, options: dict[str, Any] | None = None) -> Path:
     """Write a BootstrapResult to its cache slot. Returns the dir."""
-    slot = cache_key(result.repo, result.ref, cache_dir)
+    slot = cache_key(result.repo, result.ref, cache_dir, options=options)
     slot.mkdir(parents=True, exist_ok=True)
 
     payload = asdict(result)
@@ -48,9 +80,15 @@ def save(result: BootstrapResult, cache_dir: Path) -> Path:
     return slot
 
 
-def load(repo: str, ref: str, cache_dir: Path) -> BootstrapResult | None:
+def load(
+    repo: str,
+    ref: str,
+    cache_dir: Path,
+    *,
+    options: dict[str, Any] | None = None,
+) -> BootstrapResult | None:
     """Return a cached BootstrapResult, or None if not present / unparseable."""
-    slot = cache_key(repo, ref, cache_dir)
+    slot = cache_key(repo, ref, cache_dir, options=options)
     f = slot / "bootstrap.json"
     if not f.exists():
         return None
