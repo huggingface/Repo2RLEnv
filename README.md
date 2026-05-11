@@ -145,13 +145,13 @@ Every pipeline that draws from external work carries an Acknowledgment block in 
 
 Pre-alpha.
 
-- **v0.1** shipped on PyPI: `pr_diff` + HF Hub publish + diff-similarity reward, end-to-end on any GitHub repo (public or private).
-- **v0.2** in main: bootstrap phase (LLM-driven Docker env), unified Rich UI, content-addressed cache, registry-qualified pullable digests.
-- **v0.3** shipped on PyPI: `pr_runtime` pipeline (sandbox-verified PR mining with `FAIL_TO_PASS` / `PASS_TO_PASS` oracle), auto-triggered bootstrap, structural quality filters, targeted test invocation.
-- **v0.4** shipped on PyPI: polyglot log parsers (Go / Cargo / Jest), Harbor end-to-end verification (Mean reward 1.0 on Go via `urfave/cli`).
-- **v0.5** shipped on PyPI: `pr_stream` (continuous PR mining, watermark-based) + `commit_runtime` (commit-level mining, SWE-GEN style); defensive git install in emitted Dockerfile so any bootstrap base image works. Harbor-verified on both.
-- **v0.6 shipped on PyPI**: first LLM-synthesized pipelines — `mutation_bugs` (AST-based bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct inspired by Magicoder, with executable verifiers). Harbor-verified on `pallets/click` (Mean reward 1.000 on both). 271/271 tests passing.
-- **v0.7 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe) + HF Hub append-mode for `pr_stream` + polyglot mutation (Java/JS/Go via tree-sitter).
+- **v0.1.0** shipped on PyPI: `pr_diff` + HF Hub publish + diff-similarity reward, end-to-end on any GitHub repo (public or private).
+- **v0.2**: bootstrap phase (LLM-driven Docker env), unified Rich UI, content-addressed cache, registry-qualified pullable digests. (rolled into v0.3 release)
+- **v0.3.0** shipped on PyPI: `pr_runtime` pipeline (sandbox-verified PR mining with `FAIL_TO_PASS` / `PASS_TO_PASS` oracle), auto-triggered bootstrap, structural quality filters, targeted test invocation.
+- **v0.4.0** shipped on PyPI: polyglot log parsers (Go / Cargo / Jest), Harbor end-to-end verification (Mean reward 1.0 on Go via `urfave/cli`).
+- **v0.5**: `pr_stream` (continuous PR mining, watermark-based) + `commit_runtime` (commit-level mining, SWE-GEN style); defensive git install in emitted Dockerfile so any bootstrap base image works. Harbor-verified on both. (rolled into v0.6 release)
+- **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (AST-based bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct inspired by Magicoder, with executable verifiers). Harbor-verified on `pallets/click` (Mean reward 1.000 on both). 271/271 tests passing.
+- **v0.7 planned**: `equivalence_tests` (R2E-style behavioral equivalence) and/or `cve_patches` (security-flavored PR mining), plus the LLM-judged QA gate (SWE-Bench++ four-layer recipe), HF Hub append-mode for `pr_stream`, and polyglot mutation (Java/JS/Go via tree-sitter).
 
 ## License
 
