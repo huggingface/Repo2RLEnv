@@ -178,6 +178,56 @@ def test_build_eval_script_preserves_test_exit_code():
     assert test_block_pos < capture_pos < final_exit_pos
 
 
+def test_build_eval_script_writes_reward_file():
+    """Harbor verifier reads /logs/verifier/reward.txt — exit code alone isn't enough."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+    )
+    assert "mkdir -p /logs/verifier" in script
+    assert "/logs/verifier/reward.txt" in script
+    # Should write 1.0 on pass, 0.0 on fail
+    assert "1.0" in script and "0.0" in script
+
+
+def test_build_eval_script_no_path_prelude_for_python():
+    """Python is always on PATH in standard images; no prelude needed."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+        language="python",
+    )
+    assert "/usr/local/go/bin" not in script
+    assert ".cargo/bin" not in script
+
+
+def test_build_eval_script_path_prelude_for_go():
+    """Go binaries typically install to /usr/local/go/bin — must be on PATH."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["go test -v ./..."],
+        language="go",
+    )
+    assert "/usr/local/go/bin" in script
+    # Export must precede the test block so `go test` resolves
+    export_pos = script.find("export PATH")
+    test_pos = script.find("go test")
+    assert 0 <= export_pos < test_pos
+
+
+def test_build_eval_script_path_prelude_for_rust():
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["cargo test"],
+        language="rust",
+    )
+    assert ".cargo/bin" in script
+
+
 # --- build_environment_dockerfile --------------------------------------------
 
 

@@ -78,11 +78,16 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     else:
         repo2env.setdefault("reward_kinds", ["diff_similarity"])
 
+    # Harbor's task.toml requires `task.name` in `<org>/<name>` format —
+    # validated at load-time by harbor.models.task.config.PackageInfo. We
+    # keep the filesystem-safe slug (with `__` for path safety) as the
+    # directory name, but emit the schema-required `org/slug` form in
+    # task.toml so harbor accepts the task.
+    qualified_name = f"{task.org}/{task.name}"
     payload: dict[str, Any] = {
         "version": "1.0",
         "task": {
-            "name": task.name,
-            "org": task.org,
+            "name": qualified_name,
             "description": task.description,
         },
         "metadata": {
@@ -99,10 +104,27 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     # instruction.md
     (task_path / "instruction.md").write_text(task.instruction, encoding="utf-8")
 
-    # solution/patch.diff
+    # solution/patch.diff — canonical SWE-bench-style oracle (what trainers consume)
     sol_dir = task_path / "solution"
     sol_dir.mkdir(exist_ok=True)
     (sol_dir / "patch.diff").write_text(task.oracle_diff, encoding="utf-8")
+
+    # solution/solve.sh — Harbor's oracle agent runs this script inside the
+    # container; it should leave the working tree in the "fixed" state. We
+    # `git apply` the canonical patch.diff so we keep one oracle artifact
+    # (patch.diff) and just provide the execution shim Harbor needs.
+    (sol_dir / "solve.sh").write_text(
+        "#!/bin/bash\n"
+        "set -euxo pipefail\n"
+        "cd /workspace\n"
+        "git config --global --add safe.directory /workspace\n"
+        # Harbor uploads the whole solution/ dir into the container under
+        # /solution; the patch.diff sits next to this script.
+        'PATCH="$(dirname "$0")/patch.diff"\n'
+        'git apply --verbose --reject "$PATCH"\n',
+        encoding="utf-8",
+    )
+    (sol_dir / "solve.sh").chmod(0o755)
 
     # Optional environment/Dockerfile + tests/test.sh — written only for
     # sandbox-required tasks (pr_runtime, future commit_runtime, etc.).

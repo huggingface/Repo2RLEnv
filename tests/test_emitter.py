@@ -37,8 +37,10 @@ def test_task_toml_is_valid_toml_with_harbor_layout(tmp_path: Path):
     out = write_harbor_task(task, tmp_path)
     data = tomllib.loads((out / "task.toml").read_text())
     assert data["version"] == "1.0"
-    assert data["task"]["name"] == "demo__repo-1"
-    assert data["task"]["org"] == "myorg"
+    # Harbor requires task.name in `org/name` format — we emit the qualified form
+    assert data["task"]["name"] == "myorg/demo__repo-1"
+    # Directory name still uses the bench-friendly slug (filesystem-safe)
+    assert out.name == "demo__repo-1"
     r2e = data["metadata"]["repo2env"]
     assert r2e["pipeline"] == "pr_diff"
     assert r2e["spec_version"] == "0.1.0"
@@ -51,6 +53,20 @@ def test_instruction_and_oracle_round_trip(tmp_path: Path):
     out = write_harbor_task(task, tmp_path)
     assert (out / "instruction.md").read_text() == task.instruction
     assert (out / "solution" / "patch.diff").read_text() == task.oracle_diff
+
+
+def test_solve_sh_emitted_and_executable(tmp_path: Path):
+    """Harbor's oracle agent runs solve.sh in the container — must exist + be +x."""
+    task = _make_task()
+    out = write_harbor_task(task, tmp_path)
+    solve = out / "solution" / "solve.sh"
+    assert solve.is_file()
+    assert solve.stat().st_mode & 0o111  # executable
+    content = solve.read_text()
+    assert content.startswith("#!/bin/bash")
+    # Must reference patch.diff (the canonical oracle artifact)
+    assert "patch.diff" in content
+    assert "git apply" in content
 
 
 def test_content_hash_is_deterministic(tmp_path: Path):
