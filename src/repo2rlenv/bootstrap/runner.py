@@ -173,20 +173,21 @@ def ensure_bootstrap(
                     f"Transcript at {failure_slot / 'transcript.jsonl'}"
                 )
 
-            # Soft smoke gate — runs test_cmds but treats individual test failures
-            # as fine (pytest exit 1 = tests failed but ran; 5 = no tests collected
-            # but pytest ran). We only flag as failed for env-level errors (2,3,4 etc.).
+            # Soft smoke gate — runs ALL test_cmds JOINED in one shell so PATH
+            # exports etc. carry over. Treats individual test failures as fine
+            # (pytest exit 1 = tests failed but ran; 5 = no tests collected
+            # but pytest ran). We only flag as failed for env-level errors.
             # The agent's SAVE_SETUP call is the real success signal.
             smoke_ok = True
-            for cmd in outcome.test_cmds:
-                r = sandbox.exec(cmd, timeout=300)
+            if outcome.test_cmds:
+                smoke_script = " && ".join(outcome.test_cmds)
+                r = sandbox.exec(smoke_script, timeout=300)
                 if r.exit_code not in (0, 1, 5):
                     smoke_ok = False
                     logger.warning(
-                        "smoke test %r exited %d (env issue, not just test failures)",
-                        cmd, r.exit_code,
+                        "smoke test exited %d: %s (env issue, not just test failures)",
+                        r.exit_code, smoke_script[:200],
                     )
-                    break
 
             # Commit the container regardless — caller decides whether to push
             tag_base = spec.image_registry or "local/r2e-bootstrap"
