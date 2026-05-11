@@ -93,3 +93,69 @@ def calculate_diff_similarity_reward(
         oracle_lines=len(oracle_lines),
         matched_lines=matched,
     )
+
+
+# ----------------------------------------------------------------------------
+# SWE-bench-style test-execution grading (used by pr_runtime + Harbor verifiers)
+# ----------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class ExecutionReport:
+    """Per-task report after running the model patch through the eval script.
+
+    Mirrors SWE-bench's report shape so we can interop with their tooling.
+    """
+
+    fail_to_pass_success: list[str]
+    fail_to_pass_failure: list[str]
+    pass_to_pass_success: list[str]
+    pass_to_pass_failure: list[str]
+
+    @property
+    def f2p_rate(self) -> float:
+        total = len(self.fail_to_pass_success) + len(self.fail_to_pass_failure)
+        return 1.0 if total == 0 else len(self.fail_to_pass_success) / total
+
+    @property
+    def p2p_rate(self) -> float:
+        total = len(self.pass_to_pass_success) + len(self.pass_to_pass_failure)
+        return 1.0 if total == 0 else len(self.pass_to_pass_success) / total
+
+    @property
+    def resolution_status(self) -> str:
+        """SWE-bench's FULL / PARTIAL / NO labelling."""
+        f2p, p2p = self.f2p_rate, self.p2p_rate
+        if f2p == 1.0 and p2p == 1.0:
+            return "FULL"
+        if 0.0 < f2p < 1.0 and p2p == 1.0:
+            return "PARTIAL"
+        return "NO"
+
+
+def grade_test_execution(
+    fail_to_pass: list[str],
+    pass_to_pass: list[str],
+    test_status: dict[str, str],
+) -> ExecutionReport:
+    """Compute the per-task report from the post-prediction test status map.
+
+    Args:
+        fail_to_pass: oracle list of tests that must transition FAIL → PASS
+        pass_to_pass: oracle list of tests that must stay PASSED
+        test_status: parser output {test_name -> {PASSED|FAILED|SKIPPED|ERROR}}
+
+    Tests not present in `test_status` count as failures (silent skip).
+    """
+    f2p_success, f2p_failure = [], []
+    for t in fail_to_pass:
+        (f2p_success if test_status.get(t) == "PASSED" else f2p_failure).append(t)
+    p2p_success, p2p_failure = [], []
+    for t in pass_to_pass:
+        (p2p_success if test_status.get(t) == "PASSED" else p2p_failure).append(t)
+    return ExecutionReport(
+        fail_to_pass_success=f2p_success,
+        fail_to_pass_failure=f2p_failure,
+        pass_to_pass_success=p2p_success,
+        pass_to_pass_failure=p2p_failure,
+    )

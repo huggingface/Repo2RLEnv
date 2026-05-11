@@ -13,15 +13,35 @@ class _BaseOptions(BaseModel):
 
 
 class PRRuntimeOptions(_BaseOptions):
-    """Sandbox-verified PR mining: clones, applies diff, runs tests in bootstrap image."""
+    """Sandbox-verified PR mining: clones, applies diff, runs tests in bootstrap image.
 
-    limit: int = 100
+    The pipeline runs each candidate PR's tests inside the bootstrap container
+    twice — once with only `test_patch` applied (to capture which tests fail
+    pre-fix), and once with both `test_patch` and the gold `patch` applied
+    (to confirm which now pass). Tests that transition fail→pass become the
+    `FAIL_TO_PASS` oracle; tests that pass both times become `PASS_TO_PASS`
+    regression guards. See docs/pipelines/pr_runtime.md.
+    """
+
+    # --- Mining (mirrors PRDiffOptions where overlap exists) ---
+    limit: int = 50
     since: date | None = None
     until: date | None = None
+    state: Literal["merged"] = "merged"
+    skip_drafts: bool = True
     require_linked_issue: bool = True
-    min_test_count: int = 1
     languages: list[str] = ["python"]
-    base_image_template: str | None = None
+
+    # --- Validation ---
+    require_fail_to_pass: bool = True       # skip PRs whose F2P set is empty after validation
+    min_fail_to_pass: int = 1
+    validation_timeout_sec: int = 600       # per-PR cap on the two test runs
+    skip_validation: bool = False           # emit candidates without F2P/P2P (debug / fast iteration)
+
+    # --- Quality (SWE-bench Lite-style sampling) ---
+    lite_filter: bool = False
+    max_source_files_per_pr: int = 50       # PRs touching >N source files are excluded
+    min_problem_statement_words: int = 0    # Lite ≈ 40
 
 
 class PRDiffOptions(_BaseOptions):

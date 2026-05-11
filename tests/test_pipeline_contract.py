@@ -37,6 +37,15 @@ def test_options_registry_aligns_with_pipelines():
         )
 
 
+def test_pipelines_declare_requires_bootstrap():
+    """Each pipeline must declare requires_bootstrap (True/False) — cmd_generate dispatches on it."""
+    for name, cls in PIPELINES.items():
+        assert hasattr(cls, "requires_bootstrap"), (
+            f"{name}: missing class attribute `requires_bootstrap`"
+        )
+        assert isinstance(cls.requires_bootstrap, bool)
+
+
 def test_pipeline_result_shape():
     """PipelineResult has the documented fields."""
     r = PipelineResult(

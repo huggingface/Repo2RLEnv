@@ -95,7 +95,61 @@ def cmd_generate(args: argparse.Namespace) -> int:
         return 2
 
     options = parse_options(gen_input.pipeline.name.value, gen_input.pipeline.options)
-    pipeline = pipeline_cls(gen_input, options)
+
+    # Auto-trigger bootstrap for sandbox-required pipelines (requires_bootstrap=True).
+    # Cache hit ⇒ instant; cache miss ⇒ full LLM-agent run with the live UI.
+    bootstrap_result = None
+    if getattr(pipeline_cls, "requires_bootstrap", False):
+        from repo2rlenv.bootstrap import ensure_bootstrap, LanguageHint
+        from repo2rlenv.bootstrap.runner import BootstrapError
+        from repo2rlenv.ui.views.bootstrap import bootstrap_view_or_plain
+
+        # Mutate spec with CLI overrides (language / base-image / budget / force)
+        bspec = gen_input.bootstrap.model_copy(deep=True)
+        if args.language:
+            try:
+                bspec.languages_hint = [LanguageHint(args.language).value]
+            except ValueError:
+                raise SystemExit(f"unknown --language: {args.language!r}")
+        if args.base_image:
+            bspec.base_image = args.base_image
+        # --max-spend-usd=0 ⇒ no cap; map to None
+        if args.max_spend_usd is not None:
+            bspec.max_llm_spend_usd = args.max_spend_usd if args.max_spend_usd > 0 else None
+        with bootstrap_view_or_plain(
+            repo=gen_input.repo.url,
+            ref=gen_input.repo.ref,
+            model=gen_input.llm.qualified_name,
+            max_iterations=bspec.max_iterations,
+            language=(bspec.languages_hint[0] if bspec.languages_hint else "unknown"),
+            base_image=bspec.base_image or "(auto-detect)",
+            force_plain=args.no_ui,
+        ) as bs_view:
+            try:
+                bootstrap_result = ensure_bootstrap(
+                    gen_input.repo, bspec, gen_input.llm, gen_input.auth,
+                    force=args.force_bootstrap,
+                    on_turn=bs_view.on_turn if bs_view else None,
+                    on_thinking=bs_view.on_thinking if bs_view else None,
+                    on_executing=bs_view.on_executing if bs_view else None,
+                    on_phase=bs_view.on_phase if bs_view else None,
+                )
+            except BootstrapError as exc:
+                if bs_view is not None:
+                    bs_view.set_outcome(success=False, reason=str(exc))
+                else:
+                    console.error(f"bootstrap error: {exc}")
+                return 1
+            if bs_view is not None:
+                bs_view.set_outcome(
+                    success=True,
+                    image_digest=bootstrap_result.image_digest,
+                    image_tag=bootstrap_result.image_tag,
+                    rebuild_cmds=bootstrap_result.rebuild_cmds,
+                    test_cmds=bootstrap_result.test_cmds,
+                )
+
+    pipeline = pipeline_cls(gen_input, options, bootstrap=bootstrap_result)
 
     dest = gen_input.output.destination
     push_to_hub_after = dest.startswith("hf://")
@@ -418,6 +472,14 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--org", help="task.org for Harbor")
     g.add_argument("--dataset-name", help="dataset name")
     g.add_argument("--visibility", choices=["public", "private"], default="public")
+    # Bootstrap-related (only used for pipelines with requires_bootstrap=True)
+    g.add_argument("--max-spend-usd", type=float, default=5.0,
+                     help="LLM budget cap across bootstrap + pipeline (default 5.0; 0 = unlimited)")
+    g.add_argument("--language", help="bootstrap: override auto-detect (python|node|go|rust|java|c_cpp)")
+    g.add_argument("--base-image",
+                     help="bootstrap: override base image (e.g. ubuntu:24.04, python:3.11-slim)")
+    g.add_argument("--force-bootstrap", action="store_true",
+                     help="ignore bootstrap cache, rebuild from scratch")
     g.set_defaults(func=cmd_generate)
 
     # validate

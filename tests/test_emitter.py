@@ -60,3 +60,30 @@ def test_content_hash_is_deterministic(tmp_path: Path):
     db = tomllib.loads((b / "task.toml").read_text())
     # Same instruction + oracle ⇒ same content_hash, regardless of name.
     assert da["metadata"]["repo2env"]["content_hash"] == db["metadata"]["repo2env"]["content_hash"]
+
+
+def test_writes_environment_and_test_script_when_provided(tmp_path: Path):
+    """Sandbox-required tasks (pr_runtime) emit Dockerfile + test.sh."""
+    task = _make_task("sandbox-task")
+    task.environment_dockerfile = "FROM ubuntu:24.04\nWORKDIR /workspace\n"
+    task.test_script = "#!/bin/bash\nset -e\npytest -x\n"
+    out = write_harbor_task(task, tmp_path)
+
+    assert (out / "environment" / "Dockerfile").is_file()
+    assert (out / "tests" / "test.sh").is_file()
+    assert (out / "environment" / "Dockerfile").read_text() == task.environment_dockerfile
+    assert (out / "tests" / "test.sh").read_text() == task.test_script
+    # test.sh must be executable so Harbor can run it directly
+    assert (out / "tests" / "test.sh").stat().st_mode & 0o111
+
+    # reward_kinds upgrades to test_execution primary when test_script is present
+    data = tomllib.loads((out / "task.toml").read_text())
+    assert data["metadata"]["repo2env"]["reward_kinds"] == ["test_execution", "diff_similarity"]
+
+
+def test_omits_environment_and_test_script_when_absent(tmp_path: Path):
+    """Lite tasks (pr_diff) don't write environment/ or tests/."""
+    task = _make_task("lite-task")
+    out = write_harbor_task(task, tmp_path)
+    assert not (out / "environment").exists()
+    assert not (out / "tests").exists()

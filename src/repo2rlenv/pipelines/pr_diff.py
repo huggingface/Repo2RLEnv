@@ -81,8 +81,10 @@ class PRDiffPipeline:
     """No-sandbox, text-only PR mining. Implements the `Pipeline` Protocol."""
 
     name: ClassVar[PipelineName] = PipelineName.PR_DIFF
+    requires_bootstrap: ClassVar[bool] = False
 
-    def __init__(self, input: GenerationInput, options: PRDiffOptions):
+    def __init__(self, input: GenerationInput, options: PRDiffOptions, bootstrap=None):
+        # bootstrap is unused for pr_diff — accepted for Protocol uniformity
         self.input = input
         self.options = options
         self._progress_cb = None  # set via set_progress_callback for live UI
