@@ -1,6 +1,6 @@
 [project]
 name = "repo2rlenv"
-version = "0.4.0"
+version = "0.6.0"
 description = "Turn any repository into an RL environment for training and evaluation."
 readme = "README.md"
 license = "Apache-2.0"
@@ -43,9 +43,9 @@ dependencies = [
 repo2rlenv = "repo2rlenv.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/adithya-s-k/Repo2RLEnv"
-Repository = "https://github.com/adithya-s-k/Repo2RLEnv"
-Issues = "https://github.com/adithya-s-k/Repo2RLEnv/issues"
+Homepage = "https://github.com/huggingface/Repo2RLEnv"
+Repository = "https://github.com/huggingface/Repo2RLEnv"
+Issues = "https://github.com/huggingface/Repo2RLEnv/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]

@@ -118,11 +118,98 @@ class CommitRuntimeOptions(_BaseOptions):
     min_problem_statement_words: int = 0
 
 
+class MutationBugsOptions(_BaseOptions):
+    """SWE-smith-style synthetic bug injection.
+
+    Picks Python source files in the target repo, applies an AST mutation
+    operator (flip_comparison / off_by_one / swap_arithmetic / ...), runs
+    the existing test suite, and accepts the mutation if it breaks between
+    `min_tests_broken` and `max_tests_broken` tests.
+
+    The "fix" the agent must produce is the inverse mutation; the oracle
+    is the original (pre-mutation) source. See docs/pipelines/mutation_bugs.md.
+    """
+
+    # --- Discovery ---
+    limit: int = 50
+    file_glob: str = "**/*.py"
+    exclude_glob: list[str] = [
+        "tests/**",
+        "test_**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/conftest.py",
+        "**/setup.py",
+        "docs/**",
+        "examples/**",
+        "**/__init__.py",  # mutating __init__ tends to break imports catastrophically
+    ]
+
+    # --- Operators ---
+    operators: list[str] | None = None  # None ⇒ use every default operator
+    seed: int | None = None  # RNG seed for reproducibility (None ⇒ time-based)
+    max_attempts_per_file: int = 5  # give up on a file if it refuses to mutate productively
+
+    # --- Mutation filter ---
+    min_tests_broken: int = 1
+    max_tests_broken: int = 5
+    validation_timeout_sec: int = 300
+    skip_validation: bool = False  # emit candidates raw (debug / fast iteration)
+
+    # --- LLM ---
+    llm_temperature: float = 0.7
+    max_llm_tokens: int = 1024
+
+
+class CodeInstructOptions(_BaseOptions):
+    """Magicoder-OSS-Instruct-style, anchored to a target repo + verified by execution.
+
+    Samples a seed snippet from the repo, asks the LLM for a self-contained
+    coding task (problem statement + pytest test + oracle solution), then
+    verifies in the bootstrap container: the test must FAIL on HEAD and PASS
+    once the oracle solution is applied. Failures are skipped.
+
+    See docs/pipelines/code_instruct.md.
+    """
+
+    # --- Sampling ---
+    limit: int = 50
+    seed_min_loc: int = 30
+    seed_max_loc: int = 200
+    file_glob: str = "**/*.py"
+    exclude_glob: list[str] = [
+        "tests/**",
+        "test_**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "docs/**",
+        "examples/**",
+        "**/__init__.py",
+    ]
+    seed: int | None = None
+    max_attempts_per_seed: int = 1
+
+    # --- LLM ---
+    llm_temperature: float = 0.7
+    max_llm_tokens: int = 2048
+
+    # --- Verification ---
+    require_test_fails_without_oracle: bool = True
+    require_test_passes_with_oracle: bool = True
+    validation_timeout_sec: int = 180
+    skip_validation: bool = False
+
+    # --- Decontamination ---
+    skip_decontamination: bool = False
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
     "pr_stream": PRStreamOptions,
     "commit_runtime": CommitRuntimeOptions,
+    "mutation_bugs": MutationBugsOptions,
+    "code_instruct": CodeInstructOptions,
 }
 
 
