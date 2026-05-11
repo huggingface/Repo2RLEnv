@@ -223,4 +223,9 @@ plans/
 # Reference clones of inspiration repos — not for upstream
 references/
 
+# Bootstrap cache (per-repo Docker images + transcripts) — local-only
+envs/
+envs-*/
+.r2e_cache/
+
 

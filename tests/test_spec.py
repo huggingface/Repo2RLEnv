@@ -33,7 +33,7 @@ def test_full_input_roundtrips():
         "spec_version": "0.1.0",
         "repo": {"url": "huggingface/trl", "access": "auto"},
         "pipeline": {"name": "pr_mining_lite", "options": {"limit": 5}},
-        "llm": {"provider": "anthropic", "model": "claude-sonnet-4-5"},
+        "llm": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
         "output": {
             "destination": "./out",
             "org": "myorg",

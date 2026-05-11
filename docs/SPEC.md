@@ -39,7 +39,7 @@ repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_mining_lite \
   --pipeline-opt limit=5 \
-  --llm anthropic/claude-sonnet-4-5 \
+  --llm anthropic/claude-sonnet-4-6 \
   --out hf://AdithyaSK/trl-r2e-v0-1 \
   --org AdithyaSK --dataset-name trl-r2e-v0-1
 ```
@@ -58,7 +58,7 @@ pipeline:
     skip_drafts: true
 llm:
   provider: "anthropic"
-  model: "claude-sonnet-4-5"
+  model: "claude-sonnet-4-6"
 output:
   destination: "hf://AdithyaSK/trl-r2e-v0-1"
   org: "AdithyaSK"
@@ -108,7 +108,7 @@ ref = "f39373edcd7a..."           # base commit SHA
 reference = "https://github.com/huggingface/trl/pull/5705"
 source_access = "public"
 built_at = "2026-05-06T..."
-synthesis_llm = "anthropic/claude-sonnet-4-5"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
 content_hash = "sha256:..."
 reward_kinds = ["diff_similarity"]
 

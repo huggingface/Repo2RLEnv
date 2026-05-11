@@ -30,7 +30,7 @@ repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_mining_lite \
   --pipeline-opt limit=5 \
-  --llm anthropic/claude-sonnet-4-5 \
+  --llm anthropic/claude-sonnet-4-6 \
   --out hf://AdithyaSK/trl-r2e-v0-1 --visibility public
 
 # Validate a local dataset against the spec

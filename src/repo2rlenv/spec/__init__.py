@@ -2,7 +2,9 @@
 
 from repo2rlenv.spec.input import (
     AuthSpec,
+    BootstrapSpec,
     GenerationInput,
+    GPUSpec,
     LLMSpec,
     OutputSpec,
     PipelineName,
@@ -18,7 +20,9 @@ from repo2rlenv.spec.options import (
 
 __all__ = [
     "AuthSpec",
+    "BootstrapSpec",
     "GenerationInput",
+    "GPUSpec",
     "LLMSpec",
     "OutputSpec",
     "PipelineName",

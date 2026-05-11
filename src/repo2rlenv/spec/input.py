@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -138,6 +139,29 @@ class AuthSpec(BaseModel):
     build_secrets_env: dict[str, str] = Field(default_factory=dict)
 
 
+class BootstrapSpec(BaseModel):
+    """Bootstrap phase config — only used by sandbox-required pipelines.
+
+    Lite pipelines (text-only) ignore this entirely. For full pipelines, the
+    bootstrap phase builds a Docker image where the repo cleanly compiles
+    and tests can run, then caches it by content hash so subsequent
+    generation runs reuse the same image.
+
+    See docs/BOOTSTRAP.md for the design.
+    """
+
+    enabled: bool = True
+    max_iterations: int = 20
+    max_seconds: int = 1800           # 30-minute timeout per bootstrap
+    base_image: str | None = None     # override per-language default
+    user_dockerfile: Path | None = None  # bypass agent iteration entirely
+    cache_dir: Path = Field(default_factory=lambda: Path("./envs"))
+    image_registry: str | None = None  # e.g. "ghcr.io/myorg"; None ⇒ keep local
+    max_llm_spend_usd: float | None = 5.0
+    platform: Literal["linux/amd64", "linux/arm64"] = "linux/amd64"
+    languages_hint: list[str] | None = None   # override auto-detection
+
+
 class PipelineSpec(BaseModel):
     name: PipelineName
     options: dict[str, Any] = Field(default_factory=dict)
@@ -151,8 +175,10 @@ class GenerationInput(BaseModel):
     output: OutputSpec
     qa: QASpec = Field(default_factory=QASpec)
     sandbox: SandboxSpec = Field(default_factory=SandboxSpec)
+    bootstrap: BootstrapSpec = Field(default_factory=BootstrapSpec)
     auth: AuthSpec = Field(default_factory=AuthSpec)
 
 
 LLMSpec.model_rebuild()
 SandboxSpec.model_rebuild()
+BootstrapSpec.model_rebuild()

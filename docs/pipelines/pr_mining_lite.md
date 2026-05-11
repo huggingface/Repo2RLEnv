@@ -114,7 +114,7 @@ repo2rlenv generate \
   --pipeline pr_mining_lite \
   --pipeline-opt limit=5 \
   --pipeline-opt max_files_per_pr=10 \
-  --llm anthropic/claude-sonnet-4-5 \
+  --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/trl-r2e
 
 # Generate AND push to HF Hub in one command
@@ -122,7 +122,7 @@ repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_mining_lite \
   --pipeline-opt limit=5 \
-  --llm anthropic/claude-sonnet-4-5 \
+  --llm anthropic/claude-sonnet-4-6 \
   --out hf://AdithyaSK/trl-r2e-v0-1 \
   --org AdithyaSK --dataset-name trl-r2e-v0-1 \
   --visibility public
@@ -141,7 +141,7 @@ from repo2rlenv.pipelines.pr_mining_lite import PRMiningLitePipeline
 g = GenerationInput(
     repo=RepoSpec(url="huggingface/trl", access="auto"),
     pipeline=PipelineSpec(name=PipelineName.PR_MINING_LITE, options={}),
-    llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-5"),
+    llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
     output=OutputSpec(destination="./out", org="myorg", dataset_name="trl-r2e"),
 )
 options = PRMiningLiteOptions(limit=5, max_files_per_pr=10)

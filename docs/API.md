@@ -36,7 +36,7 @@ Build a `GenerationInput` directly:
 g = GenerationInput(
     repo=RepoSpec(url="huggingface/trl", access="auto"),
     pipeline=PipelineSpec(name=PipelineName.PR_MINING_LITE, options={"limit": 5}),
-    llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-5"),
+    llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
     output=OutputSpec(
         destination="./out", org="myorg", dataset_name="trl-r2e",
     ),

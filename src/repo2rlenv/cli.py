@@ -205,6 +205,85 @@ def cmd_reward(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    """Build a working Docker image for (repo, ref) via an LLM agent loop."""
+    from repo2rlenv.bootstrap import ensure_bootstrap, LanguageHint
+    from repo2rlenv.bootstrap.language import base_image_for, detect_language
+    from repo2rlenv.bootstrap.runner import BootstrapError
+    from repo2rlenv.bootstrap.ui import bootstrap_ui
+    from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
+
+    if not args.llm or "/" not in args.llm:
+        raise SystemExit("--llm is required as provider/model (e.g. anthropic/claude-sonnet-4-6)")
+    provider, model = args.llm.split("/", 1)
+    llm = LLMSpec(provider=provider, model=model)
+
+    repo = RepoSpec(
+        url=args.repo,
+        ref=args.ref,
+        access=args.access,
+    )
+    spec = BootstrapSpec(
+        max_iterations=args.max_iterations,
+        max_seconds=args.max_seconds,
+        cache_dir=Path(args.cache_dir),
+        image_registry=args.image_registry,
+        platform=args.platform,
+    )
+    if args.language:
+        try:
+            spec.languages_hint = [LanguageHint(args.language).value]
+        except ValueError:
+            raise SystemExit(f"unknown language: {args.language!r}")
+
+    # Best-guess language up-front so the UI header is populated. Real
+    # detection happens inside ensure_bootstrap after the clone.
+    guessed_lang = spec.languages_hint[0] if spec.languages_hint else "unknown"
+    guessed_base = spec.base_image or base_image_for(LanguageHint(guessed_lang) if guessed_lang in LanguageHint.__members__.values() else LanguageHint.UNKNOWN)
+
+    with bootstrap_ui(
+        repo=args.repo,
+        ref=args.ref,
+        model=args.llm,
+        max_iterations=args.max_iterations,
+        language=guessed_lang,
+        base_image=guessed_base,
+        force_plain=args.no_ui,
+    ) as ui:
+        on_turn = ui.on_turn if ui is not None else None
+        try:
+            result = ensure_bootstrap(
+                repo, spec, llm, AuthSpec(), force=args.force, on_turn=on_turn,
+            )
+        except BootstrapError as exc:
+            if ui is not None:
+                ui.set_outcome(success=False, reason=str(exc))
+            else:
+                print(f"bootstrap error: {exc}")
+            return 1
+        if ui is not None:
+            ui.set_outcome(
+                success=True,
+                image_digest=result.image_digest,
+                image_tag=result.image_tag,
+                rebuild_cmds=result.rebuild_cmds,
+                test_cmds=result.test_cmds,
+            )
+
+    # In non-Rich mode, fall back to plain-text summary
+    if args.no_ui or not sys.stdout.isatty():
+        print(f"==> bootstrap ok")
+        print(f"    repo:          {result.repo}@{result.ref[:12]}")
+        print(f"    language:      {result.language.value}")
+        print(f"    image_digest:  {result.image_digest}")
+        print(f"    image_tag:     {result.image_tag}")
+        print(f"    iterations:    {result.iterations}")
+        print(f"    build_time:    {result.build_time_sec:.1f}s")
+        print(f"    smoke_passed:  {result.smoke_passed}")
+        print(f"    pushed:        {result.pushed_to_registry}")
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     out = Path(args.out or "repo2rlenv.config.yaml").expanduser().resolve()
     if out.exists() and not args.force:
@@ -226,7 +305,7 @@ pipeline:
 
 llm:
   provider: "anthropic"
-  model: "claude-sonnet-4-5"
+  model: "claude-sonnet-4-6"
 
 output:
   destination: "./datasets/trl-r2e"
@@ -271,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         "--pipeline-opt", action="append", default=[],
         help="pipeline-specific kwarg, repeatable (key=value)",
     )
-    g.add_argument("--llm", help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-5)")
+    g.add_argument("--llm", help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-6)")
     g.add_argument("--out", help="output directory")
     g.add_argument("--org", help="task.org for Harbor")
     g.add_argument("--dataset-name", help="dataset name")
@@ -290,6 +369,22 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--task", required=True, help="task directory containing solution/patch.diff")
     r.add_argument("--prediction", required=True, help="path to predicted diff file")
     r.set_defaults(func=cmd_reward)
+
+    # bootstrap
+    bs = sub.add_parser("bootstrap", help="Build a working Docker image for a repo (v0.2)")
+    bs.add_argument("--repo", required=True, help="GitHub repo (owner/name or URL)")
+    bs.add_argument("--ref", default="HEAD", help="branch/tag/commit (default: HEAD)")
+    bs.add_argument("--access", choices=["public", "private", "auto"], default="auto")
+    bs.add_argument("--llm", required=True, help="provider/model, e.g. anthropic/claude-sonnet-4-6")
+    bs.add_argument("--max-iterations", type=int, default=25)
+    bs.add_argument("--max-seconds", type=int, default=1800)
+    bs.add_argument("--cache-dir", default="./envs")
+    bs.add_argument("--image-registry", help="e.g. ghcr.io/myorg/r2e — pushes after build")
+    bs.add_argument("--platform", default="linux/amd64", choices=["linux/amd64", "linux/arm64"])
+    bs.add_argument("--language", help="override auto-detection: python|node|go|rust|java|c_cpp")
+    bs.add_argument("--force", action="store_true", help="ignore cache, rebuild from scratch")
+    bs.add_argument("--no-ui", action="store_true", help="disable Rich live UI (plain logs)")
+    bs.set_defaults(func=cmd_bootstrap)
 
     # init
     i = sub.add_parser("init", help="Write a sample config file")

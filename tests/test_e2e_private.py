@@ -53,7 +53,7 @@ def test_e2e_private_trl_internal(tmp_path: Path):
     gen_input = GenerationInput(
         repo=RepoSpec(url="huggingface/trl-internal", access="private"),
         pipeline=PipelineSpec(name=PipelineName.PR_MINING_LITE, options={}),
-        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-5"),
+        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
         output=OutputSpec(
             destination=str(tmp_path),
             org="hfeval",

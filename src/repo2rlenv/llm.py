@@ -1,22 +1,28 @@
-"""LiteLLM wrapper — single entry point across providers.
+"""LiteLLM wrapper — single entry point across providers, with cost tracking.
 
 The pipelines call `complete(input, prompt)`; we resolve the API key from
-either the LLMSpec hint or the provider-default env var, then dispatch.
+either the LLMSpec hint or the provider-default env var, dispatch, then use
+LiteLLM's `completion_cost()` to attach a USD estimate.
 """
 
 from __future__ import annotations
 
-import os
+import logging
 from dataclasses import dataclass
 
 from repo2rlenv.auth import resolve_llm_api_key
 from repo2rlenv.spec.input import LLMSpec
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
 class LLMResponse:
     content: str
     usage: dict | None = None
+    cost_usd: float = 0.0           # cost of THIS call, in USD (best-effort)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 def complete(
@@ -53,18 +59,33 @@ def complete(
     if spec.endpoint:
         kwargs["api_base"] = spec.endpoint
 
-    # HF inference router quirk: LiteLLM expects the model in `Qwen/...:provider`
-    # form for the HF router; users pass that shape directly via spec.model.
     if spec.provider == "huggingface" and spec.endpoint is None:
-        kwargs.setdefault(
-            "api_base", "https://router.huggingface.co/v1"
-        )
+        kwargs.setdefault("api_base", "https://router.huggingface.co/v1")
 
     response = litellm.completion(**kwargs)
     choice = response.choices[0]
     content = choice.message.content or ""
-    usage = getattr(response, "usage", None)
+
+    # Token counts + cost
+    usage_obj = getattr(response, "usage", None)
+    prompt_tokens = 0
+    completion_tokens = 0
+    if usage_obj is not None:
+        prompt_tokens = getattr(usage_obj, "prompt_tokens", 0) or 0
+        completion_tokens = getattr(usage_obj, "completion_tokens", 0) or 0
+
+    cost_usd = 0.0
+    try:
+        # LiteLLM's completion_cost() reads its built-in model_cost map.
+        # Returns 0.0 if the model isn't priced (rare for major providers).
+        cost_usd = float(litellm.completion_cost(completion_response=response))
+    except Exception as exc:
+        logger.debug("completion_cost failed for %s: %s", spec.qualified_name, exc)
+
     return LLMResponse(
         content=content,
-        usage=dict(usage) if usage else None,
+        usage=dict(usage_obj) if usage_obj else None,
+        cost_usd=cost_usd,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )

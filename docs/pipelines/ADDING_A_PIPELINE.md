@@ -232,7 +232,7 @@ def test_e2e_your_pipeline(tmp_path: Path):
     gen_input = GenerationInput(
         repo=RepoSpec(url="huggingface/trl", access="public"),
         pipeline=PipelineSpec(name=PipelineName.YOUR_PIPELINE, options={}),
-        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-5"),
+        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
         output=OutputSpec(destination=str(tmp_path), org="x", dataset_name="y"),
     )
     pipeline = YourPipeline(gen_input, YourPipelineOptions(limit=2))
@@ -247,7 +247,7 @@ uv run repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline your_pipeline \
   --pipeline-opt limit=2 \
-  --llm anthropic/claude-sonnet-4-5 \
+  --llm anthropic/claude-sonnet-4-6 \
   --out ./out_test
 ```
 
