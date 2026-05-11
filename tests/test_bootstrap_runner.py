@@ -10,9 +10,9 @@ import pytest
 from repo2rlenv.bootstrap import runner
 from repo2rlenv.bootstrap.runner import (
     BootstrapError,
+    _resolve_repo_digest,
     _scrub_token,
     _shallow_clone_at_ref,
-    _resolve_repo_digest,
 )
 
 
@@ -37,7 +37,10 @@ def test_shallow_clone_head_uses_plain_clone(tmp_path: Path):
     with mock.patch("subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stderr="", stdout="")
         _shallow_clone_at_ref(
-            "https://github.com/owner/name", "HEAD", None, tmp_path / "out",
+            "https://github.com/owner/name",
+            "HEAD",
+            None,
+            tmp_path / "out",
         )
         args = run.call_args_list[0].args[0]
         assert "--branch" not in args
@@ -47,7 +50,10 @@ def test_shallow_clone_branch_tries_clone_branch_first(tmp_path: Path):
     with mock.patch("subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stderr="", stdout="")
         _shallow_clone_at_ref(
-            "https://github.com/owner/name", "release-1.0", None, tmp_path / "out",
+            "https://github.com/owner/name",
+            "release-1.0",
+            None,
+            tmp_path / "out",
         )
         args = run.call_args_list[0].args[0]
         assert "--branch" in args
@@ -112,9 +118,11 @@ def test_user_dockerfile_missing_path_raises(tmp_path: Path):
     llm = LLMSpec(provider="anthropic", model="claude-sonnet-4-6")
 
     # Stub out the bits that would otherwise fail before we hit the dockerfile check
-    with mock.patch.object(runner, "is_docker_available", return_value=True), \
-         mock.patch.object(runner, "_shallow_clone_at_ref"), \
-         mock.patch.object(runner, "_resolve_head_sha", return_value="a" * 40):
+    with (
+        mock.patch.object(runner, "is_docker_available", return_value=True),
+        mock.patch.object(runner, "_shallow_clone_at_ref"),
+        mock.patch.object(runner, "_resolve_head_sha", return_value="a" * 40),
+    ):
         with pytest.raises(BootstrapError, match="user_dockerfile not found"):
             runner.ensure_bootstrap(repo, spec, llm, AuthSpec())
 
@@ -147,8 +155,9 @@ def test_reconstructed_dockerfile_is_rebuildable():
     workdir_idx = dockerfile.index("WORKDIR /workspace")
     copy_idx = dockerfile.index("COPY . /workspace")
     first_run_idx = dockerfile.index("RUN pip install")
-    assert workdir_idx < first_run_idx and copy_idx < first_run_idx, \
+    assert workdir_idx < first_run_idx and copy_idx < first_run_idx, (
         "WORKDIR + COPY must precede any RUN line"
+    )
     # Non-BASH actions should not become RUN lines
     assert "READ_FILE" not in dockerfile
 
@@ -156,6 +165,7 @@ def test_reconstructed_dockerfile_is_rebuildable():
 def test_scrub_clone_credentials_strips_token(tmp_path: Path):
     """After cloning with a token, .git/config should not retain the token."""
     import subprocess as sp
+
     from repo2rlenv.bootstrap.runner import _scrub_clone_credentials
 
     fake_token = "PLACEHOLDER_TEST_TOKEN_VALUE"
@@ -165,8 +175,7 @@ def test_scrub_clone_credentials_strips_token(tmp_path: Path):
     clone_dir = tmp_path / "repo"
     clone_dir.mkdir()
     sp.run(["git", "init", "-q"], cwd=clone_dir, check=True)
-    sp.run(["git", "remote", "add", "origin", auth_url],
-            cwd=clone_dir, check=True)
+    sp.run(["git", "remote", "add", "origin", auth_url], cwd=clone_dir, check=True)
 
     config = (clone_dir / ".git" / "config").read_text()
     assert fake_token in config

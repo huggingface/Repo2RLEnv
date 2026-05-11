@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LLMResponse:
     content: str
     usage: dict | None = None
-    cost_usd: float = 0.0           # cost of THIS call, in USD (best-effort)
+    cost_usd: float = 0.0  # cost of THIS call, in USD (best-effort)
     prompt_tokens: int = 0
     completion_tokens: int = 0
 

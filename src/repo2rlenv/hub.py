@@ -158,9 +158,7 @@ def push_to_hub(
 
     token = resolve_hf_token(auth)
     if not token:
-        raise RuntimeError(
-            "no HF token resolved. Run `huggingface-cli login` or set HF_TOKEN."
-        )
+        raise RuntimeError("no HF token resolved. Run `huggingface-cli login` or set HF_TOKEN.")
 
     api = HfApi(token=token)
     api.create_repo(repo_id, repo_type="dataset", private=private, exist_ok=True)
@@ -213,9 +211,11 @@ def push_to_hub(
         repo_type="dataset",
         commit_message=commit_message or f"Repo2RLEnv: add {len(task_names)} tasks",
     )
-    commit_sha = op.oid if hasattr(op, "oid") else api.list_repo_commits(
-        repo_id, repo_type="dataset"
-    )[0].commit_id
+    commit_sha = (
+        op.oid
+        if hasattr(op, "oid")
+        else api.list_repo_commits(repo_id, repo_type="dataset")[0].commit_id
+    )
 
     # Now write registry.json that pins the commit SHA we just got
     registry = _build_registry_json(

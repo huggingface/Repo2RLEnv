@@ -15,8 +15,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, ContextManager, Iterator
+from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -32,9 +33,7 @@ def _should_use_rich() -> bool:
         return False
     if not sys.stdout.isatty():
         return False
-    if os.environ.get("TERM") == "dumb":
-        return False
-    return True
+    return os.environ.get("TERM") != "dumb"
 
 
 class R2EConsole:
@@ -129,8 +128,7 @@ def install_logging(*, level: int = logging.INFO, propagate_noisy: bool = False)
     root.setLevel(level)
 
     if not propagate_noisy:
-        for noisy in ("litellm", "LiteLLM", "httpx", "httpcore",
-                       "anthropic", "openai"):
+        for noisy in ("litellm", "LiteLLM", "httpx", "httpcore", "anthropic", "openai"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

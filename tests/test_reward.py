@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from repo2rlenv.reward import calculate_diff_similarity_reward
 
-
 SAMPLE_DIFF = """diff --git a/foo.py b/foo.py
 index abc..def 100644
 --- a/foo.py

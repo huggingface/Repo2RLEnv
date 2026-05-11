@@ -18,7 +18,6 @@ import); see references/SWE-bench/ for the reference code.
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 
 from repo2rlenv.bootstrap.docker import DockerSandbox
@@ -29,12 +28,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class ValidationOutcome:
-    status: str                            # verified | partial | failed | skipped
+    status: str  # verified | partial | failed | skipped
     fail_to_pass: list[str] = field(default_factory=list)
     pass_to_pass: list[str] = field(default_factory=list)
-    pre_log: str = ""                      # raw test output, pre-fix (truncated)
-    post_log: str = ""                     # raw test output, post-fix
-    reason: str = ""                       # populated on status != "verified"
+    pre_log: str = ""  # raw test output, pre-fix (truncated)
+    post_log: str = ""  # raw test output, post-fix
+    reason: str = ""  # populated on status != "verified"
 
 
 _HEREDOC = "EOF_R2E_VALIDATE"
@@ -112,7 +111,8 @@ def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int
         return True
     logger.warning(
         "validate_pr: direct fetch of %s failed (%s); deepening clone",
-        base_commit[:12], r.stderr.strip()[:200] if r.stderr else "",
+        base_commit[:12],
+        r.stderr.strip()[:200] if r.stderr else "",
     )
     # Fallback: unshallow. Slower but always works.
     r = sandbox.exec(

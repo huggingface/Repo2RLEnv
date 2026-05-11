@@ -10,15 +10,14 @@ from pathlib import Path
 
 from repo2rlenv.bootstrap.spec import LanguageHint
 
-
 # Files listed in priority order. First match wins.
 _MARKERS: list[tuple[LanguageHint, tuple[str, ...]]] = [
-    (LanguageHint.RUST,   ("Cargo.toml",)),
-    (LanguageHint.GO,     ("go.mod",)),
-    (LanguageHint.NODE,   ("package.json", "tsconfig.json", "pnpm-lock.yaml", "yarn.lock")),
+    (LanguageHint.RUST, ("Cargo.toml",)),
+    (LanguageHint.GO, ("go.mod",)),
+    (LanguageHint.NODE, ("package.json", "tsconfig.json", "pnpm-lock.yaml", "yarn.lock")),
     (LanguageHint.PYTHON, ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")),
-    (LanguageHint.JAVA,   ("pom.xml", "build.gradle", "build.gradle.kts")),
-    (LanguageHint.C_CPP,  ("CMakeLists.txt", "configure.ac", "Makefile", "meson.build")),
+    (LanguageHint.JAVA, ("pom.xml", "build.gradle", "build.gradle.kts")),
+    (LanguageHint.C_CPP, ("CMakeLists.txt", "configure.ac", "Makefile", "meson.build")),
 ]
 
 
@@ -37,10 +36,10 @@ def base_image_for(lang: LanguageHint) -> str:
     """Pick a sensible base image per language."""
     return {
         LanguageHint.PYTHON: "python:3.12-slim",
-        LanguageHint.NODE:   "node:22-slim",
-        LanguageHint.GO:     "golang:1.23",
-        LanguageHint.RUST:   "rust:1-slim",
-        LanguageHint.JAVA:   "eclipse-temurin:21-jdk",
-        LanguageHint.C_CPP:  "ubuntu:24.04",
+        LanguageHint.NODE: "node:22-slim",
+        LanguageHint.GO: "golang:1.23",
+        LanguageHint.RUST: "rust:1-slim",
+        LanguageHint.JAVA: "eclipse-temurin:21-jdk",
+        LanguageHint.C_CPP: "ubuntu:24.04",
         LanguageHint.UNKNOWN: "ubuntu:24.04",
     }[lang]

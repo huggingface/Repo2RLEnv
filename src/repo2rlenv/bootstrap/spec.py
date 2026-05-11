@@ -26,19 +26,19 @@ class BootstrapResult:
     against it without re-running the agent.
     """
 
-    image_digest: str                   # ghcr.io/.../bootstrap@sha256:... or local-only digest
-    image_tag: str                      # human-readable tag we committed to
+    image_digest: str  # ghcr.io/.../bootstrap@sha256:... or local-only digest
+    image_tag: str  # human-readable tag we committed to
     language: LanguageHint
-    repo: str                           # "owner/name"
-    ref: str                            # commit SHA the bootstrap built from
-    rebuild_cmds: list[str]             # commands to re-apply build after a patch
-    test_cmds: list[str]                # commands to run the test suite
-    smoke_passed: bool                  # did the smoke test pass at bootstrap time
-    iterations: int                     # how many agent turns it took
+    repo: str  # "owner/name"
+    ref: str  # commit SHA the bootstrap built from
+    rebuild_cmds: list[str]  # commands to re-apply build after a patch
+    test_cmds: list[str]  # commands to run the test suite
+    smoke_passed: bool  # did the smoke test pass at bootstrap time
+    iterations: int  # how many agent turns it took
     build_time_sec: float
-    llm_provider: str                   # "anthropic/claude-sonnet-4-6"
+    llm_provider: str  # "anthropic/claude-sonnet-4-6"
     llm_cost_estimate_usd: float = 0.0  # rough running total
-    dockerfile_reconstruction: str = "" # generated from the agent's commands, for reproducibility
-    transcript_path: Path | None = None # full ReAct transcript for debugging
+    dockerfile_reconstruction: str = ""  # generated from the agent's commands, for reproducibility
+    transcript_path: Path | None = None  # full ReAct transcript for debugging
     pushed_to_registry: bool = False
     extra: dict = field(default_factory=dict)

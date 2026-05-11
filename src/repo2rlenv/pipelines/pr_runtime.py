@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -60,9 +60,7 @@ from repo2rlenv.spec.options import PRRuntimeOptions
 logger = logging.getLogger(__name__)
 
 
-_CLOSES_RE = re.compile(
-    r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE
-)
+_CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 
 # Path-component classifier for "is this a test file?".
 #
@@ -101,13 +99,11 @@ def _path_is_test(path: str) -> bool:
             return True
     # Rule 3: filename-level test markers
     basename = parts[-1]
-    if basename.startswith("test_") and (basename.endswith(".py") or basename.endswith(".js") or basename.endswith(".ts")):
-        return True
-    if basename.endswith("_test.py") or basename.endswith("_test.go") or basename.endswith(".test.ts") or basename.endswith(".test.js"):
-        return True
-    if basename.endswith(".spec.ts") or basename.endswith(".spec.js"):
-        return True
-    return False
+    return (
+        (basename.startswith("test_") and basename.endswith((".py", ".js", ".ts")))
+        or basename.endswith(("_test.py", "_test.go", ".test.ts", ".test.js"))
+        or basename.endswith((".spec.ts", ".spec.js"))
+    )
 
 
 # Match `diff --git a/<path> b/<path>` block boundaries to split a unified diff
@@ -233,13 +229,13 @@ def build_eval_script(base_commit: str, test_patch: str, test_cmds: list[str]) -
         "set -uxo pipefail\n"
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
-        f"{reset} || true\n"   # tolerate test files that didn't exist at base
+        f"{reset} || true\n"  # tolerate test files that didn't exist at base
         f"{apply}\n"
         ": 'START_TEST_OUTPUT'\n"
         f"{test_block}\n"
         "TEST_EXIT_CODE=$?\n"
         ": 'END_TEST_OUTPUT'\n"
-        f"{reset} || true\n"   # cleanup; failure here doesn't change verdict
+        f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
         "exit $TEST_EXIT_CODE\n"
     )
 
@@ -294,7 +290,9 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         cleaned = re.sub(r"\s+--collect-only\b", "", cmd)
         cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
         # Add -v if this is a pytest invocation and no -v / --verbose is present
-        if re.search(r"\bpytest\b", cleaned) and not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
+        if re.search(r"\bpytest\b", cleaned) and not re.search(
+            r"\s-v\b|\s--verbose\b|-vv\b", cleaned
+        ):
             cleaned = cleaned.rstrip() + " -v"
         out.append(cleaned.strip())
     return out
@@ -338,10 +336,14 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
             pytest_idx = tokens.index("pytest")
         except ValueError:
             # `pytest` not a standalone token (e.g. `python -m pytest`)
-            pytest_idx = next((i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")), -1)
+            pytest_idx = next(
+                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")), -1
+            )
         if pytest_idx >= 0:
             tail = tokens[pytest_idx + 1 :]
-            has_path_arg = any(not t.startswith("-") and (t.endswith(".py") or "/" in t) for t in tail)
+            has_path_arg = any(
+                not t.startswith("-") and (t.endswith(".py") or "/" in t) for t in tail
+            )
             if has_path_arg:
                 out.append(cmd)
                 continue
@@ -397,7 +399,8 @@ class PRRuntimePipeline:
         logger.info("listing merged PRs for %s/%s (limit=%d)", owner, name, self.options.limit)
         try:
             prs = list_merged_prs(
-                owner, name,
+                owner,
+                name,
                 limit=self.options.limit,
                 since=self.options.since,
                 until=self.options.until,
@@ -433,7 +436,9 @@ class PRRuntimePipeline:
 
                 patch, test_patch = split_patch_and_test_patch(diff)
                 if not patch.strip():
-                    skip_reasons["empty_source_patch"] = skip_reasons.get("empty_source_patch", 0) + 1
+                    skip_reasons["empty_source_patch"] = (
+                        skip_reasons.get("empty_source_patch", 0) + 1
+                    )
                     self._emit_progress(pr_label, "skip", "empty_source_patch")
                     continue
                 if not test_patch.strip():
@@ -491,15 +496,21 @@ class PRRuntimePipeline:
 
                 # Emit the Harbor task
                 task = self._build_task(
-                    pr, patch, test_patch,
+                    pr,
+                    patch,
+                    test_patch,
                     fail_to_pass=fail_to_pass,
                     pass_to_pass=pass_to_pass,
                     validation_status=validation_status,
                 )
                 write_harbor_task(task, out_dir)
                 emitted += 1
-                logger.info("emitted task %s (F2P=%d, P2P=%d)",
-                             task.name, len(fail_to_pass), len(pass_to_pass))
+                logger.info(
+                    "emitted task %s (F2P=%d, P2P=%d)",
+                    task.name,
+                    len(fail_to_pass),
+                    len(pass_to_pass),
+                )
                 self._emit_progress(task.name, "emit")
         finally:
             if sandbox is not None:
@@ -523,9 +534,11 @@ class PRRuntimePipeline:
             return "not_merged"
         if not pr.changed_files:
             return "no_files"
-        if self.options.min_problem_statement_words > 0:
-            if _word_count(pr.body or "") < self.options.min_problem_statement_words:
-                return "problem_statement_too_short"
+        if (
+            self.options.min_problem_statement_words > 0
+            and _word_count(pr.body or "") < self.options.min_problem_statement_words
+        ):
+            return "problem_statement_too_short"
         return None
 
     def _structural_quality_filter(self, source_patch: str, test_patch: str) -> str | None:
@@ -580,12 +593,14 @@ class PRRuntimePipeline:
 
     def _start_validation_sandbox(self):
         """Spin up a DockerSandbox from the bootstrap image (shared across PRs)."""
-        from repo2rlenv.bootstrap.docker import DockerSandbox
         # The bootstrap image already contains the repo at the bootstrap-time HEAD.
         # We pass repo_dir=None? No — DockerSandbox.start requires a repo_dir to copy in.
         # The repo is already in the image; we'll just `git checkout` to each PR's base_commit
         # from inside the container, so the path here is a no-op marker.
         import tempfile
+
+        from repo2rlenv.bootstrap.docker import DockerSandbox
+
         marker = Path(tempfile.mkdtemp(prefix="r2e-pr-runtime-"))
         (marker / ".keep").write_text("")  # docker cp <src>/. <dst> works on any non-empty dir
         # Pull just the tag, don't re-copy the repo (image already has it)
@@ -631,7 +646,7 @@ class PRRuntimePipeline:
             "ref": pr.base_sha,
             "reference": pr.url,
             "source_access": self.input.repo.access,
-            "built_at": datetime.now(timezone.utc).isoformat(),
+            "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,
             "reward_kinds": ["test_execution", "diff_similarity"],
             "pr_runtime": {

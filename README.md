@@ -2,6 +2,8 @@
 
 **Turn any repository into an RL environment for training and evaluation.**
 
+> ⚠️ **Experimental.** This is a research project in active development. APIs, spec fields, and CLI flags change between minor versions. Pin to a specific release if you depend on it; expect breaking changes on `main`.
+
 Repo2RLEnv synthesizes verifiable data from existing repositories using pluggable pipelines, exports it into a uniform spec, and pushes straight to the Hugging Face Hub. End-to-end — **synthesis → standardize → train + eval** — with the focus on training. The uniform spec is [Harbor](https://github.com/harbor-framework/harbor)'s, so the datasets you produce drop straight into any Harbor-compatible runtime.
 
 ```
@@ -51,23 +53,37 @@ Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
 ## Pipelines
 
-Different methods to manufacture verifiable tasks from a repo. Pick one, run it, push the dataset. Names follow `{source}_{shape}` — `_runtime` pipelines verify the oracle inside a sandbox; `_diff` doesn't.
+Different methods to manufacture verifiable tasks from a repo. Pick one, run it, push the dataset.
 
-| Pipeline | Status | Inspiration |
-|---|---|---|
-| [`pr_diff`](./docs/pipelines/pr_diff.md) | **shipped (v0.1)** | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
-| [`pr_runtime`](./docs/pipelines/pr_runtime.md) | planned (v0.3) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`commit_runtime`](./docs/pipelines/commit_runtime.md) | planned | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`mutation_bugs`](./docs/pipelines/mutation_bugs.md) | planned | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
-| [`code_instruct`](./docs/pipelines/code_instruct.md) | planned | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./docs/pipelines/equivalence_tests.md) | planned | [R2E](https://github.com/r2e-project/r2e) |
-| [`pr_stream`](./docs/pipelines/pr_stream.md) | planned | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) |
-| [`cve_patches`](./docs/pipelines/cve_patches.md) | planned (v1.0) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) |
-| [`refactor_synthesis`](./docs/pipelines/refactor_synthesis.md) | planned (v1.0) | RefactoringMiner |
+| Pipeline | Status | Sandbox | Inspiration | Docs |
+|---|:-:|:-:|---|:-:|
+| `pr_diff` | ✅ | — | [SWE-RL](https://github.com/facebookresearch/swe-rl) | [📄](./docs/pipelines/pr_diff.md) |
+| `pr_runtime` | ✅ | ✓ | [SWE-bench](https://github.com/SWE-bench/SWE-bench) | [📄](./docs/pipelines/pr_runtime.md) |
+| `commit_runtime` | planned | ✓ | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) | [📄](./docs/pipelines/commit_runtime.md) |
+| `mutation_bugs` | planned | ✓ | [SWE-smith](https://github.com/SWE-bench/SWE-smith) | [📄](./docs/pipelines/mutation_bugs.md) |
+| `code_instruct` | planned | ✓ | [Magicoder / OSS-Instruct](https://github.com/ise-uiuc/magicoder) | [📄](./docs/pipelines/code_instruct.md) |
+| `equivalence_tests` | planned | ✓ | [R2E](https://github.com/r2e-project/r2e) | [📄](./docs/pipelines/equivalence_tests.md) |
+| `pr_stream` | planned | ✓ | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) | [📄](./docs/pipelines/pr_stream.md) |
+| `cve_patches` | planned | ✓ | [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | [📄](./docs/pipelines/cve_patches.md) |
+| `refactor_synthesis` | planned | ✓ | RefactoringMiner | [📄](./docs/pipelines/refactor_synthesis.md) |
 
-Each pipeline is text-only or sandbox-required; all of them flow through the same QA gate (determinism, oracle consistency, LLM judge, false-negative filter) before tasks are admitted to a dataset. The text-only path (`pr_diff`) skips the heavy QA layers since there's no execution to validate.
+Every pipeline flows through the same QA gate (determinism, oracle consistency, LLM judge, false-negative filter) before tasks are admitted to a dataset. Text-only pipelines skip the heavy QA layers since there's no execution to validate. See [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full status table including reward kinds + GPU requirements.
 
-See [**`docs/pipelines/README.md`**](./docs/pipelines/README.md) for the full status table including reward kinds, GPU needs, and sandbox requirements.
+---
+
+## Bootstrap (sandbox-required pipelines)
+
+Pipelines marked with a sandbox `✓` above need a working Docker environment for the target repo before they can run. Repo2RLEnv's **bootstrap phase** handles this automatically — an LLM agent iterates shell commands inside a fresh Docker container until the repo builds and the test suite collects. The working image is committed, content-addressed, and cached, so the expensive env-construction step runs **once per (repo, ref)** and every downstream task reuses it. Pure text pipelines (`pr_diff`) skip it entirely.
+
+You don't normally invoke it directly — `repo2rlenv generate --pipeline pr_runtime ...` auto-triggers a cache lookup and runs bootstrap on miss. But you can pre-warm it or use it standalone for debugging:
+
+```bash
+repo2rlenv bootstrap \
+  --repo <owner>/<repo> \
+  --llm anthropic/claude-sonnet-4-6
+```
+
+Full design + cache layout + cost-tracking + spec extension fields: [`docs/reference/BOOTSTRAP.md`](./docs/reference/BOOTSTRAP.md).
 
 ---
 
@@ -89,8 +105,6 @@ A dataset format that:
 
 Repo2RLEnv emits datasets in the [Harbor](https://github.com/harbor-framework/harbor) task format. We don't ship our own sandbox, agent harness, or registry — Harbor already has those. We focus on **synthesis**: turning a real repo into verifiable, reproducible Harbor tasks. A small `[metadata.repo2env]` extension inside Harbor's `task.toml` carries provenance (pipeline name, base commit, PR URL, content hash, reward kinds, etc.).
 
-For sandbox-required pipelines, an LLM agent ("bootstrap") iterates inside a fresh Docker container until the repo builds and tests can run; the working image is committed, cached, and reused across pipeline runs. See [`docs/reference/BOOTSTRAP.md`](./docs/reference/BOOTSTRAP.md).
-
 By targeting Harbor we inherit its full stack: Local Docker / Modal / Daytona / E2B / Runloop sandboxes, every major coding-agent harness, parallel execution, the publishing CLI, and downstream hooks for [OpenReward](https://docs.openreward.ai) (which adds Miles, Slime to the trainer list).
 
 ---
@@ -111,25 +125,16 @@ Docs are organized into three tiers — see [`docs/README.md`](./docs/README.md)
 
 ---
 
-## Inspiration & related work
+## Adjacent projects
 
-Repo2RLEnv borrows ideas from a constellation of repository-mining and RL-environment projects. Each pipeline name links to its primary inspiration; the table below collects the broader influences.
+Beyond the per-pipeline inspirations linked in the table above, Repo2RLEnv builds on or adjacent to:
 
-| Source | What we took |
-|---|---|
-| [SWE-RL](https://github.com/facebookresearch/swe-rl) (Wei et al., 2025) | The text-only PR-as-task with diff-similarity reward (`pr_diff`) |
-| [SWE-bench](https://github.com/SWE-bench/SWE-bench) (Jimenez et al., 2024) | The full PR-as-task formulation that `pr_runtime` evolves |
-| [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) (Microsoft) | Continuous, post-cutoff PR mining (`pr_stream`) |
-| [RepoLaunch](https://github.com/microsoft/RepoLaunch) (Microsoft) | LLM-agent-driven environment setup; our `bootstrap` is an independent reimplementation |
-| [SWE-smith](https://github.com/SWE-bench/SWE-smith) | Mutation-based synthetic bug generation (`mutation_bugs`) |
-| [SWE-Gym](https://github.com/SWE-Gym/SWE-Gym) | RL-environment framing for SWE-bench-style tasks |
-| [R2E](https://github.com/r2e-project/r2e) / [R2E-Gym](https://github.com/R2E-Gym/R2E-Gym) | Equivalence-test synthesis (`equivalence_tests`) + repo-to-env iteration |
-| [Magicoder / OSS-Instruct](https://github.com/ise-uiuc/magicoder) | Code-context → instruction synthesis (`code_instruct`) |
-| [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | CVE patches as training data (`cve_patches`) |
-| [SWE-Bench++](https://arxiv.org/abs/2512.17419) | Four-stage QA pipeline we'll re-implement |
-| [Harbor](https://github.com/harbor-framework/harbor) | Task format and runtime ecosystem we **adopt** as our output spec |
-| [OpenReward](https://docs.openreward.ai) | ORS protocol + extra trainer integrations layered above Harbor |
-| [verifiers](https://github.com/willccbb/verifiers) (Prime Intellect), [OpenEnv](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) | Adjacent standardization efforts |
+- [**Harbor**](https://github.com/harbor-framework/harbor) — the task format + runtime ecosystem we **adopt** as our output spec
+- [**RepoLaunch**](https://github.com/microsoft/RepoLaunch) (Microsoft) — LLM-agent-driven environment setup; our `bootstrap` is an independent reimplementation
+- [**OpenReward**](https://docs.openreward.ai) — ORS protocol + extra trainer integrations layered above Harbor
+- [**SWE-Gym**](https://github.com/SWE-Gym/SWE-Gym) — RL-environment framing for SWE-bench-style tasks
+- [**SWE-Bench++**](https://arxiv.org/abs/2512.17419) — four-stage QA pipeline we'll re-implement
+- [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect), [**OpenEnv**](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) — adjacent standardization efforts
 
 Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and licensed Apache-2.0.
 
@@ -139,9 +144,10 @@ Every pipeline that draws from external work carries an Acknowledgment block in 
 
 Pre-alpha.
 
-- **v0.1** shipped on PyPI: `pr_diff` + HF Hub publish + diff-similarity reward, end-to-end on any GitHub repo (public or private). 71/71 tests passing.
+- **v0.1** shipped on PyPI: `pr_diff` + HF Hub publish + diff-similarity reward, end-to-end on any GitHub repo (public or private).
 - **v0.2** in main: bootstrap phase (LLM-driven Docker env), unified Rich UI, content-addressed cache, registry-qualified pullable digests.
-- **v0.3** in flight: `pr_runtime` (sandbox-verified PR mining) + auto-trigger of bootstrap from `generate`.
+- **v0.3** in main: `pr_runtime` pipeline (sandbox-verified PR mining with `FAIL_TO_PASS` / `PASS_TO_PASS` oracle), auto-triggered bootstrap, structural quality filters (`ci_only_patch`, `no_new_test_funcs`, path-component test classifier), targeted test invocation. 115/115 tests passing.
+- **v0.4 planned**: polyglot log parsers (JS/Go/Rust), parallel per-PR validation, LLM-judged QA gate (SWE-Bench++ four-layer recipe).
 
 ## License
 

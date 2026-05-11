@@ -59,7 +59,6 @@ def cmd_generate(args: argparse.Namespace) -> int:
     from repo2rlenv.config import load_generation_input
     from repo2rlenv.pipelines import PIPELINES
     from repo2rlenv.spec.options import parse_options
-    from repo2rlenv.ui import GenerationView
     from repo2rlenv.ui.views.generation import generation_view_or_plain
 
     overrides: dict[str, Any] = {}
@@ -100,7 +99,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     # Cache hit ⇒ instant; cache miss ⇒ full LLM-agent run with the live UI.
     bootstrap_result = None
     if getattr(pipeline_cls, "requires_bootstrap", False):
-        from repo2rlenv.bootstrap import ensure_bootstrap, LanguageHint
+        from repo2rlenv.bootstrap import LanguageHint, ensure_bootstrap
         from repo2rlenv.bootstrap.runner import BootstrapError
         from repo2rlenv.ui.views.bootstrap import bootstrap_view_or_plain
 
@@ -109,8 +108,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
         if args.language:
             try:
                 bspec.languages_hint = [LanguageHint(args.language).value]
-            except ValueError:
-                raise SystemExit(f"unknown --language: {args.language!r}")
+            except ValueError as exc:
+                raise SystemExit(f"unknown --language: {args.language!r}") from exc
         if args.base_image:
             bspec.base_image = args.base_image
         # --max-spend-usd=0 ⇒ no cap; map to None
@@ -127,7 +126,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
         ) as bs_view:
             try:
                 bootstrap_result = ensure_bootstrap(
-                    gen_input.repo, bspec, gen_input.llm, gen_input.auth,
+                    gen_input.repo,
+                    bspec,
+                    gen_input.llm,
+                    gen_input.auth,
                     force=args.force_bootstrap,
                     on_turn=bs_view.on_turn if bs_view else None,
                     on_thinking=bs_view.on_thinking if bs_view else None,
@@ -192,9 +194,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
         console.kv(
             {
                 "candidates": result.candidates,
-                "emitted":    result.emitted,
-                "skipped":    f"{result.skipped} ({result.skip_reasons})",
-                "out_dir":    str(result.out_dir),
+                "emitted": result.emitted,
+                "skipped": f"{result.skipped} ({result.skip_reasons})",
+                "out_dir": str(result.out_dir),
             },
             title="Generation result",
         )
@@ -213,9 +215,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
             )
             console.kv(
                 {
-                    "repo_id":      push_result.repo_id,
-                    "commit":       push_result.commit_sha,
-                    "task_count":   push_result.task_count,
+                    "repo_id": push_result.repo_id,
+                    "commit": push_result.commit_sha,
+                    "task_count": push_result.task_count,
                     "registry_url": push_result.registry_url,
                 },
                 title="HF Hub push",
@@ -245,9 +247,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
             missing = [k for k in ("version", "task") if k not in data]
             if missing:
-                console.error(
-                    f"{tf.relative_to(dataset_dir)}: missing top-level {missing}"
-                )
+                console.error(f"{tf.relative_to(dataset_dir)}: missing top-level {missing}")
                 failures += 1
                 continue
 
@@ -283,17 +283,15 @@ def cmd_reward(args: argparse.Namespace) -> int:
         console.error(f"prediction not found: {pred_path}")
         return 2
 
-    reward, meta = calculate_diff_similarity_reward(
-        oracle_path.read_text(), pred_path.read_text()
-    )
+    reward, meta = calculate_diff_similarity_reward(oracle_path.read_text(), pred_path.read_text())
     meta_dict = asdict(meta)
     console.kv(
         {
-            "task":          task_dir.name,
-            "reward":        f"{reward:.4f}",
+            "task": task_dir.name,
+            "reward": f"{reward:.4f}",
             "matched_lines": f"{meta_dict['matched_lines']}/{meta_dict['oracle_lines']}",
-            "pred_lines":    meta_dict["pred_lines"],
-            "parse_error":   meta_dict["parse_error"] or "(none)",
+            "pred_lines": meta_dict["pred_lines"],
+            "parse_error": meta_dict["parse_error"] or "(none)",
         },
         title="diff_similarity reward",
     )
@@ -302,7 +300,7 @@ def cmd_reward(args: argparse.Namespace) -> int:
 
 def cmd_bootstrap(args: argparse.Namespace) -> int:
     """Build a working Docker image for (repo, ref) via an LLM agent loop."""
-    from repo2rlenv.bootstrap import ensure_bootstrap, LanguageHint
+    from repo2rlenv.bootstrap import LanguageHint, ensure_bootstrap
     from repo2rlenv.bootstrap.language import base_image_for
     from repo2rlenv.bootstrap.runner import BootstrapError
     from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
@@ -328,8 +326,8 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     if args.language:
         try:
             spec.languages_hint = [LanguageHint(args.language).value]
-        except ValueError:
-            raise SystemExit(f"unknown language: {args.language!r}")
+        except ValueError as exc:
+            raise SystemExit(f"unknown language: {args.language!r}") from exc
 
     guessed_lang = spec.languages_hint[0] if spec.languages_hint else "unknown"
     try:
@@ -353,7 +351,11 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
         on_phase = view.on_phase if view is not None else None
         try:
             result = ensure_bootstrap(
-                repo, spec, llm, AuthSpec(), force=args.force,
+                repo,
+                spec,
+                llm,
+                AuthSpec(),
+                force=args.force,
                 on_turn=on_turn,
                 on_thinking=on_thinking,
                 on_executing=on_executing,
@@ -388,21 +390,21 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     if view is None:
         console.kv(
             {
-                "repo":         f"{result.repo}@{result.ref[:12]}",
-                "language":     result.language.value,
+                "repo": f"{result.repo}@{result.ref[:12]}",
+                "language": result.language.value,
                 "image_digest": result.image_digest,
-                "image_tag":    result.image_tag,
-                "iterations":   result.iterations,
-                "build_time":   f"{result.build_time_sec:.1f}s",
+                "image_tag": result.image_tag,
+                "iterations": result.iterations,
+                "build_time": f"{result.build_time_sec:.1f}s",
                 "smoke_passed": result.smoke_passed,
-                "pushed":       result.pushed_to_registry,
+                "pushed": result.pushed_to_registry,
             },
             title="Bootstrap result",
         )
     return 0
 
 
-_SAMPLE_CONFIG = '''spec_version: "0.1.0"
+_SAMPLE_CONFIG = """spec_version: "0.1.0"
 
 repo:
   url: "huggingface/trl"
@@ -431,7 +433,7 @@ qa:
 
 sandbox:
   provider: "none"
-'''
+"""
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -454,8 +456,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--version", action="version", version=f"repo2rlenv {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("--no-ui", action="store_true",
-                         help="disable Rich live displays globally (plain logs)")
+    parser.add_argument(
+        "--no-ui", action="store_true", help="disable Rich live displays globally (plain logs)"
+    )
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     # generate
@@ -465,21 +468,35 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--ref", default="HEAD", help="branch/tag/commit (default: HEAD)")
     g.add_argument("--access", choices=["public", "private", "auto"], default="auto")
     g.add_argument("--pipeline", help="pipeline name")
-    g.add_argument("--pipeline-opt", action="append", default=[],
-                     help="pipeline-specific kwarg, repeatable (key=value)")
+    g.add_argument(
+        "--pipeline-opt",
+        action="append",
+        default=[],
+        help="pipeline-specific kwarg, repeatable (key=value)",
+    )
     g.add_argument("--llm", help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-6)")
     g.add_argument("--out", help="output directory")
     g.add_argument("--org", help="task.org for Harbor")
     g.add_argument("--dataset-name", help="dataset name")
     g.add_argument("--visibility", choices=["public", "private"], default="public")
     # Bootstrap-related (only used for pipelines with requires_bootstrap=True)
-    g.add_argument("--max-spend-usd", type=float, default=5.0,
-                     help="LLM budget cap across bootstrap + pipeline (default 5.0; 0 = unlimited)")
-    g.add_argument("--language", help="bootstrap: override auto-detect (python|node|go|rust|java|c_cpp)")
-    g.add_argument("--base-image",
-                     help="bootstrap: override base image (e.g. ubuntu:24.04, python:3.11-slim)")
-    g.add_argument("--force-bootstrap", action="store_true",
-                     help="ignore bootstrap cache, rebuild from scratch")
+    g.add_argument(
+        "--max-spend-usd",
+        type=float,
+        default=5.0,
+        help="LLM budget cap across bootstrap + pipeline (default 5.0; 0 = unlimited)",
+    )
+    g.add_argument(
+        "--language", help="bootstrap: override auto-detect (python|node|go|rust|java|c_cpp)"
+    )
+    g.add_argument(
+        "--base-image", help="bootstrap: override base image (e.g. ubuntu:24.04, python:3.11-slim)"
+    )
+    g.add_argument(
+        "--force-bootstrap",
+        action="store_true",
+        help="ignore bootstrap cache, rebuild from scratch",
+    )
     g.set_defaults(func=cmd_generate)
 
     # validate
@@ -505,10 +522,16 @@ def main(argv: list[str] | None = None) -> int:
     bs.add_argument("--image-registry", help="e.g. ghcr.io/myorg/r2e — pushes after build")
     bs.add_argument("--platform", default="linux/amd64", choices=["linux/amd64", "linux/arm64"])
     bs.add_argument("--language", help="override auto-detection: python|node|go|rust|java|c_cpp")
-    bs.add_argument("--base-image",
-                     help="override per-language default base (e.g. ubuntu:24.04, python:3.11-slim)")
-    bs.add_argument("--max-spend-usd", type=float, default=5.0,
-                     help="abort if cumulative LLM cost exceeds this (default 5.0; 0 = unlimited)")
+    bs.add_argument(
+        "--base-image",
+        help="override per-language default base (e.g. ubuntu:24.04, python:3.11-slim)",
+    )
+    bs.add_argument(
+        "--max-spend-usd",
+        type=float,
+        default=5.0,
+        help="abort if cumulative LLM cost exceeds this (default 5.0; 0 = unlimited)",
+    )
     bs.add_argument("--force", action="store_true", help="ignore cache, rebuild from scratch")
     bs.set_defaults(func=cmd_bootstrap)
 

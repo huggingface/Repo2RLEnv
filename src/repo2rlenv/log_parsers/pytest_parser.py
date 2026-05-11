@@ -32,9 +32,7 @@ _STATUSES = ("PASSED", "FAILED", "SKIPPED", "ERROR")
 # Verbose progress format: `tests/foo.py::test_x PASSED  [12%]` or `... FAILED`
 # Test names contain alphanumerics, _, /, ., ::, [, ], -, +
 # We require AT LEAST ONE non-whitespace token followed by whitespace + STATUS.
-_VERBOSE_RE = re.compile(
-    r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b"
-)
+_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
 
 
 def parse_pytest(log: str) -> dict[str, TestStatus]:

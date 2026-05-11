@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -71,7 +71,7 @@ class Pipeline(Protocol):
         self,
         input: GenerationInput,
         options: BaseModel,
-        bootstrap: "Any" = None,
+        bootstrap: Any = None,
     ) -> None: ...
 
     def run(self, out_dir: Path) -> PipelineResult: ...

@@ -73,11 +73,16 @@ def list_merged_prs(
     Uses `gh pr list` (REST under the hood). Filters by date client-side.
     """
     args = [
-        "pr", "list",
-        "--repo", f"{owner}/{name}",
-        "--state", "merged",
-        "--limit", str(min(limit * 3, 1000)),  # over-fetch to allow client-side filtering
-        "--json", "number,title,body,state,mergedAt,baseRefName,baseRefOid,headRefOid,isDraft,url,files",
+        "pr",
+        "list",
+        "--repo",
+        f"{owner}/{name}",
+        "--state",
+        "merged",
+        "--limit",
+        str(min(limit * 3, 1000)),  # over-fetch to allow client-side filtering
+        "--json",
+        "number,title,body,state,mergedAt,baseRefName,baseRefOid,headRefOid,isDraft,url,files",
     ]
     raw = _run_gh(args, token=token)
     rows = json.loads(raw)

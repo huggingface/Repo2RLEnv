@@ -62,7 +62,9 @@ def cache_key(
     return cache_dir / f"{owner}__{name}" / slug
 
 
-def save(result: BootstrapResult, cache_dir: Path, *, options: dict[str, Any] | None = None) -> Path:
+def save(
+    result: BootstrapResult, cache_dir: Path, *, options: dict[str, Any] | None = None
+) -> Path:
     """Write a BootstrapResult to its cache slot. Returns the dir."""
     slot = cache_key(result.repo, result.ref, cache_dir, options=options)
     slot.mkdir(parents=True, exist_ok=True)

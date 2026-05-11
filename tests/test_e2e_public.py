@@ -27,7 +27,6 @@ from repo2rlenv.spec.input import (
 )
 from repo2rlenv.spec.options import PRDiffOptions
 
-
 pytestmark = pytest.mark.skipif(
     not shutil.which("gh"),
     reason="gh CLI not available — skipping end-to-end tests",
@@ -36,9 +35,7 @@ pytestmark = pytest.mark.skipif(
 
 def _gh_authenticated() -> bool:
     try:
-        r = subprocess.run(
-            ["gh", "auth", "status"], capture_output=True, timeout=5, check=False
-        )
+        r = subprocess.run(["gh", "auth", "status"], capture_output=True, timeout=5, check=False)
         return r.returncode == 0
     except (subprocess.SubprocessError, OSError):
         return False

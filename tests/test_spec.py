@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from repo2rlenv.spec.input import GenerationInput, PipelineName, RepoSpec
 from repo2rlenv.spec.options import (
     PRDiffOptions,
-    PRRuntimeOptions,
     parse_options,
 )
 
@@ -24,7 +24,7 @@ def test_repo_spec_strips_dot_git():
 
 
 def test_repo_spec_rejects_bare_word():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RepoSpec(url="not_a_repo")
 
 
@@ -46,7 +46,7 @@ def test_full_input_roundtrips():
 
 
 def test_options_strict_extra_forbidden():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         PRDiffOptions(limit=10, unknown_field=42)
 
 

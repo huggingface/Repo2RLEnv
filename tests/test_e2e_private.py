@@ -26,7 +26,6 @@ from repo2rlenv.spec.input import (
 )
 from repo2rlenv.spec.options import PRDiffOptions
 
-
 pytestmark = pytest.mark.skipif(
     not shutil.which("gh"),
     reason="gh CLI not available",
@@ -37,7 +36,9 @@ def _can_access(owner_name: str) -> bool:
     try:
         r = subprocess.run(
             ["gh", "api", f"/repos/{owner_name}", "--silent"],
-            capture_output=True, timeout=10, check=False,
+            capture_output=True,
+            timeout=10,
+            check=False,
         )
         return r.returncode == 0
     except (subprocess.SubprocessError, OSError):
@@ -68,7 +69,9 @@ def test_e2e_private_trl_internal(tmp_path: Path):
     assert result.candidates >= 0  # private repo may have 0 mergeable PRs
 
     if result.emitted == 0:
-        pytest.skip(f"no emittable PRs (candidates={result.candidates}, skips={result.skip_reasons})")
+        pytest.skip(
+            f"no emittable PRs (candidates={result.candidates}, skips={result.skip_reasons})"
+        )
 
     for task_dir in tmp_path.iterdir():
         if not task_dir.is_dir():

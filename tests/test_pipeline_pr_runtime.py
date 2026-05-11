@@ -11,8 +11,6 @@ runs against real repos. These tests pin the pure-Python bits:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from repo2rlenv.pipelines.pr_runtime import (
@@ -26,7 +24,6 @@ from repo2rlenv.pipelines.pr_runtime import (
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
 )
-
 
 # --- diff split ---------------------------------------------------------------
 
@@ -266,8 +263,9 @@ def test_normalize_strips_collect_only():
     """Bootstrap often records `--collect-only` for the fast smoke gate; we need
     actual test execution at validation time."""
     assert normalize_test_cmds_for_runtime(["pytest --collect-only"]) == ["pytest -v"]
-    assert normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == ["pytest tests/ -v"] or \
-           normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == ["pytest  tests/ -v"]
+    assert normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == [
+        "pytest tests/ -v"
+    ] or normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == ["pytest  tests/ -v"]
 
 
 def test_normalize_strips_short_co():
@@ -330,7 +328,6 @@ def test_pr_runtime_requires_bootstrap_attr():
 def test_pr_runtime_rejects_missing_bootstrap():
     """Constructing without a BootstrapResult should fail loudly (not silently emit broken tasks)."""
     from repo2rlenv.spec.input import (
-        AuthSpec,
         GenerationInput,
         LLMSpec,
         OutputSpec,

@@ -26,7 +26,7 @@ upstream MIT license does not apply to this file; Repo2RLEnv is Apache-2.0.
 ----------------------------------------------------------------------------
 """
 
-from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.bootstrap.runner import ensure_bootstrap
+from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 
 __all__ = ["BootstrapResult", "LanguageHint", "ensure_bootstrap"]

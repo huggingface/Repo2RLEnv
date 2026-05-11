@@ -8,19 +8,18 @@ each candidate is processed.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, Literal
+from typing import Literal
 
 from rich.console import Group, RenderableType
-from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.text import Text
 
-from repo2rlenv.ui.console import console as r2e_console, should_use_rich
+from repo2rlenv.ui.console import should_use_rich
 from repo2rlenv.ui.live import live_view
 from repo2rlenv.ui.theme import GLYPH, STYLE
-
 
 CandidateOutcome = Literal["emit", "skip", "error"]
 
@@ -62,12 +61,13 @@ class GenerationView:
             expand=True,
         )
         self._progress_task = self._progress.add_task(
-            description="Mining candidates", total=limit,
+            description="Mining candidates",
+            total=limit,
         )
 
     # ----- context manager ----------------------------------------------------
 
-    def __enter__(self) -> "GenerationView":
+    def __enter__(self) -> GenerationView:
         self._live_ctx = live_view(self._render())
         self._live = self._live_ctx.__enter__()
         return self
@@ -97,12 +97,20 @@ class GenerationView:
         elif outcome == "error":
             self.errors += 1
 
-        self._progress.update(self._progress_task, completed=self.processed,
-                                description=f"Processing {name[:50]}")
+        self._progress.update(
+            self._progress_task, completed=self.processed, description=f"Processing {name[:50]}"
+        )
         self._refresh()
 
-    def set_outcome(self, *, emitted: int, skipped: int, skip_reasons: dict[str, int],
-                     pushed: bool = False, registry_url: str = "") -> None:
+    def set_outcome(
+        self,
+        *,
+        emitted: int,
+        skipped: int,
+        skip_reasons: dict[str, int],
+        pushed: bool = False,
+        registry_url: str = "",
+    ) -> None:
         body = Text()
         body.append("emitted   ", style=STYLE.DIM)
         body.append(f"{emitted}\n", style="green")
@@ -174,8 +182,9 @@ class GenerationView:
         if self.skip_reasons:
             reasons = Text()
             reasons.append("skip reasons: ", style=STYLE.DIM)
-            reasons.append(", ".join(f"{k}={v}" for k, v in self.skip_reasons.items()),
-                            style=STYLE.DIM)
+            reasons.append(
+                ", ".join(f"{k}={v}" for k, v in self.skip_reasons.items()), style=STYLE.DIM
+            )
             body: RenderableType = Group(line, reasons)
         else:
             body = line
@@ -191,10 +200,9 @@ def generation_view_or_plain(
     limit: int,
     out: str,
     force_plain: bool = False,
-) -> Iterator["GenerationView | None"]:
+) -> Iterator[GenerationView | None]:
     if force_plain or not should_use_rich():
         yield None
         return
-    with GenerationView(repo=repo, pipeline=pipeline, model=model,
-                          limit=limit, out=out) as view:
+    with GenerationView(repo=repo, pipeline=pipeline, model=model, limit=limit, out=out) as view:
         yield view

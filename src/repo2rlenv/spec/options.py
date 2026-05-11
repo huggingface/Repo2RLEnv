@@ -33,19 +33,19 @@ class PRRuntimeOptions(_BaseOptions):
     languages: list[str] = ["python"]
 
     # --- Validation ---
-    require_fail_to_pass: bool = True       # skip PRs whose F2P set is empty after validation
+    require_fail_to_pass: bool = True  # skip PRs whose F2P set is empty after validation
     min_fail_to_pass: int = 1
-    validation_timeout_sec: int = 600       # per-PR cap on the two test runs
-    skip_validation: bool = False           # emit candidates without F2P/P2P (debug / fast iteration)
+    validation_timeout_sec: int = 600  # per-PR cap on the two test runs
+    skip_validation: bool = False  # emit candidates without F2P/P2P (debug / fast iteration)
 
     # --- Quality (SWE-bench Lite-style sampling) ---
     lite_filter: bool = False
-    max_source_files_per_pr: int = 50       # PRs touching >N source files are excluded
-    min_problem_statement_words: int = 0    # Lite ≈ 40
+    max_source_files_per_pr: int = 50  # PRs touching >N source files are excluded
+    min_problem_statement_words: int = 0  # Lite ≈ 40
 
     # --- Structural filters (cheap, applied before validation) ---
-    require_new_test_funcs: bool = True     # test_patch must add ≥1 new test func/class
-    skip_ci_only: bool = True               # auto-skip when source patch is 100% under .github/
+    require_new_test_funcs: bool = True  # test_patch must add ≥1 new test func/class
+    skip_ci_only: bool = True  # auto-skip when source patch is 100% under .github/
 
 
 class PRDiffOptions(_BaseOptions):

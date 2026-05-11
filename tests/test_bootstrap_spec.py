@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from repo2rlenv.spec.input import (
     BootstrapSpec,
@@ -28,7 +29,7 @@ def test_defaults_are_sensible():
 
 
 def test_platform_constrained():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         BootstrapSpec(platform="linux/i386")  # not in Literal
 
 

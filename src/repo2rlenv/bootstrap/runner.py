@@ -14,16 +14,13 @@ import subprocess
 import tempfile
 import threading
 import time
-import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
 from pathlib import Path
 
 from repo2rlenv.auth import auth_clone_url, resolve_github_token
 from repo2rlenv.bootstrap import cache as cache_mod
 from repo2rlenv.bootstrap.agent import run_agent_loop
 from repo2rlenv.bootstrap.docker import (
-    DockerError,
     DockerSandbox,
     _run,
     is_docker_available,
@@ -43,7 +40,10 @@ def _resolve_head_sha(local_clone: Path) -> str:
     """Return the full 40-char SHA at HEAD of the local clone."""
     r = subprocess.run(
         ["git", "-C", str(local_clone), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=False, timeout=30,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
     )
     if r.returncode != 0:
         raise BootstrapError(f"git rev-parse HEAD failed: {r.stderr.strip()}")
@@ -84,11 +84,19 @@ def _run_git_streaming(
     """
     if on_progress is None:
         return subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout, check=False,
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
 
     proc = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1,
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
     err_buf: list[str] = []
     out_buf: list[str] = []
@@ -159,18 +167,20 @@ def _shallow_clone_at_ref(
     if ref in ("", "HEAD"):
         r = _run_git_streaming(
             ["git", "clone", "--progress", "--depth", str(depth), url, str(dest)],
-            token=token, timeout=300, on_progress=on_progress,
+            token=token,
+            timeout=300,
+            on_progress=on_progress,
         )
         if r.returncode != 0:
-            raise BootstrapError(
-                f"git clone failed: {_scrub_token(r.stderr, token).strip()[:400]}"
-            )
+            raise BootstrapError(f"git clone failed: {_scrub_token(r.stderr, token).strip()[:400]}")
         return
 
     # Try clone --branch first; works for branches and tags
     r = _run_git_streaming(
         ["git", "clone", "--progress", "--depth", str(depth), "--branch", ref, url, str(dest)],
-        token=token, timeout=300, on_progress=on_progress,
+        token=token,
+        timeout=300,
+        on_progress=on_progress,
     )
     if r.returncode == 0:
         return
@@ -181,7 +191,9 @@ def _shallow_clone_at_ref(
         shutil.rmtree(dest, ignore_errors=True)
     r = _run_git_streaming(
         ["git", "clone", "--progress", "--filter=blob:none", "--no-checkout", url, str(dest)],
-        token=token, timeout=300, on_progress=on_progress,
+        token=token,
+        timeout=300,
+        on_progress=on_progress,
     )
     if r.returncode != 0:
         raise BootstrapError(
@@ -189,7 +201,9 @@ def _shallow_clone_at_ref(
         )
     r = _run_git_streaming(
         ["git", "-C", str(dest), "fetch", "--progress", "--depth", str(depth), "origin", ref],
-        token=token, timeout=120, on_progress=on_progress,
+        token=token,
+        timeout=120,
+        on_progress=on_progress,
     )
     if r.returncode != 0:
         raise BootstrapError(
@@ -198,7 +212,10 @@ def _shallow_clone_at_ref(
         )
     r = subprocess.run(
         ["git", "-C", str(dest), "checkout", ref],
-        capture_output=True, text=True, timeout=60, check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     if r.returncode != 0:
         raise BootstrapError(
@@ -221,7 +238,10 @@ def _scrub_clone_credentials(clone_dir: Path, repo_url: str) -> None:
     try:
         subprocess.run(
             ["git", "-C", str(clone_dir), "remote", "set-url", "origin", repo_url],
-            capture_output=True, text=True, timeout=15, check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning("could not scrub clone remote url (token may persist in image): %s", exc)
@@ -292,25 +312,25 @@ def _bootstrap_from_user_dockerfile(
         start = time.monotonic()
         r = _run(
             [
-                "docker", "build",
-                "--platform", spec.platform,
-                "-t", tag,
+                "docker",
+                "build",
+                "--platform",
+                spec.platform,
+                "-t",
+                tag,
                 str(clone_dir),
             ],
             timeout=spec.max_seconds,
         )
         if not r.ok:
-            raise BootstrapError(
-                f"docker build (user_dockerfile) failed: {r.stderr.strip()[:400]}"
-            )
+            raise BootstrapError(f"docker build (user_dockerfile) failed: {r.stderr.strip()[:400]}")
 
         # Inspect for the local Id; push + re-resolve if a registry was set
         local_digest_inspect = _run(
-            ["docker", "image", "inspect", tag, "--format", "{{.Id}}"], timeout=10,
+            ["docker", "image", "inspect", tag, "--format", "{{.Id}}"],
+            timeout=10,
         )
-        image_digest = (
-            local_digest_inspect.stdout.strip() if local_digest_inspect.ok else tag
-        )
+        image_digest = local_digest_inspect.stdout.strip() if local_digest_inspect.ok else tag
         pushed = False
         if spec.image_registry and "/" in spec.image_registry:
             push = _run(["docker", "push", tag], timeout=900)
@@ -326,9 +346,9 @@ def _bootstrap_from_user_dockerfile(
             language=LanguageHint.UNKNOWN,  # we didn't detect — the user owns the image
             repo=owner_name,
             ref=ref_sha,
-            rebuild_cmds=[],     # caller supplied a Dockerfile; rebuild is up to them
+            rebuild_cmds=[],  # caller supplied a Dockerfile; rebuild is up to them
             test_cmds=[],
-            smoke_passed=True,   # no agent ran a smoke; trust the user
+            smoke_passed=True,  # no agent ran a smoke; trust the user
             iterations=0,
             build_time_sec=round(time.monotonic() - start, 2),
             llm_provider=llm.qualified_name,
@@ -423,7 +443,10 @@ def ensure_bootstrap(
         _emit("clone_start", {"detail": f"{repo.url} @ {repo.ref}"})
         logger.info("cloning %s @ %s into %s", repo.url, repo.ref, clone_dir)
         _shallow_clone_at_ref(
-            repo.url, repo.ref, token, clone_dir,
+            repo.url,
+            repo.ref,
+            token,
+            clone_dir,
             on_progress=lambda line: _emit("clone_progress", {"detail": line}),
         )
         # Scrub the embedded token from .git/config before the clone gets
@@ -492,18 +515,25 @@ def ensure_bootstrap(
             )
 
             # Always persist the transcript — even on failure — for debugging.
-            failure_slot = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
+            failure_slot = cache_mod.cache_key(
+                owner_name, ref_sha, spec.cache_dir, options=cache_opts
+            )
             failure_slot.mkdir(parents=True, exist_ok=True)
             try:
                 with (failure_slot / "transcript.jsonl").open("w", encoding="utf-8") as f:
                     for turn in outcome.transcript:
-                        f.write(json.dumps({
-                            "step": turn.step,
-                            "thought": turn.thought,
-                            "action": turn.action.name,
-                            "input": turn.action.input,
-                            "observation": turn.observation,
-                        }) + "\n")
+                        f.write(
+                            json.dumps(
+                                {
+                                    "step": turn.step,
+                                    "thought": turn.thought,
+                                    "action": turn.action.name,
+                                    "input": turn.action.input,
+                                    "observation": turn.observation,
+                                }
+                            )
+                            + "\n"
+                        )
             except OSError as exc:
                 logger.warning("could not write transcript: %s", exc)
 
@@ -529,7 +559,8 @@ def ensure_bootstrap(
                     smoke_ok = False
                     logger.warning(
                         "smoke test exited %d: %s (env issue, not just test failures)",
-                        r.exit_code, smoke_script[:200],
+                        r.exit_code,
+                        smoke_script[:200],
                     )
 
             # Commit the container regardless — caller decides whether to push
@@ -556,7 +587,8 @@ def ensure_bootstrap(
                         logger.warning(
                             "push %s succeeded but RepoDigests not populated; "
                             "image_digest stays at the local id %s",
-                            tag, image_digest,
+                            tag,
+                            image_digest,
                         )
                     _emit("push_done", {"detail": image_digest[-24:]})
                 else:
@@ -583,16 +615,24 @@ def ensure_bootstrap(
             dockerfile_reconstruction=dockerfile,
             pushed_to_registry=pushed,
         )
-        slot = cache_mod.save(result, spec.cache_dir, options=cache_opts)
+        cache_mod.save(result, spec.cache_dir, options=cache_opts)
 
         # Transcript was already written during the agent loop; just link it.
-        transcript_path = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts) / "transcript.jsonl"
+        transcript_path = (
+            cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
+            / "transcript.jsonl"
+        )
         if transcript_path.exists():
             result.transcript_path = transcript_path
-            cache_mod.save(result, spec.cache_dir, options=cache_opts)  # re-save with transcript path
+            cache_mod.save(
+                result, spec.cache_dir, options=cache_opts
+            )  # re-save with transcript path
 
         logger.info(
             "bootstrap done: %s iterations=%d time=%.1fs digest=%s",
-            owner_name, outcome.iterations, build_time, image_digest[:40],
+            owner_name,
+            outcome.iterations,
+            build_time,
+            image_digest[:40],
         )
         return result

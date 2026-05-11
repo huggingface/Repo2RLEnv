@@ -12,8 +12,9 @@ from rich.text import Text
 from repo2rlenv.ui.theme import GLYPH, STYLE
 
 
-def kv_panel(pairs: dict[str, Any], *, title: str | None = None,
-             border_style: str = STYLE.PANEL_INFO) -> Panel:
+def kv_panel(
+    pairs: dict[str, Any], *, title: str | None = None, border_style: str = STYLE.PANEL_INFO
+) -> Panel:
     """Render a dict as a two-column key/value table inside a Panel."""
     body = Text()
     width = max((len(k) for k in pairs), default=0) + 2
@@ -52,14 +53,14 @@ def warn_panel(body: Any, *, title: str = "Warning") -> Panel:
     )
 
 
-def header_panel(line1: Text, line2: Text | None = None,
-                  *, border_style: str = STYLE.PANEL_INFO) -> Panel:
+def header_panel(
+    line1: Text, line2: Text | None = None, *, border_style: str = STYLE.PANEL_INFO
+) -> Panel:
     body: RenderableType = Group(line1, line2) if line2 is not None else line1
     return Panel(body, border_style=border_style, expand=True)
 
 
-def styled_table(*, headers: list[str], rows: list[list[Any]],
-                  title: str | None = None) -> Table:
+def styled_table(*, headers: list[str], rows: list[list[Any]], title: str | None = None) -> Table:
     """Shared table style: bold magenta header, no edge, no padding."""
     table = Table(
         title=title,

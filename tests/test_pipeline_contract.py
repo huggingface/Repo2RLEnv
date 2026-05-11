@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from repo2rlenv.pipelines import PIPELINES, Pipeline, PipelineResult
+from repo2rlenv.pipelines import PIPELINES, PipelineResult
 from repo2rlenv.spec.input import PipelineName
 from repo2rlenv.spec.options import OPTIONS_REGISTRY
 
@@ -17,9 +17,7 @@ def test_pipelines_implement_protocol():
         assert hasattr(cls, "name"), f"{name}: missing class attribute `name`"
         # And the declared name must be the registered name
         declared = cls.name
-        assert declared == name, (
-            f"{name}: class declares name={declared!r}, registered as {name!r}"
-        )
+        assert declared == name, f"{name}: class declares name={declared!r}, registered as {name!r}"
 
 
 def test_pipeline_names_are_in_enum():
@@ -32,9 +30,7 @@ def test_pipeline_names_are_in_enum():
 def test_options_registry_aligns_with_pipelines():
     """Every registered pipeline has a corresponding Options class."""
     for name in PIPELINES:
-        assert name in OPTIONS_REGISTRY, (
-            f"pipeline {name!r} has no Options class registered"
-        )
+        assert name in OPTIONS_REGISTRY, f"pipeline {name!r} has no Options class registered"
 
 
 def test_pipelines_declare_requires_bootstrap():
@@ -49,7 +45,9 @@ def test_pipelines_declare_requires_bootstrap():
 def test_pipeline_result_shape():
     """PipelineResult has the documented fields."""
     r = PipelineResult(
-        candidates=0, emitted=0, skipped=0,
+        candidates=0,
+        emitted=0,
+        skipped=0,
         out_dir=__import__("pathlib").Path("."),
         skip_reasons={},
     )

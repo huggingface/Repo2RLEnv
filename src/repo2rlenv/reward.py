@@ -27,7 +27,6 @@ import difflib
 import re
 from dataclasses import dataclass
 
-
 _HUNK_HEADER_RE = re.compile(r"^@@.*@@")
 _FILE_HEADER_RE = re.compile(r"^(?:---|\+\+\+) ")
 _INDEX_LINE_RE = re.compile(r"^index ")

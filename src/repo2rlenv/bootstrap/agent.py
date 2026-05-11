@@ -124,7 +124,7 @@ def run_agent_loop(
     platform: str = "linux/amd64",
     on_turn: Callable[[AgentTurn, float], None] | None = None,
     on_thinking: Callable[[int], None] | None = None,
-    on_executing: Callable[[int, "AgentAction"], None] | None = None,
+    on_executing: Callable[[int, AgentAction], None] | None = None,
 ) -> AgentOutcome:
     """Drive the bootstrap agent until it succeeds, gives up, or hits a budget."""
     system = system_prompt(language=language, base_image=base_image, platform=platform)
@@ -164,7 +164,10 @@ def run_agent_loop(
         thought, action = parse_action(response.content)
         logger.info(
             "step=%d action=%s cost=$%.4f thought=%.80s",
-            step, action.name, response.cost_usd, thought,
+            step,
+            action.name,
+            response.cost_usd,
+            thought,
         )
 
         if on_executing is not None and action.name not in ("INVALID", "GIVE_UP", "SAVE_SETUP"):

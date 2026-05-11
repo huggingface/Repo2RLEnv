@@ -9,4 +9,4 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "pr_runtime": PRRuntimePipeline,
 }
 
-__all__ = ["PIPELINES", "Pipeline", "PipelineResult", "PRDiffPipeline", "PRRuntimePipeline"]
+__all__ = ["PIPELINES", "PRDiffPipeline", "PRRuntimePipeline", "Pipeline", "PipelineResult"]

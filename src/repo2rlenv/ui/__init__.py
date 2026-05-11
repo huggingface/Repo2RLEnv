@@ -47,17 +47,17 @@ from repo2rlenv.ui.views.bootstrap import BootstrapView
 from repo2rlenv.ui.views.generation import GenerationView
 
 __all__ = [
-    "R2EConsole",
-    "console",
-    "install_logging",
-    "live_view",
-    "quiet_libraries",
-    "STYLE",
     "GLYPH",
-    "success_panel",
-    "error_panel",
-    "kv_panel",
-    "header_panel",
+    "STYLE",
     "BootstrapView",
     "GenerationView",
+    "R2EConsole",
+    "console",
+    "error_panel",
+    "header_panel",
+    "install_logging",
+    "kv_panel",
+    "live_view",
+    "quiet_libraries",
+    "success_panel",
 ]

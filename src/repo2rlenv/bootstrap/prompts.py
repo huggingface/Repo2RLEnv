@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from repo2rlenv.bootstrap.spec import LanguageHint
 
-
 SYSTEM_TEMPLATE = """\
 You are r2e-bootstrap, an autonomous agent whose job is to take a repository and
 make it build cleanly + run its test suite inside a Linux Docker container.

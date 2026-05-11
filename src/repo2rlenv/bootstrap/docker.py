@@ -63,7 +63,9 @@ def _run(args: list[str], *, timeout: int = 600, input_text: str | None = None) 
     except subprocess.TimeoutExpired as exc:
         return ExecResult(
             exit_code=124,
-            stdout=(exc.stdout or b"").decode(errors="replace") if isinstance(exc.stdout, (bytes, bytearray)) else (exc.stdout or ""),
+            stdout=(exc.stdout or b"").decode(errors="replace")
+            if isinstance(exc.stdout, (bytes, bytearray))
+            else (exc.stdout or ""),
             stderr=f"[timeout after {timeout}s]",
             duration_sec=time.monotonic() - start,
         )
@@ -204,7 +206,7 @@ class DockerSandbox:
         env: dict[str, str] | None = None,
         timeout: int = 600,
         on_phase=None,
-    ) -> "DockerSandbox":
+    ) -> DockerSandbox:
         if not is_docker_available():
             raise DockerError("Docker daemon is not running (or `docker` is not on PATH).")
         name = f"r2e-bootstrap-{uuid.uuid4().hex[:8]}"
@@ -230,11 +232,14 @@ class DockerSandbox:
         # tag that was never pushed), skip the pull — `docker pull` would
         # fail trying to contact a registry that doesn't have it.
         already_local = _run(
-            ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"], timeout=10,
+            ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"],
+            timeout=10,
         ).ok
         if not already_local:
             pull = pull_image_streaming(
-                base_image, platform=platform, timeout=timeout,
+                base_image,
+                platform=platform,
+                timeout=timeout,
                 on_progress=_pull_progress if on_phase is not None else None,
             )
             if not pull.ok:
@@ -250,10 +255,15 @@ class DockerSandbox:
         # would leave the committed image with an empty repo dir. We want the repo
         # baked into the image's filesystem.
         args = [
-            "docker", "run", "-d",
-            "--platform", platform,
-            "--name", name,
-            "-w", workdir,
+            "docker",
+            "run",
+            "-d",
+            "--platform",
+            platform,
+            "--name",
+            name,
+            "-w",
+            workdir,
         ]
         for k, v in (env or {}).items():
             args.extend(["-e", f"{k}={v}"])
@@ -341,7 +351,7 @@ class DockerSandbox:
         _run(["docker", "rm", "-f", self.container_id], timeout=30)
         self._alive = False
 
-    def __enter__(self) -> "DockerSandbox":
+    def __enter__(self) -> DockerSandbox:
         return self
 
     def __exit__(self, *exc) -> None:

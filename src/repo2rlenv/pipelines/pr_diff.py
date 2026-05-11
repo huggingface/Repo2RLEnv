@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -54,9 +54,7 @@ from repo2rlenv.spec.options import PRDiffOptions
 logger = logging.getLogger(__name__)
 
 
-_CLOSES_RE = re.compile(
-    r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE
-)
+_CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 
 
 def _build_instruction(pr: PullRequestSummary) -> str:
@@ -118,7 +116,8 @@ class PRDiffPipeline:
 
         try:
             prs = list_merged_prs(
-                owner, name,
+                owner,
+                name,
                 limit=self.options.limit,
                 since=self.options.since,
                 until=self.options.until,
@@ -188,7 +187,7 @@ class PRDiffPipeline:
             "ref": pr.base_sha,
             "reference": pr.url,
             "source_access": self.input.repo.access,
-            "built_at": datetime.now(timezone.utc).isoformat(),
+            "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,
             "pr_diff": {
                 "pr_merged_at": pr.merged_at,

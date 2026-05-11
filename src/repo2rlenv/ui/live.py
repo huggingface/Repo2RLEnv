@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 from rich.console import RenderableType
 from rich.live import Live
 
 from repo2rlenv.ui.console import console
 
-
 _NOISY_LOGGERS = (
-    "litellm", "LiteLLM", "httpx", "httpcore",
-    "anthropic", "openai", "repo2rlenv.bootstrap",
+    "litellm",
+    "LiteLLM",
+    "httpx",
+    "httpcore",
+    "anthropic",
+    "openai",
+    "repo2rlenv.bootstrap",
 )
 
 

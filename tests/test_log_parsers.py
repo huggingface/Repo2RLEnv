@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from repo2rlenv.log_parsers import parse_pytest
 
-
 _PYTEST_SAMPLE = """\
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.1, pytest-8.3.0

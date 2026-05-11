@@ -11,14 +11,14 @@ from pydantic import BaseModel, Field, field_validator
 
 class PipelineName(StrEnum):
     # Mined from upstream history
-    PR_DIFF = "pr_diff"             # text-only PR mining (was: pr_mining_lite)
-    PR_RUNTIME = "pr_runtime"       # PR mining w/ sandbox verification (was: pr_mining)
-    PR_STREAM = "pr_stream"         # continuous live PR mining (was: live_pr_mining)
-    COMMIT_RUNTIME = "commit_runtime"   # commit-level mining w/ sandbox (was: commit_mining)
-    CVE_PATCHES = "cve_patches"     # CVE patches as training data (was: cve_mining)
+    PR_DIFF = "pr_diff"  # text-only PR mining (was: pr_mining_lite)
+    PR_RUNTIME = "pr_runtime"  # PR mining w/ sandbox verification (was: pr_mining)
+    PR_STREAM = "pr_stream"  # continuous live PR mining (was: live_pr_mining)
+    COMMIT_RUNTIME = "commit_runtime"  # commit-level mining w/ sandbox (was: commit_mining)
+    CVE_PATCHES = "cve_patches"  # CVE patches as training data (was: cve_mining)
     # Synthesized by LLM
-    CODE_INSTRUCT = "code_instruct"     # OSS-Instruct-style (was: oss_instruct)
-    MUTATION_BUGS = "mutation_bugs" # synthetic bug injection (was: mutation)
+    CODE_INSTRUCT = "code_instruct"  # OSS-Instruct-style (was: oss_instruct)
+    MUTATION_BUGS = "mutation_bugs"  # synthetic bug injection (was: mutation)
     EQUIVALENCE_TESTS = "equivalence_tests"
     REFACTOR_SYNTHESIS = "refactor_synthesis"
 
@@ -154,14 +154,14 @@ class BootstrapSpec(BaseModel):
 
     enabled: bool = True
     max_iterations: int = 20
-    max_seconds: int = 1800           # 30-minute timeout per bootstrap
-    base_image: str | None = None     # override per-language default
+    max_seconds: int = 1800  # 30-minute timeout per bootstrap
+    base_image: str | None = None  # override per-language default
     user_dockerfile: Path | None = None  # bypass agent iteration entirely
     cache_dir: Path = Field(default_factory=lambda: Path("./envs"))
     image_registry: str | None = None  # e.g. "ghcr.io/myorg"; None ⇒ keep local
     max_llm_spend_usd: float | None = 5.0
     platform: Literal["linux/amd64", "linux/arm64"] = "linux/amd64"
-    languages_hint: list[str] | None = None   # override auto-detection
+    languages_hint: list[str] | None = None  # override auto-detection
 
 
 class PipelineSpec(BaseModel):

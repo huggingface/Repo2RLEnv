@@ -24,7 +24,7 @@ def test_parse_save_setup_action():
         "Action: SAVE_SETUP\n"
         'Input: {"rebuild_cmds": ["pip install -e ."], "test_cmds": ["pytest"]}'
     )
-    thought, action = parse_action(text)
+    _, action = parse_action(text)
     assert action.name == "SAVE_SETUP"
     payload = _parse_save_setup(action.input)
     assert payload["rebuild_cmds"] == ["pip install -e ."]

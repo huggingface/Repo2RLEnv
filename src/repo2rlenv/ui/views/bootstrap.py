@@ -14,9 +14,9 @@ Six panels stacked top-to-bottom:
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Iterator
+from dataclasses import dataclass
 
 from rich.console import Group, RenderableType
 from rich.padding import Padding
@@ -26,27 +26,26 @@ from rich.table import Table
 from rich.text import Text
 
 from repo2rlenv.bootstrap.agent import AgentAction, AgentTurn
-from repo2rlenv.ui.console import console as r2e_console, should_use_rich
+from repo2rlenv.ui.console import should_use_rich
 from repo2rlenv.ui.live import live_view
 from repo2rlenv.ui.primitives import error_panel, success_panel
 from repo2rlenv.ui.theme import ACTION_STYLE_MAP, GLYPH, STYLE
 
-
 _PHASES = ["clone", "pull", "sandbox", "agent", "commit", "push"]
 _PHASE_GLYPH = {
-    "clone":   GLYPH.PHASE_CLONE,
-    "pull":    GLYPH.PHASE_PULL,
+    "clone": GLYPH.PHASE_CLONE,
+    "pull": GLYPH.PHASE_PULL,
     "sandbox": GLYPH.PHASE_SANDBOX,
-    "agent":   GLYPH.PHASE_AGENT,
-    "commit":  GLYPH.PHASE_COMMIT,
-    "push":    GLYPH.PHASE_PUSH,
+    "agent": GLYPH.PHASE_AGENT,
+    "commit": GLYPH.PHASE_COMMIT,
+    "push": GLYPH.PHASE_PUSH,
 }
 
 
 @dataclass
 class PhaseState:
     name: str
-    status: str = "pending"   # pending | running | done | skipped | failed
+    status: str = "pending"  # pending | running | done | skipped | failed
     detail: str = ""
     started_at: float = 0.0
     duration_sec: float = 0.0
@@ -89,7 +88,7 @@ class BootstrapView:
 
     # ----- context manager ----------------------------------------------------
 
-    def __enter__(self) -> "BootstrapView":
+    def __enter__(self) -> BootstrapView:
         self._live_ctx = live_view(self._render())
         self._live = self._live_ctx.__enter__()
         return self
@@ -188,8 +187,7 @@ class BootstrapView:
                 body.append(" && ".join(test_cmds))
             self.outcome_panel = success_panel(body, title="Bootstrap succeeded")
         else:
-            self.outcome_panel = error_panel(Text(reason, style="red"),
-                                              title="Bootstrap failed")
+            self.outcome_panel = error_panel(Text(reason, style="red"), title="Bootstrap failed")
             for p in self.phases.values():
                 if p.status == "running":
                     p.status = "failed"
@@ -233,10 +231,9 @@ class BootstrapView:
         return Panel(Group(h, meta), border_style=STYLE.PANEL_INFO, expand=True)
 
     def _phases_panel(self) -> Panel:
-        table = Table(show_header=False, show_edge=False, pad_edge=False, box=None,
-                       expand=True)
-        table.add_column("", width=2)        # icon
-        table.add_column("", width=3)        # phase emoji
+        table = Table(show_header=False, show_edge=False, pad_edge=False, box=None, expand=True)
+        table.add_column("", width=2)  # icon
+        table.add_column("", width=3)  # phase emoji
         table.add_column("Phase", width=10)
         table.add_column("Detail")
         table.add_column("Time", justify="right", width=8, style=STYLE.DIM)
@@ -256,8 +253,13 @@ class BootstrapView:
 
             label_style = STYLE.MUTED if p.status in ("pending", "skipped") else "white"
             time_str = f"{p.duration_sec:.1f}s" if p.duration_sec else ""
-            detail = p.detail or ("(skipped)" if p.status == "skipped" else
-                                  "(pending)" if p.status == "pending" else "")
+            detail = p.detail or (
+                "(skipped)"
+                if p.status == "skipped"
+                else "(pending)"
+                if p.status == "pending"
+                else ""
+            )
             table.add_row(
                 icon,
                 _PHASE_GLYPH[name],
@@ -277,8 +279,14 @@ class BootstrapView:
         return Text(GLYPH.SUCCESS, style="green")
 
     def _steps_panel(self) -> Panel:
-        table = Table(show_header=True, header_style="bold magenta",
-                       show_edge=False, pad_edge=False, box=None, expand=True)
+        table = Table(
+            show_header=True,
+            header_style="bold magenta",
+            show_edge=False,
+            pad_edge=False,
+            box=None,
+            expand=True,
+        )
         table.add_column("", width=2)
         table.add_column("#", width=3, justify="right", style=STYLE.DIM)
         table.add_column("Action", width=11)
@@ -288,9 +296,12 @@ class BootstrapView:
 
         if not self.turns:
             table.add_row(
-                Text(GLYPH.PENDING, style=STYLE.DIM), "", Text("...", style=STYLE.DIM),
+                Text(GLYPH.PENDING, style=STYLE.DIM),
+                "",
+                Text("...", style=STYLE.DIM),
                 Text("waiting for first agent response", style=f"{STYLE.DIM} italic"),
-                "", "",
+                "",
+                "",
             )
         for t in self.turns:
             style = ACTION_STYLE_MAP.get(t.action.name, "white")
@@ -316,8 +327,10 @@ class BootstrapView:
             label = Text()
             label.append(f"Step {step_num}: ", style=STYLE.DIM)
             label.append("executing ", style=STYLE.HIGHLIGHT)
-            label.append(self.current_action.name,
-                          style=ACTION_STYLE_MAP.get(self.current_action.name, "white"))
+            label.append(
+                self.current_action.name,
+                style=ACTION_STYLE_MAP.get(self.current_action.name, "white"),
+            )
             label.append(" → ", style=STYLE.DIM)
             label.append(self.current_action.input[:120].replace("\n", " ⏎ "))
             renderable = Group(self._spinner, label)
@@ -332,8 +345,9 @@ class BootstrapView:
             text = Text("(none yet)", style=f"{STYLE.DIM} italic")
         else:
             text = Text(self.turns[-1].thought or "(no thought)", style="white")
-        return Panel(text, title="[bold]Latest thought[/bold]",
-                       border_style=STYLE.PANEL_DIM, expand=True)
+        return Panel(
+            text, title="[bold]Latest thought[/bold]", border_style=STYLE.PANEL_DIM, expand=True
+        )
 
     def _latest_output_panel(self) -> Panel:
         if not self.turns:
@@ -347,8 +361,9 @@ class BootstrapView:
                 tail = "\n".join(lines[-14:])
                 obs = f"... [{hidden} earlier lines elided] ...\n{tail}"
             body = Text(obs, style="white", no_wrap=False)
-        return Panel(body, title="[bold]Latest output[/bold]",
-                       border_style=STYLE.PANEL_DIM, expand=True)
+        return Panel(
+            body, title="[bold]Latest output[/bold]", border_style=STYLE.PANEL_DIM, expand=True
+        )
 
     def _stats_line(self) -> Padding:
         elapsed = time.monotonic() - self.start_time
@@ -362,8 +377,9 @@ class BootstrapView:
         line.append(f"{self.total_tokens_out / 1000:.1f}K", style="white")
         line.append(" out  ·  ", style=STYLE.DIM)
         line.append("cost ≈ ", style=STYLE.DIM)
-        line.append(f"${self.total_cost:.4f}",
-                     style=STYLE.HIGHLIGHT if self.total_cost > 0 else STYLE.DIM)
+        line.append(
+            f"${self.total_cost:.4f}", style=STYLE.HIGHLIGHT if self.total_cost > 0 else STYLE.DIM
+        )
         line.append("  ·  ", style=STYLE.DIM)
         line.append("elapsed ", style=STYLE.DIM)
         line.append(f"{elapsed:.1f}s", style="white")
@@ -399,14 +415,17 @@ def bootstrap_view_or_plain(
     language: str,
     base_image: str,
     force_plain: bool = False,
-) -> Iterator["BootstrapView | None"]:
+) -> Iterator[BootstrapView | None]:
     """Yield a BootstrapView if Rich is appropriate, else None (plain mode)."""
     if force_plain or not should_use_rich():
         yield None
         return
     with BootstrapView(
-        repo=repo, ref=ref, model=model,
+        repo=repo,
+        ref=ref,
+        model=model,
         max_iterations=max_iterations,
-        language=language, base_image=base_image,
+        language=language,
+        base_image=base_image,
     ) as view:
         yield view

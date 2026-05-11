@@ -8,7 +8,9 @@ from repo2rlenv.bootstrap import cache as cache_mod
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 
 
-def _sample_result(repo: str = "huggingface/trl", ref: str = "a1b2c3d4e5f6abcdef") -> BootstrapResult:
+def _sample_result(
+    repo: str = "huggingface/trl", ref: str = "a1b2c3d4e5f6abcdef"
+) -> BootstrapResult:
     return BootstrapResult(
         image_digest="sha256:" + "a" * 64,
         image_tag="local/r2e/trl:a1b2c3d4e5f6",
@@ -56,6 +58,7 @@ def test_load_tolerates_unknown_fields(tmp_path: Path):
     # Inject a future-version field
     data = (slot / "bootstrap.json").read_text()
     import json
+
     payload = json.loads(data)
     payload["_future_field"] = "should be ignored"
     (slot / "bootstrap.json").write_text(json.dumps(payload))
@@ -76,21 +79,23 @@ def test_cache_key_no_options_is_backwards_compatible(tmp_path: Path):
     p1 = cache_mod.cache_key("foo/bar", "abc123def456", tmp_path)
     p2 = cache_mod.cache_key("foo/bar", "abc123def456", tmp_path, options=None)
     p3 = cache_mod.cache_key("foo/bar", "abc123def456", tmp_path, options={})
-    p4 = cache_mod.cache_key("foo/bar", "abc123def456", tmp_path,
-                              options={"base_image": None, "platform": None})
+    p4 = cache_mod.cache_key(
+        "foo/bar", "abc123def456", tmp_path, options={"base_image": None, "platform": None}
+    )
     assert p1 == p2 == p3 == p4
     assert p1.name == "abc123def456"
 
 
 def test_cache_key_differs_when_options_differ(tmp_path: Path):
     """Different platforms / base images must map to different cache slots."""
-    amd64 = cache_mod.cache_key("foo/bar", "abc", tmp_path,
-                                 options={"platform": "linux/amd64"})
-    arm64 = cache_mod.cache_key("foo/bar", "abc", tmp_path,
-                                 options={"platform": "linux/arm64"})
-    custom_base = cache_mod.cache_key("foo/bar", "abc", tmp_path,
-                                       options={"platform": "linux/amd64",
-                                                "base_image": "ubuntu:24.04"})
+    amd64 = cache_mod.cache_key("foo/bar", "abc", tmp_path, options={"platform": "linux/amd64"})
+    arm64 = cache_mod.cache_key("foo/bar", "abc", tmp_path, options={"platform": "linux/arm64"})
+    custom_base = cache_mod.cache_key(
+        "foo/bar",
+        "abc",
+        tmp_path,
+        options={"platform": "linux/amd64", "base_image": "ubuntu:24.04"},
+    )
     assert amd64 != arm64, "platform must affect cache slot"
     assert amd64 != custom_base, "base_image must affect cache slot"
     assert arm64 != custom_base
@@ -103,5 +108,7 @@ def test_cache_save_and_load_with_options(tmp_path: Path):
     cache_mod.save(result, tmp_path, options=opts)
     assert cache_mod.load(result.repo, result.ref, tmp_path, options=opts) is not None
     # Different options → cache miss
-    assert cache_mod.load(result.repo, result.ref, tmp_path,
-                          options={"platform": "linux/amd64"}) is None
+    assert (
+        cache_mod.load(result.repo, result.ref, tmp_path, options={"platform": "linux/amd64"})
+        is None
+    )
