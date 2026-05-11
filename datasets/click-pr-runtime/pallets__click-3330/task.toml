@@ -1,0 +1,45 @@
+version = "1.0"
+
+[task]
+name = "pallets__click-3330"
+org = "default"
+description = "Path normalization documentation clean-up + `shlex.split` extensive tests"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "click",
+    "pr_runtime",
+]
+
+[metadata.repo2env]
+pipeline = "pr_runtime"
+pipeline_version = "0.3.0"
+repo = "pallets/click"
+ref = "1339fd3323357119a9c7a6326c788f80295954ce"
+reference = "https://github.com/pallets/click/pull/3330"
+source_access = "auto"
+built_at = "2026-05-11T11:36:35.810595+00:00"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
+reward_kinds = [
+    "test_execution",
+    "diff_similarity",
+]
+spec_version = "0.1.0"
+content_hash = "sha256:2894c6802ebbffdb756e0d664561b0f2b2b7e2b87cae3ec44e9553b21596beb2"
+
+[metadata.repo2env.pr_runtime]
+pr_url = "https://github.com/pallets/click/pull/3330"
+pr_merged_at = "2026-04-12T02:57:18Z"
+base_commit = "1339fd3323357119a9c7a6326c788f80295954ce"
+fail_to_pass = []
+pass_to_pass = []
+validation_status = "skipped"
+bootstrap_image = "local/r2e-bootstrap/pallets__click@sha256:33210fdc390c1bbf3c3750962a38be8da815e873bce422c2b92ff0fcfec24895"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

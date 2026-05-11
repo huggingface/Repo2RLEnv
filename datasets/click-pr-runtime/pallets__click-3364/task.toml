@@ -1,0 +1,45 @@
+version = "1.0"
+
+[task]
+name = "pallets__click-3364"
+org = "default"
+description = "Split string values from `default_map` for multi-value parameters"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "click",
+    "pr_runtime",
+]
+
+[metadata.repo2env]
+pipeline = "pr_runtime"
+pipeline_version = "0.3.0"
+repo = "pallets/click"
+ref = "8a2b48901a08b3d2ec3a9bbd151948a9765368c6"
+reference = "https://github.com/pallets/click/pull/3364"
+source_access = "auto"
+built_at = "2026-05-11T11:36:30.577298+00:00"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
+reward_kinds = [
+    "test_execution",
+    "diff_similarity",
+]
+spec_version = "0.1.0"
+content_hash = "sha256:08fbd709cbd24919310d63b52e7257bae0ba87410e7003cfdb9766451053fd44"
+
+[metadata.repo2env.pr_runtime]
+pr_url = "https://github.com/pallets/click/pull/3364"
+pr_merged_at = "2026-04-29T06:41:19Z"
+base_commit = "8a2b48901a08b3d2ec3a9bbd151948a9765368c6"
+fail_to_pass = []
+pass_to_pass = []
+validation_status = "skipped"
+bootstrap_image = "local/r2e-bootstrap/pallets__click@sha256:33210fdc390c1bbf3c3750962a38be8da815e873bce422c2b92ff0fcfec24895"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

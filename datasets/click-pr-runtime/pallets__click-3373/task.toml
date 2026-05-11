@@ -1,0 +1,45 @@
+version = "1.0"
+
+[task]
+name = "pallets__click-3373"
+org = "default"
+description = "add codespell pre-commit hook"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "click",
+    "pr_runtime",
+]
+
+[metadata.repo2env]
+pipeline = "pr_runtime"
+pipeline_version = "0.3.0"
+repo = "pallets/click"
+ref = "d777956105fde08e01dd895dde2b86ccdf558d59"
+reference = "https://github.com/pallets/click/pull/3373"
+source_access = "auto"
+built_at = "2026-05-11T11:36:27.198870+00:00"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
+reward_kinds = [
+    "test_execution",
+    "diff_similarity",
+]
+spec_version = "0.1.0"
+content_hash = "sha256:15a4c41b21eac856786ca8e665872aa2c92224400d2c4a35a442d3bdb5c288a3"
+
+[metadata.repo2env.pr_runtime]
+pr_url = "https://github.com/pallets/click/pull/3373"
+pr_merged_at = "2026-04-22T19:07:30Z"
+base_commit = "d777956105fde08e01dd895dde2b86ccdf558d59"
+fail_to_pass = []
+pass_to_pass = []
+validation_status = "skipped"
+bootstrap_image = "local/r2e-bootstrap/pallets__click@sha256:33210fdc390c1bbf3c3750962a38be8da815e873bce422c2b92ff0fcfec24895"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

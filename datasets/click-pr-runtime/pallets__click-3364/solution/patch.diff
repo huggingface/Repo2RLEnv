@@ -1,0 +1,82 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 3c13f9431..2e0752cc5 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -17,6 +17,9 @@ Unreleased
+         ``dict[str, Any]``.
+     -   :class:`CompositeParamType` and the number-range base are now
+         generic with abstract methods.
++-   Split string values from ``default_map`` for parameters with ``nargs > 1``
++    or :class:`Tuple` type, matching environment variable behavior.
++    :issue:`2745` :pr:`3364`
+ 
+ Version 8.3.3
+ -------------
+diff --git a/docs/commands.md b/docs/commands.md
+index 9f4c6e8f9..ba064f515 100644
+--- a/docs/commands.md
++++ b/docs/commands.md
+@@ -351,6 +351,35 @@ And in action:
+     })
+ ```
+ 
++### Multi-value parameters
++
++When a `default_map` value is a string for a parameter with `nargs > 1` or a
++{class}`Tuple` type, the string is split automatically, the same way an
++environment variable would be. By default, values are split on whitespace. See
++[Multiple Options from Environment
++Values](options.md#multiple-options-from-environment-values) for details on
++splitting behavior.
++
++```python
++default_map = {
++    "draw": {
++        "point": "3 4",  # split into ("3", "4") for nargs=2
++        "color": "red",  # passed as-is for nargs=1
++    }
++}
++```
++
++You can also pass an already-structured tuple or list, which will be used as-is
++without splitting:
++
++```python
++default_map = {
++    "draw": {
++        "point": (3, 4),  # used directly
++    }
++}
++```
++
+ ## Context Defaults
+ 
+ ```{versionadded} 2.0
+diff --git a/docs/conf.py b/docs/conf.py
+index 2b223ab42..d04b78327 100644
+--- a/docs/conf.py
++++ b/docs/conf.py
+@@ -31,6 +31,7 @@
+ intersphinx_mapping = {
+     "python": ("https://docs.python.org/3/", None),
+ }
++myst_heading_anchors = 3
+ 
+ # HTML -----------------------------------------------------------------
+ 
+diff --git a/src/click/core.py b/src/click/core.py
+index 295d3a683..fbb12b78f 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -2356,6 +2356,11 @@ def consume_value(
+                 value = default_map_value
+                 source = ParameterSource.DEFAULT_MAP
+ 
++                # A string from default_map must be split for multi-value
++                # parameters, matching value_from_envvar behavior.
++                if isinstance(value, str) and self.nargs != 1:
++                    value = self.type.split_envvar_value(value)
++
+         if value is UNSET:
+             default_value = self.get_default(ctx)
+             if default_value is not UNSET:

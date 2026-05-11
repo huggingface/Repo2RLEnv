@@ -20,6 +20,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     _files_in_patch,
     _path_is_test,
     build_eval_script,
+    normalize_test_cmds_for_runtime,
     split_patch_and_test_patch,
 )
 
@@ -142,6 +143,32 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
         test_cmds=["export PATH=/opt/bin:$PATH", "pytest --collect-only"],
     )
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
+
+
+# --- normalize_test_cmds_for_runtime -----------------------------------------
+
+
+def test_normalize_strips_collect_only():
+    """Bootstrap often records `--collect-only` for the fast smoke gate; we need
+    actual test execution at validation time."""
+    assert normalize_test_cmds_for_runtime(["pytest --collect-only"]) == ["pytest -v"]
+    assert normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == ["pytest tests/ -v"] or \
+           normalize_test_cmds_for_runtime(["pytest --collect-only tests/"]) == ["pytest  tests/ -v"]
+
+
+def test_normalize_strips_short_co():
+    assert normalize_test_cmds_for_runtime(["pytest --co"]) == ["pytest -v"]
+
+
+def test_normalize_adds_v_only_when_pytest():
+    """Non-pytest commands pass through untouched."""
+    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test ./..."]
+    assert normalize_test_cmds_for_runtime(["npm test"]) == ["npm test"]
+
+
+def test_normalize_preserves_existing_verbose():
+    assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
+    assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
 
 
 # --- pipeline contract --------------------------------------------------------

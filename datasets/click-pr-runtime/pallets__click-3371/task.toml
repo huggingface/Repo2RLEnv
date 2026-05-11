@@ -1,0 +1,45 @@
+version = "1.0"
+
+[task]
+name = "pallets__click-3371"
+org = "default"
+description = "`ParamType` and other typing improvements"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "click",
+    "pr_runtime",
+]
+
+[metadata.repo2env]
+pipeline = "pr_runtime"
+pipeline_version = "0.3.0"
+repo = "pallets/click"
+ref = "30a7f7c8e6cf40c1a09f22ac83377c6ae1d201b5"
+reference = "https://github.com/pallets/click/pull/3371"
+source_access = "auto"
+built_at = "2026-05-11T11:36:29.598486+00:00"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
+reward_kinds = [
+    "test_execution",
+    "diff_similarity",
+]
+spec_version = "0.1.0"
+content_hash = "sha256:d0c81dafa0c31be7a40452b8c06ff080d9d4db04531faeae55dcb72aad398cea"
+
+[metadata.repo2env.pr_runtime]
+pr_url = "https://github.com/pallets/click/pull/3371"
+pr_merged_at = "2026-04-29T06:31:25Z"
+base_commit = "30a7f7c8e6cf40c1a09f22ac83377c6ae1d201b5"
+fail_to_pass = []
+pass_to_pass = []
+validation_status = "skipped"
+bootstrap_image = "local/r2e-bootstrap/pallets__click@sha256:33210fdc390c1bbf3c3750962a38be8da815e873bce422c2b92ff0fcfec24895"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0
