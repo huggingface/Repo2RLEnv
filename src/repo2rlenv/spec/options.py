@@ -61,9 +61,68 @@ class PRDiffOptions(_BaseOptions):
     skip_drafts: bool = True
 
 
+class PRStreamOptions(PRRuntimeOptions):
+    """Continuous (SWE-bench-Live-style) PR mining.
+
+    `pr_stream` is `pr_runtime` + state. Re-running the same command later
+    picks up where the previous run left off — only NEW PRs (those merged
+    after the watermark) are processed. The watermark advances after each
+    successful run.
+
+    Inherits every PRRuntimeOptions field. Adds:
+      cutoff_date         — earliest merged_at to mine; combines with the
+                            watermark via `since = max(cutoff_date, watermark)`.
+                            Use this to scope mining to post-model-cutoff
+                            PRs (contamination-resistant).
+      state_dir           — where the watermark JSON lives. Defaults to
+                            `./envs/streams/` so it sits alongside bootstrap
+                            cache without polluting the dataset out_dir.
+    """
+
+    cutoff_date: date | None = None
+    state_dir: str = "./envs"
+
+
+class CommitRuntimeOptions(_BaseOptions):
+    """Commit-level mining (R2E-Gym SWE-GEN style).
+
+    Walks `git log` instead of `gh pr list`. Same validation harness as
+    `pr_runtime` once we have a (patch, test_patch, base_commit) tuple.
+    Commits are noisier than PRs — we filter aggressively at the file +
+    message level before running the (expensive) validation harness.
+    """
+
+    # --- Mining ---
+    limit: int = 50
+    since: date | None = None
+    until: date | None = None
+    branch: str = "HEAD"
+    clone_depth: int = 200  # deeper than bootstrap's depth=1 so git log can walk
+
+    # --- Filters (cheap, applied before validation) ---
+    skip_merge_commits: bool = True
+    min_message_words: int = 5  # drop "wip", "fmt", "typo" etc.
+    max_source_files_per_commit: int = 10
+    exclude_authors: list[str] = []  # e.g. ["dependabot[bot]@users.noreply.github.com"]
+    require_new_test_funcs: bool = True  # test_patch must add ≥1 new test func
+    skip_ci_only: bool = True
+
+    # --- Validation (mirrors PRRuntimeOptions) ---
+    require_fail_to_pass: bool = True
+    min_fail_to_pass: int = 1
+    validation_timeout_sec: int = 600
+    skip_validation: bool = False
+
+    # --- Instruction synthesis ---
+    synthesize_with_llm: bool = False  # if False, use raw commit subject + body
+    min_problem_statement_words: int = 0
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
+    "pr_stream": PRStreamOptions,
+    "commit_runtime": CommitRuntimeOptions,
 }
 
 
