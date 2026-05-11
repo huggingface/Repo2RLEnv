@@ -228,4 +228,7 @@ envs/
 envs-*/
 .r2e_cache/
 
+# Local demo / scratch scripts
+demo_*.sh
+
 

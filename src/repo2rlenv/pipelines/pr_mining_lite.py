@@ -85,6 +85,21 @@ class PRMiningLitePipeline:
     def __init__(self, input: GenerationInput, options: PRMiningLiteOptions):
         self.input = input
         self.options = options
+        self._progress_cb = None  # set via set_progress_callback for live UI
+
+    def set_progress_callback(self, cb) -> None:
+        """Wire a per-candidate callback so a CLI live view can update.
+
+        Callable signature: cb(name: str, outcome: "emit"|"skip"|"error", reason: str = "")
+        """
+        self._progress_cb = cb
+
+    def _emit_progress(self, name: str, outcome: str, reason: str = "") -> None:
+        if self._progress_cb is not None:
+            try:
+                self._progress_cb(name=name, outcome=outcome, reason=reason)
+            except Exception as exc:
+                logger.debug("progress callback failed: %s", exc)
 
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -115,9 +130,11 @@ class PRMiningLitePipeline:
         emitted = 0
 
         for pr in prs:
+            pr_label = f"{owner}/{name}#{pr.number}"
             reason = self._should_skip(pr)
             if reason:
                 skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                self._emit_progress(pr_label, "skip", reason)
                 continue
 
             try:
@@ -125,16 +142,19 @@ class PRMiningLitePipeline:
             except GitHubError as exc:
                 logger.warning("PR #%d: diff fetch failed: %s", pr.number, exc)
                 skip_reasons["diff_fetch_failed"] = skip_reasons.get("diff_fetch_failed", 0) + 1
+                self._emit_progress(pr_label, "error", "diff_fetch_failed")
                 continue
 
             if not diff.strip():
                 skip_reasons["empty_diff"] = skip_reasons.get("empty_diff", 0) + 1
+                self._emit_progress(pr_label, "skip", "empty_diff")
                 continue
 
             task = self._build_task(pr, diff)
             write_harbor_task(task, out_dir)
             emitted += 1
             logger.info("emitted task %s", task.name)
+            self._emit_progress(task.name, "emit")
 
         return PipelineResult(
             candidates=len(prs),
