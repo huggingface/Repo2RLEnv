@@ -17,9 +17,14 @@ from repo2rlenv.bootstrap.runner import (
 
 
 def test_scrub_token_replaces_secret():
-    msg = "fatal: could not read from https://x-access-token:ghp_secret@github.com/..."
-    assert "ghp_secret" not in _scrub_token(msg, "ghp_secret")
-    assert "***" in _scrub_token(msg, "ghp_secret")
+    # Deliberately do NOT use the canonical "user:pass@host" Basic Auth shape here:
+    # GitGuardian's secret-pattern detector matches that exact form even when the
+    # value is obviously a fake placeholder, which blocks CI for no real reason.
+    # The function we're testing is content-agnostic — it does string replace.
+    fake_token = "PLACEHOLDER_TEST_TOKEN_VALUE"
+    msg = f"fatal: git operation failed (token redacted: {fake_token})"
+    assert fake_token not in _scrub_token(msg, fake_token)
+    assert "***" in _scrub_token(msg, fake_token)
 
 
 def test_scrub_token_passthrough_when_no_token():
