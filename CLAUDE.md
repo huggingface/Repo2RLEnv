@@ -63,7 +63,7 @@ docs/                           # public docs (committed), three tiers:
 plans/                          # internal working docs (gitignored)
 references/                     # cloned inspiration repos (gitignored)
 envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 115/115 pass as of v0.3
+tests/                          # pytest; 271/271 pass as of v0.6
 .github/workflows/              # ci.yml (lint + matrix tests + build),
                                 # release.yml (PyPI publish on tagged release)
 CONTRIBUTING.md                 # dev setup, PR conventions, release flow
@@ -207,9 +207,12 @@ uv add --dev <pkg>      # dev only
 
 - **v0.1.0** shipped on PyPI: `pr_diff` (originally `pr_mining_lite`) + HF Hub publish + diff-similarity reward
 - **v0.2** merged into main: bootstrap phase, Rich UI module, cost tracking, content-addressed cache keyed on bootstrap options
-- **v0.3.0 shipped on PyPI**: `pr_runtime` (sandbox-verified PR mining) + auto-trigger bootstrap from `generate` + structural quality filters + targeted test invocation + CI/CD (ruff + matrix tests + release workflow)
-- **v0.4 planned**: polyglot log parsers (JS/Go/Rust), parallel per-PR validation, LLM-judged QA gate (SWE-Bench++ four-layer recipe)
-- 8 more pipelines planned in `docs/pipelines/` — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the status table
+- **v0.3.0** shipped on PyPI: `pr_runtime` (sandbox-verified PR mining) + auto-trigger bootstrap from `generate` + structural quality filters + targeted test invocation + CI/CD (ruff + matrix tests + release workflow)
+- **v0.4.0** shipped on PyPI: polyglot log parsers (Go / Cargo / Jest) + Harbor end-to-end compliance fixes (task.name format, solve.sh shim, /logs/verifier/reward.txt, PATH prelude for non-Python toolchains, defensive git install)
+- **v0.5.0** shipped on PyPI: `pr_stream` (continuous PR mining with watermark state) + `commit_runtime` (commit-level mining, SWE-GEN style). Both Harbor-verified.
+- **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (procedural AST bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired by Magicoder). Both Harbor-verified on `pallets/click` (Mean reward 1.000). **271/271 tests pass.**
+- **v0.7 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe), HF Hub append-mode for `pr_stream`, polyglot mutation (Java/JS/Go via tree-sitter)
+- 3 more pipelines planned in `docs/pipelines/` — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the status table
 
 ### Naming convention (post-rename)
 

@@ -102,7 +102,19 @@ class _MutationOutcome:
 
 
 def _make_unified_diff(old: str, new: str, path: str) -> str:
-    """Build a unified diff with a `diff --git` header so `git apply` accepts it."""
+    """Build a unified diff with a `diff --git` header so `git apply` accepts it.
+
+    Normalizes trailing newlines BEFORE diffing — without this, when one side
+    of the diff is missing a trailing `\\n` (common with `ast.unparse` output),
+    Python's `difflib.unified_diff` yields adjacent `- foo` and `+ foo\\n`
+    items WITHOUT emitting the `\\ No newline at end of file` marker, and the
+    naive `"".join(...)` then glues them into a corrupt line like
+    `- foo+ foo\\n`. Real-world `git apply` rejects such patches outright.
+    """
+    if not old.endswith("\n"):
+        old = old + "\n"
+    if not new.endswith("\n"):
+        new = new + "\n"
     if old == new:
         return ""
     lines = list(
@@ -117,7 +129,6 @@ def _make_unified_diff(old: str, new: str, path: str) -> str:
     if not lines:
         return ""
     body = "".join(lines)
-    # Ensure trailing newline so `git apply` parses the final hunk
     if not body.endswith("\n"):
         body += "\n"
     return f"diff --git a/{path} b/{path}\n{body}"
@@ -366,14 +377,28 @@ class MutationBugsPipeline:
                             self._emit_progress(label, "skip", outcome.reason)
                             continue
 
-                        # LLM authors the issue text
-                        instruction = self._author_issue_text(
-                            broken_tests=outcome.broken_tests, test_output=outcome.test_output
-                        )
-                        if not instruction:
-                            skip_reasons["llm_failed"] = skip_reasons.get("llm_failed", 0) + 1
-                            self._emit_progress(label, "skip", "llm_failed")
-                            continue
+                        # LLM authors the issue text — unless skip_validation
+                        # (in which case there are no real broken tests to describe;
+                        # use a placeholder so emission still works for debug).
+                        if self.options.skip_validation:
+                            instruction = (
+                                f"# Debug task (skip_validation=true)\n\n"
+                                f"A {mutation.operator} mutation was applied at "
+                                f"{relative}:{mutation.lineno} ({mutation.description}). "
+                                f"This task was emitted without test validation; the "
+                                f"oracle restores the original source. Re-run without "
+                                f"`skip_validation` to get a proper LLM-authored "
+                                f"problem statement."
+                            )
+                        else:
+                            instruction = self._author_issue_text(
+                                broken_tests=outcome.broken_tests,
+                                test_output=outcome.test_output,
+                            )
+                            if not instruction:
+                                skip_reasons["llm_failed"] = skip_reasons.get("llm_failed", 0) + 1
+                                self._emit_progress(label, "skip", "llm_failed")
+                                continue
 
                         task = self._build_task(
                             file_path=relative,
@@ -435,9 +460,31 @@ class MutationBugsPipeline:
             platform=self.input.bootstrap.platform,
         )
 
+    def _scoped_test_cmds(self) -> list[str]:
+        """Bootstrap test_cmds + optional `test_target` positional arg.
+
+        When the user sets `test_target` we append it to every pytest
+        invocation so generation-time runs stay fast (one file instead of
+        the full suite). The targeted-test logic in `_target_pytest_for_tests`
+        (used for the emitted verifier) still narrows to the actually-broken
+        test files; this option only affects discovery/validation speed.
+        """
+        normalized = normalize_test_cmds_for_runtime(self.bootstrap.test_cmds)
+        target = (self.options.test_target or "").strip()
+        if not target:
+            return normalized
+        import re
+
+        out: list[str] = []
+        for cmd in normalized:
+            if re.search(r"\bpytest\b", cmd) and not re.search(r"\s\S*\.py(::|\b)", cmd):
+                cmd = cmd.rstrip() + " " + target
+            out.append(cmd)
+        return out
+
     def _compute_baseline(self, sandbox) -> set[str]:
         """Run the test suite once and return the set of PASSED test names."""
-        normalized = normalize_test_cmds_for_runtime(self.bootstrap.test_cmds)
+        normalized = self._scoped_test_cmds()
         if not normalized:
             return set()
         cmd = " && ".join(normalized)
@@ -452,8 +499,17 @@ class MutationBugsPipeline:
             ": 'END_TEST_OUTPUT'\n"
         )
         r = sandbox.exec(script, timeout=self.options.validation_timeout_sec)
-        sliced = _slice_test_output(r.truncated(max_chars=30_000))
-        status = parse_logs(normalized, sliced, language=self.bootstrap.language.value)
+        # Parse stdout directly. Test output is on stdout; combining stderr
+        # would interleave `set -x` trace lines (which contain our START/END
+        # markers) AFTER the real test output, and _slice_test_output would
+        # then trim to the stderr trace region and lose every PASSED line.
+        status = parse_logs(normalized, r.stdout, language=self.bootstrap.language.value)
+        logger.info(
+            "mutation_bugs baseline: parsed %d test entries (%d passing) from %d-byte stdout",
+            len(status),
+            sum(1 for s in status.values() if s == "PASSED"),
+            len(r.stdout),
+        )
         return {name for name, s in status.items() if s == "PASSED"}
 
     def _validate_mutation(
@@ -480,7 +536,7 @@ class MutationBugsPipeline:
         encoded_mut = base64.b64encode(mutated_source.encode("utf-8")).decode("ascii")
         encoded_orig = base64.b64encode(original_source.encode("utf-8")).decode("ascii")
 
-        normalized = normalize_test_cmds_for_runtime(self.bootstrap.test_cmds)
+        normalized = self._scoped_test_cmds()
         if not normalized:
             return _MutationOutcome(accepted=False, reason="no_test_cmds")
         cmd = " && ".join(normalized)
@@ -499,31 +555,33 @@ class MutationBugsPipeline:
         r = sandbox.exec(script, timeout=self.options.validation_timeout_sec)
         if not r.ok and r.exit_code == 124:
             return _MutationOutcome(accepted=False, reason="validation_timeout")
-        sliced = _slice_test_output(r.truncated(max_chars=30_000))
-        status = parse_logs(normalized, sliced, language=self.bootstrap.language.value)
+        status = parse_logs(normalized, r.stdout, language=self.bootstrap.language.value)
 
         failed_after = [name for name, s in status.items() if s == "FAILED"]
         broken = [name for name in failed_after if name in baseline_passed]
+        # 4 KB tail of stdout is what we'll show the LLM — pytest's summary
+        # block lives there.
+        log_tail = r.stdout[-4000:] if r.stdout else ""
 
         if len(broken) < self.options.min_tests_broken:
             return _MutationOutcome(
                 accepted=False,
                 reason="too_few_broken",
                 failed_after_mutation=failed_after,
-                test_output=sliced[-4000:],
+                test_output=log_tail,
             )
         if len(broken) > self.options.max_tests_broken:
             return _MutationOutcome(
                 accepted=False,
                 reason="too_many_broken",
                 failed_after_mutation=failed_after,
-                test_output=sliced[-4000:],
+                test_output=log_tail,
             )
         return _MutationOutcome(
             accepted=True,
             broken_tests=sorted(broken),
             failed_after_mutation=failed_after,
-            test_output=sliced[-4000:],
+            test_output=log_tail,
         )
 
     # ----- LLM ---------------------------------------------------------------

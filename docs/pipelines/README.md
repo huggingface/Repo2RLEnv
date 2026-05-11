@@ -21,13 +21,13 @@ flowchart LR
 
 | Pipeline | Status | Sandbox at gen | GPU helpful? | LLM at gen | Inspiration |
 |---|---|:-:|:-:|:-:|---|
-| [`pr_diff`](./pr_diff.md) | **implemented** | No | No | Optional | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
-| [`pr_runtime`](./pr_runtime.md) | planned | Harbor | If repo's tests need it (ML repos) | Optional | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`commit_runtime`](./commit_runtime.md) | planned | Harbor | If repo's tests need it | Yes | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`mutation_bugs`](./mutation_bugs.md) | planned | Harbor | Same as test suite | Yes | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
-| [`code_instruct`](./code_instruct.md) | planned | Harbor | Sometimes | Yes | [Magicoder](https://github.com/ise-uiuc/magicoder) |
+| [`pr_diff`](./pr_diff.md) | **shipped** | No | No | Optional | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_runtime`](./pr_runtime.md) | **shipped** | Harbor | If repo's tests need it (ML repos) | Optional | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
+| [`pr_stream`](./pr_stream.md) | **shipped** | Harbor | Same as `pr_runtime` | Optional | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) + [RepoLaunch](https://github.com/microsoft/RepoLaunch) |
+| [`commit_runtime`](./commit_runtime.md) | **shipped** | Harbor | If repo's tests need it | Yes | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
+| [`mutation_bugs`](./mutation_bugs.md) | **shipped (v0.6)** | Harbor | Same as test suite | Yes | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
+| [`code_instruct`](./code_instruct.md) | **shipped (v0.6)** | Harbor | Sometimes | Yes | [Magicoder](https://github.com/ise-uiuc/magicoder) |
 | [`equivalence_tests`](./equivalence_tests.md) | planned | Harbor | If function uses GPU | Yes | [R2E](https://github.com/r2e-project/r2e) |
-| [`pr_stream`](./pr_stream.md) | planned | Harbor | Same as `pr_runtime` | Optional | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) + [RepoLaunch](https://github.com/microsoft/RepoLaunch) |
 | [`cve_patches`](./cve_patches.md) | planned | Harbor | Rarely | Yes | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 | [`refactor_synthesis`](./refactor_synthesis.md) | planned | Harbor | Rarely | Yes | RefactoringMiner |
 

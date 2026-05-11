@@ -155,6 +155,12 @@ class MutationBugsOptions(_BaseOptions):
     max_tests_broken: int = 5
     validation_timeout_sec: int = 300
     skip_validation: bool = False  # emit candidates raw (debug / fast iteration)
+    # If set, restrict pytest to this path (or space-separated list of paths).
+    # Lets fast iteration scope to one test file (e.g. `tests/test_basic.py`)
+    # instead of running the whole suite per mutation candidate. The emitted
+    # task's verifier still uses the targeted file list derived from the
+    # specific broken tests, so this only affects the GENERATION-TIME scan.
+    test_target: str | None = None
 
     # --- LLM ---
     llm_temperature: float = 0.7
