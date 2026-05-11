@@ -231,4 +231,7 @@ envs-*/
 # Local demo / scratch scripts
 demo_*.sh
 
+# Generated datasets — committed only to the HF Hub, not to git
+datasets/
+
 
