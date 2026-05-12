@@ -209,6 +209,79 @@ class CodeInstructOptions(_BaseOptions):
     skip_decontamination: bool = False
 
 
+class CVEPatchesOptions(_BaseOptions):
+    """Map OSV vulnerability records to fixing commits in the target repo.
+
+    For each vuln returned by OSV's `/v1/query`, find a `references[]` URL
+    pointing at `github.com/<owner>/<repo>/commit/<sha>`, fetch that
+    commit's diff, split into source/test patches, and emit a Harbor task
+    whose verifier mirrors `commit_runtime` (F2P/P2P validation when a
+    test_patch is present; emission-only otherwise).
+
+    See docs/pipelines/cve_patches.md.
+    """
+
+    # --- OSV discovery ---
+    osv_ecosystem: str | None = None  # "PyPI" / "npm" / "crates.io" / ... (None ⇒ auto-guess)
+    osv_package: str | None = None  # package name (None ⇒ use repo name)
+    min_severity: Literal["low", "medium", "moderate", "high", "critical"] = "low"
+
+    # --- Output cap ---
+    limit: int = 50
+
+    # --- Validation (mirrors PRRuntimeOptions) ---
+    require_fail_to_pass: bool = False  # CVE fixes often have no test_patch — accept anyway
+    min_fail_to_pass: int = 0
+    validation_timeout_sec: int = 600
+    skip_validation: bool = False
+
+    # --- Structural filters ---
+    require_new_test_funcs: bool = False  # security commits often DON'T add new tests
+    max_source_files_per_fix: int = 50
+
+
+class EquivalenceTestsOptions(_BaseOptions):
+    """R2E-style function-level equivalence-test synthesis.
+
+    Extracts module-level Python functions from the target repo, asks the
+    LLM to write a pytest test that calls both `<name>` (candidate, stubbed
+    in env) and `reference_<name>` (frozen oracle) with crafted inputs and
+    asserts outputs match. Verifies in-sandbox: the test must FAIL when
+    `<name>` is stubbed and PASS when `<name>` is the original.
+
+    See docs/pipelines/equivalence_tests.md.
+    """
+
+    # --- Discovery ---
+    limit: int = 50
+    min_loc: int = 5  # min lines in function body
+    max_loc: int = 60  # max lines in function body
+    file_glob: str = "**/*.py"
+    exclude_glob: list[str] = [
+        "tests/**",
+        "test_**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/conftest.py",
+        "docs/**",
+        "examples/**",
+        "**/__init__.py",
+        "**/setup.py",
+    ]
+    seed: int | None = None
+    max_attempts_per_function: int = 1
+
+    # --- LLM ---
+    llm_temperature: float = 0.5  # lower than code_instruct — we want stable tests
+    max_llm_tokens: int = 1500
+
+    # --- Verification ---
+    require_test_fails_with_stub: bool = True
+    require_test_passes_with_oracle: bool = True
+    validation_timeout_sec: int = 90
+    skip_validation: bool = False
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
@@ -216,6 +289,8 @@ OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "commit_runtime": CommitRuntimeOptions,
     "mutation_bugs": MutationBugsOptions,
     "code_instruct": CodeInstructOptions,
+    "equivalence_tests": EquivalenceTestsOptions,
+    "cve_patches": CVEPatchesOptions,
 }
 
 
