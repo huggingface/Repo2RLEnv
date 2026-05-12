@@ -125,6 +125,33 @@ def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = Non
     )
 
 
+def get_primary_language(owner: str, name: str, *, token: str | None = None) -> str | None:
+    """Return GitHub's primary language string for a repo, or None on failure.
+
+    Used by the pipeline-language compatibility pre-flight check so we can
+    fail fast (before bootstrap) if a Python-only pipeline is pointed at a
+    Go / Rust / etc. repo. The result is GitHub Linguist's classification
+    (e.g. "Python", "Go", "TypeScript"); use
+    `bootstrap.language.language_from_github_name` to map it to LanguageHint.
+    """
+    import json as _json
+
+    try:
+        raw = _run_gh(
+            ["api", f"repos/{owner}/{name}", "--jq", ".language"],
+            token=token,
+        ).strip()
+    except GitHubError:
+        return None
+    if not raw or raw == "null":
+        return None
+    # `gh api --jq` strips quotes, but unwrap if present
+    try:
+        return _json.loads(raw) if raw.startswith('"') else raw
+    except _json.JSONDecodeError:
+        return raw
+
+
 def fetch_commit_diff(owner: str, name: str, sha: str, *, token: str | None = None) -> str:
     """Return the unified diff for a single commit via `gh api`.
 

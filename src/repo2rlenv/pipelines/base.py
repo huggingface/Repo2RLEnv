@@ -13,13 +13,25 @@ in `PIPELINES` and `OPTIONS_REGISTRY`.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
+from repo2rlenv.bootstrap.spec import LanguageHint
 from repo2rlenv.spec.input import GenerationInput, PipelineName
+
+logger = logging.getLogger(__name__)
+
+
+class LanguageMismatchError(RuntimeError):
+    """Pipeline can't run against the detected repo language.
+
+    Raised by `check_language_compatibility()` when a Python-only pipeline
+    is pointed at a Go / Rust / Node repo without `--force-language`.
+    """
 
 
 @dataclass(slots=True)
@@ -66,6 +78,10 @@ class Pipeline(Protocol):
 
     name: ClassVar[PipelineName]
     requires_bootstrap: ClassVar[bool] = False
+    # Languages this pipeline can handle. `None` means any language is OK.
+    # Set to a frozenset of LanguageHint values to restrict (e.g. Python-only
+    # pipelines that parse AST or emit pytest verifiers).
+    supported_languages: ClassVar[frozenset[LanguageHint] | None] = None
 
     def __init__(
         self,
@@ -75,3 +91,48 @@ class Pipeline(Protocol):
     ) -> None: ...
 
     def run(self, out_dir: Path) -> PipelineResult: ...
+
+
+def check_language_compatibility(
+    pipeline_cls: type,
+    detected: LanguageHint,
+    *,
+    force: bool = False,
+) -> None:
+    """Verify the pipeline can run against the detected repo language.
+
+    Behavior:
+      - `pipeline_cls.supported_languages is None` → any language is fine; returns.
+      - detected ∈ supported_languages → returns.
+      - mismatch + `force=True` → logs a warning; returns.
+      - mismatch + `force=False` → raises `LanguageMismatchError`.
+    """
+    supported = getattr(pipeline_cls, "supported_languages", None)
+    if supported is None:
+        return
+    if detected in supported:
+        return
+
+    pipeline_name = getattr(pipeline_cls, "name", "<unknown>")
+    supported_names = ", ".join(sorted(s.value for s in supported))
+    detected_name = detected.value if isinstance(detected, LanguageHint) else str(detected)
+
+    if force:
+        logger.warning(
+            "pipeline %s requires %s; detected %s. Proceeding because --force-language is set.",
+            pipeline_name,
+            supported_names,
+            detected_name,
+        )
+        return
+
+    raise LanguageMismatchError(
+        f"Pipeline {pipeline_name!r} requires {supported_names}; "
+        f"this repo is detected as {detected_name!r}.\n"
+        f"\n"
+        f"This pipeline can't produce valid tasks on {detected_name} code. Options:\n"
+        f"  - Pick a language-agnostic pipeline "
+        f"(pr_runtime / commit_runtime / cve_patches / pr_diff / pr_stream)\n"
+        f"  - Re-run with --force-language to skip this check "
+        f"(the pipeline will likely emit 0 tasks)"
+    )

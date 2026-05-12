@@ -43,3 +43,35 @@ def base_image_for(lang: LanguageHint) -> str:
         LanguageHint.C_CPP: "ubuntu:24.04",
         LanguageHint.UNKNOWN: "ubuntu:24.04",
     }[lang]
+
+
+# Map GitHub's Linguist language names to our LanguageHint enum. Only the
+# top-level "primary language" values we care about are listed — anything
+# else maps to UNKNOWN. Case-insensitive lookup.
+_GITHUB_LANGUAGE_MAP: dict[str, LanguageHint] = {
+    "python": LanguageHint.PYTHON,
+    "javascript": LanguageHint.NODE,
+    "typescript": LanguageHint.NODE,
+    "node": LanguageHint.NODE,
+    "go": LanguageHint.GO,
+    "rust": LanguageHint.RUST,
+    "java": LanguageHint.JAVA,
+    "kotlin": LanguageHint.JAVA,
+    "scala": LanguageHint.JAVA,
+    "c": LanguageHint.C_CPP,
+    "c++": LanguageHint.C_CPP,
+    "cpp": LanguageHint.C_CPP,
+    "objective-c": LanguageHint.C_CPP,
+    "objective-c++": LanguageHint.C_CPP,
+}
+
+
+def language_from_github_name(name: str | None) -> LanguageHint:
+    """Translate a GitHub Linguist language name to a LanguageHint.
+
+    Returns `LanguageHint.UNKNOWN` for null / unrecognized inputs so callers
+    can decide whether to bail out or fall back to file-based detection.
+    """
+    if not name:
+        return LanguageHint.UNKNOWN
+    return _GITHUB_LANGUAGE_MAP.get(name.strip().lower(), LanguageHint.UNKNOWN)

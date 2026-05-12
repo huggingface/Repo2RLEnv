@@ -42,6 +42,40 @@ def test_pipelines_declare_requires_bootstrap():
         assert isinstance(cls.requires_bootstrap, bool)
 
 
+def test_python_only_pipelines_declare_supported_languages():
+    """The 4 Python-only pipelines must restrict supported_languages to {PYTHON}.
+
+    Anything else risks the silent-late-failure mode the pre-flight check
+    in cmd_generate is designed to prevent.
+    """
+    from repo2rlenv.bootstrap.spec import LanguageHint
+
+    python_only = {
+        "mutation_bugs",
+        "code_instruct",
+        "equivalence_tests",
+        "refactor_synthesis",
+    }
+    for name in python_only:
+        cls = PIPELINES[name]
+        supported = getattr(cls, "supported_languages", None)
+        assert supported is not None, f"{name}: expected supported_languages={{PYTHON}}"
+        assert supported == frozenset({LanguageHint.PYTHON}), (
+            f"{name}: expected frozenset({{PYTHON}}), got {supported}"
+        )
+
+
+def test_language_agnostic_pipelines_have_no_restriction():
+    """Lite + language-agnostic full pipelines must NOT restrict languages."""
+    agnostic = {"pr_diff", "pr_runtime", "pr_stream", "commit_runtime", "cve_patches"}
+    for name in agnostic:
+        cls = PIPELINES[name]
+        supported = getattr(cls, "supported_languages", None)
+        assert supported is None, (
+            f"{name}: expected supported_languages=None (any language ok), got {supported}"
+        )
+
+
 def test_pipeline_result_shape():
     """PipelineResult has the documented fields."""
     r = PipelineResult(

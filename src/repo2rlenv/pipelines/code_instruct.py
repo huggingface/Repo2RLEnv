@@ -50,7 +50,7 @@ from typing import ClassVar
 
 from repo2rlenv.auth import resolve_github_token
 from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
-from repo2rlenv.bootstrap.spec import BootstrapResult
+from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
 from repo2rlenv.pipelines._oss_instruct import (
@@ -137,6 +137,7 @@ class CodeInstructPipeline:
 
     name: ClassVar[PipelineName] = PipelineName.CODE_INSTRUCT
     requires_bootstrap: ClassVar[bool] = True
+    supported_languages: ClassVar[frozenset[LanguageHint] | None] = frozenset({LanguageHint.PYTHON})
 
     def __init__(
         self,

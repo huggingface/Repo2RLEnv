@@ -95,6 +95,28 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
     options = parse_options(gen_input.pipeline.name.value, gen_input.pipeline.options)
 
+    # Pre-flight: does this pipeline support this repo's primary language?
+    # Cheap GitHub API call; runs BEFORE bootstrap so we fail fast on a
+    # Go/Rust/Node repo + Python-only pipeline mismatch (~2s vs ~5 min).
+    if getattr(pipeline_cls, "supported_languages", None) is not None:
+        from repo2rlenv.auth import resolve_github_token
+        from repo2rlenv.bootstrap.language import language_from_github_name
+        from repo2rlenv.github import get_primary_language
+        from repo2rlenv.pipelines.base import (
+            LanguageMismatchError,
+            check_language_compatibility,
+        )
+
+        owner, name = gen_input.repo.owner_name
+        gh_token = resolve_github_token(gen_input.repo, gen_input.auth)
+        gh_lang_name = get_primary_language(owner, name, token=gh_token)
+        detected = language_from_github_name(gh_lang_name)
+        try:
+            check_language_compatibility(pipeline_cls, detected, force=args.force_language)
+        except LanguageMismatchError as exc:
+            console.error(str(exc))
+            return 2
+
     # Auto-trigger bootstrap for sandbox-required pipelines (requires_bootstrap=True).
     # Cache hit ⇒ instant; cache miss ⇒ full LLM-agent run with the live UI.
     bootstrap_result = None
@@ -496,6 +518,14 @@ def main(argv: list[str] | None = None) -> int:
         "--force-bootstrap",
         action="store_true",
         help="ignore bootstrap cache, rebuild from scratch",
+    )
+    g.add_argument(
+        "--force-language",
+        action="store_true",
+        help=(
+            "skip the pipeline-language compatibility check "
+            "(e.g. run a Python-only pipeline against a Go repo anyway)"
+        ),
     )
     g.set_defaults(func=cmd_generate)
 

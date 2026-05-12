@@ -17,6 +17,34 @@ Hand-writing a Dockerfile per repo is unworkable when the goal is "any repo." So
 
 You only need bootstrap for pipelines that actually run code (`pr_runtime`, `commit_runtime`, `cve_patches`, `mutation_bugs`, `code_instruct`, `equivalence_tests`, `refactor_synthesis`). The text-only `pr_diff` pipeline skips it entirely.
 
+### Supported languages
+
+The bootstrap agent has built-in presets for these languages — base images, install hints, sanity checks, and known pitfalls are injected into the system prompt automatically:
+
+| Language | Base image | Detected from |
+|---|---|---|
+| Python | `python:3.12-slim` | `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt` |
+| Node / TypeScript | `node:22-slim` | `package.json`, `tsconfig.json`, `pnpm-lock.yaml`, `yarn.lock` |
+| Go | `golang:1.23` | `go.mod` |
+| Rust | `rust:1-slim` | `Cargo.toml` |
+| Java / Kotlin / Scala | `eclipse-temurin:21-jdk` | `pom.xml`, `build.gradle`, `build.gradle.kts` |
+| C / C++ | `ubuntu:24.04` | `CMakeLists.txt`, `configure.ac`, `Makefile`, `meson.build` |
+
+Other languages still work, they just don't get language-specific hints — the agent falls back to a generic Ubuntu base image and figures it out from `README.md` + repo files.
+
+Override the auto-detected language with `--language <name>` or `--base-image <image>` if you need a specific toolchain (e.g. Python 3.11 instead of 3.12, or a CUDA-enabled base).
+
+### Pipeline ↔ language compatibility
+
+Some pipelines work on any language (they operate on diffs, PRs, commits); others are restricted to Python because they parse Python AST or emit pytest verifiers.
+
+| Pipeline | Languages |
+|---|---|
+| `pr_diff`, `pr_runtime`, `pr_stream`, `commit_runtime`, `cve_patches` | any |
+| `mutation_bugs`, `code_instruct`, `equivalence_tests`, `refactor_synthesis` | Python only |
+
+The CLI runs a pre-flight check: if you point a Python-only pipeline at a non-Python repo, generation aborts before bootstrap even starts so you don't burn 5+ minutes finding out. Pass `--force-language` to skip the check and proceed anyway (the pipeline will likely emit zero tasks; explicit user choice).
+
 ## Choosing an LLM
 
 The bootstrap agent works with any LLM that LiteLLM supports. In practice:
