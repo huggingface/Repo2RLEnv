@@ -209,6 +209,42 @@ class CodeInstructOptions(_BaseOptions):
     skip_decontamination: bool = False
 
 
+class RefactorSynthesisOptions(_BaseOptions):
+    """Mine historical rename refactors from commit history.
+
+    Two-stage detection:
+      1. Commit message regex matches a "rename X to Y" phrase
+      2. Diff verification: old token removed, new token added, no
+         surviving `def OLD(...)` / `class OLD ...` definition
+
+    Emitted task = "rename X to Y throughout the codebase"; verifier
+    checks both behavioral (tests still pass) and structural (old name
+    gone, new name present) criteria.
+
+    See docs/pipelines/refactor_synthesis.md.
+    """
+
+    # --- Mining ---
+    limit: int = 50
+    since: date | None = None
+    until: date | None = None
+    branch: str = "HEAD"
+    clone_depth: int = 200  # deeper than bootstrap's depth=1 so git log walks
+
+    # --- Metadata filters ---
+    skip_merge_commits: bool = True
+    exclude_authors: list[str] = []
+
+    # --- Verification ---
+    # Default False because real-world Python renames in mature libs keep a
+    # back-compat shim using the old name. Set True for stricter "old name
+    # must be fully removed" semantics (will reject most public-API renames).
+    require_old_name_gone: bool = False
+    require_new_name_present: bool = True
+    validation_timeout_sec: int = 300
+    skip_validation: bool = False
+
+
 class CVEPatchesOptions(_BaseOptions):
     """Map OSV vulnerability records to fixing commits in the target repo.
 
@@ -291,6 +327,7 @@ OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
+    "refactor_synthesis": RefactorSynthesisOptions,
 }
 
 

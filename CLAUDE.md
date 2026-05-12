@@ -63,7 +63,7 @@ docs/                           # public docs (committed), three tiers:
 plans/                          # internal working docs (gitignored)
 references/                     # cloned inspiration repos (gitignored)
 envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 357/357 pass as of v0.7
+tests/                          # pytest; 370/370 pass as of v0.8
 .github/workflows/              # ci.yml (lint + matrix tests + build),
                                 # release.yml (PyPI publish on tagged release)
 CONTRIBUTING.md                 # dev setup, PR conventions, release flow
@@ -212,8 +212,9 @@ uv add --dev <pkg>      # dev only
 - **v0.5.0** shipped on PyPI: `pr_stream` (continuous PR mining with watermark state) + `commit_runtime` (commit-level mining, SWE-GEN style). Both Harbor-verified.
 - **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (procedural AST bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired by Magicoder). Both Harbor-verified on `pallets/click` (Mean reward 1.000).
 - **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract real function, LLM writes equivalence test against `reference_<name>` oracle, gold patch fills the candidate) + `cve_patches` (OSV-driven CVE→fix-commit pipeline, reuses pr_runtime validation harness). Both Harbor-verified.
-- **v0.8 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe), iterative refinement loop for `equivalence_tests`, LLM-synthesized PoC for `cve_patches` (currently uses upstream test_patch when present), HF Hub append-mode for `pr_stream`, polyglot mutation (tree-sitter)
-- 1 more pipeline planned in `docs/pipelines/`: `refactor_synthesis` (RefactoringMiner-driven) — see [`docs/pipelines/README.md`](./docs/pipelines/README.md)
+- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000). **All 9 pipelines now shipped. 370/370 tests pass.**
+- **v0.9 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe), iterative refinement loop for `equivalence_tests`, LLM-synthesized PoC for `cve_patches`, Extract Method / Inline kinds for `refactor_synthesis`, HF Hub append-mode for `pr_stream`, polyglot mutation (tree-sitter)
+- No more pipelines planned in `docs/pipelines/` — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
 
 ### Naming convention (post-rename)
 

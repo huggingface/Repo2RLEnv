@@ -17,23 +17,26 @@ flowchart LR
     E --> H[HF Hub<br/>+ registry.json]
 ```
 
-## Status
+## Pipelines
 
-| Pipeline | Status | Sandbox at gen | GPU helpful? | LLM at gen | Inspiration |
-|---|---|:-:|:-:|:-:|---|
-| [`pr_diff`](./pr_diff.md) | **shipped** | No | No | Optional | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
-| [`pr_runtime`](./pr_runtime.md) | **shipped** | Harbor | If repo's tests need it (ML repos) | Optional | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`pr_stream`](./pr_stream.md) | **shipped** | Harbor | Same as `pr_runtime` | Optional | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) + [RepoLaunch](https://github.com/microsoft/RepoLaunch) |
-| [`commit_runtime`](./commit_runtime.md) | **shipped** | Harbor | If repo's tests need it | Yes | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`mutation_bugs`](./mutation_bugs.md) | **shipped (v0.6)** | Harbor | Same as test suite | Yes | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
-| [`code_instruct`](./code_instruct.md) | **shipped (v0.6)** | Harbor | Sometimes | Yes | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./equivalence_tests.md) | **shipped (v0.7)** | Harbor | If function uses GPU | Yes | [R2E](https://github.com/r2e-project/r2e) |
-| [`cve_patches`](./cve_patches.md) | **shipped (v0.7)** | Harbor | Rarely | No (bootstrap only) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
-| [`refactor_synthesis`](./refactor_synthesis.md) | planned | Harbor | Rarely | Yes | RefactoringMiner |
+All 9 pipelines are shipped. See per-pipeline pages for the recipe + options + Harbor verification status.
 
-**Sandbox column legend**: "No" = pure text manipulation, no execution. "Harbor" = we delegate to Harbor's sandbox layer (Local Docker / Modal / Daytona / E2B / Runloop). We don't maintain a parallel abstraction.
+| Pipeline | Sandbox | LLM at gen | GPU helpful? | Inspiration |
+|---|:-:|:-:|:-:|---|
+| [`pr_diff`](./pr_diff.md) | — | — | No | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_runtime`](./pr_runtime.md) | ✅ | env-only | If repo's tests need it (ML repos) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
+| [`pr_stream`](./pr_stream.md) | ✅ | env-only | Same as `pr_runtime` | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) + [RepoLaunch](https://github.com/microsoft/RepoLaunch) |
+| [`commit_runtime`](./commit_runtime.md) | ✅ | env-only | If repo's tests need it | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
+| [`mutation_bugs`](./mutation_bugs.md) | ✅ | ✅ | Same as test suite | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
+| [`code_instruct`](./code_instruct.md) | ✅ | ✅ | Sometimes | [Magicoder](https://github.com/ise-uiuc/magicoder) |
+| [`equivalence_tests`](./equivalence_tests.md) | ✅ | ✅ | If function uses GPU | [R2E](https://github.com/r2e-project/r2e) |
+| [`cve_patches`](./cve_patches.md) | ✅ | env-only | Rarely | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
+| [`refactor_synthesis`](./refactor_synthesis.md) | ✅ | env-only | Rarely | Python-native rename detector (drops [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner)) |
 
-The reference repos are cloned shallowly to `references/` (gitignored).
+- **Sandbox** ✅ = needs Docker + the bootstrap-built env. `—` = pure text, no execution.
+- **LLM at gen**: `—` = never; `env-only` = the pipeline itself doesn't call the LLM but bootstrap does (runs once per repo, then cached); `✅` = the pipeline also makes LLM calls during task synthesis.
+
+Reference repos are cloned shallowly under `references/` (gitignored).
 
 ## Reward kinds emitted
 
@@ -47,7 +50,7 @@ The reference repos are cloned shallowly to `references/` (gitignored).
 | `equivalence_tests` | — | ✅ |
 | `pr_stream` | ✅ | ✅ |
 | `cve_patches` | ✅ | ✅ |
-| `refactor_synthesis` | — | ✅ |
+| `refactor_synthesis` | ✅ | ✅ |
 
 `diff_similarity` works without a sandbox; `test_execution` requires one.
 

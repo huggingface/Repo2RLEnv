@@ -72,7 +72,7 @@ Every pipeline flows through the same QA gate (determinism, oracle consistency, 
 
 ## Bootstrap (sandbox-required pipelines)
 
-Pipelines marked with a sandbox `✓` above need a working Docker environment for the target repo before they can run. Repo2RLEnv's **bootstrap phase** handles this automatically — an LLM agent iterates shell commands inside a fresh Docker container until the repo builds and the test suite collects. The working image is committed, content-addressed, and cached, so the expensive env-construction step runs **once per (repo, ref)** and every downstream task reuses it. Pure text pipelines (`pr_diff`) skip it entirely.
+Pipelines marked with a sandbox ✅ above need a working Docker environment for the target repo before they can run. Repo2RLEnv's **bootstrap phase** handles this automatically — an LLM agent iterates shell commands inside a fresh Docker container until the repo builds and the test suite collects. The working image is committed, content-addressed, and cached, so the expensive env-construction step runs **once per (repo, ref)** and every downstream task reuses it. Pure text pipelines (`pr_diff`) skip it entirely.
 
 You don't normally invoke it directly — `repo2rlenv generate --pipeline pr_runtime ...` auto-triggers a cache lookup and runs bootstrap on miss. But you can pre-warm it or use it standalone for debugging:
 
@@ -113,7 +113,7 @@ By targeting Harbor we inherit its full stack: Local Docker / Modal / Daytona / 
 Docs are organized into three tiers — see [`docs/README.md`](./docs/README.md) for the index.
 
 - 🚀 [**`docs/quickstart.md`**](./docs/quickstart.md) — install → first dataset → push to Hub, in 10 minutes
-- 📖 [**`docs/pipelines/`**](./docs/pipelines/README.md) — one page per synthesis pipeline (status, when to use, oracle shape, inspiration)
+- 📖 [**`docs/pipelines/`**](./docs/pipelines/README.md) — one page per synthesis pipeline (when to use, oracle shape, inspiration)
 - 📚 Reference contracts and module-level API:
   - [`reference/SPEC.md`](./docs/reference/SPEC.md) — input/output contract
   - [`reference/API.md`](./docs/reference/API.md) — Python API for `src/repo2rlenv/`
@@ -151,7 +151,8 @@ Pre-alpha.
 - **v0.5**: `pr_stream` (continuous PR mining, watermark-based) + `commit_runtime` (commit-level mining, SWE-GEN style); defensive git install in emitted Dockerfile so any bootstrap base image works. Harbor-verified on both. (rolled into v0.6 release)
 - **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (AST-based bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct inspired by Magicoder, with executable verifiers). Harbor-verified on `pallets/click` (Mean reward 1.000 on both). 271/271 tests passing.
 - **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract a real function, LLM writes equivalence tests, gold patch fills in the candidate with the original) + `cve_patches` (OSV-driven security-fix mining — CVE → fix commit → Harbor task). Harbor-verified on `pallets/click` and `pallets/werkzeug` (Mean reward 1.000 on both).
-- **v0.8 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe) + iterative refinement for `equivalence_tests` + LLM-synthesized PoC tests for `cve_patches` + HF Hub append-mode for `pr_stream` + polyglot mutation (Java/JS/Go via tree-sitter).
+- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drop the JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria verifier). Harbor-verified on `pallets/click` (Mean reward 1.000). All 8 originally-planned pipelines now shipped.
+- **v0.9 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe) + iterative refinement for `equivalence_tests` + LLM-synthesized PoC tests for `cve_patches` + HF Hub append-mode for `pr_stream` + polyglot mutation (Java/JS/Go via tree-sitter) + Extract Method / Inline-function refactor kinds for `refactor_synthesis`.
 
 ## License
 

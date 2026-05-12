@@ -9,6 +9,7 @@ from repo2rlenv.pipelines.mutation_bugs import MutationBugsPipeline
 from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
 from repo2rlenv.pipelines.pr_runtime import PRRuntimePipeline
 from repo2rlenv.pipelines.pr_stream import PRStreamPipeline
+from repo2rlenv.pipelines.refactor_synthesis import RefactorSynthesisPipeline
 
 PIPELINES: dict[str, type[Pipeline]] = {
     "pr_diff": PRDiffPipeline,
@@ -19,6 +20,7 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "code_instruct": CodeInstructPipeline,
     "equivalence_tests": EquivalenceTestsPipeline,
     "cve_patches": CVEPatchesPipeline,
+    "refactor_synthesis": RefactorSynthesisPipeline,
 }
 
 __all__ = [
@@ -33,4 +35,5 @@ __all__ = [
     "PRStreamPipeline",
     "Pipeline",
     "PipelineResult",
+    "RefactorSynthesisPipeline",
 ]
