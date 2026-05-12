@@ -616,6 +616,31 @@ def ensure_bootstrap(
                         smoke_script[:200],
                     )
 
+            # Make sure git is available in the image. Several base images
+            # (python:slim, node:slim, alpine variants) don't ship git, and the
+            # agent installs it only when its own build commands need it. But
+            # downstream pipelines (pr_runtime / commit_runtime / cve_patches)
+            # all need git inside the container to fetch base commits, reset
+            # working trees, and apply patches. Adding it here — once,
+            # idempotent, captured in the commit — beats every consumer running
+            # its own defensive install.
+            git_check = sandbox.exec("command -v git >/dev/null 2>&1 && echo OK", timeout=10)
+            if not (git_check.ok and "OK" in git_check.stdout):
+                _emit("git_install", {"detail": "ensuring git in image"})
+                install = sandbox.exec(
+                    "(apt-get update >/dev/null 2>&1 && "
+                    "apt-get install -y --no-install-recommends git >/dev/null 2>&1 && "
+                    "rm -rf /var/lib/apt/lists/*) || "
+                    "apk add --no-cache git >/dev/null 2>&1 || true",
+                    timeout=180,
+                )
+                if not install.ok:
+                    logger.warning(
+                        "post-bootstrap git install returned exit=%d; downstream pipelines "
+                        "may need to install git themselves",
+                        install.exit_code,
+                    )
+
             # Commit the container regardless — caller decides whether to push
             tag_base = spec.image_registry or "local/r2e-bootstrap"
             owner, name = repo.owner_name
