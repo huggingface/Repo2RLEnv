@@ -78,6 +78,34 @@ def _build_stage_script(
     return "\n".join(parts)
 
 
+_GIT_DEFENSIVE_INSTALL = (
+    "command -v git >/dev/null 2>&1 || "
+    "(apt-get update >/dev/null 2>&1 && "
+    "apt-get install -y --no-install-recommends git >/dev/null 2>&1 && "
+    "rm -rf /var/lib/apt/lists/*) || "
+    "apk add --no-cache git >/dev/null 2>&1 || true"
+)
+
+
+def _ensure_git(sandbox: DockerSandbox) -> bool:
+    """Install git in the sandbox if missing + mark the repo as safe.directory.
+
+    Idempotent — no-op when git is already on PATH. Returns True if git is
+    available after the call. Tries apt-get (Debian/Ubuntu) then apk (Alpine).
+    Always marks /workspace as a safe directory afterward because Docker copies
+    the repo in as root-owned, which triggers git's `detected dubious ownership`
+    refusal otherwise.
+    """
+    check = sandbox.exec("command -v git >/dev/null 2>&1 && echo OK", timeout=10)
+    if not (check.ok and "OK" in check.stdout):
+        sandbox.exec(_GIT_DEFENSIVE_INSTALL, timeout=120)
+        re = sandbox.exec("command -v git >/dev/null 2>&1 && echo OK", timeout=10)
+        if not (re.ok and "OK" in re.stdout):
+            return False
+    sandbox.exec("git config --global --add safe.directory /workspace", timeout=10)
+    return True
+
+
 def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int = 120) -> bool:
     """Make `base_commit` available in the container's git object db.
 
@@ -86,6 +114,7 @@ def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int
     fail silently or reset against the wrong tree, masking validation bugs.
 
     Strategy:
+      0. Ensure git is installed (Python-slim bootstrap images often skip it).
       1. If the commit already exists locally (e.g. it IS bootstrap HEAD or
          we fetched it on a prior PR in this sandbox), skip — fast path.
       2. Else `git fetch --depth 1 origin <sha>` to pull just that one commit.
@@ -94,6 +123,9 @@ def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int
 
     Returns True if base_commit is now reachable, False otherwise.
     """
+    if not _ensure_git(sandbox):
+        logger.warning("validate_pr: could not install git in sandbox; skipping fetch")
+        return False
     # Fast path: already present
     have = sandbox.exec(
         f"git -C /workspace cat-file -e {base_commit} 2>/dev/null && echo OK",
