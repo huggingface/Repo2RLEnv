@@ -247,6 +247,51 @@ def _scrub_clone_credentials(clone_dir: Path, repo_url: str) -> None:
         logger.warning("could not scrub clone remote url (token may persist in image): %s", exc)
 
 
+def _verify_committed_image(
+    tag: str,
+    test_cmds: list[str],
+    *,
+    platform: str,
+    timeout: int = 300,
+) -> tuple[bool, str]:
+    """Run test_cmds in a FRESH container from the committed image.
+
+    More authoritative than the pre-commit smoke check: confirms the layer
+    diff actually captured everything the agent installed (env vars set via
+    `export` in a bash session do NOT persist into the committed image).
+
+    Returns (ok, detail). pytest exit 0/1/5 are "env works"
+    (1 = tests ran but some failed, 5 = no tests collected). For non-pytest
+    frameworks (cargo/go/npm/mocha) exit 1 ALSO means "tests ran but failed"
+    so we accept it too — env-level errors are 2+ (cargo: command not found,
+    npm ENOENT, etc.) or 127 (bin not found).
+    """
+    if not test_cmds:
+        return (True, "(no test_cmds recorded — skipped)")
+
+    script = " && ".join(test_cmds)
+    args = [
+        "docker",
+        "run",
+        "--rm",
+        "--platform",
+        platform,
+        "-w",
+        "/workspace",
+        tag,
+        "bash",
+        "-lc",
+        script,
+    ]
+    r = _run(args, timeout=timeout)
+    detail = (r.stdout + r.stderr)[-200:].strip()
+    # Accept exit 0, 1 (tests ran but failed — that's fine for a bootstrap),
+    # 5 (pytest: no tests collected). 127 = command not found = env broken.
+    # 2 = pytest internal error / collection failure = env broken.
+    ok = r.exit_code in (0, 1, 5)
+    return (ok, f"exit={r.exit_code}; {detail}")
+
+
 def _resolve_repo_digest(tag: str) -> str | None:
     """Return the pullable `repo@sha256:...` digest for a tagged image, if any.
 
@@ -427,6 +472,14 @@ def ensure_bootstrap(
             "private repo requires a GitHub token. Run `gh auth login` or set GITHUB_TOKEN."
         )
 
+    # Surface the budget envelope at startup so users see what's bounding the run.
+    logger.info(
+        "bootstrap budget: max_iterations=%d max_seconds=%d max_llm_spend_usd=%s",
+        spec.max_iterations,
+        spec.max_seconds,
+        f"${spec.max_llm_spend_usd:.2f}" if spec.max_llm_spend_usd is not None else "unset",
+    )
+
     # Honor user_dockerfile override — skip agent loop entirely
     if spec.user_dockerfile is not None:
         return _bootstrap_from_user_dockerfile(repo, spec, llm, token, force=force)
@@ -572,6 +625,23 @@ def ensure_bootstrap(
             image_digest = sandbox.commit(tag, message=f"r2e bootstrap {owner_name}@{ref_sha[:12]}")
             _emit("commit_done", {"detail": image_digest[-24:]})
 
+            # Authoritative verify: spin a FRESH container from the committed image
+            # and replay test_cmds. Catches "agent declared success in live container
+            # but commit dropped some installed state" failure mode.
+            _emit("verify_start", {"detail": "fresh container"})
+            verify_ok, verify_detail = _verify_committed_image(
+                tag, outcome.test_cmds, platform=spec.platform
+            )
+            if verify_ok:
+                _emit("verify_done", {"detail": verify_detail[:80]})
+            else:
+                _emit("verify_failed", {"detail": verify_detail[:80]})
+                logger.warning(
+                    "post-commit verify FAILED for %s: %s — image is cached but flagged",
+                    tag,
+                    verify_detail[:200],
+                )
+
             pushed = False
             if spec.image_registry and "/" in spec.image_registry:
                 _emit("push_start", {"detail": tag})
@@ -614,6 +684,8 @@ def ensure_bootstrap(
             llm_cost_estimate_usd=outcome.total_cost_estimate_usd,
             dockerfile_reconstruction=dockerfile,
             pushed_to_registry=pushed,
+            verify_passed=verify_ok,
+            verify_detail=verify_detail,
         )
         cache_mod.save(result, spec.cache_dir, options=cache_opts)
 

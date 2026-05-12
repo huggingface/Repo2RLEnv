@@ -315,11 +315,15 @@ class DockerSandbox:
             return []
         return [line for line in r.stdout.splitlines() if line.strip()]
 
-    def commit(self, tag: str, *, message: str = "repo2rlenv bootstrap") -> str:
-        """Commit the container to an image. Returns the image's content digest."""
+    def commit(self, tag: str, *, message: str = "repo2rlenv bootstrap", timeout: int = 600) -> str:
+        """Commit the container to an image. Returns the image's content digest.
+
+        Default 600s timeout because large full-stack-app images (Django + OCR +
+        ML deps; multi-GB final layer) can take several minutes to write out.
+        """
         if not self._alive:
             raise DockerError("sandbox has been cleaned up; cannot commit")
-        r = _run(["docker", "commit", "-m", message, self.container_id, tag], timeout=120)
+        r = _run(["docker", "commit", "-m", message, self.container_id, tag], timeout=timeout)
         if not r.ok:
             raise DockerError(f"docker commit failed: {r.stderr.strip()[:400]}")
         # Resolve the image's RepoDigests (only present after a push) OR the local Id

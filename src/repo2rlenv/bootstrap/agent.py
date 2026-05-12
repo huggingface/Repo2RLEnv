@@ -53,14 +53,46 @@ class AgentOutcome:
     total_cost_estimate_usd: float = 0.0
 
 
-# Loose regex parser. Stops capturing Input at the next Action:/Thought:
-# header so a runaway LLM that emits multiple action blocks in one response
-# doesn't have its second block fed into bash as part of the first command.
+# Loose regex parser. Stops capturing Input at the next Action:/Thought:/
+# Observation: header so a runaway LLM that hallucinates its own observation
+# inline doesn't get that fake text fed into bash as part of the command.
 _ACTION_RE = re.compile(
     r"Thought:\s*(?P<thought>.*?)\n+Action:\s*(?P<action>\w+)\s*\n+Input:\s*"
-    r"(?P<input>.*?)(?=\n+Action:|\n+Thought:|\Z)",
+    r"(?P<input>.*?)(?=\n+Action:|\n+Thought:|\n+Observation:|\Z)",
     re.DOTALL | re.IGNORECASE,
 )
+
+# Common XML / tool-call artifacts that some models (e.g. Sonnet) leak into
+# action inputs when they slip back into native tool-call mode. Stripped
+# from both ends BEFORE execution so they don't crash bash with syntax errors.
+_TOOL_CALL_TAGS = (
+    "</parameter>",
+    "</invoke>",
+    "</function_calls>",
+    "</function>",
+    "</tool_use>",
+)
+
+
+def _sanitize_input(inp: str) -> str:
+    """Strip trailing tool-call XML artifacts + simulated Observation: tails."""
+    s = inp.strip()
+    # Drop anything after a simulated `Observation:` header inside the input —
+    # models sometimes write the command AND simulate its output.
+    obs_match = re.search(r"\n\s*Observation\s*:", s, flags=re.IGNORECASE)
+    if obs_match:
+        s = s[: obs_match.start()].rstrip()
+    # Repeatedly strip known tag artifacts from the end.
+    changed = True
+    while changed:
+        changed = False
+        stripped = s.rstrip()
+        for tag in _TOOL_CALL_TAGS:
+            if stripped.endswith(tag):
+                s = stripped[: -len(tag)].rstrip()
+                changed = True
+                break
+    return s
 
 
 def parse_action(text: str) -> tuple[str, AgentAction]:
@@ -70,7 +102,7 @@ def parse_action(text: str) -> tuple[str, AgentAction]:
         return ("", AgentAction(name="INVALID", input=text.strip()[:500], raw=text))
     thought = m.group("thought").strip()
     name = m.group("action").strip().upper()
-    inp = m.group("input").strip()
+    inp = _sanitize_input(m.group("input"))
     if name not in ("BASH", "READ_FILE", "LIST_DIR", "SAVE_SETUP", "GIVE_UP"):
         return (thought, AgentAction(name="INVALID", input=inp, raw=text))
     return (thought, AgentAction(name=name, input=inp, raw=text))  # type: ignore[arg-type]
@@ -93,13 +125,22 @@ def _execute(action: AgentAction, sandbox: DockerSandbox) -> str:
 
 
 def _parse_save_setup(input_str: str) -> dict[str, Any]:
-    """Tolerantly parse SAVE_SETUP JSON. Returns dict or raises."""
+    """Tolerantly parse SAVE_SETUP JSON. Returns dict or raises.
+
+    Uses `JSONDecoder.raw_decode()` so trailing text after the first complete
+    JSON object is ignored — some models append a stray sentence, a second
+    JSON object, or a literal `</invoke>` after the payload.
+    """
     s = input_str.strip()
     # Strip code fences if present
     if s.startswith("```"):
         s = re.sub(r"^```(?:json)?\s*\n", "", s)
         s = re.sub(r"\n```\s*$", "", s)
-    payload = json.loads(s)
+    # Find the first `{` and parse just the first complete object from there.
+    brace = s.find("{")
+    if brace == -1:
+        raise ValueError("SAVE_SETUP input contains no JSON object")
+    payload, _ = json.JSONDecoder().raw_decode(s[brace:])
     if not isinstance(payload, dict):
         raise ValueError("SAVE_SETUP input must be a JSON object")
     for key in ("rebuild_cmds", "test_cmds"):

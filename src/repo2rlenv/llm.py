@@ -8,12 +8,25 @@ LiteLLM's `completion_cost()` to attach a USD estimate.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 from repo2rlenv.auth import resolve_llm_api_key
 from repo2rlenv.spec.input import LLMSpec
 
 logger = logging.getLogger(__name__)
+
+
+# Models that reject any `temperature` value (forced default). Add patterns
+# as new releases land. Probed empirically via scripts/probe_llm_routes.py.
+_NO_TEMPERATURE_RE = re.compile(
+    r"(claude-opus-4-7|claude-opus-4-8|gpt-5(\.|-|$)|gpt-6|o1-|o3-|o4-)",
+    re.IGNORECASE,
+)
+
+
+def _supports_temperature(model: str) -> bool:
+    return _NO_TEMPERATURE_RE.search(model) is None
 
 
 @dataclass(slots=True)
@@ -52,10 +65,12 @@ def complete(
         "model": spec.qualified_name,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": temperature,
         "api_key": api_key,
         "timeout": spec.timeout_sec,
     }
+    # Newer reasoning-focused models (Opus 4.7+, GPT-5+) reject `temperature`.
+    if _supports_temperature(spec.model):
+        kwargs["temperature"] = temperature
     if spec.endpoint:
         kwargs["api_base"] = spec.endpoint
 

@@ -33,7 +33,7 @@ class BootstrapResult:
     ref: str  # commit SHA the bootstrap built from
     rebuild_cmds: list[str]  # commands to re-apply build after a patch
     test_cmds: list[str]  # commands to run the test suite
-    smoke_passed: bool  # did the smoke test pass at bootstrap time
+    smoke_passed: bool  # did the smoke test pass at bootstrap time (in live container)
     iterations: int  # how many agent turns it took
     build_time_sec: float
     llm_provider: str  # "anthropic/claude-sonnet-4-6"
@@ -41,4 +41,6 @@ class BootstrapResult:
     dockerfile_reconstruction: str = ""  # generated from the agent's commands, for reproducibility
     transcript_path: Path | None = None  # full ReAct transcript for debugging
     pushed_to_registry: bool = False
+    verify_passed: bool = False  # did test_cmds work in a FRESH container from the committed image
+    verify_detail: str = ""  # short note (last 200 chars of verify output, or skip reason)
     extra: dict = field(default_factory=dict)

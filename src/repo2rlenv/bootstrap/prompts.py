@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from repo2rlenv.bootstrap.presets import preset_hints_block
 from repo2rlenv.bootstrap.spec import LanguageHint
 
 SYSTEM_TEMPLATE = """\
@@ -53,6 +54,19 @@ Tools:
   → For test_cmds, PREFER non-failing variants like `pytest --collect-only`
     over `pytest -x` — we just want a command that proves pytest can be
     invoked, not one that surfaces every test failure.
+
+  ★ CRITICAL — test_cmds MUST be SELF-CONTAINED ★
+  After SAVE_SETUP we commit the container and then run `test_cmds` in a
+  FRESH shell (a new `bash -lc` from the committed image — no inherited
+  state, no activated venv, no exported PATH). If you used a virtualenv
+  (uv / venv / poetry), EVERY entry in `test_cmds` must include the
+  activation prefix, e.g.:
+      ". /workspace/.venv/bin/activate && python -m pytest --collect-only -q"
+  Similarly `rebuild_cmds`: if the install requires the venv, prefix it
+  with the activation. Prefer system-wide installs (`pip install ...`
+  without a venv) when possible — they survive the fresh-shell verify
+  without any prefix and are simpler to reason about.
+
   After SAVE_SETUP we commit the container as the bootstrap image.
 
   Action: GIVE_UP
@@ -68,6 +82,9 @@ Constraints:
 - After installing system deps, set DEBIAN_FRONTEND=noninteractive.
 - Detected language: {language}.
 - Suggested base setup is already in the image: {base_image}.
+
+Language-specific guidance for this run:
+{preset_hints}
 
 Workflow expectations:
 
@@ -89,6 +106,7 @@ def system_prompt(*, language: LanguageHint, base_image: str, platform: str) -> 
         language=language.value,
         base_image=base_image,
         platform=platform,
+        preset_hints=preset_hints_block(language),
     )
 
 

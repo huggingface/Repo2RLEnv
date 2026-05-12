@@ -126,7 +126,7 @@ For GHCR push: needs `gh auth refresh -h github.com -s write:packages` (one-time
 
 ## Cost tracking
 
-`llm.complete()` returns `LLMResponse.cost_usd` via `litellm.completion_cost(response)` — uses LiteLLM's built-in model_cost map. Accumulated in `AgentOutcome.total_cost_estimate_usd` and `BootstrapResult.llm_cost_estimate_usd`. `BootstrapSpec.max_llm_spend_usd` is declared as a guardrail — **not yet enforced** (open TODO).
+`llm.complete()` returns `LLMResponse.cost_usd` via `litellm.completion_cost(response)` — uses LiteLLM's built-in model_cost map. Accumulated in `AgentOutcome.total_cost_estimate_usd` and `BootstrapResult.llm_cost_estimate_usd`. `BootstrapSpec.max_llm_spend_usd` is enforced inside the agent loop (`agent.py:run_agent_loop`): when running `total_cost ≥ max_spend_usd`, the loop short-circuits with `success=False, reason="cost budget exceeded: ..."`. The runner logs the configured budget at startup.
 
 ## Conventions for changes
 
