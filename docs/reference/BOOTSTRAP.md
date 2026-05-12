@@ -85,6 +85,20 @@ Every bootstrap run is bounded by `max_llm_spend_usd` (default `$5.0`). When the
 repo2rlenv generate ... --bootstrap-opt max_llm_spend_usd=1.0
 ```
 
+### Provider fallback
+
+When the primary LLM returns a 5xx, rate-limit, network, or timeout error, the agent loop automatically retries with `--llm-fallback`. 4xx errors (wrong model id, auth) are NOT retried — those are config bugs you want to see immediately.
+
+```bash
+repo2rlenv generate \
+  --repo <owner>/<repo> --pipeline pr_runtime \
+  --llm "anthropic/<sonnet-model>" \
+  --llm-fallback "openai/<gpt-model>" \
+  --out ./datasets/<name>
+```
+
+Fallback chains are capped at 3 levels deep so misconfigured loops don't run forever.
+
 ## CLI cheatsheet — switching LLMs
 
 The `--llm` flag drives both the bootstrap phase AND any LLM-synthesized pipeline steps. Pick whichever model fits your repo + budget:
@@ -235,7 +249,17 @@ The bootstrap phase is driven by `BootstrapSpec`. The fields you'll touch most o
 | `image_registry` | If set, push the built image here so collaborators can pull it. |
 | `languages_hint` | Override language auto-detection (e.g. `["python", "rust"]`). |
 
-You can set these on the CLI via `--bootstrap-opt key=value` (e.g. `--bootstrap-opt max_iterations=30`) or in YAML config.
+You can set any of these on the CLI via `--bootstrap-opt key=value` (repeatable) or in YAML config:
+
+```bash
+# Point at a different cache directory (e.g. reuse a teammate's pre-built images)
+repo2rlenv generate ... \
+  --bootstrap-opt cache_dir=./envs-shared \
+  --bootstrap-opt max_iterations=30 \
+  --bootstrap-opt max_seconds=2400
+```
+
+The flag accepts any field on `BootstrapSpec`. Booleans, numbers, and JSON values are coerced automatically.
 
 ## What ships in each generated task
 

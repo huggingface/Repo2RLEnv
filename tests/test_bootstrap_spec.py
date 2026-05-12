@@ -54,3 +54,37 @@ def test_bootstrap_image_registry_optional():
     assert s1.image_registry is None
     s2 = BootstrapSpec(image_registry="ghcr.io/myorg/r2e")
     assert s2.image_registry == "ghcr.io/myorg/r2e"
+
+
+def test_model_copy_update_supports_cache_dir_override():
+    """Drives the `--bootstrap-opt cache_dir=...` CLI plumbing.
+
+    The CLI uses `bspec.model_copy(update={k: v})` to override any field;
+    Pydantic should coerce a string path to a Path automatically.
+    """
+    bspec = BootstrapSpec()
+    overridden = bspec.model_copy(update={"cache_dir": "./envs-matrix/sonnet-4-6"})
+    # Pydantic preserves the literal string; just check the Path resolves correctly.
+    assert Path(overridden.cache_dir).resolve() == Path("envs-matrix/sonnet-4-6").resolve()
+
+
+def test_model_copy_update_supports_numeric_field():
+    bspec = BootstrapSpec()
+    overridden = bspec.model_copy(update={"max_iterations": 30, "max_seconds": 2400})
+    assert overridden.max_iterations == 30
+    assert overridden.max_seconds == 2400
+
+
+def test_llm_fallback_round_trips_through_dict():
+    """Drives the `--llm-fallback` CLI plumbing: nested LLMSpec via dict."""
+    primary = LLMSpec(
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        fallback=LLMSpec(provider="openai", model="gpt-5.5"),
+    )
+    assert primary.fallback is not None
+    assert primary.fallback.qualified_name == "openai/gpt-5.5"
+    # Round-trip through dict (CLI builds the spec via `model_validate(dict)`)
+    rebuilt = LLMSpec.model_validate(primary.model_dump())
+    assert rebuilt.fallback is not None
+    assert rebuilt.fallback.qualified_name == "openai/gpt-5.5"

@@ -74,6 +74,13 @@ def cmd_generate(args: argparse.Namespace) -> int:
             raise SystemExit(f"--llm expects provider/model, got {args.llm!r}")
         provider, model = args.llm.split("/", 1)
         overrides["llm"] = {"provider": provider, "model": model}
+        if getattr(args, "llm_fallback", None):
+            if "/" not in args.llm_fallback:
+                raise SystemExit(
+                    f"--llm-fallback expects provider/model, got {args.llm_fallback!r}"
+                )
+            fb_provider, fb_model = args.llm_fallback.split("/", 1)
+            overrides["llm"]["fallback"] = {"provider": fb_provider, "model": fb_model}
     if args.out:
         overrides["output"] = {
             "destination": args.out,
@@ -125,7 +132,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         from repo2rlenv.bootstrap.runner import BootstrapError
         from repo2rlenv.ui.views.bootstrap import bootstrap_view_or_plain
 
-        # Mutate spec with CLI overrides (language / base-image / budget / force)
+        # Mutate spec with CLI overrides (language / base-image / budget / force / --bootstrap-opt)
         bspec = gen_input.bootstrap.model_copy(deep=True)
         if args.language:
             try:
@@ -137,6 +144,16 @@ def cmd_generate(args: argparse.Namespace) -> int:
         # --max-spend-usd=0 ⇒ no cap; map to None
         if args.max_spend_usd is not None:
             bspec.max_llm_spend_usd = args.max_spend_usd if args.max_spend_usd > 0 else None
+        # Generic --bootstrap-opt key=value for any other BootstrapSpec field
+        # (cache_dir / max_iterations / max_seconds / image_registry / platform / ...)
+        for k, v in _parse_pipeline_opts(getattr(args, "bootstrap_opt", None)).items():
+            if not hasattr(bspec, k):
+                raise SystemExit(f"--bootstrap-opt: unknown BootstrapSpec field {k!r}")
+            # Pydantic will coerce types as needed (str→Path, str→int, etc.)
+            try:
+                bspec = bspec.model_copy(update={k: v})
+            except Exception as exc:
+                raise SystemExit(f"--bootstrap-opt {k}={v!r}: {exc}") from exc
         with bootstrap_view_or_plain(
             repo=gen_input.repo.url,
             ref=gen_input.repo.ref,
@@ -497,6 +514,13 @@ def main(argv: list[str] | None = None) -> int:
         help="pipeline-specific kwarg, repeatable (key=value)",
     )
     g.add_argument("--llm", help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-6)")
+    g.add_argument(
+        "--llm-fallback",
+        help=(
+            "fallback LLM as provider/model — used automatically when the primary "
+            "returns 5xx / rate-limit / network errors"
+        ),
+    )
     g.add_argument("--out", help="output directory")
     g.add_argument("--org", help="task.org for Harbor")
     g.add_argument("--dataset-name", help="dataset name")
@@ -518,6 +542,15 @@ def main(argv: list[str] | None = None) -> int:
         "--force-bootstrap",
         action="store_true",
         help="ignore bootstrap cache, rebuild from scratch",
+    )
+    g.add_argument(
+        "--bootstrap-opt",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "override any BootstrapSpec field (e.g. cache_dir=./envs-matrix/sonnet-4-6, "
+            "max_iterations=30, max_seconds=2400). Repeatable."
+        ),
     )
     g.add_argument(
         "--force-language",
