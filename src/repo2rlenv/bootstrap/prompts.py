@@ -55,6 +55,16 @@ Tools:
     over `pytest -x` — we just want a command that proves pytest can be
     invoked, not one that surfaces every test failure.
 
+  ★ STOP CONDITION — read carefully ★
+  When `pytest --collect-only` reports a count like "N tests collected"
+  (even with "W warnings" or "M errors during collection" listed below
+  the count), the environment IS WORKING — call SAVE_SETUP IMMEDIATELY.
+  Collection errors / warnings are almost always missing optional plugins
+  (pytest-asyncio version drift, pytest-trio missing, etc.) that don't
+  prevent the suite from running. Real PRs we later evaluate will exercise
+  only a subset of tests; the noisy warnings are NOT your problem to fix.
+  Spending iterations chasing these is exactly how runs hit max_iterations.
+
   ★ CRITICAL — test_cmds MUST be SELF-CONTAINED ★
   After SAVE_SETUP we commit the container and then run `test_cmds` in a
   FRESH shell (a new `bash -lc` from the committed image — no inherited
