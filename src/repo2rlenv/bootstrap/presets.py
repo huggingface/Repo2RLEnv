@@ -76,6 +76,11 @@ PRESETS: dict[LanguageHint, LanguagePreset] = {
             "Fix: prepend an env var BEFORE the install, e.g. "
             "`SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 pip install -e .` or "
             "`HATCH_VCS_PRETEND_VERSION=0.0.0 pip install -e .`. Do NOT try to sed pyproject.toml.",
+            "CYTHON-COMPILED packages (aiohttp, lxml, sqlalchemy[c], pyzmq, ...): `setup.py` "
+            "expects pre-generated `.c` files alongside the `.pyx` sources. A fresh `pip install` "
+            "without those files fails with 'No such file or directory: <pkg>.c'. Fix: run the "
+            "project's own codegen step BEFORE pip install. Most repos ship a `make cythonize` "
+            "(check the Makefile); otherwise `pip install cython && cython <path>/*.pyx` works.",
         ),
     ),
     LanguageHint.NODE: LanguagePreset(
