@@ -123,3 +123,41 @@ def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = Non
         ["pr", "diff", str(number), "--repo", f"{owner}/{name}"],
         token=token,
     )
+
+
+def fetch_commit_diff(owner: str, name: str, sha: str, *, token: str | None = None) -> str:
+    """Return the unified diff for a single commit via `gh api`.
+
+    Hits `GET /repos/{owner}/{repo}/commits/{sha}` with the `diff` media
+    type — same shape as `git show --format= <sha>` output.
+    """
+    return _run_gh(
+        [
+            "api",
+            f"repos/{owner}/{name}/commits/{sha}",
+            "-H",
+            "Accept: application/vnd.github.v3.diff",
+        ],
+        token=token,
+    )
+
+
+def fetch_commit_parent(owner: str, name: str, sha: str, *, token: str | None = None) -> str:
+    """Return the first parent SHA of `sha` via `gh api`.
+
+    Returns "" if the commit has no parents (root commit) or on any error.
+    """
+    import json as _json
+
+    try:
+        raw = _run_gh(
+            ["api", f"repos/{owner}/{name}/commits/{sha}"],
+            token=token,
+        )
+        data = _json.loads(raw)
+        parents = data.get("parents", []) or []
+        if not parents:
+            return ""
+        return parents[0].get("sha", "") or ""
+    except (GitHubError, _json.JSONDecodeError):
+        return ""

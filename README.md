@@ -63,8 +63,8 @@ Different methods to manufacture verifiable tasks from a repo. Pick one, run it,
 | `commit_runtime` | ✅ | ✓ | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) | [📄](./docs/pipelines/commit_runtime.md) |
 | `mutation_bugs` | ✅ | ✓ | [SWE-smith](https://github.com/SWE-bench/SWE-smith) | [📄](./docs/pipelines/mutation_bugs.md) |
 | `code_instruct` | ✅ | ✓ | [Magicoder / OSS-Instruct](https://github.com/ise-uiuc/magicoder) | [📄](./docs/pipelines/code_instruct.md) |
-| `equivalence_tests` | planned | ✓ | [R2E](https://github.com/r2e-project/r2e) | [📄](./docs/pipelines/equivalence_tests.md) |
-| `cve_patches` | planned | ✓ | [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | [📄](./docs/pipelines/cve_patches.md) |
+| `equivalence_tests` | ✅ | ✓ | [R2E](https://github.com/r2e-project/r2e) | [📄](./docs/pipelines/equivalence_tests.md) |
+| `cve_patches` | ✅ | ✓ | [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | [📄](./docs/pipelines/cve_patches.md) |
 | `refactor_synthesis` | planned | ✓ | RefactoringMiner | [📄](./docs/pipelines/refactor_synthesis.md) |
 
 Every pipeline flows through the same QA gate (determinism, oracle consistency, LLM judge, false-negative filter) before tasks are admitted to a dataset. Text-only pipelines skip the heavy QA layers since there's no execution to validate. See [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full status table including reward kinds + GPU requirements.
@@ -151,7 +151,8 @@ Pre-alpha.
 - **v0.4.0** shipped on PyPI: polyglot log parsers (Go / Cargo / Jest), Harbor end-to-end verification (Mean reward 1.0 on Go via `urfave/cli`).
 - **v0.5**: `pr_stream` (continuous PR mining, watermark-based) + `commit_runtime` (commit-level mining, SWE-GEN style); defensive git install in emitted Dockerfile so any bootstrap base image works. Harbor-verified on both. (rolled into v0.6 release)
 - **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (AST-based bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct inspired by Magicoder, with executable verifiers). Harbor-verified on `pallets/click` (Mean reward 1.000 on both). 271/271 tests passing.
-- **v0.7 planned**: `equivalence_tests` (R2E-style behavioral equivalence) and/or `cve_patches` (security-flavored PR mining), plus the LLM-judged QA gate (SWE-Bench++ four-layer recipe), HF Hub append-mode for `pr_stream`, and polyglot mutation (Java/JS/Go via tree-sitter).
+- **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract a real function, LLM writes equivalence tests, gold patch fills in the candidate with the original) + `cve_patches` (OSV-driven security-fix mining — CVE → fix commit → Harbor task). Harbor-verified on `pallets/click` and `pallets/werkzeug` (Mean reward 1.000 on both).
+- **v0.8 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe) + iterative refinement for `equivalence_tests` + LLM-synthesized PoC tests for `cve_patches` + HF Hub append-mode for `pr_stream` + polyglot mutation (Java/JS/Go via tree-sitter).
 
 ## License
 

@@ -27,8 +27,8 @@ flowchart LR
 | [`commit_runtime`](./commit_runtime.md) | **shipped** | Harbor | If repo's tests need it | Yes | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
 | [`mutation_bugs`](./mutation_bugs.md) | **shipped (v0.6)** | Harbor | Same as test suite | Yes | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
 | [`code_instruct`](./code_instruct.md) | **shipped (v0.6)** | Harbor | Sometimes | Yes | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./equivalence_tests.md) | planned | Harbor | If function uses GPU | Yes | [R2E](https://github.com/r2e-project/r2e) |
-| [`cve_patches`](./cve_patches.md) | planned | Harbor | Rarely | Yes | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
+| [`equivalence_tests`](./equivalence_tests.md) | **shipped (v0.7)** | Harbor | If function uses GPU | Yes | [R2E](https://github.com/r2e-project/r2e) |
+| [`cve_patches`](./cve_patches.md) | **shipped (v0.7)** | Harbor | Rarely | No (bootstrap only) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 | [`refactor_synthesis`](./refactor_synthesis.md) | planned | Harbor | Rarely | Yes | RefactoringMiner |
 
 **Sandbox column legend**: "No" = pure text manipulation, no execution. "Harbor" = we delegate to Harbor's sandbox layer (Local Docker / Modal / Daytona / E2B / Runloop). We don't maintain a parallel abstraction.
