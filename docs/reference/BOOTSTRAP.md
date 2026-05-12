@@ -2,6 +2,8 @@
 
 ## What is bootstrapping?
 
+Everything here is **local-first**. Bootstrap runs against your machine's Docker daemon, and the tasks it emits also run locally by default (`harbor run -a oracle -p ./task`). The same task directory is portable to cloud sandboxes (E2B / Modal / Daytona / Runloop) when you opt in via `harbor run --env <name>` — but you never have to leave your laptop to use any of this.
+
 To turn a GitHub repo into a verifiable RL task, you need a **Docker image where that repo builds cleanly and its test suite runs**. That image is what the synthesized tasks check out into, apply patches against, and verify with `pytest` / `go test` / `cargo test` / etc.
 
 Different repos have wildly different setup needs:
