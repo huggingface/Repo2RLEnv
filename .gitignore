@@ -237,3 +237,4 @@ datasets/
 
 jobs/
 .claude/
+.DS_Store
