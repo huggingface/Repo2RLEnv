@@ -366,9 +366,7 @@ def test_normalize_strips_trailing_pipe_head_or_tail():
 
 def test_normalize_strips_dev_null_redirect():
     """`> /dev/null` or `&> /dev/null` would also swallow output we need to parse."""
-    assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == [
-        "go test -v ./..."
-    ]
+    assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == ["go test -v ./..."]
     assert normalize_test_cmds_for_runtime(["pytest &> /dev/null"]) == ["pytest -v"]
 
 
