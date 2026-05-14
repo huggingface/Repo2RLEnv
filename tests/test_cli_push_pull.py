@@ -31,10 +31,13 @@ from repo2rlenv.hub import PullResult, PushResult
         ("AdithyaSK/click-r2e@v1.0", _Backend.HF, "AdithyaSK/click-r2e", "v1.0"),
         ("hf://owner/name@main", _Backend.HF, "owner/name", "main"),
         ("hf://owner/name@a1b2c3d", _Backend.HF, "owner/name", "a1b2c3d"),
-        # Harbor
+        # Harbor — bare and org/name forms (registry uses org/name in practice)
         ("harbor://swe-bench", _Backend.HARBOR, "swe-bench", None),
         ("harbor://swe-bench@lite", _Backend.HARBOR, "swe-bench", "lite"),
         ("harbor://my-dataset@verified", _Backend.HARBOR, "my-dataset", "verified"),
+        ("harbor://cookbook/test", _Backend.HARBOR, "cookbook/test", None),
+        ("harbor://scale-ai/swe-atlas-qna", _Backend.HARBOR, "scale-ai/swe-atlas-qna", None),
+        ("harbor://cais/swebenchpro@v1", _Backend.HARBOR, "cais/swebenchpro", "v1"),
         # GitHub scheme + full URL
         ("gh://AdithyaSK/r2e-tasks", _Backend.GITHUB, "AdithyaSK/r2e-tasks", None),
         ("gh://AdithyaSK/r2e-tasks@main", _Backend.GITHUB, "AdithyaSK/r2e-tasks", "main"),
@@ -94,8 +97,8 @@ def test_parse_dataset_uri_bare_name_no_token_errors_clearly():
         "/name",
         "owner/name/extra",
         "gh://owner",  # missing repo
-        "harbor://owner/name",  # harbor doesn't take owner/name
         "harbor://",
+        "harbor://org/name/extra",  # harbor max depth is org/name
         "https://github.com/orphan",  # missing repo half
     ],
 )

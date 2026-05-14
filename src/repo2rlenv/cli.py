@@ -394,9 +394,17 @@ def _parse_dataset_uri(uri: str, *, flag: str) -> tuple[str, str, str | None]:
 
     if s.startswith("harbor://"):
         base, rev = _split_revision(s.removeprefix("harbor://"))
-        if not base or "/" in base:
-            raise SystemExit(f"{flag}: harbor:// expects a bare dataset name, got {uri!r}")
-        return (_Backend.HARBOR, base, rev)
+        # Harbor's public registry uses `org/name` (e.g. `cookbook/test`,
+        # `scale-ai/swe-atlas-qna`). Bare `name` (legacy / convenience) is also
+        # accepted and forwarded verbatim — harbor's CLI handles resolution.
+        parts = [p for p in base.split("/") if p]
+        if len(parts) == 2 and base.count("/") == 1:
+            return (_Backend.HARBOR, f"{parts[0]}/{parts[1]}", rev)
+        if len(parts) == 1 and "/" not in base:
+            return (_Backend.HARBOR, parts[0], rev)
+        raise SystemExit(
+            f"{flag}: harbor:// expects 'name' or 'org/name' (optionally `@tag`), got {uri!r}"
+        )
 
     if s.startswith("hf://"):
         s = s.removeprefix("hf://")
