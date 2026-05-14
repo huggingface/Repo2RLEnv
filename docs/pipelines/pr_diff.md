@@ -117,15 +117,15 @@ repo2rlenv generate \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/trl-r2e
 
-# Generate AND push to HF Hub in one command
+# Generate locally, then push to HF Hub
 repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out hf://AdithyaSK/trl-r2e-v0-1 \
-  --org AdithyaSK --dataset-name trl-r2e-v0-1 \
-  --visibility public
+  --out ./datasets/trl-r2e-v0-1
+
+repo2rlenv push ./datasets/trl-r2e-v0-1 hf://AdithyaSK/trl-r2e-v0-1
 ```
 
 ### Python
@@ -163,13 +163,7 @@ oracle = (task_dir / "solution" / "patch.diff").read_text()
 reward, meta = calculate_diff_similarity_reward(oracle, prediction_diff)
 ```
 
-Or via CLI:
-
-```bash
-repo2rlenv reward --task ./out/<task-id> --prediction ./candidate.diff
-```
-
-That's the full consumer-side loop for a lite task — no Docker, no sandbox needed. If you want to actually *exercise* an agent against the repo (clone, edit, capture diff), spin up your own sandbox or use `harbor run` once we ship the full `pr_runtime` variant.
+That's the full consumer-side loop for a lite task — no Docker, no sandbox needed. If you want to actually *exercise* an agent against the repo (clone, edit, capture diff), use `harbor run` against the emitted task directory.
 
 ## Limitations (v0.1)
 

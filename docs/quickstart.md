@@ -53,27 +53,39 @@ Output lands in `./datasets/<dataset-name>/<owner>__<repo>-<pr_number>/`.
 Replace the `--out` flag with an `hf://` destination and the dataset is pushed after generation:
 
 ```bash
+# 1. Generate to a local directory
 repo2rlenv generate \
   --repo <owner>/<repo> \
   --pipeline pr_diff \
   --pipeline-opt limit=10 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out hf://<your-org>/<dataset-name>
+  --out ./datasets/<dataset-name>
+
+# 2. Push to HF Hub
+repo2rlenv push ./datasets/<dataset-name> hf://<your-org>/<dataset-name>
+
+# 3. Pull it back anywhere later
+repo2rlenv pull hf://<your-org>/<dataset-name>
 ```
 
-The push also emits a `registry.json` so `harbor download --registry-url hf://<your-org>/<dataset-name>` works out of the box.
+The push emits a `registry.json` so `harbor download --registry-url hf://<your-org>/<dataset-name>` works out of the box.
 
-## Validate + reward
+## Validate the dataset
 
 ```bash
-# Verify every task.toml in the dataset parses + has required fields
+# Fast structural check — every task.toml parses + has required fields
 repo2rlenv validate ./datasets/<dataset-name>
-
-# Score a predicted diff against the oracle (smoke test for the reward function)
-repo2rlenv reward \
-  --task ./datasets/<dataset-name>/<task-id> \
-  --prediction ./my_candidate.diff
 ```
+
+For diff-similarity scoring inside a training loop, import the Python function
+directly instead of shelling out:
+
+```python
+from repo2rlenv.reward import calculate_diff_similarity_reward
+reward, meta = calculate_diff_similarity_reward(oracle_diff_text, prediction_text)
+```
+
+(Test-execution rewards — `Mean = 1.000` etc. — come from `harbor run`, not from this package.)
 
 ## Run the dataset with Harbor
 

@@ -163,6 +163,10 @@ Cutting a release (full flow):
 # Run a full bootstrap with the live UI (interactive terminal only)
 ./demo_bootstrap.sh
 
+# Full end-to-end demo: bootstrap → generate → validate → harbor (oracle + opencode×2)
+./demo_e2e.sh                                # default: pallets/click
+REPO=pocketbase/pocketbase ./demo_e2e.sh     # different repo
+
 # Generate a sandbox-verified dataset (auto-triggers bootstrap if needed)
 uv run repo2rlenv generate \
   --repo <owner>/<repo> --pipeline pr_runtime \
@@ -170,11 +174,18 @@ uv run repo2rlenv generate \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 
-# Score a candidate diff
-uv run repo2rlenv reward --task ./out/some-task --prediction ./candidate.diff
-
-# Validate a dataset
+# Validate a dataset (fast structural check, no LLM, no Docker)
 uv run repo2rlenv validate ./datasets/<dataset-name>
+
+# Publish to HF Hub
+uv run repo2rlenv push ./datasets/<dataset-name> hf://<your-org>/<dataset-name>
+
+# Pull a published dataset back later
+uv run repo2rlenv pull hf://<your-org>/<dataset-name>
+
+# Diff-similarity reward for training loops — Python import only, no CLI:
+#   from repo2rlenv.reward import calculate_diff_similarity_reward
+# Test-execution reward comes from `harbor run`.
 
 # Run all tests + lint + format check (everything CI runs)
 uv run pytest -q

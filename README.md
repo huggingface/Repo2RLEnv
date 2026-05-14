@@ -35,17 +35,23 @@ repo2rlenv generate \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 
-# Or push straight to HF Hub with --out hf://<your-org>/<dataset-name>
+# Validate the emitted dataset (fast structural check)
+repo2rlenv validate ./datasets/<dataset-name>
 
-# Validate a local dataset against the spec
-repo2rlenv validate ./path/to/dataset
+# Publish to HF Hub
+repo2rlenv push ./datasets/<dataset-name> hf://<your-org>/<dataset-name>
 
-# Score a candidate diff against a task's oracle (diff-similarity reward)
-repo2rlenv reward --task ./datasets/<dataset-name>/<task-id> --prediction ./candidate.diff
+# Pull a published dataset back later
+repo2rlenv pull hf://<your-org>/<dataset-name> ./datasets/<dataset-name>
 
-# Or write a sample config first and use --config
-repo2rlenv init && repo2rlenv generate --config repo2rlenv.config.yaml
+# Run an agent against the spec — Harbor (separate tool) handles execution
+harbor run --agent oracle --path ./datasets/<dataset-name>/<task-id>
 ```
+
+> **Diff-similarity reward for training loops:** import the function directly —
+> `from repo2rlenv.reward import calculate_diff_similarity_reward`. There is no
+> CLI wrapper; Harbor handles test-execution rewards, this function handles the
+> cheap dense signal that RL training uses.
 
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
@@ -98,7 +104,7 @@ A dataset format that:
 - **Trains anywhere via Harbor** — TRL, SkyRL, Prime-RL, Tinker, Miles, Slime, harbor.rl
 - **Evaluates with any agent harness** — Claude Code, OpenHands, Codex CLI, Gemini CLI, …
 - Is **language-agnostic** by spec — `_runtime` pipelines emit Dockerfile + shell verifier; `_diff` pipelines are pure text and work for any language with no extra config
-- **Publishes natively** to Hugging Face Hub — `--out hf://owner/name` writes a Harbor-compatible `registry.json` so consumers can `harbor download` without any glue
+- **Publishes natively** to Hugging Face Hub — `repo2rlenv push ./datasets/<name> hf://owner/name` writes a Harbor-compatible `registry.json` so consumers can `harbor download` (or `repo2rlenv pull`) without any glue
 - Supports **private repos** end-to-end — `gh auth token` resolved automatically; build secrets declared by name; verifier-time secrets forbidden by spec
 
 ---

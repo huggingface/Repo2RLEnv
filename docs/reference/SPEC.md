@@ -35,13 +35,15 @@ class GenerationInput(BaseModel):
 **Flag form**:
 
 ```bash
+# Generate locally, then push as two explicit steps
 repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out hf://AdithyaSK/trl-r2e-v0-1 \
-  --org AdithyaSK --dataset-name trl-r2e-v0-1
+  --out ./datasets/trl-r2e-v0-1
+
+repo2rlenv push ./datasets/trl-r2e-v0-1 hf://AdithyaSK/trl-r2e-v0-1
 ```
 
 **Config-file form** — `--config <path>` accepts YAML or TOML, format auto-detected by extension. CLI flags override file fields:
@@ -60,13 +62,13 @@ llm:
   provider: "anthropic"
   model: "claude-sonnet-4-6"
 output:
-  destination: "hf://AdithyaSK/trl-r2e-v0-1"
+  destination: "./datasets/trl-r2e-v0-1"
   org: "AdithyaSK"
   dataset_name: "trl-r2e-v0-1"
   visibility: "public"
 ```
 
-`repo2rlenv init` writes a sample config you can tweak.
+Drop this into a file (e.g. `repo2rlenv.config.yaml`) and run with `--config <path>`. Publishing is a separate step via `repo2rlenv push`.
 
 ## Output contract — Harbor + `[metadata.repo2env]`
 
@@ -155,7 +157,7 @@ Repo2RLEnv has **no sandbox abstraction of its own**. Generation-time execution 
 |---|---|---|
 | Generation | Lite (text-only, e.g. `pr_diff`) | Nothing — pure text manipulation |
 | Generation | Full (`pr_runtime`, `mutation_bugs`, etc.) | Harbor's sandbox layer (`harbor` invoked under the hood) |
-| Consumption | Lite | Just call `repo2rlenv reward` — no sandbox needed |
+| Consumption | Lite | `from repo2rlenv.reward import calculate_diff_similarity_reward` — pure Python, no sandbox |
 | Consumption | Full | `harbor run -d <dataset> -e <modal\|daytona\|e2b\|local\|runloop> ...` |
 
 `SandboxSpec` exists to *describe* what the pipeline needs (provider, GPU, network), and at gen-time we lower it onto Harbor's flags. We don't ship a parallel runner. This keeps the surface area small — Harbor already handles GPU, multi-container, parallelism, and provider auth.

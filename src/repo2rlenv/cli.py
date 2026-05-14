@@ -1,11 +1,11 @@
 """Repo2RLEnv CLI — argparse-based, Rich-driven UI.
 
 Subcommands:
-  generate    Run a synthesis pipeline against a repo
-  validate    Validate a generated dataset directory
-  reward      Score a predicted diff against a task's oracle (smoke test)
+  generate    Run a synthesis pipeline against a repo (emits to local dir)
+  validate    Validate a generated dataset directory (fast structural check)
   bootstrap   Build a working Docker image via an LLM agent loop
-  init        Write a sample config file
+  push        Push a local dataset directory to HF Hub
+  pull        Pull a Repo2RLEnv dataset from HF Hub to a local directory
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import argparse
 import json
 import logging
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -195,6 +194,11 @@ def cmd_generate(args: argparse.Namespace) -> int:
     dest = gen_input.output.destination
     push_to_hub_after = dest.startswith("hf://")
     if push_to_hub_after:
+        console.warn(
+            "generate --out hf://... is deprecated and will be removed in v0.9. "
+            "Use `repo2rlenv push <local-dir> <hf://...>` instead — explicit, re-pushable, "
+            "and decouples emission from publication."
+        )
         repo_id = dest.removeprefix("hf://")
         out_dir = Path(f"./.r2e_cache/{repo_id.replace('/', '__')}").resolve()
     else:
@@ -309,31 +313,83 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
-def cmd_reward(args: argparse.Namespace) -> int:
-    from repo2rlenv.reward import calculate_diff_similarity_reward
+def _parse_hf_uri(uri: str, *, flag: str) -> str:
+    """Extract owner/dataset from `hf://owner/dataset` (or accept the bare form)."""
+    s = uri.strip()
+    if s.startswith("hf://"):
+        s = s.removeprefix("hf://")
+    if "/" not in s or len(s.split("/")) != 2 or any(not p for p in s.split("/")):
+        raise SystemExit(f"{flag} expects 'hf://owner/dataset' or 'owner/dataset', got {uri!r}")
+    return s
 
-    task_dir = Path(args.task).expanduser().resolve()
-    oracle_path = task_dir / "solution" / "patch.diff"
-    pred_path = Path(args.prediction).expanduser().resolve()
-    if not oracle_path.exists():
-        console.error(f"oracle not found: {oracle_path}")
-        return 2
-    if not pred_path.exists():
-        console.error(f"prediction not found: {pred_path}")
+
+def cmd_push(args: argparse.Namespace) -> int:
+    """Push a local dataset directory to HF Hub."""
+    from repo2rlenv.hub import push_to_hub
+    from repo2rlenv.spec.input import AuthSpec
+
+    local_dir = Path(args.local_dir).expanduser().resolve()
+    if not local_dir.is_dir():
+        console.error(f"local dataset directory not found: {local_dir}")
         return 2
 
-    reward, meta = calculate_diff_similarity_reward(oracle_path.read_text(), pred_path.read_text())
-    meta_dict = asdict(meta)
-    console.kv(
-        {
-            "task": task_dir.name,
-            "reward": f"{reward:.4f}",
-            "matched_lines": f"{meta_dict['matched_lines']}/{meta_dict['oracle_lines']}",
-            "pred_lines": meta_dict["pred_lines"],
-            "parse_error": meta_dict["parse_error"] or "(none)",
-        },
-        title="diff_similarity reward",
-    )
+    repo_id = _parse_hf_uri(args.dataset, flag="<dataset>")
+
+    with console.section(f"Pushing {local_dir.name} → hf://{repo_id}"):
+        try:
+            result = push_to_hub(
+                local_dataset_dir=local_dir,
+                repo_id=repo_id,
+                auth=AuthSpec(),
+                private=args.private,
+                commit_message=args.message,
+            )
+        except Exception as exc:
+            console.error(f"push failed: {exc}")
+            return 1
+        console.kv(
+            {
+                "repo_id": result.repo_id,
+                "task_count": result.task_count,
+                "commit": result.commit_sha,
+                "registry_url": result.registry_url,
+            },
+            title="HF Hub push",
+        )
+        console.dim(f"  to pull back later:  repo2rlenv pull hf://{result.repo_id} ./<local-dir>")
+    return 0
+
+
+def cmd_pull(args: argparse.Namespace) -> int:
+    """Pull a Repo2RLEnv dataset from HF Hub into a local directory."""
+    from repo2rlenv.hub import pull_from_hub
+    from repo2rlenv.spec.input import AuthSpec
+
+    repo_id = _parse_hf_uri(args.dataset, flag="<dataset>")
+    default_dir = Path(f"./datasets/{repo_id.replace('/', '__')}").resolve()
+    local_dir = Path(args.local_dir).expanduser().resolve() if args.local_dir else default_dir
+
+    with console.section(f"Pulling hf://{repo_id} → {local_dir}"):
+        try:
+            result = pull_from_hub(
+                repo_id=repo_id,
+                local_dir=local_dir,
+                auth=AuthSpec(),
+                task=args.task,
+                force=args.force,
+            )
+        except Exception as exc:
+            console.error(f"pull failed: {exc}")
+            return 1
+        console.kv(
+            {
+                "repo_id": result.repo_id,
+                "local_dir": str(result.local_dir),
+                "task_count": result.task_count,
+            },
+            title="HF Hub pull",
+        )
+        console.dim(f"  validate it: repo2rlenv validate {result.local_dir}")
     return 0
 
 
@@ -443,49 +499,6 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0
 
 
-_SAMPLE_CONFIG = """spec_version: "0.1.0"
-
-repo:
-  url: "huggingface/trl"
-  access: "auto"
-
-pipeline:
-  name: "pr_diff"
-  options:
-    limit: 10
-    skip_drafts: true
-    max_files_per_pr: 5
-
-llm:
-  provider: "anthropic"
-  model: "claude-sonnet-4-6"
-
-output:
-  destination: "./datasets/trl-r2e"
-  org: "myorg"
-  dataset_name: "trl-r2e"
-  visibility: "public"
-
-qa:
-  enabled: true
-  layers: ["diff_parse"]
-
-sandbox:
-  provider: "none"
-"""
-
-
-def cmd_init(args: argparse.Namespace) -> int:
-    out = Path(args.out or "repo2rlenv.config.yaml").expanduser().resolve()
-    if out.exists() and not args.force:
-        console.error(f"refusing to overwrite {out} (use --force)")
-        return 1
-    out.write_text(_SAMPLE_CONFIG, encoding="utf-8")
-    console.success(f"wrote sample config to {out}")
-    console.dim("  edit it, then run: repo2rlenv generate --config <path>")
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     _load_dotenv_if_present()
 
@@ -567,11 +580,37 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("path", help="dataset or task directory")
     v.set_defaults(func=cmd_validate)
 
-    # reward
-    r = sub.add_parser("reward", help="Score a predicted diff against a task's oracle")
-    r.add_argument("--task", required=True, help="task directory containing solution/patch.diff")
-    r.add_argument("--prediction", required=True, help="path to predicted diff file")
-    r.set_defaults(func=cmd_reward)
+    # push
+    p = sub.add_parser("push", help="Push a local dataset directory to HF Hub")
+    p.add_argument("local_dir", help="path to dataset directory (output of `generate`)")
+    p.add_argument("dataset", help="HF Hub target as `hf://owner/dataset` (or `owner/dataset`)")
+    p.add_argument("--private", action="store_true", help="create the Hub repo as private")
+    p.add_argument(
+        "--message",
+        "-m",
+        help="custom commit message (default: 'Repo2RLEnv: add N tasks')",
+    )
+    p.set_defaults(func=cmd_push)
+
+    # pull
+    pl = sub.add_parser("pull", help="Pull a Repo2RLEnv dataset from HF Hub")
+    pl.add_argument("dataset", help="HF dataset as `hf://owner/dataset` (or `owner/dataset`)")
+    pl.add_argument(
+        "local_dir",
+        nargs="?",
+        default=None,
+        help="local destination (default: ./datasets/<owner>__<dataset>)",
+    )
+    pl.add_argument(
+        "--task",
+        help="fetch only this single task by name (e.g. pallets__click-3373)",
+    )
+    pl.add_argument(
+        "--force",
+        action="store_true",
+        help="re-download even if a local copy already exists",
+    )
+    pl.set_defaults(func=cmd_pull)
 
     # bootstrap
     bs = sub.add_parser("bootstrap", help="Build a working Docker image for a repo (v0.2)")
@@ -597,12 +636,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     bs.add_argument("--force", action="store_true", help="ignore cache, rebuild from scratch")
     bs.set_defaults(func=cmd_bootstrap)
-
-    # init
-    i = sub.add_parser("init", help="Write a sample config file")
-    i.add_argument("--out", help="output path (default: repo2rlenv.config.yaml)")
-    i.add_argument("--force", action="store_true", help="overwrite if exists")
-    i.set_defaults(func=cmd_init)
 
     args = parser.parse_args(argv)
     install_logging(level=logging.DEBUG if args.verbose else logging.INFO)

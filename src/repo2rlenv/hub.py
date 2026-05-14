@@ -47,6 +47,14 @@ class PushResult:
     task_count: int
 
 
+@dataclass(slots=True)
+class PullResult:
+    repo_id: str
+    local_dir: Path
+    task_count: int
+    snapshot_path: Path  # actual on-disk location after snapshot_download
+
+
 def _build_registry_json(
     repo_id: str,
     commit_sha: str,
@@ -247,4 +255,105 @@ def push_to_hub(
         commit_sha=commit_sha,
         registry_url=registry_url,
         task_count=len(task_names),
+    )
+
+
+def pull_from_hub(
+    repo_id: str,
+    local_dir: Path,
+    auth: AuthSpec | None = None,
+    *,
+    task: str | None = None,
+    force: bool = False,
+) -> PullResult:
+    """Pull a Repo2RLEnv-published dataset from HF Hub into a local directory.
+
+    Reverses `push_to_hub`: the staged Hub layout has `tasks/<task-id>/...`,
+    and we flatten that back to `<local_dir>/<task-id>/...` so the result is
+    immediately consumable by `repo2rlenv validate` and `harbor run --path`.
+
+    Args:
+        repo_id: HF dataset id, e.g. "AdithyaSK/click-r2e".
+        local_dir: where to materialize the flattened tasks.
+        auth: optional AuthSpec; falls back to env-resolved HF token.
+        task: if set, fetch only that single task subdir (faster, smaller).
+        force: re-download even if a local snapshot already exists.
+
+    Returns a PullResult with the count of task directories materialized.
+    """
+    from huggingface_hub import snapshot_download
+
+    auth = auth or AuthSpec()
+    token = resolve_hf_token(auth)
+    # token is optional for public datasets; pass-through if present
+
+    if force and local_dir.exists():
+        import shutil
+
+        shutil.rmtree(local_dir)
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    allow_patterns = None
+    if task:
+        # Match the task subdir + the registry/README so a single-task pull
+        # still produces a coherent dataset directory.
+        allow_patterns = [
+            f"tasks/{task}/**",
+            "registry.json",
+            "README.md",
+        ]
+
+    snapshot = Path(
+        snapshot_download(
+            repo_id=repo_id,
+            repo_type="dataset",
+            token=token,
+            local_dir=str(local_dir / ".r2e_snapshot"),
+            allow_patterns=allow_patterns,
+        )
+    )
+
+    # Flatten staged `tasks/<id>/` → `<local_dir>/<id>/`
+    staged_tasks = snapshot / "tasks"
+    if not staged_tasks.exists():
+        raise RuntimeError(
+            f"{repo_id} doesn't look like a Repo2RLEnv dataset "
+            f"(no `tasks/` subdir under {snapshot})"
+        )
+
+    import shutil
+
+    task_count = 0
+    for child in sorted(staged_tasks.iterdir()):
+        if not child.is_dir():
+            continue
+        if not (child / "task.toml").exists():
+            continue
+        target = local_dir / child.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(child, target)
+        task_count += 1
+
+    # Also surface the registry.json + README.md at the dataset root so the
+    # local layout matches what `push_to_hub` originally staged.
+    for top in ("registry.json", "README.md"):
+        src = snapshot / top
+        if src.exists():
+            shutil.copyfile(src, local_dir / top)
+
+    # Clean up the snapshot scratch dir
+    shutil.rmtree(snapshot, ignore_errors=True)
+
+    if task_count == 0:
+        raise RuntimeError(
+            f"no Harbor tasks materialized from {repo_id} into {local_dir}"
+            + (f" (filter: task={task!r})" if task else "")
+        )
+
+    return PullResult(
+        repo_id=repo_id,
+        local_dir=local_dir,
+        task_count=task_count,
+        snapshot_path=local_dir,
     )

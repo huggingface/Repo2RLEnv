@@ -151,14 +151,17 @@ Two-commit upload: tasks first, then `registry.json` pinned to the resulting com
 
 Repo2RLEnv ships **no execution runtime**. To run/score:
 
-- **Lite tasks** — just call `reward.calculate_diff_similarity_reward(oracle, prediction)` directly. The `repo2rlenv reward` CLI is a thin wrapper. No sandbox needed.
-- **Full tasks** (Dockerfile + tests) — use `harbor run -d <dataset> -e <provider> ...`. Repo2RLEnv emits Harbor-compatible task directories so this works out of the box once full pipelines ship.
+- **Diff-similarity scoring** — call `reward.calculate_diff_similarity_reward(oracle, prediction)` directly from Python. Used by RL training loops where running tests every rollout is too expensive. There is no CLI wrapper.
+- **Test execution** — use `harbor run --agent <agent> --path <task>`. Repo2RLEnv emits Harbor-compatible task directories that work out of the box across Harbor's Local Docker / Modal / Daytona / E2B / Runloop backends.
 
 ## CLI ↔ API mapping
 
 | CLI subcommand | Python equivalent |
 |---|---|
-| `repo2rlenv init` | (writes a sample YAML) |
-| `repo2rlenv generate ...` | `pipelines.PIPELINES[name](input, opts).run(out_dir)` + (optional) `hub.push_to_hub` |
+| `repo2rlenv generate ...` | `pipelines.PIPELINES[name](input, opts).run(out_dir)` |
 | `repo2rlenv validate <path>` | walk task.toml files + `tomllib.loads` |
-| `repo2rlenv reward --task --prediction` | `reward.calculate_diff_similarity_reward` |
+| `repo2rlenv push <dir> <hf://...>` | `hub.push_to_hub(local_dir, repo_id, auth, ...)` |
+| `repo2rlenv pull <hf://...> [<dir>]` | `hub.pull_from_hub(repo_id, local_dir, auth, ...)` |
+| `repo2rlenv bootstrap ...` | `bootstrap.ensure_bootstrap(repo, spec, llm)` |
+| diff-similarity reward | `reward.calculate_diff_similarity_reward(oracle, prediction)` (Python only) |
+| test-execution reward | `harbor run --agent <agent> --path <task>` (separate tool) |
