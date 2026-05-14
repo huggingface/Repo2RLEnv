@@ -349,6 +349,33 @@ def test_normalize_jest_adds_verbose_and_strips_silent():
     assert normalize_test_cmds_for_runtime(["jest --verbose"]) == ["jest --verbose"]
 
 
+def test_normalize_strips_trailing_pipe_head_or_tail():
+    """Bootstrap agents sometimes save commands with a `| head -N` tail truncator.
+
+    targeted_test_cmds_for_pr appends test files at the end, which lands them
+    AFTER the pipe and breaks the shell. Strip the tail truncator BEFORE
+    appending test args.
+
+    Regression test for v0.8.2 e2e finding on pallets/click bootstrap.
+    """
+    assert normalize_test_cmds_for_runtime(["python -m pytest -q 2>&1 | head -50"]) == [
+        "python -m pytest -q -v"
+    ]
+    assert normalize_test_cmds_for_runtime(["pytest 2>&1 | tail -n 100"]) == ["pytest -v"]
+
+
+def test_normalize_strips_dev_null_redirect():
+    """`> /dev/null` or `&> /dev/null` would also swallow output we need to parse."""
+    assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == [
+        "go test -v ./..."
+    ]
+    assert normalize_test_cmds_for_runtime(["pytest &> /dev/null"]) == ["pytest -v"]
+
+
+def test_normalize_strips_bare_2_redirect_1():
+    assert normalize_test_cmds_for_runtime(["pytest 2>&1"]) == ["pytest -v"]
+
+
 def test_normalize_npm_test_unchanged_when_wrapper():
     """`npm test` is a wrapper — we can't safely add jest flags through it."""
     # Just verify it doesn't crash and doesn't corrupt the cmd

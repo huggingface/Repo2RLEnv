@@ -354,6 +354,17 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     for cmd in test_cmds:
         cleaned = cmd
 
+        # Strip shell pipes / redirects / tail-truncators that bootstrap agents
+        # sometimes append (e.g. `pytest -q 2>&1 | head -50`) so we capture only
+        # the test runner invocation. If we keep them, `targeted_test_cmds_for_pr`
+        # appends test files AFTER the pipe → broken command.
+        # `[^|]*` swallows whatever flags follow `head`/`tail` (`-50`, `-n 100`, etc.)
+        # without crossing into another piped command.
+        cleaned = re.sub(r"\s*\|\s*(?:head|tail)\s*[^|]*$", "", cleaned)
+        cleaned = re.sub(r"\s*2>&1\b", "", cleaned)
+        cleaned = re.sub(r"\s*&?>\s*/dev/null\b", "", cleaned)
+        cleaned = cleaned.rstrip(" |&")
+
         # --- pytest ---
         if re.search(r"\bpytest\b", cleaned):
             cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
