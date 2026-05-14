@@ -265,6 +265,7 @@ def pull_from_hub(
     *,
     task: str | None = None,
     force: bool = False,
+    revision: str | None = None,
 ) -> PullResult:
     """Pull a Repo2RLEnv-published dataset from HF Hub into a local directory.
 
@@ -278,6 +279,8 @@ def pull_from_hub(
         auth: optional AuthSpec; falls back to env-resolved HF token.
         task: if set, fetch only that single task subdir (faster, smaller).
         force: re-download even if a local snapshot already exists.
+        revision: specific git ref on the Hub dataset (tag / branch / commit).
+            None ⇒ default branch / latest commit.
 
     Returns a PullResult with the count of task directories materialized.
     """
@@ -310,6 +313,7 @@ def pull_from_hub(
             token=token,
             local_dir=str(local_dir / ".r2e_snapshot"),
             allow_patterns=allow_patterns,
+            revision=revision,
         )
     )
 
@@ -353,6 +357,194 @@ def pull_from_hub(
 
     return PullResult(
         repo_id=repo_id,
+        local_dir=local_dir,
+        task_count=task_count,
+        snapshot_path=local_dir,
+    )
+
+
+def _flatten_to_task_layout(source: Path, local_dir: Path) -> int:
+    """Materialize a directory of Harbor task dirs into `local_dir`.
+
+    Accepts two layouts at `source`:
+      - `<source>/tasks/<id>/task.toml` (HF-published / Harbor-published style)
+      - `<source>/<id>/task.toml` (flat — common for git-cloned dataset repos)
+
+    Copies each `<id>/` directory containing a `task.toml` into `local_dir`.
+    Returns the number of tasks materialized.
+    """
+    import shutil
+
+    candidates: list[Path] = []
+    staged = source / "tasks"
+    roots = [staged] if staged.is_dir() else [source]
+    for root in roots:
+        for child in sorted(root.iterdir()):
+            if not child.is_dir():
+                continue
+            if (child / "task.toml").exists():
+                candidates.append(child)
+
+    count = 0
+    for child in candidates:
+        target = local_dir / child.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(child, target, symlinks=False, ignore_dangling_symlinks=True)
+        count += 1
+
+    # Surface top-level registry.json + README.md if present
+    for top in ("registry.json", "README.md"):
+        src = source / top
+        if src.exists():
+            shutil.copyfile(src, local_dir / top)
+
+    return count
+
+
+def pull_from_harbor(
+    name: str,
+    local_dir: Path,
+    *,
+    tag: str | None = None,
+    registry_url: str | None = None,
+    force: bool = False,
+) -> PullResult:
+    """Pull a Harbor-registry dataset by shelling out to `harbor datasets download`.
+
+    Harbor handles its own auth, caching, registry resolution, version pinning
+    via `<name>@<tag>`. We just orchestrate the download then flatten the
+    result into our standard local-dir layout.
+
+    Args:
+        name: Harbor dataset name (without `harbor://` prefix).
+        local_dir: where to materialize.
+        tag: optional version tag (`@lite`, `@verified`, ...). None = registry default.
+        registry_url: optional custom Harbor registry URL.
+        force: re-download even if local_dir already exists.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    if not shutil.which("harbor"):
+        raise RuntimeError(
+            "`harbor` CLI not found on PATH. "
+            "Install with `uv tool install harbor` (or `pip install harbor`), "
+            "then re-run."
+        )
+
+    if force and local_dir.exists():
+        shutil.rmtree(local_dir)
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    target = name + (f"@{tag}" if tag else "")
+
+    with tempfile.TemporaryDirectory(prefix="r2e-harbor-pull-") as tmp:
+        args = ["harbor", "datasets", "download", target, "-o", tmp]
+        if registry_url:
+            args += ["--registry-url", registry_url]
+        logger.info("running: %s", " ".join(args))
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=600, check=False)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"harbor download failed (exit {proc.returncode}): "
+                f"{proc.stderr.strip()[:400] or proc.stdout.strip()[:400]}"
+            )
+
+        # Harbor lays out tasks under tmp/. Walk and flatten.
+        # The downloaded directory typically contains <name>/ or <name>/tasks/.
+        downloaded = Path(tmp)
+        # If there's exactly one subdirectory and it contains task.toml or tasks/,
+        # recurse into it first; otherwise treat tmp as the dataset root.
+        children = [c for c in downloaded.iterdir() if c.is_dir()]
+        if len(children) == 1 and not (downloaded / "task.toml").exists():
+            downloaded = children[0]
+
+        task_count = _flatten_to_task_layout(downloaded, local_dir)
+
+    if task_count == 0:
+        raise RuntimeError(
+            f"no Harbor tasks materialized for {target!r} into {local_dir}. "
+            f"Either {name!r} isn't published, or the dataset uses a layout we don't recognize."
+        )
+
+    return PullResult(
+        repo_id=target,
+        local_dir=local_dir,
+        task_count=task_count,
+        snapshot_path=local_dir,
+    )
+
+
+def pull_from_github(
+    owner_repo: str,
+    local_dir: Path,
+    *,
+    ref: str | None = None,
+    force: bool = False,
+) -> PullResult:
+    """Pull a dataset from a public/private GitHub repo via `git clone --depth 1`.
+
+    The cloned repo must follow the Repo2RLEnv / Harbor task layout: either
+    `<repo>/tasks/<id>/task.toml` (HF-style) or `<repo>/<id>/task.toml`
+    (flat). We flatten to `<local_dir>/<id>/...` either way.
+
+    Uses the same GitHub auth chain as `repo2rlenv generate` (gh CLI →
+    $GITHUB_TOKEN → anonymous), so private repos work when you're `gh
+    auth login`'d.
+
+    Args:
+        owner_repo: GitHub `owner/repo`.
+        local_dir: where to materialize tasks.
+        ref: optional branch / tag / commit SHA. None = default branch.
+        force: re-clone even if local_dir already exists.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    from repo2rlenv.auth import auth_clone_url, resolve_github_token
+    from repo2rlenv.spec.input import AuthSpec, RepoSpec
+
+    if not shutil.which("git"):
+        raise RuntimeError("`git` not found on PATH; install git and retry.")
+
+    parts = owner_repo.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"owner_repo must be 'owner/repo', got {owner_repo!r}")
+
+    repo_spec = RepoSpec(url=f"https://github.com/{owner_repo}", access="auto")
+    token = resolve_github_token(repo_spec, AuthSpec())
+    clone_url = auth_clone_url(repo_spec.url, token)
+
+    if force and local_dir.exists():
+        shutil.rmtree(local_dir)
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="r2e-gh-pull-") as tmp:
+        clone_dir = Path(tmp) / "clone"
+        args = ["git", "clone", "--depth", "1"]
+        if ref:
+            args += ["--branch", ref]
+        args += [clone_url, str(clone_dir)]
+        logger.info("running: git clone --depth 1 [...] %s", owner_repo)
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+        if proc.returncode != 0:
+            stderr = proc.stderr.replace(token, "***") if token else proc.stderr
+            raise RuntimeError(f"git clone failed (exit {proc.returncode}): {stderr.strip()[:400]}")
+
+        task_count = _flatten_to_task_layout(clone_dir, local_dir)
+
+    if task_count == 0:
+        raise RuntimeError(
+            f"no Harbor tasks materialized from gh://{owner_repo} into {local_dir}. "
+            f"The repo doesn't appear to contain `task.toml` files in a recognized layout "
+            f"(tried `tasks/<id>/` and `<id>/`)."
+        )
+
+    return PullResult(
+        repo_id=f"gh://{owner_repo}" + (f"@{ref}" if ref else ""),
         local_dir=local_dir,
         task_count=task_count,
         snapshot_path=local_dir,

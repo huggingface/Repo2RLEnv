@@ -313,18 +313,118 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
-def _parse_hf_uri(uri: str, *, flag: str) -> str:
-    """Extract owner/dataset from `hf://owner/dataset` (or accept the bare form)."""
+class _Backend:
+    """Which source/destination a URI points at."""
+
+    HF = "hf"
+    HARBOR = "harbor"
+    GITHUB = "github"
+
+
+def _split_revision(s: str) -> tuple[str, str | None]:
+    """Split `name@rev` into (name, rev). Returns (name, None) if no `@`."""
+    if "@" in s:
+        name, _, rev = s.rpartition("@")
+        return name, (rev or None)
+    return s, None
+
+
+def _resolve_hf_owner(name: str) -> str:
+    """Auto-resolve `name` (no slash) to `<whoami>/name` via HfApi.
+
+    Bare-name resolution. Errors clearly if no HF token / whoami fails.
+    """
+    from huggingface_hub import whoami
+
+    from repo2rlenv.auth import resolve_hf_token
+    from repo2rlenv.spec.input import AuthSpec
+
+    token = resolve_hf_token(AuthSpec())
+    if not token:
+        raise SystemExit(
+            f"cannot auto-resolve owner for {name!r}: no HF token found.\n"
+            f"  Either run `huggingface-cli login`, set $HF_TOKEN, or pass `<owner>/{name}` explicitly."
+        )
+    try:
+        info = whoami(token=token)
+    except Exception as exc:
+        raise SystemExit(f"cannot auto-resolve owner for {name!r}: whoami failed ({exc})") from exc
+    user = info.get("name") if isinstance(info, dict) else None
+    if not user:
+        raise SystemExit(f"cannot auto-resolve owner for {name!r}: whoami returned no name")
+    return f"{user}/{name}"
+
+
+def _parse_dataset_uri(uri: str, *, flag: str) -> tuple[str, str, str | None]:
+    """Classify a dataset URI into `(backend, normalized_id, revision)`.
+
+    Forms accepted:
+      "name"                      → (HF,     "<whoami>/name", None)
+      "owner/name"                → (HF,     "owner/name",    None)
+      "owner/name@rev"            → (HF,     "owner/name",    "rev")
+      "hf://owner/name[@rev]"     → (HF,     "owner/name",    rev | None)
+      "hf://name[@rev]"           → (HF,     "<whoami>/name", rev | None)
+      "harbor://name[@tag]"       → (HARBOR, "name",          tag | None)
+      "gh://owner/repo[@ref]"     → (GITHUB, "owner/repo",    ref | None)
+      "https://github.com/owner/repo[/tree/ref][@ref]" → (GITHUB, "owner/repo", ref | None)
+    """
     s = uri.strip()
+    if not s:
+        raise SystemExit(f"{flag}: empty dataset URI")
+
+    # GitHub full URL → strip prefix
+    gh_url_prefixes = ("https://github.com/", "http://github.com/", "git@github.com:")
+    for prefix in gh_url_prefixes:
+        if s.startswith(prefix):
+            tail = s.removeprefix(prefix)
+            tail = tail.removesuffix(".git")
+            base, rev = _split_revision(tail)
+            parts = [p for p in base.split("/") if p]
+            if len(parts) < 2:
+                raise SystemExit(f"{flag}: GitHub URL needs owner/repo, got {uri!r}")
+            return (_Backend.GITHUB, f"{parts[0]}/{parts[1]}", rev)
+
+    # Scheme prefixes
+    if s.startswith("gh://"):
+        base, rev = _split_revision(s.removeprefix("gh://"))
+        parts = [p for p in base.split("/") if p]
+        if len(parts) != 2:
+            raise SystemExit(f"{flag}: gh:// expects owner/repo, got {uri!r}")
+        return (_Backend.GITHUB, f"{parts[0]}/{parts[1]}", rev)
+
+    if s.startswith("harbor://"):
+        base, rev = _split_revision(s.removeprefix("harbor://"))
+        if not base or "/" in base:
+            raise SystemExit(f"{flag}: harbor:// expects a bare dataset name, got {uri!r}")
+        return (_Backend.HARBOR, base, rev)
+
     if s.startswith("hf://"):
         s = s.removeprefix("hf://")
-    if "/" not in s or len(s.split("/")) != 2 or any(not p for p in s.split("/")):
-        raise SystemExit(f"{flag} expects 'hf://owner/dataset' or 'owner/dataset', got {uri!r}")
-    return s
+        # fall through to bare/owner-name parsing
+
+    # Plain or hf://-stripped: bare name, owner/name, or owner/name@rev
+    base, rev = _split_revision(s)
+    parts = [p for p in base.split("/") if p]
+    if len(parts) == 2 and base.count("/") == 1:
+        # Reject trailing/leading slashes ("owner/", "/name") via the count check.
+        return (_Backend.HF, f"{parts[0]}/{parts[1]}", rev)
+    if len(parts) == 1 and "/" not in base:
+        # Bare name only — no stray slashes allowed.
+        return (_Backend.HF, _resolve_hf_owner(parts[0]), rev)
+    raise SystemExit(
+        f"{flag} expects one of:\n"
+        f"  name | owner/name | hf://owner/name | harbor://name | gh://owner/repo\n"
+        f"got {uri!r}"
+    )
 
 
 def cmd_push(args: argparse.Namespace) -> int:
-    """Push a local dataset directory to HF Hub."""
+    """Push a local dataset directory to HF Hub.
+
+    Only HF is supported as a push target. Harbor publishing happens via
+    `harbor publish`; GitHub publishing is `git push`. We give friendly
+    redirects rather than partially implementing those flows.
+    """
     from repo2rlenv.hub import push_to_hub
     from repo2rlenv.spec.input import AuthSpec
 
@@ -333,7 +433,23 @@ def cmd_push(args: argparse.Namespace) -> int:
         console.error(f"local dataset directory not found: {local_dir}")
         return 2
 
-    repo_id = _parse_hf_uri(args.dataset, flag="<dataset>")
+    backend, repo_id, revision = _parse_dataset_uri(args.dataset, flag="<dataset>")
+    if backend == _Backend.HARBOR:
+        console.error(
+            "Pushing to the Harbor registry is delegated to harbor itself.\n"
+            f"  cd {local_dir} && harbor publish"
+        )
+        return 2
+    if backend == _Backend.GITHUB:
+        console.error(
+            "Pushing a dataset to GitHub is delegated to git.\n"
+            f"  cd {local_dir} && git init && git remote add origin <url> && git push -u origin main"
+        )
+        return 2
+    if revision is not None:
+        console.warn(
+            f"--push does not pin revisions; ignoring `@{revision}` (Hub commit will be the push commit)"
+        )
 
     with console.section(f"Pushing {local_dir.name} → hf://{repo_id}"):
         try:
@@ -356,41 +472,109 @@ def cmd_push(args: argparse.Namespace) -> int:
             },
             title="HF Hub push",
         )
-        console.dim(f"  to pull back later:  repo2rlenv pull hf://{result.repo_id} ./<local-dir>")
+        console.dim(f"  to pull back later:  repo2rlenv pull {result.repo_id}")
     return 0
 
 
 def cmd_pull(args: argparse.Namespace) -> int:
-    """Pull a Repo2RLEnv dataset from HF Hub into a local directory."""
-    from repo2rlenv.hub import pull_from_hub
-    from repo2rlenv.spec.input import AuthSpec
+    """Pull a Repo2RLEnv dataset from HF Hub / Harbor registry / GitHub.
 
-    repo_id = _parse_hf_uri(args.dataset, flag="<dataset>")
-    default_dir = Path(f"./datasets/{repo_id.replace('/', '__')}").resolve()
+    URI dispatch:
+      name / owner/name / hf://...   → HF Hub via `huggingface_hub`
+      harbor://name[@tag]            → shell out to `harbor datasets download`
+      gh://owner/repo[@ref], https://github.com/...  → `git clone --depth 1`
+    """
+    backend, normalized_id, revision = _parse_dataset_uri(args.dataset, flag="<dataset>")
+    slug = normalized_id.replace("/", "__")
+    default_dir = Path(f"./datasets/{slug}").resolve()
     local_dir = Path(args.local_dir).expanduser().resolve() if args.local_dir else default_dir
 
-    with console.section(f"Pulling hf://{repo_id} → {local_dir}"):
-        try:
-            result = pull_from_hub(
-                repo_id=repo_id,
-                local_dir=local_dir,
-                auth=AuthSpec(),
-                task=args.task,
-                force=args.force,
+    if backend == _Backend.HF:
+        from repo2rlenv.hub import pull_from_hub
+        from repo2rlenv.spec.input import AuthSpec
+
+        label = f"hf://{normalized_id}" + (f"@{revision}" if revision else "")
+        with console.section(f"Pulling {label} → {local_dir}"):
+            try:
+                result = pull_from_hub(
+                    repo_id=normalized_id,
+                    local_dir=local_dir,
+                    auth=AuthSpec(),
+                    task=args.task,
+                    force=args.force,
+                    revision=revision,
+                )
+            except Exception as exc:
+                console.error(f"pull failed: {exc}")
+                return 1
+            console.kv(
+                {
+                    "repo_id": result.repo_id,
+                    "revision": revision or "(default)",
+                    "local_dir": str(result.local_dir),
+                    "task_count": result.task_count,
+                },
+                title="HF Hub pull",
             )
-        except Exception as exc:
-            console.error(f"pull failed: {exc}")
-            return 1
-        console.kv(
-            {
-                "repo_id": result.repo_id,
-                "local_dir": str(result.local_dir),
-                "task_count": result.task_count,
-            },
-            title="HF Hub pull",
-        )
-        console.dim(f"  validate it: repo2rlenv validate {result.local_dir}")
-    return 0
+            console.dim(f"  validate it: repo2rlenv validate {result.local_dir}")
+        return 0
+
+    if backend == _Backend.HARBOR:
+        from repo2rlenv.hub import pull_from_harbor
+
+        label = f"harbor://{normalized_id}" + (f"@{revision}" if revision else "")
+        with console.section(f"Pulling {label} → {local_dir}"):
+            try:
+                result = pull_from_harbor(
+                    name=normalized_id,
+                    local_dir=local_dir,
+                    tag=revision,
+                    registry_url=args.registry_url,
+                    force=args.force,
+                )
+            except Exception as exc:
+                console.error(f"pull failed: {exc}")
+                return 1
+            console.kv(
+                {
+                    "dataset": normalized_id,
+                    "tag": revision or "(default)",
+                    "local_dir": str(result.local_dir),
+                    "task_count": result.task_count,
+                },
+                title="Harbor pull",
+            )
+            console.dim(f"  validate it: repo2rlenv validate {result.local_dir}")
+        return 0
+
+    if backend == _Backend.GITHUB:
+        from repo2rlenv.hub import pull_from_github
+
+        label = f"gh://{normalized_id}" + (f"@{revision}" if revision else "")
+        with console.section(f"Pulling {label} → {local_dir}"):
+            try:
+                result = pull_from_github(
+                    owner_repo=normalized_id,
+                    local_dir=local_dir,
+                    ref=revision,
+                    force=args.force,
+                )
+            except Exception as exc:
+                console.error(f"pull failed: {exc}")
+                return 1
+            console.kv(
+                {
+                    "owner_repo": normalized_id,
+                    "ref": revision or "(default)",
+                    "local_dir": str(result.local_dir),
+                    "task_count": result.task_count,
+                },
+                title="GitHub pull",
+            )
+            console.dim(f"  validate it: repo2rlenv validate {result.local_dir}")
+        return 0
+
+    raise SystemExit(f"unknown backend: {backend}")
 
 
 def cmd_bootstrap(args: argparse.Namespace) -> int:
@@ -593,17 +777,31 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_push)
 
     # pull
-    pl = sub.add_parser("pull", help="Pull a Repo2RLEnv dataset from HF Hub")
-    pl.add_argument("dataset", help="HF dataset as `hf://owner/dataset` (or `owner/dataset`)")
+    pl = sub.add_parser(
+        "pull",
+        help="Pull a dataset from HF Hub / Harbor registry / GitHub",
+    )
+    pl.add_argument(
+        "dataset",
+        help=(
+            "dataset URI. Accepted forms: `name` (HF, owner via whoami), `owner/name` (HF), "
+            "`owner/name@rev` (HF revision), `hf://owner/name`, `harbor://name[@tag]`, "
+            "`gh://owner/repo[@ref]`, or a full `https://github.com/owner/repo` URL"
+        ),
+    )
     pl.add_argument(
         "local_dir",
         nargs="?",
         default=None,
-        help="local destination (default: ./datasets/<owner>__<dataset>)",
+        help="local destination (default: ./datasets/<owner>__<name>)",
     )
     pl.add_argument(
         "--task",
-        help="fetch only this single task by name (e.g. pallets__click-3373)",
+        help="(HF only) fetch a single task by name (e.g. pallets__click-3373)",
+    )
+    pl.add_argument(
+        "--registry-url",
+        help="(Harbor only) custom Harbor registry URL; defaults to Harbor's public registry",
     )
     pl.add_argument(
         "--force",
