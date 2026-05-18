@@ -459,6 +459,22 @@ def cmd_push(args: argparse.Namespace) -> int:
             f"--push does not pin revisions; ignoring `@{revision}` (Hub commit will be the push commit)"
         )
 
+    # Infer repo_source and pipeline from the first task.toml found in the dataset dir
+    repo_source = ""
+    pipeline = "pr_diff"
+    for task_toml in sorted(local_dir.rglob("task.toml")):
+        try:
+            import tomllib
+
+            with open(task_toml, "rb") as f:
+                meta = tomllib.load(f)
+            r2e = meta.get("metadata", {}).get("repo2env", {})
+            repo_source = r2e.get("repo", "")
+            pipeline = r2e.get("pipeline", "pr_diff")
+        except Exception:
+            pass
+        break
+
     with console.section(f"Pushing {local_dir.name} → hf://{repo_id}"):
         try:
             result = push_to_hub(
@@ -467,6 +483,8 @@ def cmd_push(args: argparse.Namespace) -> int:
                 auth=AuthSpec(),
                 private=args.private,
                 commit_message=args.message,
+                repo_source=repo_source,
+                pipeline=pipeline,
             )
         except Exception as exc:
             console.error(f"push failed: {exc}")
