@@ -63,7 +63,7 @@ docs/                           # public docs (committed), three tiers:
 plans/                          # internal working docs (gitignored)
 references/                     # cloned inspiration repos (gitignored)
 envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 370/370 pass as of v0.8
+tests/                          # pytest; 491/491 pass as of v0.8.2
 .github/workflows/              # ci.yml (lint + matrix tests + build),
                                 # release.yml (PyPI publish on tagged release)
 CONTRIBUTING.md                 # dev setup, PR conventions, release flow
@@ -136,7 +136,7 @@ The canonical contributor reference is [`CONTRIBUTING.md`](./CONTRIBUTING.md) at
 - **No `Co-Authored-By: Claude` trailer** on commits. User explicitly rejected it; see `~/.claude/projects/.../memory/feedback_no_coauthor.md`.
 - **Commits**: terse subject + short body explaining "why". Don't reference the current task; that goes in the PR description.
 - **PRs**: title under 70 chars; description has summary + test plan + out-of-scope items. Close issues via `Closes #N` in commit body.
-- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **115/115 must pass.**
+- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **491/491 must pass.**
 - **Lint + format**: `uv run ruff check .` and `uv run ruff format .` before commit. CI rejects unformatted code or lint violations.
 - **Acknowledgments**: when a file draws inspiration from external work, add a header block crediting the source repo + paper + license + clarifying our license posture. See `bootstrap/__init__.py` or `reward.py` for the format.
 
@@ -219,7 +219,7 @@ uv add --dev <pkg>      # dev only
 - **v0.5.0** shipped on PyPI: `pr_stream` (continuous PR mining with watermark state) + `commit_runtime` (commit-level mining, SWE-GEN style). Both Harbor-verified.
 - **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (procedural AST bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired by Magicoder). Both Harbor-verified on `pallets/click` (Mean reward 1.000).
 - **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract real function, LLM writes equivalence test against `reference_<name>` oracle, gold patch fills the candidate) + `cve_patches` (OSV-driven CVE→fix-commit pipeline, reuses pr_runtime validation harness). Both Harbor-verified.
-- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000). **All 9 pipelines now shipped. 370/370 tests pass.**
+- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000). **All 9 pipelines now shipped. 491/491 tests pass.**
 - **v0.9 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe), iterative refinement loop for `equivalence_tests`, LLM-synthesized PoC for `cve_patches`, Extract Method / Inline kinds for `refactor_synthesis`, HF Hub append-mode for `pr_stream`, polyglot mutation (tree-sitter)
 - No more pipelines planned in `docs/pipelines/` — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
 

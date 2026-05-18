@@ -13,7 +13,7 @@ cd Repo2RLEnv
 uv sync --group dev          # installs runtime + dev deps (pytest, ruff)
 
 # Sanity check
-uv run pytest -q             # should print 115/115 passing (or higher)
+uv run pytest -q             # should print 491/491 passing (or higher)
 uv run ruff check .          # should report "All checks passed!"
 uv run ruff format --check . # should report "N files already formatted"
 uv run repo2rlenv --version  # 0.3.0 (or higher)
@@ -95,7 +95,7 @@ A green CI is the floor for merge — green plus at least one approving review i
 
 ### Tests
 
-- **Every code change keeps the suite green.** `uv run pytest -q` is the canonical command. Currently 115/115; if you add code, you usually add tests.
+- **Every code change keeps the suite green.** `uv run pytest -q` is the canonical command. Currently 491/491; if you add code, you usually add tests.
 - **Unit tests live next to the module they test**: `tests/test_<module>.py`. They use `pytest`'s fixture model; we don't use any custom test runner.
 - **E2E tests** (against real GitHub repos) live in `tests/test_e2e_*.py`. They're skipped automatically when `gh` isn't authenticated or the test repo isn't accessible — so they don't break CI for contributors without those credentials.
 - Use **specific exception types** in `pytest.raises(...)` — `pytest.raises(ValidationError)`, not `pytest.raises(Exception)`. Ruff flags the latter (`B017`).
