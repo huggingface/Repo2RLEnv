@@ -167,18 +167,37 @@ generation time.
 """
 
 
+def _read_task_metadata(task_toml: Path) -> dict[str, Any]:
+    """Extract `[metadata.repo2env]` from a task.toml. Empty dict on parse failure."""
+    import tomllib
+
+    try:
+        data = tomllib.loads(task_toml.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        logger.debug("could not parse %s: %s", task_toml, exc)
+        return {}
+    return data.get("metadata", {}).get("repo2env", {}) or {}
+
+
 def push_to_hub(
     local_dataset_dir: Path,
     repo_id: str,
     auth: AuthSpec,
     *,
     private: bool = False,
-    pipeline: str = "pr_diff",
-    repo_source: str = "",
+    pipeline: str | None = None,
+    repo_source: str | None = None,
     description: str = "",
     commit_message: str | None = None,
 ) -> PushResult:
-    """Push a dataset directory to HF Hub. Returns the resulting registry URL."""
+    """Push a dataset directory to HF Hub. Returns the resulting registry URL.
+
+    `pipeline` and `repo_source` are read out of the first task's
+    `[metadata.repo2env]` subtable automatically. Callers can override
+    (e.g. for legacy datasets missing that metadata) but normally don't
+    need to — this keeps the dataset card accurate regardless of how
+    `push_to_hub` is invoked.
+    """
     from huggingface_hub import HfApi
 
     token = resolve_hf_token(auth)
@@ -196,11 +215,15 @@ def push_to_hub(
     tasks_dir.mkdir(exist_ok=True)
 
     task_names = []
+    first_metadata: dict[str, Any] = {}
     for child in sorted(local_dataset_dir.iterdir()):
         if not child.is_dir() or child.name.startswith("."):
             continue
-        if not (child / "task.toml").exists():
+        toml_path = child / "task.toml"
+        if not toml_path.exists():
             continue
+        if not first_metadata:
+            first_metadata = _read_task_metadata(toml_path)
         target = tasks_dir / child.name
         if target.exists():
             import shutil
@@ -213,6 +236,13 @@ def push_to_hub(
 
     if not task_names:
         raise RuntimeError(f"no Harbor tasks found in {local_dataset_dir}")
+
+    # Pull authoritative values from the first task's [metadata.repo2env].
+    # Caller-supplied overrides win (back-compat for legacy callers).
+    if not pipeline:
+        pipeline = first_metadata.get("pipeline", "pr_diff")
+    if not repo_source:
+        repo_source = first_metadata.get("repo", "")
 
     # Write README.md (dataset card)
     dataset_name = repo_id.split("/")[-1]
