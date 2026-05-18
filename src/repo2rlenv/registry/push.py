@@ -69,8 +69,10 @@ def _resolve_repo_digest(remote_ref: str) -> str | None:
     """Return the registry-qualified digest for `remote_ref`, or None.
 
     `docker image inspect <ref>` exposes RepoDigests AFTER a push (or pull).
-    We filter to the digest matching the same registry host so multi-region
-    pushes don't get crossed up.
+    We pick the digest whose path component matches `remote_ref`'s path,
+    not the host — Docker Hub returns digests as `<user>/<image>@sha256:...`
+    (no `index.docker.io/` prefix) since it's the default registry, while
+    GHCR / ECR / etc. return the full `<host>/<path>@...` form.
     """
     proc = _run(
         ["docker", "image", "inspect", remote_ref, "--format", "{{json .RepoDigests}}"],
@@ -84,13 +86,34 @@ def _resolve_repo_digest(remote_ref: str) -> str | None:
         return None
     if not isinstance(digests, list) or not digests:
         return None
+
+    # The path component of remote_ref (everything after the host) — this is
+    # what Docker Hub digests use as the full identifier.
+    remote_path = remote_ref.split("/", 1)[1] if "/" in remote_ref else remote_ref
+    remote_path_no_tag = remote_path.split(":", 1)[0]
     host_prefix = remote_ref.split("/", 1)[0]
+
+    # Build expected match prefixes: try host-qualified first, then bare path
+    # (Docker Hub). Skip `local/...` entries — those are un-pullable.
+    candidates: list[str] = []
     for d in digests:
-        if isinstance(d, str) and d.startswith(host_prefix):
-            return d
-    # Fallback: first digest
-    first = digests[0]
-    return first if isinstance(first, str) else None
+        if not isinstance(d, str):
+            continue
+        if d.startswith("local/") or d.startswith("local-"):
+            continue
+        if d.startswith(f"{host_prefix}/"):
+            return d  # exact host match wins
+        if d.startswith(f"{remote_path_no_tag}@"):
+            candidates.append(d)  # bare-path match (Docker Hub style)
+
+    if candidates:
+        # For Docker Hub, prefix with the canonical host so the consumer's
+        # `docker pull` resolves unambiguously.
+        d = candidates[0]
+        if host_prefix in ("index.docker.io", "registry-1.docker.io", "docker.io"):
+            return f"{host_prefix}/{d}"
+        return d
+    return None
 
 
 def push_image(

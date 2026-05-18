@@ -74,6 +74,28 @@ class TestResolveRepoDigest:
         result = _resolve_repo_digest("ghcr.io/foo/bar:tag")
         assert result == "ghcr.io/foo/bar@sha256:222"
 
+    def test_docker_hub_bare_digest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Docker Hub returns digests without the host prefix; we re-attach it."""
+        digests = json.dumps(
+            [
+                "local/r2e-bootstrap/pallets__click@sha256:abc",  # local, must skip
+                "myuser/r2e-bootstrap-pallets-click@sha256:cafe",  # bare Docker Hub
+            ]
+        )
+        _stub_run(monkeypatch, {("docker", "image", "inspect"): (0, digests, "")})
+        result = _resolve_repo_digest(
+            "index.docker.io/myuser/r2e-bootstrap-pallets-click:fc6c7c47edd6"
+        )
+        # Result MUST carry the canonical host so docker pull resolves it
+        assert result == "index.docker.io/myuser/r2e-bootstrap-pallets-click@sha256:cafe"
+
+    def test_skips_local_digests(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`local/...@sha256:...` entries are NOT pullable — must never be returned."""
+        digests = json.dumps(["local/r2e-bootstrap/pallets__click@sha256:abc"])
+        _stub_run(monkeypatch, {("docker", "image", "inspect"): (0, digests, "")})
+        # Even with no other candidate, we don't return a local-only digest
+        assert _resolve_repo_digest("ghcr.io/foo/bar:tag") is None
+
     def test_empty_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _stub_run(monkeypatch, {("docker", "image", "inspect"): (0, "[]", "")})
         assert _resolve_repo_digest("ghcr.io/foo/bar:tag") is None

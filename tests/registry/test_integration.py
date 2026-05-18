@@ -135,6 +135,17 @@ class TestHelpers:
         )
         assert sha == "a1b2c3d4e5f6"
 
+    def test_parse_local_tag_digest_form(self) -> None:
+        """Real-world inputs use the @sha256:... digest form, not :tag."""
+        owner, name, sha = _parse_local_tag(
+            "local/r2e-bootstrap/pallets__click@sha256:"
+            "be4ae3decdbef39ead00d4f5dde6f0dbb644666d82bfa0693ae066e1cc9b467a"
+        )
+        assert owner == "pallets"
+        assert name == "click"
+        assert sha == "be4ae3decdbe"
+        assert len(sha) == 12  # truncated for OCI tag-length safety
+
     def test_rewrite_dockerfile_from(self, tmp_path: Path) -> None:
         df = tmp_path / "Dockerfile"
         df.write_text("FROM local/foo:tag\nWORKDIR /x\n", encoding="utf-8")

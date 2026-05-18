@@ -207,10 +207,22 @@ def _select_verified_registry(
 def _parse_local_tag(local_tag: str) -> tuple[str, str, str]:
     """From `local/r2e-bootstrap/owner__name:sha[__opts]` return (owner, name, sha).
 
-    Tolerates the legacy `local-` prefix and the `local/<...>` form. Falls
-    back to deriving owner/name from the path component before the colon.
+    Tolerates three input forms:
+      - `local/r2e-bootstrap/owner__name:sha12`        (tag form)
+      - `local/r2e-bootstrap/owner__name:sha12__opt8`  (tag + options hash)
+      - `local/r2e-bootstrap/owner__name@sha256:hex`   (digest form)
+
+    Returns 12-char tag-safe sha (truncated for digest form so the tag fits
+    within OCI tag-length limits).
     """
-    body, _, tag_with_opts = local_tag.partition(":")
+    # Digest form has `@sha256:` before the colon; strip it for parsing
+    if "@sha256:" in local_tag:
+        body, _, digest_hex = local_tag.partition("@sha256:")
+        sha = digest_hex[:12]
+    else:
+        body, _, tag_with_opts = local_tag.partition(":")
+        sha = tag_with_opts.split("__", 1)[0].split("-", 1)[0]
+
     if "/" in body:
         parts = body.split("/")
         last = parts[-1]  # owner__name
@@ -221,7 +233,6 @@ def _parse_local_tag(local_tag: str) -> tuple[str, str, str]:
     else:
         owner = "_"
         name = last
-    sha = tag_with_opts.split("__", 1)[0].split("-", 1)[0]
     return owner, name, sha
 
 
