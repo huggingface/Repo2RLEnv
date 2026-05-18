@@ -4,7 +4,7 @@ SWE-bench-style PR mining with sandbox-verified oracles. Each task carries a `FA
 
 | | |
 |---|---|
-| Status | **planned (v0.3)** |
+| Status | **shipped (v0.3)** |
 | Sandbox required at gen | Yes — Docker via the [bootstrap phase](../reference/BOOTSTRAP.md) |
 | LLM required at gen | Optional (instruction polish, QA judge) |
 | Reward kinds emitted | `test_execution` (primary), `diff_similarity` (fallback) |

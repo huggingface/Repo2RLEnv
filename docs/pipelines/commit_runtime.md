@@ -4,7 +4,7 @@ R2E-Gym SWE-GEN-style: walk **commits**, not PRs. Trades signal quality for yiel
 
 | | |
 |---|---|
-| Status | **planned** |
+| Status | **shipped (v0.5)** |
 | Sandbox required at gen | Yes |
 | LLM required at gen | Yes (synthesizes instruction text since there's no PR description) |
 | Reward kinds emitted | `test_execution`, `diff_similarity` |
@@ -46,7 +46,7 @@ flowchart TD
 6. Emit Harbor task
 7. QA gate (4 layers)
 
-## Options (planned)
+## Options
 
 ```python
 class CommitMiningOptions(BaseModel):

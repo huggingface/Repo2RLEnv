@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Status | **planned** |
+| Status | **shipped (v0.5)** |
 | Sandbox required at gen | Yes (delegates to `pr_runtime`) |
 | LLM required at gen | Optional |
 | Reward kinds emitted | `test_execution`, `diff_similarity` |
