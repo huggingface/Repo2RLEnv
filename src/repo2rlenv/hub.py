@@ -189,6 +189,13 @@ def push_to_hub(
     repo_source: str | None = None,
     description: str = "",
     commit_message: str | None = None,
+    # NEW (v0.8.2.post3): image-distribution controls
+    image_registry: str | None = None,
+    inline_dockerfile: bool = False,
+    require_registry: bool = False,
+    skip_image_push: bool = False,
+    image_visibility: str = "inherit",
+    on_message=None,
 ) -> PushResult:
     """Push a dataset directory to HF Hub. Returns the resulting registry URL.
 
@@ -197,8 +204,17 @@ def push_to_hub(
     (e.g. for legacy datasets missing that metadata) but normally don't
     need to — this keeps the dataset card accurate regardless of how
     `push_to_hub` is invoked.
+
+    Image distribution (v0.8.2.post3): for _runtime datasets that ship an
+    `environment/Dockerfile`, we discover a logged-in OCI registry, verify
+    via probe (§5.3 of the plan), push the bootstrap image, and rewrite the
+    task Dockerfile + task.toml to point at the registry digest. If no
+    verified registry is available we fall back to inline-Dockerfile mode
+    with a warning (unless `require_registry=True`).
     """
     from huggingface_hub import HfApi
+
+    from repo2rlenv.registry.integration import prepare_dataset_for_push
 
     token = resolve_hf_token(auth)
     if not token:
@@ -206,6 +222,28 @@ def push_to_hub(
 
     api = HfApi(token=token)
     api.create_repo(repo_id, repo_type="dataset", private=private, exist_ok=True)
+
+    # Image distribution: prepare the local dataset (in-place rewrite) BEFORE
+    # we stage + upload. After this call, environment/Dockerfile + task.toml
+    # are pointing at the canonical (registry-digest OR inline-recipe) form.
+    hf_owner = repo_id.split("/", 1)[0]
+    prepare = prepare_dataset_for_push(
+        local_dataset_dir,
+        hf_owner=hf_owner,
+        image_registry=image_registry,
+        inline_dockerfile=inline_dockerfile,
+        require_registry=require_registry,
+        skip_image_push=skip_image_push,
+        image_visibility=image_visibility,  # type: ignore[arg-type]
+        dataset_is_private=private,
+        pushed_by=hf_owner,
+        on_message=on_message,
+    )
+    logger.info(
+        "image distribution: mode=%s tasks_rewritten=%d",
+        prepare.mode,
+        prepare.tasks_rewritten,
+    )
 
     # Layout we expect locally: <root>/<task-id>/...
     # We'll re-stage it as <root>/tasks/<task-id>/...
