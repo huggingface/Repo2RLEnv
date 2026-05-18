@@ -675,7 +675,7 @@ class MutationBugsPipeline:
                 "lineno": mutation.lineno,
                 "broken_tests": broken_tests,
                 "bootstrap_image": self.bootstrap.image_digest,
-                "seed": self.options.seed,
+                **({"seed": self.options.seed} if self.options.seed is not None else {}),
                 "llm_cost_usd": round(self._llm_cost_usd, 6),
             },
         }
