@@ -43,7 +43,7 @@ def test_task_toml_is_valid_toml_with_harbor_layout(tmp_path: Path):
     assert out.name == "demo__repo-1"
     r2e = data["metadata"]["repo2env"]
     assert r2e["pipeline"] == "pr_diff"
-    assert r2e["spec_version"] == "0.1.0"
+    assert r2e["spec_version"] == "0.2.0"
     assert r2e["content_hash"].startswith("sha256:")
     assert "diff_similarity" in r2e["reward_kinds"]
 
@@ -103,3 +103,41 @@ def test_omits_environment_and_test_script_when_absent(tmp_path: Path):
     out = write_harbor_task(task, tmp_path)
     assert not (out / "environment").exists()
     assert not (out / "tests").exists()
+
+
+def test_reproducibility_subtable_seeded_for_runtime_tasks(tmp_path: Path):
+    """v0.8.2.post3: tasks with environment/Dockerfile get the local_only marker."""
+    task = _make_task("rt-task")
+    task.environment_dockerfile = (
+        "FROM local/r2e-bootstrap/pallets__click:a1b2c3d4e5f6\nWORKDIR /workspace\n"
+    )
+    task.test_script = "#!/bin/bash\npytest\n"
+    out = write_harbor_task(task, tmp_path)
+    data = tomllib.loads((out / "task.toml").read_text())
+    repro = data["metadata"]["repo2env"]["reproducibility"]
+    assert repro["mode"] == "local_only"
+    assert repro["image_ref"] == "local/r2e-bootstrap/pallets__click:a1b2c3d4e5f6"
+    assert repro["image_visibility"] == "private"
+
+
+def test_no_reproducibility_subtable_for_lite_tasks(tmp_path: Path):
+    """pr_diff tasks (no environment/) skip the subtable entirely."""
+    task = _make_task("lite-task")
+    out = write_harbor_task(task, tmp_path)
+    data = tomllib.loads((out / "task.toml").read_text())
+    assert "reproducibility" not in data["metadata"]["repo2env"]
+
+
+def test_reproducibility_caller_override_preserved(tmp_path: Path):
+    """If the pipeline pre-populates reproducibility, the emitter doesn't overwrite."""
+    task = _make_task("custom-task")
+    task.environment_dockerfile = "FROM ubuntu\n"
+    task.repo2env["reproducibility"] = {
+        "mode": "registry",
+        "image_ref": "ghcr.io/foo/bar@sha256:abc",
+    }
+    out = write_harbor_task(task, tmp_path)
+    data = tomllib.loads((out / "task.toml").read_text())
+    repro = data["metadata"]["repo2env"]["reproducibility"]
+    assert repro["mode"] == "registry"
+    assert repro["image_ref"] == "ghcr.io/foo/bar@sha256:abc"
