@@ -341,6 +341,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     Transforms (per runner):
       pytest:
         - Drop `--collect-only` / `--co` so pytest actually runs tests
+        - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
         - Add `-v` if no verbosity flag is present
       go test:
         - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
@@ -369,6 +370,9 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         if re.search(r"\bpytest\b", cleaned):
             cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
             cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
+            # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
+            # -q and -v cancel each other in pytest 9 (verbosity counter), so -q must go.
+            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
             if not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
                 cleaned = cleaned.rstrip() + " -v"
 
