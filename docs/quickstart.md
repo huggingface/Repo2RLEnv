@@ -92,9 +92,14 @@ Repo2RLEnv emits Harbor-shaped tasks; running them is Harbor's job:
 ```bash
 uv tool install harbor
 
-harbor run -d ./datasets/<dataset-name> -e local-docker -a oracle
-# Or remote: -e modal / -e daytona / -e e2b / -e runloop
+harbor run --path ./datasets/<dataset-name> --env docker --agent oracle
+# Or remote: --env modal / --env daytona / --env e2b / --env runloop
 ```
+
+> **Note:** `harbor run` requires a sandbox-verified pipeline (`pr_runtime`, `commit_runtime`, …).
+> The `pr_diff` pipeline used above is text-only and does not emit an `environment/` directory,
+> so Harbor cannot execute it. Switch to `--pipeline pr_runtime` (requires Docker + `--llm`) to
+> produce runnable tasks.
 
 ## Next steps
 

@@ -45,6 +45,8 @@ repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 repo2rlenv pull <your-org>/<dataset-name> ./datasets/<dataset-name>
 
 # Run an agent against the spec — Harbor (separate tool) handles execution
+# Note: requires a sandbox-verified pipeline (pr_runtime, commit_runtime, …).
+# Text-only pipelines (pr_diff) don't emit an environment/ dir and can't be run here.
 harbor run --agent oracle --path ./datasets/<dataset-name>/<task-id>
 ```
 
