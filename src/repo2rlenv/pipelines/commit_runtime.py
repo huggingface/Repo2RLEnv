@@ -392,7 +392,7 @@ class CommitRuntimePipeline:
             "reference": f"https://github.com/{owner}/{name}/commit/{commit.sha}",
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
-            "synthesis_llm": self.input.llm.qualified_name,
+            "synthesis_llm": self.input.llm.qualified_name if self.input.llm else None,
             "reward_kinds": ["test_execution", "diff_similarity"],
             "commit_runtime": {
                 "commit_sha": commit.sha,

@@ -173,7 +173,7 @@ class GenerationInput(BaseModel):
     spec_version: Literal["0.1.0"] = "0.1.0"
     repo: RepoSpec
     pipeline: PipelineSpec
-    llm: LLMSpec
+    llm: LLMSpec | None = None
     output: OutputSpec
     qa: QASpec = Field(default_factory=QASpec)
     sandbox: SandboxSpec = Field(default_factory=SandboxSpec)

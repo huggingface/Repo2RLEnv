@@ -256,6 +256,8 @@ class MutationBugsPipeline:
                 "mutation_bugs requires a BootstrapResult (set requires_bootstrap=True "
                 "and let cmd_generate trigger it, or pass one explicitly)"
             )
+        if input.llm is None:
+            raise ValueError("mutation_bugs requires --llm (provider/model)")
         self.input = input
         self.options = options
         self.bootstrap = bootstrap

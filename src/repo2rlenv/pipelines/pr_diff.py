@@ -188,7 +188,7 @@ class PRDiffPipeline:
             "reference": pr.url,
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
-            "synthesis_llm": self.input.llm.qualified_name,
+            "synthesis_llm": self.input.llm.qualified_name if self.input.llm else None,
             "pr_diff": {
                 "pr_merged_at": pr.merged_at,
                 "diff_format": self.options.diff_format,

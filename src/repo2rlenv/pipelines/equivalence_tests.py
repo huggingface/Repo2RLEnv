@@ -236,6 +236,8 @@ class EquivalenceTestsPipeline:
                 "equivalence_tests requires a BootstrapResult (set requires_bootstrap=True "
                 "and let cmd_generate trigger it, or pass one explicitly)"
             )
+        if input.llm is None:
+            raise ValueError("equivalence_tests requires --llm (provider/model)")
         self.input = input
         self.options = options
         self.bootstrap = bootstrap
