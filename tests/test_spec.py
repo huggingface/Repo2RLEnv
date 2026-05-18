@@ -60,3 +60,43 @@ def test_parse_options_dispatches_correctly():
 def test_parse_options_unknown_pipeline():
     with pytest.raises(ValueError):
         parse_options("not_real", {})
+
+
+def test_generation_input_llm_defaults_to_none():
+    g = GenerationInput.model_validate(
+        {
+            "repo": {"url": "huggingface/trl"},
+            "pipeline": {"name": "pr_diff"},
+            "output": {"destination": "./out", "org": "myorg", "dataset_name": "trl-r2e"},
+        }
+    )
+    assert g.llm is None
+
+
+def test_synthesis_pipeline_raises_without_llm():
+    from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
+    from repo2rlenv.pipelines.mutation_bugs import MutationBugsPipeline
+    from repo2rlenv.spec.options import MutationBugsOptions
+
+    gen = GenerationInput.model_validate(
+        {
+            "repo": {"url": "pallets/click"},
+            "pipeline": {"name": "mutation_bugs"},
+            "output": {"destination": "./out", "org": "myorg", "dataset_name": "test"},
+        }
+    )
+    fake_bootstrap = BootstrapResult(
+        image_tag="test",
+        image_digest="sha256:abc",
+        language=LanguageHint.PYTHON,
+        repo="pallets/click",
+        ref="main",
+        rebuild_cmds=[],
+        test_cmds=[],
+        smoke_passed=True,
+        iterations=1,
+        build_time_sec=0.0,
+        llm_provider="none",
+    )
+    with pytest.raises(ValueError, match="mutation_bugs requires --llm"):
+        MutationBugsPipeline(gen, MutationBugsOptions(), bootstrap=fake_bootstrap)

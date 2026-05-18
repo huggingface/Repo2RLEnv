@@ -126,6 +126,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
     # Auto-trigger bootstrap for sandbox-required pipelines (requires_bootstrap=True).
     # Cache hit ⇒ instant; cache miss ⇒ full LLM-agent run with the live UI.
     bootstrap_result = None
+    if getattr(pipeline_cls, "requires_bootstrap", False) and gen_input.llm is None:
+        console.error(
+            f"pipeline {gen_input.pipeline.name.value!r} requires --llm "
+            f"(bootstrap needs an LLM to build the sandbox image)"
+        )
+        return 2
     if getattr(pipeline_cls, "requires_bootstrap", False):
         from repo2rlenv.bootstrap import LanguageHint, ensure_bootstrap
         from repo2rlenv.bootstrap.runner import BootstrapError

@@ -789,7 +789,7 @@ class PRRuntimePipeline:
             "reference": pr.url,
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
-            "synthesis_llm": self.input.llm.qualified_name if self.input.llm else None,
+            **({"synthesis_llm": self.input.llm.qualified_name} if self.input.llm else {}),
             "reward_kinds": ["test_execution", "diff_similarity"],
             "pr_runtime": {
                 "pr_url": pr.url,
