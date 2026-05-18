@@ -114,7 +114,6 @@ repo2rlenv generate \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
   --pipeline-opt max_files_per_pr=10 \
-  --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/trl-r2e
 
 # Generate locally, then push to HF Hub
@@ -122,7 +121,6 @@ repo2rlenv generate \
   --repo huggingface/trl \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
-  --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/trl-r2e-v0-1
 
 repo2rlenv push ./datasets/trl-r2e-v0-1 <your-org>/trl-r2e-v0-1
@@ -133,7 +131,7 @@ repo2rlenv push ./datasets/trl-r2e-v0-1 <your-org>/trl-r2e-v0-1
 ```python
 from pathlib import Path
 from repo2rlenv.spec.input import (
-    GenerationInput, RepoSpec, PipelineSpec, LLMSpec, OutputSpec, PipelineName,
+    GenerationInput, RepoSpec, PipelineSpec, OutputSpec, PipelineName,
 )
 from repo2rlenv.spec.options import PRDiffOptions
 from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
@@ -141,7 +139,6 @@ from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
 g = GenerationInput(
     repo=RepoSpec(url="huggingface/trl", access="auto"),
     pipeline=PipelineSpec(name=PipelineName.PR_DIFF, options={}),
-    llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
     output=OutputSpec(destination="./out", org="myorg", dataset_name="trl-r2e"),
 )
 options = PRDiffOptions(limit=5, max_files_per_pr=10)

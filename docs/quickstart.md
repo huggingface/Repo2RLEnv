@@ -36,7 +36,6 @@ repo2rlenv generate \
   --repo <owner>/<repo> \
   --pipeline pr_diff \
   --pipeline-opt limit=10 \
-  --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 ```
 
@@ -56,7 +55,6 @@ repo2rlenv generate \
   --repo <owner>/<repo> \
   --pipeline pr_diff \
   --pipeline-opt limit=10 \
-  --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 
 # 2. Push to HF Hub (bare name auto-resolves owner via `whoami`)
