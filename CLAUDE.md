@@ -63,7 +63,7 @@ docs/                           # public docs (committed), three tiers:
 plans/                          # internal working docs (gitignored)
 references/                     # cloned inspiration repos (gitignored)
 envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 370/370 pass as of v0.8
+tests/                          # pytest; 620/620 pass as of v0.8.2.post3
 .github/workflows/              # ci.yml (lint + matrix tests + build),
                                 # release.yml (PyPI publish on tagged release)
 CONTRIBUTING.md                 # dev setup, PR conventions, release flow
@@ -136,7 +136,7 @@ The canonical contributor reference is [`CONTRIBUTING.md`](./CONTRIBUTING.md) at
 - **No `Co-Authored-By: Claude` trailer** on commits. User explicitly rejected it; see `~/.claude/projects/.../memory/feedback_no_coauthor.md`.
 - **Commits**: terse subject + short body explaining "why". Don't reference the current task; that goes in the PR description.
 - **PRs**: title under 70 chars; description has summary + test plan + out-of-scope items. Close issues via `Closes #N` in commit body.
-- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **115/115 must pass.**
+- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **620/620 must pass.**
 - **Lint + format**: `uv run ruff check .` and `uv run ruff format .` before commit. CI rejects unformatted code or lint violations.
 - **Acknowledgments**: when a file draws inspiration from external work, add a header block crediting the source repo + paper + license + clarifying our license posture. See `bootstrap/__init__.py` or `reward.py` for the format.
 
