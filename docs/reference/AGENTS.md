@@ -337,7 +337,7 @@ The only RL-relevant Repo2RLEnv concern is **emitting tasks tagged with the righ
 | Lite (`pr_diff`) | `diff_similarity` only | No — trainer compares text directly |
 | Full (`pr_runtime`, `mutation_bugs`, etc.) | `test_execution` (and optionally `diff_similarity`) | Yes — full Harbor rollout pipe |
 
-For TRL specifically (HF's RL library), a working GRPO training loop against `pr_diff` datasets exists in `examples/train_with_trl/` (ORS server + TRL trainer). Execution-verified pipelines (`pr_runtime`, `mutation_bugs`, etc.) require a Harbor-wrapping reward server (`server_runtime.py`) that is not yet shipped — planned for v0.9.
+For TRL specifically (HF's RL library), no official integration is shipped yet. A GRPO training loop (ORS reward server + TRL trainer) is planned for v0.9 — it will support `pr_diff` datasets via diff-similarity reward first, with execution-verified pipelines (`pr_runtime`, `mutation_bugs`, etc.) following once a Harbor-wrapping reward server is in place.
 
 ## 7. References
 
