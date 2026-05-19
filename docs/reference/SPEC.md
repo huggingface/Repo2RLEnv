@@ -102,7 +102,7 @@ difficulty = "medium"
 category = "bugfix"
 
 [metadata.repo2env]
-spec_version = "0.1.0"
+spec_version = "0.2.0"
 pipeline = "pr_diff"
 pipeline_version = "0.1.0"
 repo = "huggingface/trl"
@@ -118,6 +118,21 @@ reward_kinds = ["diff_similarity"]
 pr_merged_at = "2026-05-05T13:46:07Z"
 diff_format = "unified"
 context_files = ["trl/trainer/dpo_trainer.py", ...]
+
+# v0.2.0+ only — sandbox-required tasks (pr_runtime / mutation_bugs / ...)
+# carry this subtable so consumers know exactly what they're getting.
+[metadata.repo2env.reproducibility]
+mode = "registry"                                    # registry | inline_dockerfile | local_only
+image_ref = "ghcr.io/huggingface/r2e-bootstrap-pallets-click@sha256:..."
+image_tag = "ghcr.io/huggingface/r2e-bootstrap-pallets-click:a1b2c3d4e5f6-7d8e9f01"
+image_visibility = "public"                          # public | private | unknown
+pushed_at = "2026-05-19T11:30:00Z"
+pushed_by = "huggingface"
+# Inline-mode-only fields (omitted in registry mode):
+# inline_recipe_sha256 = "sha256:..."
+# inline_recipe_lines = 47
+# inline_recipe_source = "agent_replay"              # or "user_dockerfile"
+# fallback_reason = "no working registry credentials (ghcr.io: L2 auth failed)"
 
 [agent]
 timeout_sec = 1800.0
@@ -187,6 +202,31 @@ A task may emit both. The lite pipeline emits only `diff_similarity`; full sandb
 
 The diff-similarity reward function is implemented at [`src/repo2rlenv/reward.py:calculate_diff_similarity_reward`](../src/repo2rlenv/reward.py) — pure stdlib (`difflib.SequenceMatcher`), Apache-2.0, no SWE-RL CC-BY-NC code vendored.
 
+## Image distribution (v0.2.0+)
+
+Sandbox-required tasks (`pr_runtime`, `mutation_bugs`, …) ship an `environment/Dockerfile` whose `FROM <ref>` line points at the *bootstrap image* — the working Docker environment for the source repo. At generate time the ref is `local/r2e-bootstrap/...` (un-pullable from any other machine). `repo2rlenv push` rewrites it in-place to one of two reproducible forms:
+
+| Mode | `FROM` ref | Reproducibility |
+|---|---|---|
+| `registry` | `ghcr.io/<owner>/r2e-bootstrap-<slug>@sha256:...` (or ECR / ACR / GCP AR / Docker Hub equivalent) | **Bit-exact** — registry digest is immutable |
+| `inline_dockerfile` | full apt-get / pip / ... recipe baked into `environment/Dockerfile`, no `FROM <registry>` reference | **Recipe-level** — assumes mirrors stay stable; rebuilds from scratch on every `harbor run` |
+
+The mode that was chosen is recorded in `[metadata.repo2env.reproducibility]` (see the `task.toml` example above), along with `pushed_at`, `pushed_by`, and — for inline mode — `inline_recipe_source` ∈ `{user_dockerfile, agent_replay}`.
+
+`repo2rlenv push` decides which mode to use by running the **OCI Distribution Spec L1–L4 probe protocol** against every registry it finds credentials for in `~/.docker/config.json`. The probe never pushes anything to the user's registry — it confirms reachability + auth + read + write by starting a blob-upload session and immediately cancelling it. Run `repo2rlenv push --check-auth` to see the probe output for your machine.
+
+Push flags:
+
+| Flag | Behaviour |
+|---|---|
+| (default) | Auto-detect a verified registry; fall back to inline-Dockerfile mode with a warning if none |
+| `--image-registry <prefix>` | Force a specific registry (e.g. `ghcr.io/myorg`); probed for write access before push |
+| `--inline-dockerfile` | Skip image push; bake the recipe into each task. Recipe-level reproducibility. |
+| `--require-registry` | Hard-fail if no verified registry is available (CI / launch mode). No silent fallback. |
+| `--skip-image-push` | Rewrite tasks against a remote ref that already exists at the registry. No `docker push`. |
+| `--image-visibility public\|private\|inherit` | Visibility for the pushed image (GHCR auto-flips via the GitHub API). Default: match dataset. |
+| `--check-auth` | Probe every detected registry and exit. `--fast` skips L3/L4; `--json` for CI. |
+
 ## Conformance
 
 A task or dataset is **conformant** to v0.1 if and only if:
@@ -197,6 +237,14 @@ A task or dataset is **conformant** to v0.1 if and only if:
 4. `solution/patch.diff` exists and is non-empty (lite pipelines)
 5. For sandbox-required pipelines: `environment/Dockerfile` and `tests/test.sh` exist
 
+v0.2 adds:
+
+6. Sandbox-required tasks carry `[metadata.repo2env.reproducibility]` with `mode ∈ {registry, inline_dockerfile, local_only}`. `local_only` is pre-publication — these tasks are NOT considered reproducible by external consumers.
+
 ## Versioning
 
 Pre-1.0 is a moving target — minor bumps may break readers. After 1.0 we honor strict SemVer (additive minors, breaking majors only). Each released spec version freezes its JSON Schema at a stable URL.
+
+### v0.2.0 (v0.8.2.post3)
+
+Adds `[metadata.repo2env.reproducibility]`. Additive change — v0.1.0 readers ignore the new subtable; pre-v0.2 datasets that lack it pass validation unchanged but aren't portable across machines.

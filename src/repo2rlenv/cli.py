@@ -442,6 +442,10 @@ def cmd_push(args: argparse.Namespace) -> int:
     from repo2rlenv.hub import push_to_hub
     from repo2rlenv.spec.input import AuthSpec
 
+    # --check-auth: short-circuit, run the §5.3 probe protocol and exit
+    if getattr(args, "check_auth", False):
+        return _run_check_auth(args)
+
     local_dir = Path(args.local_dir).expanduser().resolve()
     if not local_dir.is_dir():
         console.error(f"local dataset directory not found: {local_dir}")
@@ -473,6 +477,12 @@ def cmd_push(args: argparse.Namespace) -> int:
                 auth=AuthSpec(),
                 private=args.private,
                 commit_message=args.message,
+                image_registry=getattr(args, "image_registry", None),
+                inline_dockerfile=getattr(args, "inline_dockerfile", False),
+                require_registry=getattr(args, "require_registry", False),
+                skip_image_push=getattr(args, "skip_image_push", False),
+                image_visibility=getattr(args, "image_visibility", "inherit"),
+                on_message=lambda m: console.info(m),
             )
         except Exception as exc:
             console.error(f"push failed: {exc}")
@@ -487,6 +497,95 @@ def cmd_push(args: argparse.Namespace) -> int:
             title="HF Hub push",
         )
         console.dim(f"  to pull back later:  repo2rlenv pull {result.repo_id}")
+    return 0
+
+
+def _run_check_auth(args: argparse.Namespace) -> int:
+    """Run the §5.3 probe protocol against every discovered registry."""
+    import json as _json
+
+    from repo2rlenv.auth import resolve_hf_token
+    from repo2rlenv.registry.auth import (
+        RegistryKind,
+        discover_logged_in_registries,
+        filter_known_registries,
+    )
+    from repo2rlenv.registry.integration import _build_namespace_for
+    from repo2rlenv.registry.probe import probe
+    from repo2rlenv.spec.input import AuthSpec
+
+    json_mode = getattr(args, "json", False)
+    fast = getattr(args, "fast", False)
+    levels = (1, 2) if fast else (1, 2, 3, 4)
+
+    hf_token = resolve_hf_token(AuthSpec())
+    hf_status = "logged in" if hf_token else "NOT logged in"
+
+    candidates = filter_known_registries(discover_logged_in_registries())
+    results = []
+    for auth in candidates:
+        ns = _build_namespace_for(
+            auth, hf_owner=args.dataset.split("/", 1)[0] if "/" in args.dataset else "test"
+        )
+        pr = probe(auth, ns, levels=levels)
+        results.append((auth, pr))
+
+    if json_mode:
+        out = {
+            "hf_hub": {"logged_in": bool(hf_token)},
+            "registries": [
+                {
+                    "host": auth.host,
+                    "kind": auth.kind.value,
+                    "cred_source": auth.cred_source.value,
+                    "reachable": pr.reachable,
+                    "authenticated": pr.authenticated,
+                    "can_read": pr.can_read,
+                    "can_write": pr.can_write,
+                    "is_pushable": pr.is_pushable,
+                    "error": pr.error,
+                    "elapsed_sec": pr.elapsed_sec,
+                }
+                for auth, pr in results
+            ],
+        }
+        print(_json.dumps(out, indent=2))
+        return 0
+
+    with console.section("Checking credentials for push targets"):
+        console.info(f"HF Hub: {hf_status}")
+        if not results:
+            console.warn("no container-registry credentials found in ~/.docker/config.json")
+            return 0
+        for auth, pr in results:
+            label = f"{auth.host}  ({auth.kind.value}, cred: {auth.cred_source.value})"
+            console.info(label)
+            console.dim(
+                f"  L1 reachable          {'✓' if pr.reachable else '✗'}  "
+                f"{pr.elapsed_sec * 1000:.0f}ms"
+            )
+            if 2 in levels:
+                console.dim(f"  L2 auth resolved      {'✓' if pr.authenticated else '✗'}")
+            if 3 in levels:
+                console.dim(f"  L3 can read namespace {'✓' if pr.can_read else '✗'}")
+            if 4 in levels:
+                console.dim(f"  L4 can write          {'✓' if pr.can_write else '✗'}")
+            if pr.is_pushable:
+                console.success(f"  → READY for push as {auth.host}/{pr.namespace}")
+            else:
+                console.warn(f"  → NOT READY: {pr.error or '(unknown)'}")
+                if pr.helper_hint:
+                    console.dim(f"  Fix: {pr.helper_hint}")
+        # Suggest default
+        best = next(
+            (pr for _, pr in results if pr.is_pushable and pr.kind is RegistryKind.GHCR), None
+        )
+        if best is None:
+            best = next((pr for _, pr in results if pr.is_pushable), None)
+        if best:
+            console.info(f"Default registry for push: {best.host}/{best.namespace}")
+        else:
+            console.warn("No verified registry available — push will fall back to inline mode")
     return 0
 
 
@@ -780,13 +879,77 @@ def main(argv: list[str] | None = None) -> int:
 
     # push
     p = sub.add_parser("push", help="Push a local dataset directory to HF Hub")
-    p.add_argument("local_dir", help="path to dataset directory (output of `generate`)")
-    p.add_argument("dataset", help="HF Hub target as `hf://owner/dataset` (or `owner/dataset`)")
+    p.add_argument(
+        "local_dir",
+        nargs="?",
+        default=".",
+        help="path to dataset directory (output of `generate`). Optional with --check-auth.",
+    )
+    p.add_argument(
+        "dataset",
+        nargs="?",
+        default="",
+        help="HF Hub target as `owner/dataset` (or `hf://owner/dataset`). Optional with --check-auth.",
+    )
     p.add_argument("--private", action="store_true", help="create the Hub repo as private")
     p.add_argument(
         "--message",
         "-m",
         help="custom commit message (default: 'Repo2RLEnv: add N tasks')",
+    )
+    # v0.8.2.post3: image-distribution flags
+    p.add_argument(
+        "--image-registry",
+        help=(
+            "force a specific OCI registry prefix (e.g. `ghcr.io/myorg`, "
+            "`123.dkr.ecr.us-east-1.amazonaws.com/r2e`). Default: auto-detect "
+            "from ~/.docker/config.json + verify via OCI probe."
+        ),
+    )
+    p.add_argument(
+        "--inline-dockerfile",
+        action="store_true",
+        help=(
+            "skip image push; bake the bootstrap recipe into each task's "
+            "environment/Dockerfile. Recipe-level reproducibility, not bit-exact."
+        ),
+    )
+    p.add_argument(
+        "--require-registry",
+        action="store_true",
+        help=(
+            "hard-fail if no verified registry credential is available "
+            "(CI / launch-dataset mode; no silent inline fallback)."
+        ),
+    )
+    p.add_argument(
+        "--skip-image-push",
+        action="store_true",
+        help=(
+            "skip the docker push step; rewrite tasks against a remote ref "
+            "assumed to already exist at the registry."
+        ),
+    )
+    p.add_argument(
+        "--image-visibility",
+        choices=["public", "private", "inherit"],
+        default="inherit",
+        help="visibility of the pushed image (default: match HF dataset visibility)",
+    )
+    p.add_argument(
+        "--check-auth",
+        action="store_true",
+        help="probe every detected registry (no push, no upload) and exit",
+    )
+    p.add_argument(
+        "--fast",
+        action="store_true",
+        help="--check-auth: stop after L2 (skip L3/L4 round-trips)",
+    )
+    p.add_argument(
+        "--json",
+        action="store_true",
+        help="--check-auth: emit machine-readable JSON output",
     )
     p.set_defaults(func=cmd_push)
 

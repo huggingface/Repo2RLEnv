@@ -29,6 +29,7 @@ Released under Apache-2.0.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -69,7 +70,9 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
 
     # task.toml
     repo2env = dict(task.repo2env)
-    repo2env.setdefault("spec_version", "0.1.0")
+    # v0.2.0: introduces [metadata.repo2env.reproducibility] subtable; the bump
+    # is additive — old readers ignore the new subtable, new readers see it.
+    repo2env.setdefault("spec_version", "0.2.0")
     repo2env.setdefault("content_hash", _content_hash(task))
     # Default reward kinds — sandbox-required tasks override with
     # test_execution as the primary signal
@@ -77,6 +80,27 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
         repo2env.setdefault("reward_kinds", ["test_execution", "diff_similarity"])
     else:
         repo2env.setdefault("reward_kinds", ["diff_similarity"])
+
+    # For sandbox-required tasks (those that emit environment/Dockerfile),
+    # seed [metadata.repo2env.reproducibility] with mode=local_only and the
+    # un-pullable local image ref. `repo2rlenv push` rewrites this in-place
+    # to mode=registry / inline_dockerfile after the push step.
+    if task.environment_dockerfile is not None and "reproducibility" not in repo2env:
+        bootstrap_image = ""
+        # Derive from the Dockerfile's first FROM line so we don't need the
+        # caller to plumb it separately. Matches the same anchor used by
+        # `registry.integration._FROM_LINE_RE`.
+        m = re.search(
+            r"^(\s*FROM\s+)(\S+)", task.environment_dockerfile, re.IGNORECASE | re.MULTILINE
+        )
+        if m:
+            bootstrap_image = m.group(2).strip()
+        repo2env["reproducibility"] = {
+            "mode": "local_only",
+            "image_ref": bootstrap_image or "local/r2e-bootstrap:unknown",
+            "image_tag": bootstrap_image or "local/r2e-bootstrap:unknown",
+            "image_visibility": "private",
+        }
 
     # Harbor's task.toml requires `task.name` in `<org>/<name>` format —
     # validated at load-time by harbor.models.task.config.PackageInfo. We
