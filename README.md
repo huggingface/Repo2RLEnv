@@ -44,10 +44,11 @@ repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 # Pull a published dataset back later
 repo2rlenv pull <your-org>/<dataset-name> ./datasets/<dataset-name>
 
-# Run an agent against the spec — Harbor (separate tool) handles execution
+# Anyone can pull + run a published dataset on a fresh machine:
+harbor download --registry-url https://huggingface.co/datasets/<your-org>/<dataset-name>
+harbor run --agent oracle --path ./<dataset-name>/<task-id>
 # Note: requires a sandbox-verified pipeline (pr_runtime, commit_runtime, …).
 # Text-only pipelines (pr_diff) don't emit an environment/ dir and can't be run here.
-harbor run --agent oracle --path ./datasets/<dataset-name>/<task-id>
 ```
 
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).

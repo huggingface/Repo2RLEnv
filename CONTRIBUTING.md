@@ -6,7 +6,7 @@ Thanks for your interest in contributing. This is a small research project; the 
 
 ```bash
 # Clone + enter
-git clone https://github.com/adithya-s-k/Repo2RLEnv.git
+git clone https://github.com/huggingface/Repo2RLEnv.git
 cd Repo2RLEnv
 
 # uv handles Python + venv + deps in one step
@@ -131,6 +131,6 @@ By contributing, you agree that your contributions are licensed under Apache-2.0
 
 ## Where to ask
 
-- **Bug or feature**: open an issue at https://github.com/adithya-s-k/Repo2RLEnv/issues
+- **Bug or feature**: open an issue at https://github.com/huggingface/Repo2RLEnv/issues
 - **Quick question**: same place — open an issue with the `question` label
 - **Security report**: email adithyaskolavi@huggingface.co directly. Don't open a public issue for unfixed security bugs.

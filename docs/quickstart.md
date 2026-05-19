@@ -64,7 +64,15 @@ repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 repo2rlenv pull <your-org>/<dataset-name>
 ```
 
-The push emits a `registry.json` so `harbor download --registry-url <hf-resolve-url>` works out of the box.
+For sandbox-verified pipelines (`pr_runtime`, `mutation_bugs`, …), `repo2rlenv push` also uploads the bootstrap Docker image to a container registry (GHCR by default, auto-detected from `~/.docker/config.json`) and rewrites each task's Dockerfile to point at the registry-qualified digest. This makes the dataset fully reproducible on any machine:
+
+```bash
+# Anyone can pull + run your published dataset on a fresh machine:
+harbor download --registry-url https://huggingface.co/datasets/<your-org>/<dataset-name>
+harbor run --agent oracle --path ./<dataset-name>/<task-id>
+```
+
+Run `repo2rlenv push --check-auth` to verify your registry credentials before pushing. See [`docs/reference/REGISTRY_AUTH.md`](./reference/REGISTRY_AUTH.md) for per-registry login instructions.
 
 ## Validate the dataset
 
