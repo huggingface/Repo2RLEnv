@@ -49,11 +49,10 @@ Tools:
     Real PRs that we later run will fix the failing tests — your job is
     just to make sure the env can run them at all.
   → DO NOT iterate trying to fix failing tests. Once you've confirmed
-    `pytest --collect-only` works (or one trivial test passes), declare
-    success.
-  → For test_cmds, PREFER non-failing variants like `pytest --collect-only`
-    over `pytest -x` — we just want a command that proves pytest can be
-    invoked, not one that surfaces every test failure.
+    `pytest --collect-only` works, declare success.
+  → For test_cmds, save the ACTUAL execution command (e.g. `python -m pytest -v`),
+    NOT `--collect-only`. Exit code 1 (tests ran but some failed) is fine — downstream
+    pipelines need per-test pass/fail output, which `--collect-only` cannot provide.
 
   ★ STOP CONDITION — read carefully ★
   When `pytest --collect-only` reports a count like "N tests collected"
@@ -71,7 +70,7 @@ Tools:
   state, no activated venv, no exported PATH). If you used a virtualenv
   (uv / venv / poetry), EVERY entry in `test_cmds` must include the
   activation prefix, e.g.:
-      ". /workspace/.venv/bin/activate && python -m pytest --collect-only -q"
+      ". /workspace/.venv/bin/activate && python -m pytest -v"
   Similarly `rebuild_cmds`: if the install requires the venv, prefix it
   with the activation. Prefer system-wide installs (`pip install ...`
   without a venv) when possible — they survive the fresh-shell verify

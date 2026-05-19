@@ -359,9 +359,23 @@ def test_normalize_strips_trailing_pipe_head_or_tail():
     Regression test for v0.8.2 e2e finding on pallets/click bootstrap.
     """
     assert normalize_test_cmds_for_runtime(["python -m pytest -q 2>&1 | head -50"]) == [
-        "python -m pytest -q -v"
+        "python -m pytest -v"
     ]
     assert normalize_test_cmds_for_runtime(["pytest 2>&1 | tail -n 100"]) == ["pytest -v"]
+
+
+def test_normalize_strips_quiet_flag():
+    """-q suppresses per-test names; -v and -q cancel each other in pytest 9 (verbosity
+    counter). Strip -q so the log parser gets named PASSED/FAILED lines.
+
+    Regression test: bootstrap agents often save `pytest -q` or `pytest --quiet`
+    because --collect-only exits 0 and -q reduces noise during exploration.
+    """
+    assert normalize_test_cmds_for_runtime(["python -m pytest -q"]) == ["python -m pytest -v"]
+    assert normalize_test_cmds_for_runtime(["python -m pytest --quiet tests/"]) == [
+        "python -m pytest tests/ -v"
+    ]
+    assert normalize_test_cmds_for_runtime(["pytest -q --tb=short"]) == ["pytest --tb=short -v"]
 
 
 def test_normalize_strips_dev_null_redirect():
