@@ -1,0 +1,101 @@
+# scripts/v083/repos.yaml
+#
+# Launch composition for v0.8.3 — 38 repos across three tiers.
+#
+# Mirrors plans/v0.8.x_repo_catalog.md. The sweep driver reads this file,
+# applies the per-pipeline language gate, and emits one cell per (pipeline, repo)
+# that survives the gate.
+#
+# Repo-record shapes:
+#   1. plain string             → "owner/name" — implicitly Python, all pipelines
+#   2. {repo, language}         → owner/name + language gate (python|go|rust|node|ts|rust_py)
+#   3. {repo, language, pipelines: [...]} → restrict to listed pipelines only
+#
+# Language gates honored by the sweep driver:
+#   - any            : all 8 pipelines apply
+#   - python         : all 8 (4 language-agnostic + 4 Python-only)
+#   - rust_py        : 4 language-agnostic (pr_diff, pr_runtime, commit_runtime, cve_patches)
+#   - go|rust|node|ts: 4 language-agnostic only
+
+# Tier A — SWE-bench Python overlap (12 repos, all 8 pipelines)
+tier_a_swe_bench:
+  - pallets/click
+  - pallets/werkzeug
+  - pallets/flask
+  - psf/requests
+  - pydantic/pydantic
+  - python-jsonschema/jsonschema
+  - python-attrs/attrs
+  - psf/black
+  - pytest-dev/pytest
+  - sphinx-doc/sphinx
+  - pylint-dev/pylint
+  - httpie/httpie
+
+# Tier B — HF ecosystem (8 repos)
+tier_b_hf_ecosystem:
+  - {repo: huggingface/huggingface_hub, language: python}
+  - {repo: huggingface/datasets,        language: python}
+  - {repo: huggingface/tokenizers,      language: rust_py,
+     pipelines: [pr_diff, pr_runtime, commit_runtime, cve_patches]}
+  - {repo: huggingface/safetensors,     language: rust_py,
+     pipelines: [pr_diff, pr_runtime, commit_runtime, cve_patches]}
+  - {repo: huggingface/evaluate,        language: python}
+  - {repo: huggingface/transformers.js, language: ts,
+     pipelines: [pr_diff, pr_runtime, commit_runtime, cve_patches]}
+  - {repo: huggingface/text-clustering, language: python}
+  - {repo: gradio-app/gradio,           language: python}
+
+# Tier C — Multi-language libs (18 repos, language-agnostic pipelines only)
+tier_c_multi_lang:
+  go:
+    - urfave/cli
+    - spf13/cobra
+    - gin-gonic/gin
+    - gorilla/mux
+    - stretchr/testify
+  rust:
+    - clap-rs/clap
+    - serde-rs/json
+    - BurntSushi/ripgrep
+    - dtolnay/anyhow
+    - chronotope/chrono
+  node:
+    - chalk/chalk
+    - expressjs/express
+    - prettier/prettier
+    - axios/axios
+    - sindresorhus/got
+  ts:
+    - date-fns/date-fns
+    - sveltejs/svelte
+    - vitejs/vite
+
+# Per-repo overrides applied at bootstrap time.
+# The sweep driver forwards these to `repo2rlenv generate` via
+# --bootstrap-opt key=value when a bootstrap is freshly built.
+bootstrap_overrides:
+  aio-libs/aiohttp:
+    max_iterations: 30
+  huggingface/tokenizers:
+    base_image: rust:1.75
+
+# Backup pool: substitute in if any of the 38 break unrecoverably at bootstrap.
+# Same shape rules as the tier lists.
+backup_pool:
+  python:
+    - tiangolo/typer
+    - encode/httpx
+    - tox-dev/tox
+    - simplejson/simplejson
+  go:
+    - charmbracelet/bubbletea
+    - spf13/viper
+    - sirupsen/logrus
+  rust:
+    - tokio-rs/tokio
+    - rust-lang/regex
+  node:
+    - lodash/lodash
+    - ramda/ramda
+    - preactjs/preact
