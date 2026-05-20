@@ -54,18 +54,52 @@ from repo2rlenv.spec.options import PRDiffOptions
 logger = logging.getLogger(__name__)
 
 
-_CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
+# GitHub-issue / GitHub-PR linkbacks that hint at the solution. We strip
+# them from instruction text so the agent can't shortcut by fetching the
+# linked artifact.
+_CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+(?:\s*,\s*#\d+)*\b", re.IGNORECASE)
+_REFS_RE = re.compile(
+    r"\b(?:see(?:\s+also)?|refs?|follow[- ]?up\s+(?:to|of))\s+#\d+(?:\s*,\s*#\d+)*\b",
+    re.IGNORECASE,
+)
+_MD_ISSUE_LINK_RE = re.compile(r"\[#\d+\]\([^)]+\)")
+_GH_URL_RE = re.compile(
+    r"https?://github\.com/[^\s)]+/(?:pull|issues|commit)/[^\s)]+", re.IGNORECASE
+)
+_TRAILER_LINE_RE = re.compile(
+    r"^(?:Co-authored-by|Signed-off-by|Reviewed-by|Acked-by):.*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_SQUASH_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
+
+
+def _strip_info_leak(body: str) -> str:
+    """Remove patterns that hint at the patch the agent should produce.
+
+    The goal: leave the natural-language problem description intact, but
+    drop linkbacks (Closes/See/follow-up #N + bare GH URLs + squash suffixes
+    + commit trailers) that point to the answer.
+    """
+    body = _CLOSES_RE.sub("", body)
+    body = _REFS_RE.sub("", body)
+    body = _MD_ISSUE_LINK_RE.sub("", body)
+    body = _GH_URL_RE.sub("", body)
+    body = _TRAILER_LINE_RE.sub("", body)
+    # Squeeze whitespace left behind by deletions
+    body = re.sub(r"[ \t]+\n", "\n", body)
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    return body.strip()
 
 
 def _build_instruction(pr: PullRequestSummary) -> str:
-    """Strip 'Closes #N' style boilerplate from the PR description."""
-    body = (pr.body or "").strip()
-    body = _CLOSES_RE.sub("", body).strip()
+    """Strip leakage patterns from the PR body + title; emit issue-style prose."""
+    title = _SQUASH_SUFFIX_RE.sub("", (pr.title or "").strip())
+    body = _strip_info_leak((pr.body or "").strip())
     if not body:
         body = "(no description provided in source PR)"
     return (
         f"# Issue\n\n"
-        f"**Title:** {pr.title}\n\n"
+        f"**Title:** {title}\n\n"
         f"## Description\n\n"
         f"{body}\n\n"
         f"## Task\n\n"
