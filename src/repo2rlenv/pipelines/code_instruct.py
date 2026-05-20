@@ -37,6 +37,7 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import logging
@@ -81,6 +82,35 @@ class _VerifyOutcome:
     reason: str = ""
     pre_log: str = ""
     post_log: str = ""
+
+
+def _make_noop_stub_module(solution_code: str) -> str:
+    """Build a stub `task_module.py` whose top-level symbols all no-op.
+
+    For each top-level function we emit ``def <name>(*args, **kwargs): return None``.
+    For each top-level class we emit a bare ``class <Name>: pass``. Other
+    nodes (imports, constants) are dropped — the stub's only job is to make
+    `from task_module import <name>` and `<name>(...)` succeed at import,
+    so the verifier exercises the test's BEHAVIOR rather than mere importability.
+
+    If the solution can't be parsed, returns an empty module (`""`) so callers
+    can choose to skip the stub-test stage.
+    """
+    try:
+        tree = ast.parse(solution_code)
+    except (SyntaxError, ValueError):
+        return ""
+
+    lines: list[str] = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            async_kw = "async " if isinstance(node, ast.AsyncFunctionDef) else ""
+            lines.append(f"{async_kw}def {node.name}(*args, **kwargs):\n    return None")
+        elif isinstance(node, ast.ClassDef):
+            lines.append(f"class {node.name}:\n    pass")
+    if not lines:
+        return ""
+    return "\n\n".join(lines) + "\n"
 
 
 def _make_two_file_diff(*, task_module_code: str, test_code: str, test_filename: str) -> str:
@@ -356,6 +386,36 @@ class CodeInstructPipeline:
             return _VerifyOutcome(
                 accepted=False, reason="test_passes_without_oracle", pre_log=pre_log
             )
+
+        # Stage A.5 — no-op stub oracle (v0.8.3 Arc 6 tautology check).
+        # If the test passes with a stub task_module whose symbols all return
+        # None, then the test doesn't actually exercise the oracle's behavior
+        # — it just checks that imports work. Reject such tasks.
+        if self.options.require_test_fails_with_noop_stub:
+            stub_module = _make_noop_stub_module(parsed.solution_code)
+            if stub_module:
+                enc_stub = base64.b64encode(stub_module.encode("utf-8")).decode("ascii")
+                script_stub = (
+                    "set -uxo pipefail\n"
+                    "cd /workspace\n"
+                    "git reset --hard HEAD\n"
+                    "git clean -fdx -e .venv -e venv -e __pycache__ || true\n"
+                    f"echo {enc_test} | base64 -d > {test_filename}\n"
+                    f"echo {enc_stub} | base64 -d > task_module.py\n"
+                    ": 'START_TEST_OUTPUT'\n"
+                    f"python -m pytest {test_filename} -v --no-header || true\n"
+                    ": 'END_TEST_OUTPUT'\n"
+                    "rm -f task_module.py task_module.pyc || true\n"
+                )
+                s = sandbox.exec(script_stub, timeout=self.options.validation_timeout_sec)
+                stub_log = s.truncated(max_chars=4000)
+                if _all_tests_passed(stub_log):
+                    return _VerifyOutcome(
+                        accepted=False,
+                        reason="test_passes_with_noop_stub",
+                        pre_log=pre_log,
+                        post_log=stub_log,
+                    )
 
         # Stage B — oracle in place
         script_b = (

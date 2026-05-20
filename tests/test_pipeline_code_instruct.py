@@ -11,6 +11,7 @@ import pytest
 from repo2rlenv.pipelines.code_instruct import (
     CodeInstructPipeline,
     _all_tests_passed,
+    _make_noop_stub_module,
     _make_two_file_diff,
     build_code_instruct_dockerfile,
 )
@@ -141,3 +142,66 @@ def test_code_instruct_options_defaults():
     assert opts.seed_max_loc == 200
     assert opts.require_test_fails_without_oracle is True
     assert opts.require_test_passes_with_oracle is True
+    # v0.8.3 Arc 6 — new tautology-check flag defaults on
+    assert opts.require_test_fails_with_noop_stub is True
+
+
+# ---------------------------------------------------------------------------
+# _make_noop_stub_module — v0.8.3 Arc 6 tautology check
+# ---------------------------------------------------------------------------
+
+
+def test_noop_stub_function() -> None:
+    src = "def add(a, b):\n    return a + b\n"
+    stub = _make_noop_stub_module(src)
+    assert "def add(*args, **kwargs):" in stub
+    assert "return None" in stub
+
+
+def test_noop_stub_multiple_symbols() -> None:
+    src = (
+        "def f(x): return x\n"
+        "def g(x, y): return x + y\n"
+        "class Counter:\n    def __init__(self): self.n = 0\n"
+    )
+    stub = _make_noop_stub_module(src)
+    assert "def f(*args, **kwargs):" in stub
+    assert "def g(*args, **kwargs):" in stub
+    assert "class Counter:" in stub
+
+
+def test_noop_stub_async_function() -> None:
+    src = "async def fetch(url):\n    return None\n"
+    stub = _make_noop_stub_module(src)
+    assert "async def fetch(*args, **kwargs):" in stub
+
+
+def test_noop_stub_drops_imports_and_constants() -> None:
+    """Only callable / class symbols stay in the stub."""
+    src = "import os\nfrom typing import Any\nX = 42\ndef real_work(): return X\n"
+    stub = _make_noop_stub_module(src)
+    assert "import" not in stub
+    assert "X = 42" not in stub
+    assert "def real_work(*args, **kwargs):" in stub
+
+
+def test_noop_stub_unparseable_returns_empty() -> None:
+    """Caller can choose to skip the stub stage if the LLM returned bad code."""
+    src = "def broken(\n"  # SyntaxError
+    assert _make_noop_stub_module(src) == ""
+
+
+def test_noop_stub_no_callables_returns_empty() -> None:
+    """A solution with only imports / constants → no stub work to do."""
+    src = "import os\nX = 1\n"
+    assert _make_noop_stub_module(src) == ""
+
+
+def test_noop_stub_module_is_syntactically_valid() -> None:
+    """The stub itself must parse — otherwise the validation harness crashes."""
+    import ast
+
+    src = "def f(): return 1\nclass C:\n    def __init__(self): pass\n"
+    stub = _make_noop_stub_module(src)
+    # Must round-trip through ast.parse
+    ast.parse(stub)

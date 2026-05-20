@@ -228,6 +228,12 @@ class CodeInstructOptions(_BaseOptions):
     # --- Verification ---
     require_test_fails_without_oracle: bool = True
     require_test_passes_with_oracle: bool = True
+    # v0.8.3 Arc 6 optimization: also verify that tests fail when given a
+    # task_module.py whose symbols are all no-op stubs. Catches "tautological"
+    # tests that only assert importability — not behavior. Default on; disable
+    # for arcs where you want a higher emission yield at the cost of some
+    # verifier-quality slack.
+    require_test_fails_with_noop_stub: bool = True
     validation_timeout_sec: int = 180
     skip_validation: bool = False
 
