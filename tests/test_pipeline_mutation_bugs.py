@@ -19,6 +19,7 @@ import pytest
 from repo2rlenv.pipelines.mutation_bugs import (
     MutationBugsPipeline,
     _is_excluded,
+    _is_parseable_python,
     _make_unified_diff,
     _slice_test_output,
     _target_pytest_for_tests,
@@ -224,3 +225,38 @@ def test_mutation_bugs_options_defaults():
     assert opts.limit == 50
     assert opts.min_tests_broken == 1
     assert opts.operators is None  # ⇒ use every operator
+
+
+# ---------------------------------------------------------------------------
+# _is_parseable_python — v0.8.3 Arc 5 pre-validation gate
+# ---------------------------------------------------------------------------
+
+
+def test_is_parseable_python_accepts_valid_module() -> None:
+    assert _is_parseable_python("def f(x):\n    return x + 1\n")
+
+
+def test_is_parseable_python_accepts_empty() -> None:
+    assert _is_parseable_python("")
+
+
+def test_is_parseable_python_rejects_syntax_error() -> None:
+    # Closing bracket missing
+    assert not _is_parseable_python("def f(x:\n    return x\n")
+
+
+def test_is_parseable_python_rejects_dangling_else() -> None:
+    assert not _is_parseable_python("else: pass\n")
+
+
+def test_is_parseable_python_accepts_subtle_semantic_bug() -> None:
+    """`x[-0]` is valid Python — should pass parser gate. The point of this
+    gate is to drop SYNTAX-broken mutations, not semantically-broken ones
+    (which the test suite catches downstream).
+    """
+    assert _is_parseable_python("def f(xs):\n    return xs[-0]\n")
+
+
+def test_skip_unparseable_mutations_default_enabled() -> None:
+    """The Arc 5 flag defaults to True so prod sweeps get the cheaper path."""
+    assert MutationBugsOptions().skip_unparseable_mutations is True

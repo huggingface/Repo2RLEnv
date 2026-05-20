@@ -38,6 +38,7 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
+import ast
 import base64
 import difflib
 import fnmatch
@@ -99,6 +100,19 @@ class _MutationOutcome:
     test_output: str = ""
     accepted: bool = False
     reason: str = ""
+
+
+def _is_parseable_python(source: str) -> bool:
+    """Cheap pre-validation gate: True iff `source` parses as Python AST.
+
+    Used to filter mutations that produce syntactically-broken code before
+    paying the container roundtrip. SyntaxError / ValueError → unparseable.
+    """
+    try:
+        ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+    return True
 
 
 def _make_unified_diff(old: str, new: str, path: str) -> str:
@@ -362,6 +376,20 @@ class MutationBugsPipeline:
                             continue
                         if mutated_source == source:
                             continue  # operator was a no-op for this site
+
+                        # v0.8.3 Arc 5 optimization: drop mutations whose source
+                        # text doesn't parse as Python BEFORE paying for the
+                        # in-container test run. A SyntaxError in the mutated
+                        # file makes every test "fail" by import error — noise,
+                        # not signal. Cheap pre-check saves real time per cell.
+                        if self.options.skip_unparseable_mutations and not _is_parseable_python(
+                            mutated_source
+                        ):
+                            skip_reasons["unparseable_mutation"] = (
+                                skip_reasons.get("unparseable_mutation", 0) + 1
+                            )
+                            self._emit_progress(label, "skip", "unparseable_mutation")
+                            continue
 
                         mutation_diff = _make_unified_diff(source, mutated_source, relative)
                         if not mutation_diff:

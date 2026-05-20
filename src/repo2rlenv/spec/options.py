@@ -173,6 +173,12 @@ class MutationBugsOptions(_BaseOptions):
     # --- Mutation filter ---
     min_tests_broken: int = 1
     max_tests_broken: int = 5
+    # Pre-validation gate: when True (default), drop mutations whose source
+    # text doesn't parse as Python before paying for the in-container test
+    # run. Unparseable mutations always make every test fail by import error
+    # — that's noise, not signal. Disable when you specifically want to study
+    # the import-error class of failures.
+    skip_unparseable_mutations: bool = True
     validation_timeout_sec: int = 300
     skip_validation: bool = False  # emit candidates raw (debug / fast iteration)
     # If set, restrict pytest to this path (or space-separated list of paths).
