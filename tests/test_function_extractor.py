@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo2rlenv.pipelines._function_extractor import (
+    _ast_has_side_effect,
+    _is_forbidden_call,
     extract_from_module,
     walk_repo,
 )
@@ -234,3 +236,93 @@ def test_walk_repo_handles_unreadable_file(tmp_path: Path):
         )
     )
     assert {c.name for c in found} == {"x"}
+
+
+# ---------------------------------------------------------------------------
+# AST side-effect detection (v0.8.3 Arc 7)
+# ---------------------------------------------------------------------------
+
+
+def _parse_fn(src: str):
+    """Parse src and return the first function def found."""
+    import ast as _ast
+
+    tree = _ast.parse(src)
+    for node in tree.body:
+        if isinstance(node, _ast.FunctionDef | _ast.AsyncFunctionDef):
+            return node
+    raise AssertionError(f"no function in {src!r}")
+
+
+def test_ast_se_global_statement():
+    fn = _parse_fn("def f(x):\n    global counter\n    return x + counter\n")
+    se, kind = _ast_has_side_effect(fn)
+    assert se and kind == "global"
+
+
+def test_ast_se_yield_is_side_effect():
+    fn = _parse_fn("def g(xs):\n    for x in xs:\n        yield x * 2\n")
+    se, kind = _ast_has_side_effect(fn)
+    assert se and kind == "yield"
+
+
+def test_ast_se_yield_from():
+    fn = _parse_fn("def g(xs):\n    yield from xs\n")
+    se, kind = _ast_has_side_effect(fn)
+    assert se and kind == "yield"
+
+
+def test_ast_se_open_call():
+    fn = _parse_fn("def f(p):\n    return open(p).read()\n")
+    se, kind = _ast_has_side_effect(fn)
+    assert se and kind == "forbidden_call"
+
+
+def test_ast_se_dotted_os_call():
+    fn = _parse_fn("def f(p):\n    return os.path.exists(p)\n")
+    se, kind = _ast_has_side_effect(fn)
+    assert se and kind == "forbidden_call"
+
+
+def test_ast_se_pure_function_passes():
+    fn = _parse_fn("def f(a, b):\n    return a * b + 1\n")
+    se, _ = _ast_has_side_effect(fn)
+    assert not se
+
+
+def test_ast_se_does_not_descend_into_nested_fn():
+    """A nested helper having side effects shouldn't disqualify the outer fn."""
+    src = (
+        "def outer(xs):\n"
+        "    def _helper(x):\n"
+        "        print(x)  # nested side effect\n"
+        "        return x\n"
+        "    return [_helper(x) for x in xs]\n"
+    )
+    fn = _parse_fn(src)
+    se, _ = _ast_has_side_effect(fn)
+    # The outer fn itself doesn't call print/etc., so it passes
+    assert not se
+
+
+def test_is_forbidden_call_reopen_no_false_positive():
+    """`reopen(...)` should NOT match the `open` forbidden-call entry."""
+    import ast as _ast
+
+    tree = _ast.parse("def f(): reopen()")
+    call = next(n for n in _ast.walk(tree) if isinstance(n, _ast.Call))
+    assert _is_forbidden_call(call) is False
+
+
+def test_pipeline_filters_global_statement():
+    """End-to-end: a function with `global` is filtered out by the extractor."""
+    src = "def f(x):\n    global g\n    return x + g\n"
+    found = _extract(src, min_loc=1, max_loc=10)
+    assert found == []
+
+
+def test_pipeline_filters_generator():
+    """End-to-end: generator functions are filtered out."""
+    src = "def gen(xs):\n    for x in xs:\n        yield x * 2\n"
+    found = _extract(src, min_loc=1, max_loc=10)
+    assert found == []

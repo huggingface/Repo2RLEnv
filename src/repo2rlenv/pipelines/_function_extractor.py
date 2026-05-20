@@ -122,6 +122,80 @@ def _body_has_side_effect(source: str) -> bool:
     return any(pat in source for pat in _BODY_SIDE_EFFECT_PATTERNS)
 
 
+# AST-level side-effect detection for v0.8.3 Arc 7. More precise than the
+# string-substring check: avoids false-positives like `reopen(` matching
+# `open(` and catches global/nonlocal/yield that the substring check misses.
+_FORBIDDEN_CALL_NAMES: frozenset[str] = frozenset(
+    {"open", "print", "input", "exec", "eval", "exit", "quit"}
+)
+_FORBIDDEN_ATTR_PREFIXES: tuple[str, ...] = (
+    "os.",
+    "sys.",
+    "shutil.",
+    "subprocess.",
+    "logging.",
+    "requests.",
+    "http.",
+    "urllib.",
+    "socket.",
+)
+
+
+def _is_forbidden_call(node: ast.Call) -> bool:
+    """Decide whether ``node`` calls a known side-effecting name.
+
+    Matches against the ``func`` AST node:
+      - ``open(...)`` / ``print(...)`` etc. → check `Name.id`
+      - ``os.environ["X"] = ...`` is caught at the Assign level, not here
+      - ``foo.bar.baz(...)`` → reconstruct dotted name + check prefixes
+    """
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in _FORBIDDEN_CALL_NAMES
+    if isinstance(func, ast.Attribute):
+        # Reconstruct the dotted name as far as we can
+        parts: list[str] = []
+        cur: ast.AST | None = func
+        while isinstance(cur, ast.Attribute):
+            parts.append(cur.attr)
+            cur = cur.value
+        if isinstance(cur, ast.Name):
+            parts.append(cur.id)
+            dotted = ".".join(reversed(parts))
+            return any(dotted.startswith(p) for p in _FORBIDDEN_ATTR_PREFIXES)
+    return False
+
+
+def _ast_has_side_effect(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[bool, str]:
+    """Return (has_side_effect, reason_kind) by walking the function body.
+
+    reason_kind is one of: ``"global"``, ``"nonlocal"``, ``"yield"``,
+    ``"forbidden_call"`` — or ``""`` if no side effect was detected.
+    Nested function defs / class defs are NOT recursed into (a nested
+    helper having its own side effects doesn't disqualify the outer fn).
+    """
+    stack: list[ast.AST] = list(node.body)
+    while stack:
+        sub = stack.pop()
+        # Stop at nested defs — their interior is irrelevant for the outer fn.
+        if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(sub, ast.Global):
+            return True, "global"
+        if isinstance(sub, ast.Nonlocal):
+            return True, "nonlocal"
+        if isinstance(sub, (ast.Yield, ast.YieldFrom)):
+            return True, "yield"
+        if isinstance(sub, ast.Call) and _is_forbidden_call(sub):
+            return True, "forbidden_call"
+        # Recurse into all child nodes (but the FunctionDef / ClassDef check
+        # above prunes the descent at scoped boundaries).
+        stack.extend(ast.iter_child_nodes(sub))
+    return False, ""
+
+
 def _is_skipped_name(name: str) -> bool:
     if name in _SKIP_EXACT_NAMES:
         return True
@@ -175,6 +249,11 @@ def extract_from_module(
         except IndexError:
             continue
         if _body_has_side_effect(src):
+            continue
+        # v0.8.3 Arc 7: AST-precise side-effect detection (catches global /
+        # nonlocal / yield / forbidden calls that the string heuristic misses).
+        ast_se, _kind = _ast_has_side_effect(node)
+        if ast_se:
             continue
 
         out.append(
