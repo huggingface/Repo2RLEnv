@@ -273,6 +273,12 @@ class RefactorSynthesisOptions(_BaseOptions):
     # must be fully removed" semantics (will reject most public-API renames).
     require_old_name_gone: bool = False
     require_new_name_present: bool = True
+    # v0.8.3 Arc 8: minimum number of callsite touches required on the new-name
+    # side of the diff (def/class definition itself excluded). A rename that
+    # only touches the def site (zero other callsites) is a trivial one-line
+    # task — set ≥ 1 to require at least one real callsite update. Set 0 to
+    # disable the filter entirely.
+    min_callsites: int = 1
     validation_timeout_sec: int = 300
     skip_validation: bool = False
 

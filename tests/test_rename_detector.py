@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from repo2rlenv.pipelines._rename_detector import (
+    count_callsite_changes,
     find_rename_in_message,
     verify_rename_in_diff,
 )
@@ -195,3 +196,85 @@ def test_diff_verify_ignores_metadata_lines():
     # Neither side has a real def/class line; we reject for missing old def.
     out = verify_rename_in_diff(diff, old_name="old_name", new_name="new_name")
     assert not out.ok
+
+
+# ---------------------------------------------------------------------------
+# count_callsite_changes — v0.8.3 Arc 8 minimum-callsite scope filter
+# ---------------------------------------------------------------------------
+
+
+def test_callsite_count_trivial_rename_one_def_no_callsites():
+    """Rename-only-the-def → 0 callsite touches on either side."""
+    diff = (
+        "diff --git a/m.py b/m.py\n"
+        "--- a/m.py\n"
+        "+++ b/m.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-def foo(x):\n"
+        "+def bar(x):\n"
+        "     return x + 1\n"
+    )
+    removed, added = count_callsite_changes(diff, old_name="foo", new_name="bar")
+    assert removed == 0
+    assert added == 0
+
+
+def test_callsite_count_renames_with_two_callsites():
+    """Def + 2 callsites changed → removed=2, added=2 (def excluded)."""
+    diff = (
+        "diff --git a/m.py b/m.py\n"
+        "--- a/m.py\n"
+        "+++ b/m.py\n"
+        "@@ -1,6 +1,6 @@\n"
+        "-def foo(x):\n"
+        "+def bar(x):\n"
+        "     return x + 1\n"
+        "\n"
+        "-result1 = foo(1)\n"
+        "+result1 = bar(1)\n"
+        "-result2 = foo(2)\n"
+        "+result2 = bar(2)\n"
+    )
+    removed, added = count_callsite_changes(diff, old_name="foo", new_name="bar")
+    assert removed == 2
+    assert added == 2
+
+
+def test_callsite_count_word_boundary():
+    """`foo` should not match `foobar` (substring but not whole word)."""
+    diff = (
+        "diff --git a/m.py b/m.py\n"
+        "--- a/m.py\n"
+        "+++ b/m.py\n"
+        "@@ -1,3 +1,3 @@\n"
+        "-def foo(x): return x\n"
+        "+def bar(x): return x\n"
+        "-foobar = 1\n"
+        "+foobar_new = 1\n"
+    )
+    # The 2nd `-` line contains `foobar` not `foo`; word-boundary regex rejects.
+    removed, _ = count_callsite_changes(diff, old_name="foo", new_name="bar")
+    assert removed == 0  # 0 callsite touches (only foobar, not foo)
+
+
+def test_callsite_count_class_rename():
+    """Works for class-style def too: `class OldFoo:` is excluded from count."""
+    diff = (
+        "diff --git a/m.py b/m.py\n"
+        "--- a/m.py\n"
+        "+++ b/m.py\n"
+        "@@ -1,3 +1,3 @@\n"
+        "-class OldFoo:\n"
+        "+class NewFoo:\n"
+        "-    OldFoo.help()\n"
+        "+    NewFoo.help()\n"
+    )
+    removed, added = count_callsite_changes(diff, old_name="OldFoo", new_name="NewFoo")
+    assert removed == 1
+    assert added == 1
+
+
+def test_callsite_count_empty_diff():
+    removed, added = count_callsite_changes("", old_name="x", new_name="y")
+    assert removed == 0
+    assert added == 0

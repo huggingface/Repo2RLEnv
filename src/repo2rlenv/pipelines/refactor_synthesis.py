@@ -340,6 +340,26 @@ class RefactorSynthesisPipeline:
                         self._emit_progress(label, "skip", outcome.reason)
                         continue
 
+                    # v0.8.3 Arc 8: minimum-callsite scope filter. A rename
+                    # that only touches the def site (no other callsites in
+                    # the diff) makes a trivial task — the agent would just
+                    # apply a one-line change. Require ≥ N callsite touches
+                    # on the new-name side.
+                    if self.options.min_callsites > 0:
+                        from repo2rlenv.pipelines._rename_detector import (
+                            count_callsite_changes,
+                        )
+
+                        _removed, added = count_callsite_changes(
+                            diff, old_name=old_name, new_name=new_name
+                        )
+                        if added < self.options.min_callsites:
+                            skip_reasons["too_few_callsites"] = (
+                                skip_reasons.get("too_few_callsites", 0) + 1
+                            )
+                            self._emit_progress(label, "skip", "too_few_callsites")
+                            continue
+
                     # Emit
                     task = self._build_task(
                         commit=commit,

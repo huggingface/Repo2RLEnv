@@ -97,6 +97,49 @@ def _redefines_pattern(name: str) -> re.Pattern[str]:
 class DiffVerifyOutcome:
     ok: bool
     reason: str  # "" when ok; otherwise a short skip reason
+    callsites_removed: int = 0
+    callsites_added: int = 0
+
+
+def count_callsite_changes(unified_diff: str, *, old_name: str, new_name: str) -> tuple[int, int]:
+    """Count rename callsite touches in a unified diff.
+
+    Returns ``(removed_count, added_count)``:
+
+      - removed_count = number of ``-`` lines containing the OLD identifier
+        as a word, EXCLUDING the line that removes the def/class signature.
+      - added_count   = number of ``+`` lines containing the NEW identifier
+        as a word, EXCLUDING the line that adds the new def/class signature.
+
+    The def/class lines are excluded because the rename verifier already
+    requires both ends to be present; we're counting *callsite* touches
+    on top of that. A trivial one-method rename with no other callsites
+    returns ``(0, 0)``.
+    """
+    if not unified_diff:
+        return 0, 0
+    old_word = _bare_word(old_name)
+    new_word = _bare_word(new_name)
+    old_def = _redefines_pattern(old_name)
+    new_def = _redefines_pattern(new_name)
+
+    removed = added = 0
+    for raw_line in unified_diff.splitlines():
+        if raw_line.startswith("---") or raw_line.startswith("+++"):
+            continue
+        if raw_line.startswith("-"):
+            content = raw_line[1:]
+            if old_def.match(content):
+                continue  # the def-removal itself doesn't count as a callsite
+            if old_word.search(content):
+                removed += 1
+        elif raw_line.startswith("+"):
+            content = raw_line[1:]
+            if new_def.match(content):
+                continue
+            if new_word.search(content):
+                added += 1
+    return removed, added
 
 
 def verify_rename_in_diff(unified_diff: str, *, old_name: str, new_name: str) -> DiffVerifyOutcome:
