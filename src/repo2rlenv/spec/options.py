@@ -281,6 +281,13 @@ class CVEPatchesOptions(_BaseOptions):
     osv_ecosystem: str | None = None  # "PyPI" / "npm" / "crates.io" / ... (None ⇒ auto-guess)
     osv_package: str | None = None  # package name (None ⇒ use repo name)
     min_severity: Literal["low", "medium", "moderate", "high", "critical"] = "low"
+    # File-system cache for OSV query results. Useful when re-running sweeps
+    # against the same package — avoids hammering the OSV endpoint. Set False
+    # to force fresh queries (e.g. when you suspect the OSV catalog changed).
+    osv_cache_enabled: bool = True
+    # Cache TTL in seconds (default 7 days). OSV vuln data accrues but rarely
+    # mutates retroactively, so a long TTL is safe.
+    osv_cache_ttl_seconds: int = 7 * 24 * 3600
 
     # --- Output cap ---
     limit: int = 50
@@ -294,6 +301,14 @@ class CVEPatchesOptions(_BaseOptions):
     # --- Structural filters ---
     require_new_test_funcs: bool = False  # security commits often DON'T add new tests
     max_source_files_per_fix: int = 50
+
+    # --- Multi-commit fix handling ---
+    # Some CVEs span 2-3 commits (e.g. a fix + a regression-test follow-up).
+    # The default takes the first commit (most often the primary fix). When
+    # set True, emit one task per fix commit — useful when the CVE has
+    # genuinely independent fixes (rare, but happens). Each emitted task
+    # gets a distinct task.name suffix (`__commit-2`, `__commit-3`).
+    emit_per_fix_commit: bool = False
 
 
 class EquivalenceTestsOptions(_BaseOptions):

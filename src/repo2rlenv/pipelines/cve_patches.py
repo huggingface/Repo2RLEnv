@@ -52,7 +52,13 @@ from repo2rlenv.github import (
     fetch_commit_diff,
     fetch_commit_parent,
 )
-from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
+from repo2rlenv.osv import (
+    OSVError,
+    OSVVuln,
+    guess_ecosystem,
+    query_vulns_cached,
+    severity_at_least,
+)
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _files_in_patch,
@@ -143,20 +149,30 @@ class CVEPatchesPipeline:
             name,
         )
         try:
-            vulns = query_vulns(package, ecosystem)
+            vulns = query_vulns_cached(
+                package,
+                ecosystem,
+                cache_enabled=self.options.osv_cache_enabled,
+                ttl_seconds=self.options.osv_cache_ttl_seconds,
+            )
         except OSVError as exc:
             raise RuntimeError(f"OSV query failed: {exc}") from exc
 
-        # Filter by severity + must have at least one fix commit
-        in_scope: list[tuple[OSVVuln, str]] = []
+        # Filter by severity + must have at least one fix commit. When
+        # `emit_per_fix_commit` is set, fan out a (vuln, sha) entry per commit;
+        # otherwise pick the first commit (most often the primary fix).
+        in_scope: list[tuple[OSVVuln, str, int]] = []  # (vuln, sha, ordinal)
         for v in vulns:
             if not severity_at_least(v, self.options.min_severity):
                 continue
             commits = v.fix_commits(owner=owner, repo=name)
             if not commits:
                 continue
-            # If multiple commits, pick the first — usually the primary fix
-            in_scope.append((v, commits[0]))
+            if self.options.emit_per_fix_commit:
+                for i, sha in enumerate(commits, start=1):
+                    in_scope.append((v, sha, i))
+            else:
+                in_scope.append((v, commits[0], 1))
 
         logger.info(
             "cve_patches: %d vulns total, %d in scope (have fix commit in %s/%s)",
@@ -171,10 +187,13 @@ class CVEPatchesPipeline:
         sandbox = None
 
         try:
-            for vuln, fix_sha in in_scope:
+            for vuln, fix_sha, commit_ordinal in in_scope:
                 if emitted >= self.options.limit:
                     break
-                label = f"{label_root}#{vuln.id}"
+                # When fan-out is on, suffix the label so multi-commit CVEs
+                # don't collide on `<cve-id>` alone.
+                label_suffix = f"@{commit_ordinal}" if self.options.emit_per_fix_commit else ""
+                label = f"{label_root}#{vuln.id}{label_suffix}"
 
                 # Resolve parent commit
                 parent_sha = fetch_commit_parent(owner, name, fix_sha, token=token)
@@ -251,6 +270,7 @@ class CVEPatchesPipeline:
                     fail_to_pass=fail_to_pass,
                     pass_to_pass=pass_to_pass,
                     validation_status=validation_status,
+                    commit_ordinal=commit_ordinal,
                 )
                 write_harbor_task(task, out_dir)
                 emitted += 1
@@ -300,11 +320,16 @@ class CVEPatchesPipeline:
         fail_to_pass: list[str],
         pass_to_pass: list[str],
         validation_status: str,
+        commit_ordinal: int = 1,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         # Use the CVE id (or fallback to OSV id) for the task slug — stable + human-readable
         slug_id = (vuln.cve_id or vuln.id).replace("/", "_")
         task_id = f"{owner}__{name}-cve-{slug_id}"
+        # When fan-out mode is on AND this CVE has multiple commits, distinguish
+        # the tasks by suffix so they don't collide on the same `name`.
+        if self.options.emit_per_fix_commit and commit_ordinal > 1:
+            task_id = f"{task_id}__commit-{commit_ordinal}"
 
         eval_script = build_eval_script(
             base_commit=parent_sha,

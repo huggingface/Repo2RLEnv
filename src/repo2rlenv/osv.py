@@ -6,21 +6,75 @@ covers PyPI / npm / crates.io / Go / Maven / NuGet / Debian / Alpine / etc.
 We use it to power the `cve_patches` pipeline: query → extract fix commit
 URLs from `references[]` → map to a (base_commit, patch) pair via the
 standard `gh api repos/.../commits/<sha>` route.
+
+A simple file-system cache lives under ``$REPO2RLENV_OSV_CACHE_DIR`` (default
+``~/.cache/repo2rlenv/osv/``). Cache entries are per ``(package, ecosystem)``
+JSON files keyed on a sha1 of the request; entries expire after the
+``ttl_seconds`` you pass to :func:`query_vulns_cached`.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 OSV_QUERY_URL = "https://api.osv.dev/v1/query"
+
+
+def _default_cache_dir() -> Path:
+    """Filesystem location for the OSV result cache. Env override:
+    ``REPO2RLENV_OSV_CACHE_DIR``. Default: ``~/.cache/repo2rlenv/osv/``.
+    """
+    if env := os.environ.get("REPO2RLENV_OSV_CACHE_DIR"):
+        return Path(env)
+    return Path.home() / ".cache" / "repo2rlenv" / "osv"
+
+
+def _cache_key(package: str, ecosystem: str) -> str:
+    raw = f"{ecosystem.lower()}::{package.lower()}".encode()
+    return hashlib.sha1(raw).hexdigest()
+
+
+def _cache_path(package: str, ecosystem: str, *, cache_dir: Path | None = None) -> Path:
+    base = cache_dir if cache_dir is not None else _default_cache_dir()
+    return base / f"{_cache_key(package, ecosystem)}.json"
+
+
+def _read_cache(path: Path, *, ttl_seconds: int) -> tuple[list[OSVVuln], bool]:
+    """Return (vulns, fresh): fresh=True only if the file exists AND
+    is younger than ``ttl_seconds``.
+    """
+    if not path.exists():
+        return [], False
+    try:
+        raw = json.loads(path.read_text())
+        stamped_at = float(raw.get("stamped_at", 0))
+        if time.time() - stamped_at > ttl_seconds:
+            return [], False
+        return [_from_raw(v) for v in raw.get("vulns", [])], True
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        # Malformed cache — treat as miss; the caller will refresh.
+        return [], False
+
+
+def _write_cache(path: Path, vulns: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"stamped_at": time.time(), "vulns": vulns}
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload))
+    tmp.replace(path)
+
 
 # A `references[].url` that points at a fix commit. We accept either:
 #   https://github.com/<owner>/<repo>/commit/<sha40>
@@ -125,6 +179,56 @@ def query_vulns(
         raise OSVError(f"OSV returned malformed JSON: {exc}") from exc
     vulns = data.get("vulns") or []
     return [_from_raw(v) for v in vulns]
+
+
+def query_vulns_cached(
+    package: str,
+    ecosystem: str,
+    *,
+    timeout: float = 30.0,
+    cache_enabled: bool = True,
+    ttl_seconds: int = 7 * 24 * 3600,
+    cache_dir: Path | None = None,
+) -> list[OSVVuln]:
+    """Cache-aware variant of :func:`query_vulns`.
+
+    On cache hit (file exists + younger than ``ttl_seconds``) the entry is
+    returned without hitting the network. On cache miss we run the live
+    query, store the raw JSON, and return the parsed list. Disable caching
+    entirely with ``cache_enabled=False``.
+    """
+    if not cache_enabled:
+        return query_vulns(package, ecosystem, timeout=timeout)
+
+    path = _cache_path(package, ecosystem, cache_dir=cache_dir)
+    vulns, fresh = _read_cache(path, ttl_seconds=ttl_seconds)
+    if fresh:
+        logger.info("osv cache hit: %s/%s (%d vulns from %s)", ecosystem, package, len(vulns), path)
+        return vulns
+
+    fetched = query_vulns(package, ecosystem, timeout=timeout)
+    # Store the raw shapes so re-parsing is forward-compatible with
+    # OSVVuln field additions.
+    raw_payload = [
+        {
+            "id": v.id,
+            "aliases": v.aliases,
+            "summary": v.summary,
+            "details": v.details,
+            "database_specific": {
+                "severity": v.severity_text,
+                "cwe_ids": v.cwe_ids,
+            },
+            "published": v.published,
+            "references": v.references,
+        }
+        for v in fetched
+    ]
+    try:
+        _write_cache(path, raw_payload)
+    except OSError as exc:
+        logger.warning("osv cache write failed (%s) — proceeding without cache", exc)
+    return fetched
 
 
 # Lookup tables for repo → (ecosystem, package) auto-detection.
