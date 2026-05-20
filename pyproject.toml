@@ -1,6 +1,6 @@
 [project]
 name = "repo2rlenv"
-version = "0.8.2.post3"
+version = "0.8.3"
 description = "Turn any repository into an RL environment for training and evaluation."
 readme = "README.md"
 license = "Apache-2.0"
