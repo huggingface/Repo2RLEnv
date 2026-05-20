@@ -391,15 +391,25 @@ def run_cell(inputs: CellInputs) -> CellState:
         out_dir=out_dir,
         extra_pipeline_opts=inputs.extra_pipeline_opts,
     )
-    if not ok:
-        state.step = "failed"
-        state.last_error = f"generate: {err}"
-        return state
-
     if out_dir.exists():
         state.candidates = sum(
             1 for p in out_dir.iterdir() if p.is_dir() and (p / "task.toml").exists()
         )
+
+    # `repo2rlenv generate` exits 1 when emitted == 0 — that's a normal
+    # outcome of filters (all candidates failed F2P / no_test_patch / etc.),
+    # not a harness failure. Only treat the cell as failed if generation
+    # crashed before producing any output AND no candidates landed on disk.
+    if not ok and state.candidates == 0:
+        # Did the out_dir get created at all? If yes, generate ran to
+        # completion and just emitted nothing — treat as `done`.
+        if out_dir.exists():
+            state.step = "done"
+            state.last_error = "generate emitted 0 candidates"
+            return state
+        state.step = "failed"
+        state.last_error = f"generate: {err}"
+        return state
 
     if state.candidates == 0:
         state.step = "done"  # zero candidates is not a harness failure
@@ -495,6 +505,7 @@ def run_sweep(
     concurrency: int,
     repo_filter: list[str] | None,
     hard_stop_usd: float,
+    extra_pipeline_opts: dict[str, Any] | None = None,
 ) -> SweepState:
     """Run all (pipeline, repo) cells for one pipeline arc.
 
@@ -529,6 +540,7 @@ def run_sweep(
                 rubric_model=rubric_model,
                 out_root=out_root,
                 skip_t4=skip_t4 or pipeline in TEXT_ONLY,
+                extra_pipeline_opts=dict(extra_pipeline_opts or {}),
             )
         )
 
@@ -617,7 +629,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=1500.0,
         help="abort sweep if total cost reaches this (default: 1500)",
     )
+    p.add_argument(
+        "--pipeline-opt",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="extra pipeline option forwarded to `repo2rlenv generate --pipeline-opt`; "
+        "repeat for multiple options (e.g. `--pipeline-opt allow_no_f2p_with_test_patch=true`)",
+    )
     return p.parse_args(argv)
+
+
+def _parse_extra_opts(items: list[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for item in items or []:
+        if "=" not in item:
+            raise SystemExit(f"--pipeline-opt expects KEY=VALUE, got {item!r}")
+        k, v = item.split("=", 1)
+        out[k] = v
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -645,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
         concurrency=args.concurrency,
         repo_filter=args.repos,
         hard_stop_usd=args.hard_stop_usd,
+        extra_pipeline_opts=_parse_extra_opts(args.pipeline_opt),
     )
 
     done = sum(1 for c in state.cells.values() if c.step == "done")

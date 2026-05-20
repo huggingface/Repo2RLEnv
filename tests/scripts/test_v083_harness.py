@@ -93,6 +93,27 @@ def test_build_cells_filters_by_repos_arg() -> None:
     assert only_click[0]["repo"] == "pallets/click"
 
 
+def test_parse_extra_opts() -> None:
+    """`--pipeline-opt KEY=VALUE` parser: round-trip basic shapes."""
+    out = sweep._parse_extra_opts(
+        ["limit=10", "allow_no_f2p_with_test_patch=true", "since=2025-01-01"]
+    )
+    assert out == {
+        "limit": "10",
+        "allow_no_f2p_with_test_patch": "true",
+        "since": "2025-01-01",
+    }
+
+
+def test_parse_extra_opts_rejects_bare_keys() -> None:
+    with pytest.raises(SystemExit):
+        sweep._parse_extra_opts(["limit"])
+
+
+def test_parse_extra_opts_empty_list() -> None:
+    assert sweep._parse_extra_opts([]) == {}
+
+
 # ---------------------------------------------------------------------------
 # SweepState persistence
 # ---------------------------------------------------------------------------
