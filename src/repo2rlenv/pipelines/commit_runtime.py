@@ -76,6 +76,49 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text or ""))
 
 
+# Bot author detection — matches `Foo[bot]`, `dependabot`, `renovate`,
+# `pre-commit-ci`, `github-actions`, and the GitHub no-reply suffix variants.
+# Applied to both author_name and author_email (case-insensitive substring).
+_BOT_AUTHOR_NEEDLES: tuple[str, ...] = (
+    "[bot]",
+    "dependabot",
+    "renovate",
+    "pre-commit-ci",
+    "github-actions",
+    "snyk-bot",
+    "greenkeeper",
+)
+
+
+def _looks_like_bot_author(author_name: str, author_email: str) -> bool:
+    hay = f"{author_name or ''}\n{author_email or ''}".lower()
+    return any(needle in hay for needle in _BOT_AUTHOR_NEEDLES)
+
+
+# Chore-style commit subject patterns. We treat the subject (first line) as
+# noise if it matches any of these. The regexes are anchored at the start
+# (or after a conventional-commit prefix) so e.g. "fix the chore foo" isn't
+# accidentally caught.
+_CHORE_SUBJECT_RE = re.compile(
+    r"""
+    ^\s*(?:                                        # leading whitespace
+        chore(?:\([^)]+\))?\s*:                    # chore: / chore(deps):
+      | bump\s                                     # bump <pkg> ...
+      | (?:build|chore)\(deps\)                    # build(deps) / chore(deps)
+      | merge\s+(?:pull\s+request|branch|remote)   # merge pull request|branch
+      | release\s+v?\d                             # release v1.2.3
+      | (?:version|changelog)\s+bump               # version bump / changelog bump
+      | \[skip\s+ci\]                              # [skip ci] prefix
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _looks_like_chore_subject(subject: str) -> bool:
+    return bool(_CHORE_SUBJECT_RE.match(subject or ""))
+
+
 def _files_changed_in_diff(unified_diff: str) -> list[str]:
     """Same `b/` path extractor pr_runtime uses; lifted here for the filter layer."""
     return _files_in_patch(unified_diff)
@@ -259,9 +302,17 @@ class CommitRuntimePipeline:
                         fail_to_pass = outcome.fail_to_pass
                         pass_to_pass = outcome.pass_to_pass
                         validation_status = outcome.status
-                        if (
-                            self.options.require_fail_to_pass
-                            and len(fail_to_pass) < self.options.min_fail_to_pass
+                        # Reuse pr_runtime's helper so both pipelines stay in sync
+                        # on the F2P gate semantics + the opt-in relaxation.
+                        from repo2rlenv.pipelines.pr_runtime import _should_skip_no_f2p
+
+                        if _should_skip_no_f2p(
+                            require_fail_to_pass=self.options.require_fail_to_pass,
+                            min_fail_to_pass=self.options.min_fail_to_pass,
+                            allow_no_f2p_with_test_patch=self.options.allow_no_f2p_with_test_patch,
+                            fail_to_pass=fail_to_pass,
+                            pass_to_pass=pass_to_pass,
+                            test_patch=test_patch,
                         ):
                             skip_reasons["no_fail_to_pass"] = (
                                 skip_reasons.get("no_fail_to_pass", 0) + 1
@@ -309,6 +360,12 @@ class CommitRuntimePipeline:
             return "merge_commit"
         if commit.author_email in self.options.exclude_authors:
             return "excluded_author"
+        if self.options.skip_bot_authors and _looks_like_bot_author(
+            commit.author_name, commit.author_email
+        ):
+            return "bot_author"
+        if self.options.skip_chore_messages and _looks_like_chore_subject(commit.subject):
+            return "chore_message"
         if _word_count(commit.message) < self.options.min_message_words:
             return "short_message"
         if (

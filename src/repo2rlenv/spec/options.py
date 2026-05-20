@@ -111,12 +111,25 @@ class CommitRuntimeOptions(_BaseOptions):
     min_message_words: int = 5  # drop "wip", "fmt", "typo" etc.
     max_source_files_per_commit: int = 10
     exclude_authors: list[str] = []  # e.g. ["dependabot[bot]@users.noreply.github.com"]
+    # Pattern-based author filtering for the common bot suffixes (`*[bot]`,
+    # `dependabot`, `renovate`, `pre-commit-ci`, `github-actions`). Matches
+    # either author_name OR author_email (case-insensitive substring).
+    skip_bot_authors: bool = True
+    # Pattern-based commit-message filtering for routine maintenance commits
+    # that almost never contain real bug fixes worth verifying. Subject is
+    # checked against regex patterns (case-insensitive). Disable per-arc when
+    # mining a repo whose convention legitimately uses one of these tokens.
+    skip_chore_messages: bool = True
     require_new_test_funcs: bool = True  # test_patch must add ≥1 new test func
     skip_ci_only: bool = True
 
     # --- Validation (mirrors PRRuntimeOptions) ---
     require_fail_to_pass: bool = True
     min_fail_to_pass: int = 1
+    # Matches `PRRuntimeOptions.allow_no_f2p_with_test_patch` — opt-in
+    # relaxation that accepts F2P=0 candidates when the commit added/modified
+    # tests AND there's ≥1 passing test. See pr_runtime for rationale.
+    allow_no_f2p_with_test_patch: bool = False
     validation_timeout_sec: int = 600
     skip_validation: bool = False
 

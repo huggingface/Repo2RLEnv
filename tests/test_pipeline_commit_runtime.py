@@ -16,6 +16,8 @@ import pytest
 from repo2rlenv.git_local import CommitInfo
 from repo2rlenv.pipelines.commit_runtime import (
     CommitRuntimePipeline,
+    _looks_like_bot_author,
+    _looks_like_chore_subject,
     _strip_commit_prefix,
     build_instruction_from_commit,
 )
@@ -197,3 +199,90 @@ def test_commit_runtime_rejects_missing_bootstrap():
     )
     with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
         CommitRuntimePipeline(gen_input, CommitRuntimeOptions(), bootstrap=None)
+
+
+# -------------------------- bot / chore filters (Arc 3) -----------------------
+
+
+def test_looks_like_bot_author_by_name() -> None:
+    assert _looks_like_bot_author("dependabot[bot]", "support@github.com")
+    assert _looks_like_bot_author("renovate[bot]", "")
+    assert _looks_like_bot_author("github-actions[bot]", "")
+
+
+def test_looks_like_bot_author_by_email() -> None:
+    assert _looks_like_bot_author(
+        "Dependabot Bot", "49699333+dependabot[bot]@users.noreply.github.com"
+    )
+    assert _looks_like_bot_author("", "pre-commit-ci@noreply.invalid")
+
+
+def test_looks_like_bot_author_real_human_passes() -> None:
+    assert not _looks_like_bot_author("Alice Doe", "alice@example.com")
+    assert not _looks_like_bot_author("Carol", "carol@robotics.example")  # 'robotics' ≠ bot
+
+
+def test_looks_like_chore_subject_positive() -> None:
+    positives = [
+        "chore: bump deps",
+        "chore(deps): bump foo from 1 to 2",
+        "build(deps): bump bar from 3 to 4",
+        "bump foo to 1.2.3",
+        "Merge pull request #1234 from x/y",
+        "Merge branch 'main' into feature",
+        "release v0.1.0",
+        "version bump",
+        "[skip ci] update changelog",
+    ]
+    for s in positives:
+        assert _looks_like_chore_subject(s), f"expected chore for {s!r}"
+
+
+def test_looks_like_chore_subject_negative() -> None:
+    negatives = [
+        "fix: real bug in parser",
+        "feat: add user-facing flag",
+        "refactor: simplify the loop",
+        "Fix the chore-handling code path",  # word 'chore' is mid-sentence
+    ]
+    for s in negatives:
+        assert not _looks_like_chore_subject(s), f"expected non-chore for {s!r}"
+
+
+def test_metadata_filter_dispatch_via_class_method() -> None:
+    """Call _metadata_filter as an unbound method against a stub holding only
+    `options` — we don't need a real bootstrap to test the routing.
+    """
+    from types import SimpleNamespace
+
+    stub = SimpleNamespace(options=CommitRuntimeOptions())
+
+    bot_commit = _make_commit(
+        subject="chore: bump deps",
+        author_email="49699333+dependabot[bot]@users.noreply.github.com",
+    )
+    bot_commit.author_name = "dependabot[bot]"
+    assert CommitRuntimePipeline._metadata_filter(stub, bot_commit) == "bot_author"
+
+    chore_commit = _make_commit(subject="chore(deps): bump click from 8 to 9")
+    assert CommitRuntimePipeline._metadata_filter(stub, chore_commit) == "chore_message"
+
+    real_fix = _make_commit(subject="fix: handle empty input in normalize_choice")
+    assert CommitRuntimePipeline._metadata_filter(stub, real_fix) is None
+
+
+def test_metadata_filter_keeps_legacy_behavior_when_flags_off() -> None:
+    """Disabling the new flags reverts to the v0.8.1 behavior."""
+    from types import SimpleNamespace
+
+    options = CommitRuntimeOptions(skip_bot_authors=False, skip_chore_messages=False)
+    stub = SimpleNamespace(options=options)
+
+    bot_commit = _make_commit(
+        subject="chore: bump deps",
+        author_email="dependabot[bot]@users.noreply.github.com",
+    )
+    bot_commit.author_name = "dependabot[bot]"
+    # With the new filters off, this passes through (would be caught downstream
+    # by structural / validation gates).
+    assert CommitRuntimePipeline._metadata_filter(stub, bot_commit) is None
