@@ -487,6 +487,36 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     return out
 
 
+def _should_skip_no_f2p(
+    *,
+    require_fail_to_pass: bool,
+    min_fail_to_pass: int,
+    allow_no_f2p_with_test_patch: bool,
+    fail_to_pass: list[str],
+    pass_to_pass: list[str],
+    test_patch: str,
+) -> bool:
+    """Return True iff the candidate should be skipped for low F2P signal.
+
+    The default (v0.8.1+) behavior: skip when ``require_fail_to_pass`` is True
+    AND the F2P set is below ``min_fail_to_pass``.
+
+    The v0.8.3 relaxation: when ``allow_no_f2p_with_test_patch`` is True AND
+    the PR's test_patch is non-empty AND the P2P set has at least one entry,
+    accept the candidate even with F2P=0. Reasoning: the PR exercised some
+    test surface, and the verifier still gates on the post-patch behavior
+    of those tests. Tradeoff: a no-op patch could pass — only opt in when
+    you've inspected the candidate quality.
+    """
+    if not require_fail_to_pass:
+        return False
+    if len(fail_to_pass) >= min_fail_to_pass:
+        return False
+    # F2P is below the bar — does the relaxation save the candidate?
+    relaxed = allow_no_f2p_with_test_patch and bool(test_patch.strip()) and len(pass_to_pass) >= 1
+    return not relaxed
+
+
 class PRRuntimePipeline:
     """Sandbox-verified PR mining. Implements the `Pipeline` Protocol."""
 
@@ -623,9 +653,13 @@ class PRRuntimePipeline:
                     fail_to_pass = outcome.fail_to_pass
                     pass_to_pass = outcome.pass_to_pass
                     validation_status = outcome.status
-                    if (
-                        self.options.require_fail_to_pass
-                        and len(fail_to_pass) < self.options.min_fail_to_pass
+                    if _should_skip_no_f2p(
+                        require_fail_to_pass=self.options.require_fail_to_pass,
+                        min_fail_to_pass=self.options.min_fail_to_pass,
+                        allow_no_f2p_with_test_patch=self.options.allow_no_f2p_with_test_patch,
+                        fail_to_pass=fail_to_pass,
+                        pass_to_pass=pass_to_pass,
+                        test_patch=test_patch,
                     ):
                         skip_reasons["no_fail_to_pass"] = skip_reasons.get("no_fail_to_pass", 0) + 1
                         self._emit_progress(pr_label, "skip", outcome.reason or "no_fail_to_pass")

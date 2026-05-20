@@ -18,6 +18,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
     _files_in_patch,
     _path_is_test,
+    _should_skip_no_f2p,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
@@ -489,3 +490,77 @@ def test_pr_runtime_rejects_missing_bootstrap():
     options = PRRuntimeOptions()
     with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
         PRRuntimePipeline(gen_input, options, bootstrap=None)
+
+
+# --- F2P gate (v0.8.3 Arc 2 optimization) -----------------------------------
+
+
+def test_should_skip_no_f2p_default_strict() -> None:
+    """When `require_fail_to_pass=True` and F2P=0, default behavior skips."""
+    assert _should_skip_no_f2p(
+        require_fail_to_pass=True,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=False,
+        fail_to_pass=[],
+        pass_to_pass=["test_a"],
+        test_patch="--- a/tests/x.py\n+++ b/tests/x.py\n@@\n+def test_y(): pass\n",
+    )
+
+
+def test_should_skip_no_f2p_passes_when_f2p_meets_bar() -> None:
+    assert not _should_skip_no_f2p(
+        require_fail_to_pass=True,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=False,
+        fail_to_pass=["test_a"],
+        pass_to_pass=[],
+        test_patch="",
+    )
+
+
+def test_should_skip_no_f2p_passes_when_require_off() -> None:
+    """If the user opts out of F2P requirement, never skip on F2P grounds."""
+    assert not _should_skip_no_f2p(
+        require_fail_to_pass=False,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=False,
+        fail_to_pass=[],
+        pass_to_pass=[],
+        test_patch="",
+    )
+
+
+def test_relaxation_accepts_when_test_patch_and_p2p_present() -> None:
+    """F2P=0 + relaxation on + test_patch present + P2P>=1 → accept."""
+    assert not _should_skip_no_f2p(
+        require_fail_to_pass=True,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=True,
+        fail_to_pass=[],
+        pass_to_pass=["test_x"],
+        test_patch="--- a/tests/x.py\n+++ b/tests/x.py\n@@\n+def test_new(): pass\n",
+    )
+
+
+def test_relaxation_skips_when_no_test_patch() -> None:
+    """Relaxation does NOT save the candidate if test_patch is empty."""
+    assert _should_skip_no_f2p(
+        require_fail_to_pass=True,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=True,
+        fail_to_pass=[],
+        pass_to_pass=["test_x"],
+        test_patch="",
+    )
+
+
+def test_relaxation_skips_when_no_p2p() -> None:
+    """Without at least one passing test the verifier has nothing to gate on."""
+    assert _should_skip_no_f2p(
+        require_fail_to_pass=True,
+        min_fail_to_pass=1,
+        allow_no_f2p_with_test_patch=True,
+        fail_to_pass=[],
+        pass_to_pass=[],
+        test_patch="--- a/tests/x.py\n+++ b/tests/x.py\n@@\n+def test_new(): pass\n",
+    )

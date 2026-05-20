@@ -35,6 +35,13 @@ class PRRuntimeOptions(_BaseOptions):
     # --- Validation ---
     require_fail_to_pass: bool = True  # skip PRs whose F2P set is empty after validation
     min_fail_to_pass: int = 1
+    # When True AND `require_fail_to_pass` is True AND F2P=0, accept the
+    # candidate anyway IF the PR has a non-empty test_patch and a non-empty
+    # P2P set. Reasoning: the PR did exercise some test surface; the verifier
+    # will still gate on the post-patch behavior of those tests. Tradeoff:
+    # the agent could submit a no-op patch and the test would still pass —
+    # so only enable for arcs where you've inspected the candidate quality.
+    allow_no_f2p_with_test_patch: bool = False
     validation_timeout_sec: int = 600  # per-PR cap on the two test runs
     skip_validation: bool = False  # emit candidates without F2P/P2P (debug / fast iteration)
 
