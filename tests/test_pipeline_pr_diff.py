@@ -130,6 +130,30 @@ def test_squash_suffix_stripped_from_title() -> None:
     assert "(#1234)" not in instr
 
 
+def test_title_drops_parenthesized_closes_marker() -> None:
+    """Real-world title from stretchr/testify#1888:
+    "assert: fix NotSubset error messages using %#v instead of %q (fixes #1800)"
+    """
+    pr = _pr(
+        title="assert: fix NotSubset error messages using %#v instead of %q (fixes #1800)",
+        body="",
+    )
+    instr = _build_instruction(pr)
+    assert "fixes #1800" not in instr
+    assert "#1800" not in instr
+    assert "assert: fix NotSubset" in instr
+
+
+def test_strips_redirect_github_url() -> None:
+    """Dependabot release notes commonly embed `https://redirect.github.com/...` —
+    these still leak the answer.
+    """
+    body = "Pulls in github-script fixes via https://redirect.github.com/x/y/pull/1929 — done."
+    out = _strip_info_leak(body)
+    assert "redirect.github.com" not in out
+    assert "pull/1929" not in out
+
+
 def test_empty_body_emits_placeholder() -> None:
     pr = _pr(title="No description here", body="")
     instr = _build_instruction(pr)

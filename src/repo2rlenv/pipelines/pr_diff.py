@@ -63,14 +63,24 @@ _REFS_RE = re.compile(
     re.IGNORECASE,
 )
 _MD_ISSUE_LINK_RE = re.compile(r"\[#\d+\]\([^)]+\)")
+# Matches github.com proper + common GH-proxy redirector hosts (Dependabot
+# release notes embed `redirect.github.com`, GitLab mirrors use
+# `mirror.github.com`, etc.).
 _GH_URL_RE = re.compile(
-    r"https?://github\.com/[^\s)]+/(?:pull|issues|commit)/[^\s)]+", re.IGNORECASE
+    r"https?://(?:[a-z0-9.-]+\.)?github\.com/[^\s)\"<']+/(?:pull|issues|commit)/[^\s)\"<']+",
+    re.IGNORECASE,
 )
 _TRAILER_LINE_RE = re.compile(
     r"^(?:Co-authored-by|Signed-off-by|Reviewed-by|Acked-by):.*$",
     re.IGNORECASE | re.MULTILINE,
 )
-_SQUASH_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
+# Squash-merge suffix on titles. Two flavors:
+#   1. " (#1234)" — GitHub's default squash suffix
+#   2. " (fixes #1234)" — manual close-style marker
+_SQUASH_SUFFIX_RE = re.compile(
+    r"\s*\((?:(?:closes|fixes|resolves|see|refs?)\s+)?#\d+(?:\s*,\s*#\d+)*\)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _strip_info_leak(body: str) -> str:
