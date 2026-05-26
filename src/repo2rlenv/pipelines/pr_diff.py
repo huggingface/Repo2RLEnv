@@ -353,9 +353,8 @@ def _compute_no_op_baseline(oracle_diff: str) -> float:
     the structure is kept so reweighting (Phase 7a.5) auto-updates the
     baseline if non-trivial deterministic components become possible.
     """
-    # Hard-coded to match the verifier defaults; if those change here AND
-    # in _pr_diff_verifier.py, the tests will catch drift.
     from repo2rlenv.pipelines._pr_diff_verifier import (
+        _DEFAULT_WEIGHTS,
         combine,
         file_targeting,
         format_valid,
@@ -370,17 +369,9 @@ def _compute_no_op_baseline(oracle_diff: str) -> float:
         "file_targeting": file_targeting(oracle_diff, ""),
         "region_overlap": region_overlap(oracle_diff, ""),
         "similarity": similarity(oracle_diff, ""),
-        "llm_judge": None,  # judge not available at gen time
+        "llm_judge": None,
     }
-    weights = {
-        "format_valid": 0.05,
-        "size_sanity": 0.05,
-        "file_targeting": 0.10,
-        "region_overlap": 0.20,
-        "similarity": 0.20,
-        "llm_judge": 0.40,
-    }
-    return combine(components, weights)
+    return combine(components, _DEFAULT_WEIGHTS)
 
 
 def _difficulty_for(oracle_diff: str) -> tuple[int, str]:
