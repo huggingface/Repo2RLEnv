@@ -368,8 +368,8 @@ def combine(components: dict[str, float | None], weights: dict[str, float]) -> f
 # ---------------------------------------------------------------------------
 
 
-# Weights retuned after the 23-task Stage 7a pilot. Rationale (from
-# analyze_pilot.py / Sonnet 4.6 grounded in the per-task data):
+# Weights retuned after a 23-task pilot. Rationale (LLM-as-reward-engineer
+# analysis grounded in per-task component data):
 #
 #   - format_valid → 0.00: was 1.0 across ALL 21 evaluated tasks. Zero
 #     discriminative signal — its 0.05 weight was pure dead weight.

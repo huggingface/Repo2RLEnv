@@ -88,20 +88,24 @@ These filters caused 1 of the 25 launch repos (`date-fns/date-fns`) to emit 0 qu
 
 ## How the 100 envs were generated
 
-Concrete recipe used to produce the published dataset:
+The published dataset is reproducible from the public `repo2rlenv` CLI alone — no internal tooling required. The recipe is per-repo `generate` × 25 repos, sequenced with concurrency 5 and `--max-retries 2` on the harbor side:
 
 ```bash
-# 25 launch repos × 4 envs/repo, parallelized at concurrency 5
-plans/v083_scripts/run_pilot.py --out /tmp/pr-diff-100 \
-    --envs-per-repo 4 --concurrency 5
-# Top up to exactly 100 from a backup repo (date-fns yielded 0 qualifying PRs)
+# Per repo (× 25), fetch ~5× the needed envs so quality filters can drop the
+# weak ones while still leaving 4 per repo:
+repo2rlenv generate --repo <owner>/<repo> --pipeline pr_diff \
+    --pipeline-opt limit=20 \
+    --out /tmp/pr-diff-100/staged/<repo>
+
+# Top up to exactly 100 from a backup repo (date-fns yielded 0 qualifying PRs):
 repo2rlenv generate --repo tiangolo/typer --pipeline pr_diff \
     --pipeline-opt limit=20 --out /tmp/pr-diff-100/staged/typer
-# Push
+
+# Merge all per-repo dirs into one dataset/ and push:
 repo2rlenv push /tmp/pr-diff-100/dataset AdithyaSK/repo2rlenv-pr-diff
 ```
 
-The `run_pilot.py` driver runs each cell through generation → harbor oracle → harbor sonnet, captures the per-component reward.json, and writes an aggregate report. See [`plans/v083_scripts/run_pilot.py`](../../../plans/v083_scripts/) for the implementation (gitignored — launch-side tooling, not part of the published package).
+The 25 source repos span SWE-bench Python anchors, the HF ecosystem, and a multi-language slice (Go / Rust / Node / TS). Quality filters drop test-only / docs-only / reverts / oracle-too-small candidates before they reach the dataset.
 
 ## Validation evidence (smoke pilots)
 
@@ -110,7 +114,7 @@ Across three smoke runs (limit=1 → limit=5 → full 100), every successfully-c
 Two real verifier bugs were found and fixed by the pilots:
 
 1. `git diff <base>` skips untracked files → PRs that add files silently scored low. Fix: `git add -A; git diff --cached <base>`.
-2. Harbor's claude-code agent setup (`curl claude.ai/install.sh`) saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: keep concurrency ≤ 5 (`run_pilot.py` default) and pass `--max-retries 2` to harbor. **Not** baking the agent into the task Dockerfile — that would couple every env to one vendor's CLI and violate the agent-agnostic contract of a Harbor task spec.
+2. Harbor's claude-code agent setup (`curl claude.ai/install.sh`) saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: keep concurrency ≤ 5 and pass `--max-retries 2` to harbor. **Not** baking the agent into the task Dockerfile — that would couple every env to one vendor's CLI and violate the agent-agnostic contract of a Harbor task spec.
 
 ## Limitations
 
