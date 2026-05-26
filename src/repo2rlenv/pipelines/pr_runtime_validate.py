@@ -72,9 +72,13 @@ def _build_stage_script(
         parts.append(_heredoc_apply(apply_patch))
     if apply_test_patch and apply_test_patch.strip():
         parts.append(_heredoc_apply(apply_test_patch))
-    parts.append(": 'START_TEST_OUTPUT'")
+    # Emit the markers to STDOUT via echo — NOT `: 'MARKER'`. With `set -x`,
+    # a `:` no-op is traced to STDERR as `+ : MARKER`, while the test runner
+    # writes to STDOUT. Slicing between stderr-only markers captured zero test
+    # lines (the bug that silently zeroed F2P detection on any real suite).
+    parts.append("echo R2E_START_TEST_OUTPUT")
     parts.append(" && ".join(test_cmds) if test_cmds else "echo 'no test_cmds'")
-    parts.append(": 'END_TEST_OUTPUT'")
+    parts.append("echo R2E_END_TEST_OUTPUT")
     return "\n".join(parts)
 
 
@@ -162,9 +166,14 @@ def _fetch_base_commit(sandbox: DockerSandbox, base_commit: str, *, timeout: int
 
 
 def _slice_test_output(output: str) -> str:
-    """Trim to just the test-runner section between the START/END markers."""
-    start = output.find("START_TEST_OUTPUT")
-    end = output.find("END_TEST_OUTPUT")
+    """Trim to just the test-runner section between the START/END markers.
+
+    The markers are echoed to stdout (see `_build_stage_script`); since
+    `truncated()` puts stdout before stderr, `find` returns the stdout
+    occurrence first — i.e. the real test section, not the `set -x` trace.
+    """
+    start = output.find("R2E_START_TEST_OUTPUT")
+    end = output.find("R2E_END_TEST_OUTPUT")
     if start == -1:
         return output
     chunk = output[start:end] if end > start else output[start:]
@@ -216,7 +225,9 @@ def validate_pr(
     )
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = sandbox.exec(pre_script, timeout=timeout)
-    pre_log = pre.truncated(max_chars=20_000)
+    # Parse the FULL output — a real suite emits 100k+ chars of per-test lines;
+    # truncating to 20k elided the test section and zeroed F2P detection.
+    pre_log = pre.truncated(max_chars=5_000_000)
     pre_status = parse_logs(test_cmds, _slice_test_output(pre_log), language=language)
 
     # If the test_patch itself failed to apply, no point continuing.
@@ -236,7 +247,7 @@ def validate_pr(
     )
     logger.info("validate_pr: running post-fix stage")
     post = sandbox.exec(post_script, timeout=timeout)
-    post_log = post.truncated(max_chars=20_000)
+    post_log = post.truncated(max_chars=5_000_000)
     post_status = parse_logs(test_cmds, _slice_test_output(post_log), language=language)
 
     if "error: patch failed" in post_log.lower() or "patch does not apply" in post_log.lower():
@@ -263,6 +274,18 @@ def validate_pr(
             fail_to_pass.append(tname)
         elif pre_st == "PASSED" and post_st == "PASSED":
             pass_to_pass.append(tname)
+
+    # Diagnostics: when yield is poor, this tells us whether the suite even
+    # ran (test counts) and where transitions went — distinguishing "genuine
+    # non-bugfix PR" from "validation didn't detect the failing test".
+    logger.info(
+        "validate_pr: parsed pre=%d post=%d tests; f2p=%d p2p=%d (pre statuses: %s)",
+        len(pre_status),
+        len(post_status),
+        len(fail_to_pass),
+        len(pass_to_pass),
+        {s: sum(1 for v in pre_status.values() if v == s) for s in set(pre_status.values())},
+    )
 
     if not fail_to_pass:
         return ValidationOutcome(

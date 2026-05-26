@@ -15,11 +15,15 @@ import pytest
 
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
+    _build_instruction,
     _count_new_test_funcs,
     _difficulty_bucket,
     _files_in_patch,
+    _is_non_bug_pr,
+    _linked_issue_number,
     _path_is_test,
     _reflow_pr_body,
+    _strip_info_leak,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
@@ -290,6 +294,75 @@ def test_difficulty_bucket():
     assert _difficulty_bucket(2, 15) == "small"
     assert _difficulty_bucket(1, 50) == "medium"
     assert _difficulty_bucket(3, 200) == "large"
+
+
+# --- info-leak strip + issue sourcing + non-bug filter -----------------------
+
+
+def test_strip_info_leak_removes_shas_and_refs():
+    text = (
+        "This PR cherry-picks c3535905 from main.\n"
+        "See https://github.com/pallets/click/pull/3504 and fixes #3458.\n"
+        "Background in [#1234](https://github.com/x/y/issues/1234)."
+    )
+    out = _strip_info_leak(text)
+    assert "c3535905" not in out
+    assert "pull/3504" not in out
+    assert "#3458" not in out
+    assert "#1234" not in out
+
+
+def test_strip_info_leak_keeps_real_prose():
+    text = "The parser crashes on empty input because the index is off by one."
+    assert _strip_info_leak(text) == text
+
+
+def test_reflow_drops_tests_added_section():
+    """A 'Tests added/updated' block names the grading tests — must be cut."""
+    body = (
+        "The completion output isn't escaped for fish.\n\n"
+        "### Tests added / updated\n"
+        "- test_fish_format_completion_escapes_help\n"
+    )
+    out = _reflow_pr_body(body)
+    assert "completion output isn't escaped" in out
+    assert "test_fish_format_completion_escapes_help" not in out
+
+
+def test_linked_issue_number():
+    assert _linked_issue_number("blah\nFixes #3458 thanks") == 3458
+    assert _linked_issue_number("Closes #12, #13") == 12
+    assert _linked_issue_number("no refs here") is None
+
+
+def test_is_non_bug_pr():
+    assert _is_non_bug_pr("Backport #3504 from main to stable")
+    assert _is_non_bug_pr("Bump version to 8.4.2")
+    assert _is_non_bug_pr('Revert "fix the thing"')
+    assert _is_non_bug_pr("cherry-pick fix into stable")
+    assert not _is_non_bug_pr("Fix crash in argument parsing")
+
+
+def test_build_instruction_falls_back_to_pr_when_no_issue():
+    """No linked issue + no owner/name → use the PR body, leak-stripped."""
+    from repo2rlenv.github import PullRequestSummary
+
+    pr = PullRequestSummary(
+        number=1,
+        title="Fix crash on empty input",
+        body="The CLI crashes on empty input. cherry-pick abcdef1234567 later.",
+        state="closed",
+        merged_at="2026-01-01T00:00:00Z",
+        base_ref="main",
+        base_sha="0" * 40,
+        head_sha="1" * 40,
+        is_draft=False,
+        url="https://github.com/x/y/pull/1",
+        changed_files=["src/x.py"],
+    )
+    instr = _build_instruction(pr)  # no owner/name → no issue fetch
+    assert "Fix crash on empty input" in instr
+    assert "abcdef1234567" not in instr  # SHA leak stripped
 
 
 # --- build_environment_dockerfile --------------------------------------------

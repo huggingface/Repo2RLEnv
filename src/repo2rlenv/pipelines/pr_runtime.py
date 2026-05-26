@@ -52,6 +52,7 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import (
     GitHubError,
     PullRequestSummary,
+    fetch_issue,
     fetch_pr_diff,
     list_merged_prs,
 )
@@ -64,15 +65,63 @@ logger = logging.getLogger(__name__)
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 
-# Boilerplate sections that bloat a PR body without describing the problem:
-# review checklists, changelog/release-note blocks, and PR-template headers.
-# Dropping them keeps the instruction focused on the issue (eval integrity).
+# Which issue does this PR close? Used to source the problem statement from
+# the issue (bug report) instead of the PR body (fix description).
+_LINKED_ISSUE_RE = re.compile(
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b", re.IGNORECASE
+)
+
+# Boilerplate sections that bloat a PR body without describing the problem,
+# OR leak the solution. We drop everything from the first such header on.
+# Crucially this includes test sections: a "Tests added / updated" block
+# names the exact FAIL_TO_PASS tests that grade the task (an eval leak).
 _BODY_NOISE_HEADER_RE = re.compile(
     r"^\s*#{0,6}\s*"
     r"(?:checklist|change\s*log|changelog|release\s*notes?|how\s+to\s+test|"
-    r"types?\s+of\s+changes?|pr\s+checklist|reviewer\s+notes?)\s*:?\s*$",
+    r"test\s*plan|tests?\s+added(?:\s*/?\s*updated)?|tests?\s+added\s+or\s+updated|"
+    r"testing|types?\s+of\s+changes?|pr\s+checklist|reviewer\s+notes?)\s*:?\s*$",
     re.IGNORECASE,
 )
+
+# Solution-leak patterns stripped from the problem statement before use.
+_LEAK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # "cherry-pick c3535905", "backport commit abc1234", "commit deadbeef1234"
+    re.compile(
+        r"\b(?:cherry[-\s]?pick(?:ed|ing|s)?|back[-\s]?port(?:ed|ing|s)?|commit)\b"
+        r"[^\n]*?\b[0-9a-f]{7,40}\b",
+        re.IGNORECASE,
+    ),
+    # Bare full 40-char SHAs (almost always a git ref pointing at the fix)
+    re.compile(r"\b[0-9a-f]{40}\b"),
+    # Markdown links to a github PR/issue/commit (point straight at the fix)
+    re.compile(r"\[[^\]]*\]\(https?://github\.com/[^\s)]*?/(?:pull|issues|commit)/[^\s)]*\)"),
+    # Bare github PR/issue/commit URLs (incl. redirect.github.com)
+    re.compile(r"https?://(?:\w+\.)?github\.com/[^\s)]*?/(?:pull|issues|commit)/\S+"),
+    # Closes/Fixes/Resolves/See/Refs #N (and cross-repo owner/repo#N)
+    re.compile(
+        r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|see|refs?|ref|follow[-\s]?up(?:\s+to)?)\b"
+        r"[:\s]*(?:[\w.-]+/[\w.-]+)?#\d+",
+        re.IGNORECASE,
+    ),
+    # Markdown issue/PR refs `[#1234](url)` and bare `[#1234]`
+    re.compile(r"\[#\d+\]\([^)]*\)"),
+)
+
+
+def _linked_issue_number(pr_body: str) -> int | None:
+    """Return the issue number this PR closes, if any (`Closes #123`)."""
+    m = _LINKED_ISSUE_RE.search(pr_body or "")
+    return int(m.group(1)) if m else None
+
+
+def _strip_info_leak(text: str) -> str:
+    """Remove solution-pointing references (SHAs, fix-PR links, #refs)."""
+    out = text
+    for pat in _LEAK_PATTERNS:
+        out = pat.sub("", out)
+    return out
+
+
 # A markdown comment block (PR templates wrap guidance in <!-- ... -->).
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 # Collapse 3+ blank lines down to a single blank line.
@@ -187,16 +236,45 @@ def split_patch_and_test_patch(unified_diff: str) -> tuple[str, str]:
     return "".join(patch_parts), "".join(test_parts)
 
 
-def _build_instruction(pr: PullRequestSummary) -> str:
-    """Strip 'Closes #N' style boilerplate from the PR description."""
-    body = (pr.body or "").strip()
+def _build_instruction(
+    pr: PullRequestSummary,
+    owner: str = "",
+    name: str = "",
+    *,
+    token: str | None = None,
+) -> str:
+    """Build the task instruction (problem statement).
+
+    Sources the problem from the **linked issue** (the bug *report*) when the
+    PR closes one, falling back to the PR body otherwise. The PR body is
+    written by the fixer and routinely leaks the solution (commit SHAs to
+    cherry-pick, the fix approach, the names of the grading tests); the issue
+    describes the *symptom*, which is what we want the agent to work from.
+    This mirrors SWE-bench, which builds problem statements from issue text.
+
+    Whatever text we use is then run through the info-leak strip + reflow so
+    stray fix-PR links / #refs / SHAs / test-section noise don't leak through.
+    """
+    title = pr.title
+    body = pr.body or ""
+
+    issue_num = _linked_issue_number(pr.body or "")
+    if issue_num is not None and owner and name:
+        fetched = fetch_issue(owner, name, issue_num, token=token)
+        if fetched:
+            i_title, i_body = fetched
+            title = i_title or pr.title
+            body = i_body or body
+
     body = _CLOSES_RE.sub("", body)
-    body = _reflow_pr_body(body)
+    body = _strip_info_leak(body)
+    body = _reflow_pr_body(body).strip()
     if not body:
-        body = "(no description provided in source PR)"
+        body = "(no description provided in source issue/PR)"
+    title = _strip_info_leak(title).strip() or pr.title
     return (
         f"# Issue\n\n"
-        f"**Title:** {pr.title}\n\n"
+        f"**Title:** {title}\n\n"
         f"## Description\n\n"
         f"{body}\n\n"
         f"## Task\n\n"
@@ -208,6 +286,21 @@ def _build_instruction(pr: PullRequestSummary) -> str:
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text or ""))
+
+
+# PR titles that signal a non-bug chore — not a meaningful SWE task, and their
+# bodies routinely leak the fix (commit SHA to cherry-pick, the source PR).
+_NON_BUG_TITLE_RE = re.compile(
+    r"\b(?:back[-\s]?port|cherry[-\s]?pick|revert|"
+    r"bump|release|changelog|merge\s+branch|forward[-\s]?merge|"
+    r"prepare\s+(?:for\s+)?release|version\s+bump|re-?sync|sync\s+stable)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_non_bug_pr(title: str) -> bool:
+    """True if the PR title marks a backport / cherry-pick / release / revert."""
+    return bool(_NON_BUG_TITLE_RE.search(title or ""))
 
 
 def _verifier_source() -> str:
@@ -649,6 +742,7 @@ class PRRuntimePipeline:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         token = resolve_github_token(self.input.repo, self.input.auth)
+        self._token = token  # reused by _build_task to fetch linked-issue text
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
                 "private repo specified but no GitHub token resolved. "
@@ -795,6 +889,11 @@ class PRRuntimePipeline:
             return "not_merged"
         if not pr.changed_files:
             return "no_files"
+        if _is_non_bug_pr(pr.title):
+            # Backports / cherry-picks / release chores / reverts / version
+            # bumps aren't real fix tasks, and their bodies leak commit SHAs
+            # and fix-PR links. Drop them up front.
+            return "non_bug_pr"
         if (
             self.options.min_problem_statement_words > 0
             and _word_count(pr.body or "") < self.options.min_problem_statement_words
@@ -951,7 +1050,7 @@ class PRRuntimePipeline:
             name=task_id,
             org=self.input.output.org,
             description=pr.title or task_id,
-            instruction=_build_instruction(pr),
+            instruction=_build_instruction(pr, owner, name, token=getattr(self, "_token", None)),
             oracle_diff=patch,
             repo2env=repo2env,
             difficulty="medium",
