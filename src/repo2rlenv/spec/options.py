@@ -49,7 +49,16 @@ class PRRuntimeOptions(_BaseOptions):
 
 
 class PRDiffOptions(_BaseOptions):
-    """SWE-RL-style: text-only PR mining, no execution, no Docker."""
+    """SWE-RL-style PR mining with a Harbor-runnable diff-similarity verifier.
+
+    Each emitted task includes an environment/Dockerfile (python:3.12-slim +
+    git + the repo checked out at base_commit + the oracle diff baked in)
+    and a tests/test.sh that captures the agent's edits via `git diff` and
+    scores them against the oracle using SWE-RL-style sequence similarity
+    (mirrors `repo2rlenv.reward.calculate_diff_similarity_reward`). The
+    Dockerfile is intentionally minimal — no LLM bootstrap — so cells stay
+    cheap.
+    """
 
     limit: int = 50
     since: date | None = None
@@ -59,6 +68,12 @@ class PRDiffOptions(_BaseOptions):
     diff_format: Literal["unified", "search_replace"] = "unified"
     max_files_per_pr: int = 5
     skip_drafts: bool = True
+    # Emit environment/Dockerfile + tests/test.sh so the task is a fully
+    # Harbor-runnable env (oracle ⇒ reward 1.0; claude-code agent ⇒ a real
+    # diff-similarity score). Default on. Set False to fall back to the
+    # v0.8.1 text-only output (just instruction.md + solution/patch.diff)
+    # for training pipelines that compute the reward externally.
+    emit_harbor_env: bool = True
 
 
 class PRStreamOptions(PRRuntimeOptions):

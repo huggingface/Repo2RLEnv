@@ -1,4 +1,42 @@
-# `pr_diff` — instruction info-leak hardening
+# `pr_diff` — Harbor-runnable diff-similarity env + info-leak hardening
+
+Two related changes in this PR:
+
+1. **`pr_diff` now emits a fully Harbor-runnable environment** with a
+   SWE-RL-style diff-similarity verifier (was: text-only output, not
+   runnable by harbor). See [§ Harbor env](#harbor-env-swe-rl-style-verifier)
+   below.
+2. **Instruction info-leak hardening** — broadened the keyword/URL strip
+   so PR descriptions don't hint at the patch the agent should produce.
+
+## Harbor env (SWE-RL-style verifier)
+
+Each emitted task now ships:
+
+- `environment/Dockerfile` — `python:3.12-slim` + git + the repo cloned and
+  checked out at the PR's base commit + the oracle diff base64-baked into
+  `/verifier/oracle.patch`. No bootstrap LLM — the build is ~30s and uses
+  pure stdlib for the reward function.
+- `tests/test.sh` — captures the agent's edits via `git diff <base_commit>`
+  and computes a SWE-RL-style sequence-similarity score against the oracle
+  diff (mirrors `repo2rlenv.reward.calculate_diff_similarity_reward`).
+  Writes the score (0.0–1.0) to `/logs/verifier/reward.txt`.
+
+End-to-end verification on `pallets/click` PR #3508:
+
+| Adapter | Reward | Wall time |
+|---|---|---|
+| `harbor run -a oracle` | **1.000** | 28 s |
+| `harbor run -a claude-code -m anthropic/claude-sonnet-4-6` | **0.710** | 4 m 32 s |
+
+So: gold patch ⇒ perfect score; Sonnet ⇒ a real partial-credit number.
+Both via `harbor run` against the emitted task as-is.
+
+Behind the `PRDiffOptions.emit_harbor_env: bool = True` flag (default on).
+Set False to fall back to the v0.8.1 text-only output for training
+pipelines that compute the reward externally.
+
+## Info-leak hardening
 
 The v0.8.1 implementation stripped `Closes / Fixes / Resolves #N` from PR
 bodies. A local sweep across 38 repos (Tier A SWE-bench + Tier B HF
