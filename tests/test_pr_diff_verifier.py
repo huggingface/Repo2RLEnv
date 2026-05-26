@@ -347,3 +347,26 @@ def test_combine_partial_credit() -> None:
 def test_combine_all_none_returns_zero() -> None:
     comps: dict[str, float | None] = dict.fromkeys(_WEIGHTS, None)
     assert combine(comps, _WEIGHTS) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Default weights (post pilot-v4 retune)
+# ---------------------------------------------------------------------------
+
+
+def test_default_weights_sum_to_one() -> None:
+    """The retuned defaults must still sum to 1.0 so reward stays in [0,1]."""
+    from repo2rlenv.pipelines._pr_diff_verifier import _DEFAULT_WEIGHTS
+
+    assert sum(_DEFAULT_WEIGHTS.values()) == pytest.approx(1.0)
+
+
+def test_default_weights_match_pilot_recommendations() -> None:
+    """Codify the post-pilot retune so weights can't silently regress."""
+    from repo2rlenv.pipelines._pr_diff_verifier import _DEFAULT_WEIGHTS
+
+    assert _DEFAULT_WEIGHTS["format_valid"] == 0.0  # zero discriminative signal
+    assert _DEFAULT_WEIGHTS["llm_judge"] >= 0.4  # most informative component
+    assert (
+        _DEFAULT_WEIGHTS["similarity"] < _DEFAULT_WEIGHTS["region_overlap"]
+    )  # correlated → don't double-count

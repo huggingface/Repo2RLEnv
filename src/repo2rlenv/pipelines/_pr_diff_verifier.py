@@ -368,14 +368,39 @@ def combine(components: dict[str, float | None], weights: dict[str, float]) -> f
 # ---------------------------------------------------------------------------
 
 
+# Weights retuned after the 23-task Stage 7a pilot. Rationale (from
+# analyze_pilot.py / Sonnet 4.6 grounded in the per-task data):
+#
+#   - format_valid → 0.00: was 1.0 across ALL 21 evaluated tasks. Zero
+#     discriminative signal — its 0.05 weight was pure dead weight.
+#   - similarity → 0.10: Pearson ~0.85 correlation with region_overlap.
+#     Carrying both at 0.20 double-counts positional accuracy and
+#     additionally penalizes legitimate alternative implementations.
+#   - llm_judge → 0.50: only component capturing semantic correctness
+#     independent of textual form; diverges informatively from
+#     similarity on cases like tokenizers (judge=0.72, sim=0.08).
+#   - region_overlap stays 0.20: strongest spatial-localization signal.
+#   - file_targeting → 0.12: leading indicator, less correlated with the
+#     rest than region/similarity are with each other.
+#   - size_sanity → 0.08: useful outlier detector for catastrophic
+#     over/under-generation (prettier=0.01, serde=0.08).
+#
+# Total: 0.00 + 0.08 + 0.12 + 0.20 + 0.10 + 0.50 = 1.00.
 _DEFAULT_WEIGHTS = {
-    "format_valid": 0.05,
-    "size_sanity": 0.05,
-    "file_targeting": 0.10,
+    "format_valid": 0.00,
+    "size_sanity": 0.08,
+    "file_targeting": 0.12,
     "region_overlap": 0.20,
-    "similarity": 0.20,
-    "llm_judge": 0.40,
+    "similarity": 0.10,
+    "llm_judge": 0.50,
 }
+
+# Hard cap: when size_sanity < this threshold, clamp final reward to
+# ≤ CATASTROPHIC_SIZE_CAP. Prevents a charitable judge from inflating
+# the score on patches that are wildly the wrong size (catastrophic
+# over- or under-generation).
+_CATASTROPHIC_SIZE_THRESHOLD = 0.10
+_CATASTROPHIC_SIZE_CAP = 0.40
 
 
 def _read_weights_from_env() -> dict[str, float]:
@@ -438,6 +463,14 @@ def main(argv: list[str] | None = None) -> int:
     weights = _read_weights_from_env()
     final = combine(components, weights)
     final = max(0.0, min(1.0, final))
+
+    # Hard cap on catastrophic size mismatches. Without this, a charitable
+    # judge can inflate the reward on patches that are dramatically the
+    # wrong size (prettier scored 0.23 with size_sanity=0.011 — the judge
+    # was lenient at 0.25 despite the patch being a near-no-op vs a
+    # 500-line oracle). The cap kicks in only at the extremes.
+    if ss < _CATASTROPHIC_SIZE_THRESHOLD:
+        final = min(final, _CATASTROPHIC_SIZE_CAP)
 
     breakdown = {
         "final_reward": round(final, 6),
