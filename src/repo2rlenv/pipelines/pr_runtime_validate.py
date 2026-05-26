@@ -85,12 +85,17 @@ def _build_stage_script(
     return "\n".join(parts)
 
 
+# Install git AND ca-certificates. Minimal images (esp. node:alpine) ship
+# without CA certs, so `git fetch` over HTTPS dies with "server certificate
+# verification failed. CAfile: none" — which silently breaks base_commit
+# fetching during validation. Install both; refresh the CA store on alpine.
 _GIT_DEFENSIVE_INSTALL = (
-    "command -v git >/dev/null 2>&1 || "
+    "(command -v git >/dev/null 2>&1 && [ -e /etc/ssl/certs/ca-certificates.crt ]) || "
     "(apt-get update >/dev/null 2>&1 && "
-    "apt-get install -y --no-install-recommends git >/dev/null 2>&1 && "
+    "apt-get install -y --no-install-recommends git ca-certificates >/dev/null 2>&1 && "
     "rm -rf /var/lib/apt/lists/*) || "
-    "apk add --no-cache git >/dev/null 2>&1 || true"
+    "(apk add --no-cache git ca-certificates >/dev/null 2>&1 && "
+    "update-ca-certificates >/dev/null 2>&1) || true"
 )
 
 
