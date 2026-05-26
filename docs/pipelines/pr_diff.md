@@ -12,7 +12,7 @@
 | Inspiration | [SWE-RL](https://github.com/facebookresearch/swe-rl) (Meta, NeurIPS '25) |
 | Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
 | Options model | [`PRDiffOptions`](../../src/repo2rlenv/spec/options.py) |
-| Reference dataset | [`AdithyaSK/repo2rlenv-pr_diff-v083`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr_diff-v083) on HF Hub |
+| Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) on HF Hub |
 
 ## What it does
 
@@ -187,8 +187,10 @@ print(result.candidates, result.emitted, result.skip_reasons)
 
 A verified reference dataset is published on HF Hub:
 
+**<https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff>**
+
 ```bash
-repo2rlenv pull AdithyaSK/repo2rlenv-pr_diff-v083 /tmp/pr_diff-ref
+repo2rlenv pull AdithyaSK/repo2rlenv-pr-diff /tmp/pr_diff-ref
 repo2rlenv validate /tmp/pr_diff-ref
 
 # Smoke-check with the oracle (must score reward=1.0)

@@ -362,6 +362,23 @@ def prepare_dataset_for_push(
     local_ref = next(iter(distinct))
     looks_local = local_ref.startswith(("local/", "local-")) or local_ref.startswith("localhost")
 
+    # Fast path for self-contained Dockerfiles: if the FROM ref is already a
+    # publicly-pullable image (e.g. ``python:3.12-slim`` on Docker Hub, or
+    # a registry-qualified digest) and the rest of the Dockerfile is the
+    # complete recipe — no per-task image push needed. The published task's
+    # Dockerfile can be rebuilt on any consumer's machine just by reading
+    # the FROM + the inline RUN lines.
+    #
+    # pr_diff datasets are the canonical case: every task's Dockerfile is
+    # ``FROM python:3.12-slim`` followed by apt-get + git clone + bake the
+    # oracle. No bootstrap-built image upstream.
+    if not looks_local:
+        _emit(
+            f"self-contained Dockerfile (FROM {local_ref!r}); "
+            "skipping image step — consumers rebuild from the inline recipe"
+        )
+        return PrepareResult(mode="local_only", tasks_rewritten=0)
+
     # Decide mode
     if inline_dockerfile:
         return _go_inline(
