@@ -47,8 +47,9 @@ repo2rlenv pull <your-org>/<dataset-name> ./datasets/<dataset-name>
 # Anyone can pull + run a published dataset on a fresh machine:
 harbor download --registry-url https://huggingface.co/datasets/<your-org>/<dataset-name>
 harbor run --agent oracle --path ./<dataset-name>/<task-id>
-# Note: requires a sandbox-verified pipeline (pr_runtime, commit_runtime, …).
-# Text-only pipelines (pr_diff) don't emit an environment/ dir and can't be run here.
+# `pr_diff` ships a thin python:3.12-slim env with a multi-component
+# diff-similarity verifier. `pr_runtime` / `commit_runtime` / etc. need
+# their bootstrap-built env (registry-pulled, no rebuild required).
 ```
 
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
@@ -61,7 +62,7 @@ Different methods to manufacture verifiable tasks from a repo. Pick one, run it,
 
 | Pipeline | What it does | Sandbox | LLM | Supported languages | Inspiration | Docs |
 |---|---|:-:|:-:|---|---|:-:|
-| `pr_diff` | Mine merged PR diffs (text only, no execution) | — | — | any | [SWE-RL](https://github.com/facebookresearch/swe-rl) | [📄](./docs/pipelines/pr_diff.md) |
+| `pr_diff` | Mine merged PR diffs; multi-component diff-similarity verifier + LLM judge | thin¹ | — | any | [SWE-RL](https://github.com/facebookresearch/swe-rl) | [📄](./docs/pipelines/pr_diff.md) |
 | `pr_runtime` | Mine merged PRs; sandbox-verify F2P/P2P oracle | ✅ | ✅ | Py · Node · Go · Rust | [SWE-bench](https://github.com/SWE-bench/SWE-bench) | [📄](./docs/pipelines/pr_runtime.md) |
 | `pr_stream` | Continuous PR mining (watermark-based, monthly cron) | ✅ | ✅ | Py · Node · Go · Rust | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) | [📄](./docs/pipelines/pr_stream.md) |
 | `commit_runtime` | Commit-level mining (bypass PR-review filters) | ✅ | ✅ | Py · Node · Go · Rust | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) | [📄](./docs/pipelines/commit_runtime.md) |

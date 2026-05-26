@@ -1,57 +1,93 @@
 # `pr_diff`
 
-**SWE-RL-inspired text-only PR mining.** No Docker, no test execution at generation time.
+**SWE-RL-inspired PR mining with a Harbor-runnable multi-component verifier.** Each emitted task is a real merged GitHub PR; the agent edits the repo and the verifier scores the diff with five deterministic components plus an LLM-as-judge.
 
 | | |
 |---|---|
-| Status | **implemented** in v0.1 |
-| Sandbox required at gen | No |
-| LLM required at gen | No (LLM optional for instruction polish — not used in v0.1) |
-| Reward kinds emitted | `diff_similarity` |
+| Status | **implemented** |
+| Sandbox required at gen | No (text-only generation; verifier runs in a thin `python:3.12-slim` container) |
+| LLM required at gen | No |
+| LLM required at verify | Optional — falls back to deterministic-only when no API key |
+| Reward kinds emitted | `diff_similarity_multi_component` |
 | Inspiration | [SWE-RL](https://github.com/facebookresearch/swe-rl) (Meta, NeurIPS '25) |
-| Reference clone | `references/swe-rl/` |
-| Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py) |
+| Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
 | Options model | [`PRDiffOptions`](../../src/repo2rlenv/spec/options.py) |
+| Reference dataset | [`AdithyaSK/repo2rlenv-pr_diff-v083`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr_diff-v083) on HF Hub |
 
 ## What it does
 
 ```mermaid
 flowchart TD
-    A[Repo URL<br/>e.g. huggingface/trl] --> B[gh pr list<br/>--state merged]
+    A[Repo URL<br/>e.g. pallets/click] --> B[gh pr list<br/>--state merged]
     B --> C{For each PR}
-    C --> D{Filter: drafts?<br/>file count?<br/>date range?}
+    C --> D{Filters<br/>drafts? file count?<br/>test-only? docs-only?<br/>revert? min LOC?}
     D -- skip --> Z[Count skip reason<br/>continue loop]
     D -- pass --> E[gh pr diff #N]
-    E --> F{Empty diff?}
-    F -- yes --> Z
-    F -- no --> G[Build instruction.md<br/>from PR title + body<br/>strip Closes #N]
-    G --> H[Compute content_hash<br/>build metadata]
-    H --> I[Write Harbor task dir]
-    I --> J[task.toml<br/>+ instruction.md<br/>+ solution/patch.diff]
+    E --> F[Strip info-leak from<br/>instruction title + body]
+    F --> G[Compute baseline reward<br/>+ difficulty bucket]
+    G --> H[Build Harbor task]
+    H --> I[task.toml<br/>+ instruction.md<br/>+ solution/patch.diff<br/>+ solution/solve.sh<br/>+ environment/Dockerfile<br/>+ tests/test.sh]
 ```
 
 For each merged PR within scope:
 
-1. List PRs via `gh pr list` (`gh` CLI), filter by date / draft / file count
-2. For each candidate PR, fetch the unified diff via `gh pr diff`
-3. Build instruction text from the PR title + description (strips `Closes #N` boilerplate)
-4. Emit a Harbor task: `task.toml` + `instruction.md` + `solution/patch.diff`
+1. List PRs via `gh pr list`, apply structural filters (date, draft, file count) + quality filters (drop test-only, docs-only, reverts, trivially-small diffs).
+2. Fetch the unified diff via `gh pr diff`.
+3. Strip leakage patterns from the PR title + body (eight pattern families — see [Instruction info-leak strip](#instruction-info-leak-strip) below).
+4. Compute the **calibration baseline** (the score an empty patch would get against this oracle) and the **difficulty bucket** by LOC changed.
+5. Emit a Harbor-spec task: `instruction.md`, `solution/{patch.diff, solve.sh}`, `environment/Dockerfile`, `tests/test.sh`, `task.toml`.
 
-No environment is built. No tests are run. Verification is purely diff-similarity against the stored oracle when consumers train or evaluate.
+The environment is a thin `python:3.12-slim` image with git + claude-code pre-installed and the repo checked out at `base_commit`. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
 
-## Why "lite"
+## Multi-component reward
 
-SWE-RL's key insight: you don't need to *execute* a PR's tests to get a useful training signal. The merged diff itself is high-quality ground truth — a sequence-similarity reward against the oracle is dense, fast, and scales to thousands of tasks per repo without provisioning containers.
+The verifier captures the agent's edits as a unified diff against `base_commit`, then scores it against the oracle (gold) diff using **six components, weighted sum**:
 
-Trade-off vs full `pr_runtime`:
+| Component | Range | Default weight | What it captures |
+|---|:--:|--:|---|
+| `format_valid` | 0 or 1 | 0.00 | Does the predicted text parse as a unified diff? Always 1 for the `claude-code` adapter — kept as a guard, weight 0 because it carries no discriminative signal. |
+| `size_sanity` | [0, 1] | 0.08 | `min(oracle_loc, predicted_loc) / max(...)`. Catches "rampage through the codebase" and "no-op" failure modes. |
+| `file_targeting` | [0, 1] | 0.12 | F1 over the changed-file sets (not Jaccard — missing an oracle file is worse than touching one extra). |
+| `region_overlap` | [0, 1] | 0.20 | For each oracle hunk, did the predicted diff edit a line within 5 lines of that hunk in the same file? Strongest spatial-localization signal. |
+| `similarity` | [0, 1] | 0.10 | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no free credit for unchanged context). |
+| `llm_judge` | [0, 1] or null | 0.50 | Haiku rates "does this patch logically address the issue described?" Most informative semantic signal. Null on missing API key / network error → remaining weights are re-normalized. |
 
-| | `pr_diff` | `pr_runtime` |
-|---|---|---|
-| Captures | code context + oracle diff | Dockerfile + tests + oracle + instruction |
-| Reward at training | `diff_similarity` (dense, no exec) | `test_execution` (binary, exec required) |
-| Cost per task | Low (text only) | High (Docker build + test run) |
-| Yield per repo | High (any merged PR) | Lower (must build cleanly) |
-| Use case | RL warm-up, large-scale signal | RL final-stage, eval |
+Final reward is clipped to `[0, 1]`. A **catastrophic-size hard cap** clamps the final to ≤ 0.40 when `size_sanity < 0.10` — stops a charitable judge from inflating scores on patches that are wildly the wrong size.
+
+The verifier writes both `/logs/verifier/reward.txt` (single float, Harbor reads this) and `/logs/verifier/reward.json` (full breakdown for downstream inspection / re-weighting).
+
+Weights are overridable per-task via `task.toml.metadata` or per-run via `R2E_W_{FORMAT,SIZE,FILE,REGION,SIM,JUDGE}` env vars passed to `harbor run --ve`.
+
+### Calibration baseline
+
+Each task carries `task.toml.metadata.repo2env.reward_calibration.baseline_reward` — the reward an empty predicted diff would get against this oracle. Consumers can normalize:
+
+```
+calibrated = (raw - baseline) / (1 - baseline)
+```
+
+`calibrated < 0` means the agent did *worse* than no-op. Useful for cross-task comparability since trivial 5-line fixes and 200-line refactors are no longer the same number.
+
+### Difficulty bucketing
+
+Each task carries `task.toml.metadata.difficulty` ∈ `{easy, small, medium, large}` based on oracle LOC changed (≤ 5, 6 – 20, 21 – 80, > 80 respectively), plus a raw `loc_changed` int. Lets training scripts weight or filter by difficulty.
+
+## Instruction info-leak strip
+
+PR descriptions often contain pointers to the answer. The pipeline strips eight pattern families from instructions before they reach the agent:
+
+| Pattern | Example |
+|---|---|
+| Multi-issue closes | `Closes #42`, `Fixes #1, #2, #3` |
+| `See` / `refs` / `follow-up to` linkbacks | `See #99`, `Follow-up to PR #42` |
+| Markdown issue links | `[#1234](https://github.com/x/y/issues/1234)` |
+| Closes with markdown-link refs | `Closes [#1234](url)` |
+| Descriptive markdown links to GH URLs | `[my analysis](https://github.com/x/y/pull/1234)` |
+| Bare GitHub URLs | `https://github.com/foo/bar/pull/42`, also `redirect.github.com` |
+| Commit trailers | `Co-authored-by:`, `Signed-off-by:` |
+| Title squash suffix | `Fix the bug (#1234)`, `(fixes #1800)` |
+
+Composite patterns are stripped before piece-wise patterns so we don't leave orphaned `Closes ` keywords or empty `[text]()` markdown brackets behind.
 
 ## Options
 
@@ -61,69 +97,67 @@ class PRDiffOptions(BaseModel):
     since: date | None = None
     until: date | None = None
     state: Literal["merged", "all"] = "merged"
-    context_window_loc: int = 200
     diff_format: Literal["unified", "search_replace"] = "unified"
-    max_files_per_pr: int = 5         # skip mega-PRs
+    max_files_per_pr: int = 5
     skip_drafts: bool = True
+    emit_harbor_env: bool = True
+    min_loc_changed: int = 3
 ```
 
 | Field | Default | Notes |
 |---|---|---|
-| `limit` | `50` | Max tasks emitted (over-fetched 3× client-side to allow filtering) |
-| `since` / `until` | `None` | ISO date bounds applied to `mergedAt` |
-| `state` | `"merged"` | Currently only `merged` is supported |
-| `max_files_per_pr` | `5` | Drops sweeping refactors (heuristic for noise control) |
-| `skip_drafts` | `True` | Drops PRs marked as drafts |
-| `context_window_loc` | `200` | Reserved — not yet used in v0.1 |
-| `diff_format` | `"unified"` | Reserved — `search_replace` reformatting not yet implemented |
+| `limit` | `50` | Max tasks emitted (over-fetched ~3× client-side to allow filtering). |
+| `since` / `until` | `None` | ISO date bounds applied to `mergedAt`. |
+| `state` | `"merged"` | Currently only `merged` is supported. |
+| `max_files_per_pr` | `5` | Drops sweeping refactors. |
+| `skip_drafts` | `True` | Drops draft PRs. |
+| `emit_harbor_env` | `True` | Emits `environment/Dockerfile` + `tests/test.sh` so `harbor run` works directly. Set False for the v0.1-style text-only output. |
+| `min_loc_changed` | `3` | Reject PRs whose oracle diff has fewer `+`/`-` lines than this — too trivial to be a meaningful task. |
 
-## `[metadata.repo2env.pr_diff]` schema
+### Skip reasons
 
-Each emitted task carries this subtable inside `task.toml`:
-
-```toml
-[metadata.repo2env.pr_diff]
-pr_merged_at = "2026-05-05T13:46:07Z"
-diff_format = "unified"
-context_files = ["trl/trainer/dpo_trainer.py", "trl/trainer/_utils.py"]
-```
-
-The standard `[metadata.repo2env]` parent subtable also carries `pipeline = "pr_diff"`, `repo`, `ref` (base commit SHA), `reference` (PR URL), `source_access`, `built_at`, and `content_hash`.
-
-## Skip reasons
-
-A PR may not become a task. The pipeline records counts of each skip reason in the result:
+A PR may not become a task. The pipeline records counts per reason:
 
 | Reason | Meaning |
 |---|---|
 | `draft` | `pr.is_draft and skip_drafts=True` |
-| `no_files` | PR touches zero files (rare) |
-| `too_many_files` | Exceeds `max_files_per_pr` |
-| `not_merged` | No `mergedAt` timestamp despite filter |
+| `no_files` / `too_many_files` | Outside `max_files_per_pr` |
+| `not_merged` | No `mergedAt` timestamp |
 | `empty_diff` | `gh pr diff` returned an empty string |
 | `diff_fetch_failed` | `gh pr diff` raised |
+| `test_only_diff` | 100% of touched files are test files |
+| `docs_only_diff` | 100% of touched files are `.md` / `.rst` / `docs/` |
+| `revert_pr` | Title starts with `Revert ` |
+| `diff_too_small` | Fewer than `min_loc_changed` `+`/`-` lines |
+| `instruction_too_thin` | Empty body + short title after info-leak strip |
 
 ## Example invocations
 
 ### CLI
 
 ```bash
-# Local generation
+# Generate one env from a single repo
 repo2rlenv generate \
-  --repo huggingface/trl \
+  --repo pallets/click \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
-  --pipeline-opt max_files_per_pr=10 \
-  --out ./datasets/trl-r2e
+  --out ./datasets/click-prdiff
+
+# Run it through harbor with the oracle adapter (must score reward=1.0)
+harbor run -p ./datasets/click-prdiff -a oracle --env docker -n 1
+
+# Run it through harbor with a real agent (Sonnet via claude-code).
+# The verifier's LLM judge also needs an API key — pass via --ve.
+harbor run \
+  -p ./datasets/click-prdiff \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 --ak max_turns=30 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker -n 1
 
 # Generate locally, then push to HF Hub
-repo2rlenv generate \
-  --repo huggingface/trl \
-  --pipeline pr_diff \
-  --pipeline-opt limit=5 \
-  --out ./datasets/trl-r2e-v0-1
-
-repo2rlenv push ./datasets/trl-r2e-v0-1 <your-org>/trl-r2e-v0-1
+repo2rlenv push ./datasets/click-prdiff <your-org>/<dataset-name>
 ```
 
 ### Python
@@ -137,9 +171,9 @@ from repo2rlenv.spec.options import PRDiffOptions
 from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
 
 g = GenerationInput(
-    repo=RepoSpec(url="huggingface/trl", access="auto"),
+    repo=RepoSpec(url="pallets/click", access="auto"),
     pipeline=PipelineSpec(name=PipelineName.PR_DIFF, options={}),
-    output=OutputSpec(destination="./out", org="myorg", dataset_name="trl-r2e"),
+    output=OutputSpec(destination="./out", org="myorg", dataset_name="click-prdiff"),
 )
 options = PRDiffOptions(limit=5, max_files_per_pr=10)
 
@@ -149,9 +183,52 @@ result = pipeline.run(Path("./out"))
 print(result.candidates, result.emitted, result.skip_reasons)
 ```
 
-## Consuming a `pr_diff` dataset
+## Pulling the reference dataset
 
-The oracle is at `solution/patch.diff` in every task. Score a candidate prediction with:
+A verified reference dataset is published on HF Hub:
+
+```bash
+repo2rlenv pull AdithyaSK/repo2rlenv-pr_diff-v083 /tmp/pr_diff-ref
+repo2rlenv validate /tmp/pr_diff-ref
+
+# Smoke-check with the oracle (must score reward=1.0)
+harbor run -p /tmp/pr_diff-ref -a oracle --env docker -n 1
+```
+
+You can also browse it interactively via the Harbor Visualiser badge on the dataset card.
+
+## `[metadata.repo2env]` schema
+
+Each emitted task carries:
+
+```toml
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "pallets/click"
+ref = "<base_commit_sha>"
+reference = "https://github.com/pallets/click/pull/3508"
+built_at = "2026-05-26T..."
+reward_kinds = ["diff_similarity_multi_component"]
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-23T..."
+diff_format = "unified"
+context_files = ["src/click/shell_completion.py", "tests/test_shell_completion.py"]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 95
+difficulty = "large"
+```
+
+## Consuming the reward at training time
+
+Two paths:
+
+**(a) Per-task reward via Harbor.** Use `harbor run` against the emitted task directory. The verifier writes `reward.txt` (single float) and `reward.json` (full breakdown). This is the production path for evals.
+
+**(b) Pure-text reward for SWE-RL-style training rollouts.** Score a candidate prediction against the oracle directly:
 
 ```python
 from repo2rlenv.reward import calculate_diff_similarity_reward
@@ -160,15 +237,8 @@ oracle = (task_dir / "solution" / "patch.diff").read_text()
 reward, meta = calculate_diff_similarity_reward(oracle, prediction_diff)
 ```
 
-That's the full consumer-side loop for a lite task — no Docker, no sandbox needed. If you want to actually *exercise* an agent against the repo (clone, edit, capture diff), use `harbor run` against the emitted task directory.
+This is the (single-component, dense) signal SWE-RL trained on. For higher fidelity, run the predicted diff through the same six-component verifier — it's a pure-stdlib module at [`_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) that can be imported directly.
 
-## Limitations (v0.1)
+## Acknowledgments
 
-- LLM is wired but unused — instruction text is built deterministically from PR body
-- `context_window_loc` and `search_replace` diff format aren't yet honored
-- No token counting or LLM cost guardrails (irrelevant in v0.1 since LLM isn't called)
-- Skipped PRs are counted but their diffs aren't logged anywhere
-
-## Verified live
-
-This pipeline is verified end-to-end: emitted datasets are publicly servable via Harbor's `registry.json` format and oracle-vs-oracle scoring lands at reward = 1.0.
+The text-only PR-as-task formulation + the diff-similarity reward shape are inspired by **SWE-RL** (Wei et al., NeurIPS '25, arXiv:2502.18449). The LLM-as-judge component follows the constitutional-AI / RLAIF pattern. No code is copied from SWE-RL; the reward function is an independent reimplementation against the Python standard library and is released under Apache-2.0.

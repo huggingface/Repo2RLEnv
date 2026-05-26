@@ -23,7 +23,7 @@ All 9 pipelines are shipped. See per-pipeline pages for the recipe + options + H
 
 | Pipeline | Sandbox | LLM at gen | GPU helpful? | Inspiration |
 |---|:-:|:-:|:-:|---|
-| [`pr_diff`](./pr_diff.md) | — | — | No | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_diff`](./pr_diff.md) | thin¹ | — | No | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
 | [`pr_runtime`](./pr_runtime.md) | ✅ | env-only | If repo's tests need it (ML repos) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
 | [`pr_stream`](./pr_stream.md) | ✅ | env-only | Same as `pr_runtime` | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) + [RepoLaunch](https://github.com/microsoft/RepoLaunch) |
 | [`commit_runtime`](./commit_runtime.md) | ✅ | env-only | If repo's tests need it | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
@@ -33,8 +33,10 @@ All 9 pipelines are shipped. See per-pipeline pages for the recipe + options + H
 | [`cve_patches`](./cve_patches.md) | ✅ | env-only | Rarely | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 | [`refactor_synthesis`](./refactor_synthesis.md) | ✅ | env-only | Rarely | Python-native rename detector (drops [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner)) |
 
-- **Sandbox** ✅ = needs Docker + the bootstrap-built env. `—` = pure text, no execution.
+- **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships its own lightweight `python:3.12-slim` env (no bootstrap LLM agent, ~30 s per-task build). `—` = pure text, no execution.
 - **LLM at gen**: `—` = never; `env-only` = the pipeline itself doesn't call the LLM but bootstrap does (runs once per repo, then cached); `✅` = the pipeline also makes LLM calls during task synthesis.
+
+¹ `pr_diff` additionally calls an LLM at *verify* time (LLM-as-judge component of the reward); the call is optional and degrades gracefully without an API key.
 
 Reference repos are cloned shallowly under `references/` (gitignored).
 

@@ -98,14 +98,27 @@ Repo2RLEnv emits Harbor-shaped tasks; running them is Harbor's job:
 ```bash
 uv tool install harbor
 
-harbor run --path ./datasets/<dataset-name> --env docker --agent oracle
-# Or remote: --env modal / --env daytona / --env e2b / --env runloop
+# Run with the oracle adapter — applies the gold patch, must score reward=1.0
+harbor run -p ./datasets/<dataset-name> -a oracle --env docker
+
+# Or with a real agent (claude-code + Sonnet). The verifier's LLM judge
+# component also needs an API key — pass via --ve as well.
+harbor run \
+  -p ./datasets/<dataset-name> \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+
+# Remote sandboxes: --env modal / --env daytona / --env e2b / --env runloop
 ```
 
-> **Note:** `harbor run` requires a sandbox-verified pipeline (`pr_runtime`, `commit_runtime`, …).
-> The `pr_diff` pipeline used above is text-only and does not emit an `environment/` directory,
-> so Harbor cannot execute it. Switch to `--pipeline pr_runtime` (requires Docker + `--llm`) to
-> produce runnable tasks.
+`pr_diff` ships a thin `python:3.12-slim` environment with a multi-component
+diff-similarity verifier baked in. For sandbox-verified pipelines like
+`pr_runtime` / `commit_runtime` that need to actually execute the repo's test
+suite, the runtime bootstraps a per-repo Docker image on demand — see
+[`reference/BOOTSTRAP.md`](./reference/BOOTSTRAP.md).
 
 ## Next steps
 
