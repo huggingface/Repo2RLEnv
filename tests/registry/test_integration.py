@@ -183,6 +183,50 @@ class TestModeSelection:
         assert result.mode == "local_only"
         assert result.tasks_rewritten == 0
 
+    def test_self_contained_public_base_takes_fast_path(self, tmp_path: Path) -> None:
+        """pr_diff-shape Dockerfiles (FROM python:3.12-slim) skip image push
+        AND get their reproducibility metadata rewritten to inline_dockerfile
+        + public."""
+        _write_runtime_task(tmp_path, "task-1", bootstrap_ref="python:3.12-slim")
+        _write_runtime_task(tmp_path, "task-2", bootstrap_ref="python:3.12-slim")
+        result = prepare_dataset_for_push(tmp_path, hf_owner="testorg")
+        assert result.mode == "inline_dockerfile"
+        assert result.tasks_rewritten == 2
+        assert result.image_visibility == "public"
+        assert result.inline_recipe_source == "user_dockerfile"
+        # Every task.toml's reproducibility must reflect the new mode.
+        for td in (tmp_path / "task-1", tmp_path / "task-2"):
+            data = tomllib.loads((td / "task.toml").read_text())
+            repro = data["metadata"]["repo2env"]["reproducibility"]
+            assert repro["mode"] == "inline_dockerfile"
+            assert repro["image_visibility"] == "public"
+            assert repro["image_ref"] == "python:3.12-slim"
+            assert repro["inline_recipe_source"] == "user_dockerfile"
+            assert repro["inline_recipe_sha256"].startswith("sha256:")
+            assert repro["inline_recipe_lines"] > 0
+
+    def test_custom_unqualified_image_not_self_contained(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unqualified image that isn't on the public-base allowlist must
+        NOT take the fast path. It looks "not local" by the legacy check,
+        but the user might have meant a private registry or a hand-built
+        image — silently skipping the push would publish a broken dataset.
+        Fall through to the normal registry/inline-Dockerfile path instead;
+        when no probe + no cached Dockerfile exist we surface a clear error
+        instead of silently returning ``mode=local_only``."""
+        _write_runtime_task(tmp_path, "task-1", bootstrap_ref="my-bootstrap:latest")
+        monkeypatch.setattr(
+            integ,
+            "_select_verified_registry",
+            lambda *a, **kw: (None, None, []),
+        )
+        # No registry probe + inline path can't find the cached Dockerfile
+        # for `my-bootstrap:latest` → raises, which is the desired surfaced
+        # failure (vs the old fast path silently returning local_only).
+        with pytest.raises(RuntimeError, match="inline mode requires"):
+            prepare_dataset_for_push(tmp_path, hf_owner="testorg")
+
     def test_multi_image_dataset_fails_fast(self, tmp_path: Path) -> None:
         _write_runtime_task(tmp_path, "task-1", bootstrap_ref="local/r2e:img1")
         _write_runtime_task(tmp_path, "task-2", bootstrap_ref="local/r2e:img2")

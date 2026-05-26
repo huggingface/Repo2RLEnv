@@ -1,4 +1,4 @@
-"""In-container verifier for pr_diff tasks (5-component reward).
+"""In-container verifier for pr_diff tasks (6-component reward).
 
 This module is the **standalone verifier** that runs inside the task's
 Docker container, NOT a helper used at generation time. It is read as
@@ -6,7 +6,7 @@ source at generation time, base64-encoded, and embedded into
 ``tests/test.sh``. At run time the container decodes it back to a file
 and invokes it as ``python3 verifier.py <oracle> <predicted> <instruction>``.
 
-Reward = weighted sum of 6 components:
+Reward = weighted sum of 6 components (5 deterministic + 1 optional LLM):
 
   format_valid    (0 or 1)      — predicted parses as a unified diff (guard)
   size_sanity     ([0, 1])      — min(oracle_loc, pred_loc) / max(...)
@@ -21,21 +21,17 @@ Reward = weighted sum of 6 components:
                                      null on API failure / missing key →
                                      remaining weights are re-normalized
 
-Default weights: 0.05 / 0.05 / 0.10 / 0.20 / 0.20 / 0.40. Override via env
-vars ``R2E_W_FORMAT`` / ``R2E_W_SIZE`` / ``R2E_W_FILE`` / ``R2E_W_REGION``
-/ ``R2E_W_SIM`` / ``R2E_W_JUDGE`` (set in task.toml.metadata or via
-harbor ``--ae`` at run time).
+Default weights: 0.00 / 0.08 / 0.12 / 0.20 / 0.10 / 0.50 (retuned from
+the original 0.05 / 0.05 / 0.10 / 0.20 / 0.20 / 0.40 after a 23-task
+pilot — see the comment block above ``_DEFAULT_WEIGHTS`` below).
+Override per-task via ``task.toml.metadata`` or per-run via env vars
+``R2E_W_FORMAT`` / ``R2E_W_SIZE`` / ``R2E_W_FILE`` / ``R2E_W_REGION`` /
+``R2E_W_SIM`` / ``R2E_W_JUDGE`` (pass via harbor ``--ve`` so they
+reach the verifier container).
 
-These are *starting weights* — they're meant to be retuned with data
-from the Stage 7a 25-env pilot. The reward design rationale:
-
-  - format_valid + size_sanity are LOW weights (guards, not drivers)
-  - file_targeting LOWER than region_overlap (region implies file)
-  - similarity LOWER than region_overlap (region+file capture most of
-    what raw similarity adds; similarity tail-credits fine-grained
-    string match)
-  - llm_judge HIGHEST weight (most orthogonal axis: did the agent
-    actually fix the bug semantically?)
+Final reward is clipped to [0, 1] and additionally clamped to ≤ 0.40
+when ``size_sanity < 0.10`` (catastrophic-size hard cap — stops a
+charitable judge from inflating scores on wildly wrong-sized patches).
 
 Outputs:
   /logs/verifier/reward.txt   — single float (Harbor reads this)
@@ -43,7 +39,7 @@ Outputs:
 
 Pure stdlib — uses only ``difflib``, ``json``, ``os``, ``re``,
 ``urllib``, ``sys``. The same module is imported by the unit tests
-under ``tests/test_pipeline_pr_diff.py`` so the in-container behavior
+under ``tests/test_pr_diff_verifier.py`` so the in-container behavior
 stays in lockstep with what we test.
 """
 

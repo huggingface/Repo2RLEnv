@@ -106,6 +106,41 @@ def _distinct_local_images(refs: list[tuple[str, Path]]) -> set[str]:
     return locals_
 
 
+# Known-public base images that consumers can pull anonymously from Docker
+# Hub's `library/` namespace. The fast path for self-contained Dockerfiles
+# (no upstream bootstrap image to push) only triggers for these — anything
+# else falls through to the standard image-push path, which would surface a
+# clear error if the image is private/un-pullable instead of silently
+# publishing a broken dataset. Pipelines whose Dockerfiles use one of these
+# bases (currently just `pr_diff` with `python:3.12-slim`) skip the push.
+_PUBLIC_DOCKER_HUB_BASES: tuple[str, ...] = (
+    "python:",
+    "node:",
+    "golang:",
+    "rust:",
+    "ubuntu:",
+    "debian:",
+    "alpine:",
+    "openjdk:",
+    "ruby:",
+)
+
+
+def _is_public_base_image(ref: str) -> bool:
+    """True if `ref` is a known-public base that consumers can pull anonymously.
+
+    Conservative on purpose: only the unqualified `library/` Docker Hub bases
+    we ship are recognised. A registry-qualified ref the user added by hand
+    (e.g. `my-registry.example.com/team/base:tag`) takes the normal image-push
+    path — same as before the fast path existed.
+    """
+    if ref.startswith("docker.io/library/"):
+        return any(
+            ref.removeprefix("docker.io/library/").startswith(b) for b in _PUBLIC_DOCKER_HUB_BASES
+        )
+    return any(ref.startswith(b) for b in _PUBLIC_DOCKER_HUB_BASES)
+
+
 # --------------------------------------------------------------------------
 # Discover + verify
 # --------------------------------------------------------------------------
@@ -306,6 +341,43 @@ def _hash_text(s: str) -> str:
     return "sha256:" + hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _finalize_self_contained_tasks(
+    task_dirs: list[Path], *, image_ref: str, pushed_by: str | None
+) -> int:
+    """Rewrite reproducibility metadata for self-contained Dockerfile tasks.
+
+    The emitter seeds every Dockerfile-bearing task with
+    ``[metadata.repo2env.reproducibility]`` set to
+    ``mode="local_only", image_visibility="private"`` — a conservative
+    default that's true for un-pushed bootstrap images. For self-contained
+    Dockerfiles whose FROM is a known-public base, those values are wrong:
+    the FROM image is publicly pullable and the inline Dockerfile recipe is
+    what makes the task reproducible. Rewrite each task.toml accordingly so
+    downstream tooling that reads reproducibility metadata classifies the
+    task correctly.
+    """
+    rewritten = 0
+    for td in task_dirs:
+        toml_path = td / "task.toml"
+        df_path = td / "environment" / "Dockerfile"
+        if not toml_path.is_file() or not df_path.is_file():
+            continue
+        df_text = df_path.read_text(encoding="utf-8")
+        _update_task_toml_reproducibility(
+            toml_path,
+            mode="inline_dockerfile",
+            image_ref=image_ref,
+            image_tag=image_ref,
+            image_visibility="public",
+            pushed_by=pushed_by,
+            inline_recipe_sha256=_hash_text(df_text),
+            inline_recipe_lines=len(df_text.splitlines()),
+            inline_recipe_source="user_dockerfile",
+        )
+        rewritten += 1
+    return rewritten
+
+
 # --------------------------------------------------------------------------
 # The orchestrator
 # --------------------------------------------------------------------------
@@ -362,22 +434,35 @@ def prepare_dataset_for_push(
     local_ref = next(iter(distinct))
     looks_local = local_ref.startswith(("local/", "local-")) or local_ref.startswith("localhost")
 
-    # Fast path for self-contained Dockerfiles: if the FROM ref is already a
-    # publicly-pullable image (e.g. ``python:3.12-slim`` on Docker Hub, or
-    # a registry-qualified digest) and the rest of the Dockerfile is the
-    # complete recipe — no per-task image push needed. The published task's
-    # Dockerfile can be rebuilt on any consumer's machine just by reading
-    # the FROM + the inline RUN lines.
+    # Fast path for self-contained Dockerfiles: if the FROM ref is a
+    # known-public base (e.g. ``python:3.12-slim``) the rest of the
+    # Dockerfile is the complete recipe — no per-task image push needed.
+    # The published task's Dockerfile can be rebuilt on any consumer's
+    # machine just by reading the FROM + the inline RUN lines.
     #
-    # pr_diff datasets are the canonical case: every task's Dockerfile is
+    # pr_diff is the canonical case: every task's Dockerfile is
     # ``FROM python:3.12-slim`` followed by apt-get + git clone + bake the
     # oracle. No bootstrap-built image upstream.
-    if not looks_local:
+    #
+    # The allowlist is intentionally narrow. A non-`local/` ref that isn't
+    # on the allowlist (e.g. a private registry or an unqualified custom
+    # image) falls through to the normal push path, which surfaces a clear
+    # error instead of silently publishing a dataset that can't be rebuilt.
+    if not looks_local and _is_public_base_image(local_ref):
+        rewritten = _finalize_self_contained_tasks(
+            task_dirs, image_ref=local_ref, pushed_by=pushed_by
+        )
         _emit(
             f"self-contained Dockerfile (FROM {local_ref!r}); "
             "skipping image step — consumers rebuild from the inline recipe"
         )
-        return PrepareResult(mode="local_only", tasks_rewritten=0)
+        return PrepareResult(
+            mode="inline_dockerfile",
+            tasks_rewritten=rewritten,
+            image_remote_ref=local_ref,
+            image_visibility="public",
+            inline_recipe_source="user_dockerfile",
+        )
 
     # Decide mode
     if inline_dockerfile:

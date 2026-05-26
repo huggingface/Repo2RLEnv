@@ -328,12 +328,6 @@ def _quality_filter(pr: PullRequestSummary, diff: str, options: PRDiffOptions) -
     return None
 
 
-_NORMALIZE_RE_HUNK = re.compile(r"^@@.*@@")
-_NORMALIZE_RE_FILE = re.compile(r"^(?:---|\+\+\+) ")
-_NORMALIZE_RE_INDEX = re.compile(r"^index ")
-_NORMALIZE_RE_GIT = re.compile(r"^diff --git ")
-
-
 def _compute_no_op_baseline(oracle_diff: str) -> float:
     """Compute the reward an EMPTY predicted diff would get against this oracle.
 
@@ -427,6 +421,15 @@ class PRDiffPipeline:
             raise RuntimeError(
                 "private repo specified but no GitHub token resolved. "
                 "Run `gh auth login` or set GITHUB_TOKEN."
+            )
+        if self.input.repo.access == "private" and self.options.emit_harbor_env:
+            raise RuntimeError(
+                "private repos with emit_harbor_env=True are not supported yet: "
+                "the emitted Dockerfile runs an unauthenticated `git clone` "
+                "which would fail at consumer build time. Either generate the "
+                "private repo with --pipeline-opt emit_harbor_env=False "
+                "(text-only output), or open a private dataset with a public "
+                "source repo. See docs/pipelines/pr_diff.md."
             )
 
         owner, name = self.input.repo.owner_name

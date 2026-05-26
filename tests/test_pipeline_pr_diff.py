@@ -329,3 +329,37 @@ def test_eval_script_exits_zero() -> None:
     """Verifier writes reward.txt; bash exit code is moot."""
     es = build_pr_diff_eval_script(base_commit="abc")
     assert "exit 0" in es
+
+
+def test_private_repo_with_emit_harbor_env_fails_fast(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Generating a private repo with emit_harbor_env=True must surface a
+    clear error at run() time rather than silently emitting a Dockerfile
+    that fails at consumer build time (the inlined `git clone` is
+    unauthenticated, so the build would die fetching the repo).
+
+    See also docs/pipelines/pr_diff.md.
+    """
+    import pytest
+
+    from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
+    from repo2rlenv.spec.input import GenerationInput, OutputSpec, PipelineSpec, RepoSpec
+    from repo2rlenv.spec.options import PRDiffOptions
+
+    gi = GenerationInput(
+        repo=RepoSpec(url="foo/private-repo", access="private"),
+        pipeline=PipelineSpec(name="pr_diff"),
+        output=OutputSpec(
+            destination="local",
+            org="testorg",
+            dataset_name="d",
+        ),
+    )
+    pipe = PRDiffPipeline(input=gi, options=PRDiffOptions(emit_harbor_env=True))
+    import os
+
+    os.environ["GITHUB_TOKEN"] = "ghp_fake_token_for_test"
+    try:
+        with pytest.raises(RuntimeError, match="private repos with emit_harbor_env"):
+            pipe.run(tmp_path)
+    finally:
+        os.environ.pop("GITHUB_TOKEN", None)
