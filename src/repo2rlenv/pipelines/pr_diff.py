@@ -246,8 +246,13 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
-        # Capture the agent's edits as a unified diff against base_commit
-        f"git diff {base_commit} > /tmp/predicted.patch\n"
+        # Capture the agent's edits as a unified diff against base_commit.
+        # IMPORTANT: `git add -A` stages new (untracked) files. Without this
+        # step, `git diff` would skip any file the agent created from scratch
+        # — which silently misses the file_targeting / region_overlap / size
+        # signal for PRs that introduce new files (a very common case).
+        "git add -A\n"
+        f"git diff --cached {base_commit} > /tmp/predicted.patch\n"
         ": 'START_VERIFY_OUTPUT'\n"
         "python3 /verifier/verifier.py \\\n"
         "    /verifier/oracle.patch \\\n"

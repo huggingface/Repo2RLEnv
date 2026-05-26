@@ -314,7 +314,11 @@ def test_dockerfile_handles_oracle_with_special_chars() -> None:
 def test_eval_script_shebang_and_paths() -> None:
     es = build_pr_diff_eval_script(base_commit="abc1234567890")
     assert es.startswith("#!/bin/bash")
-    assert "git diff abc1234567890 > /tmp/predicted.patch" in es
+    # `git add -A` BEFORE `git diff --cached <base>` ensures new
+    # (untracked) files added by the agent are captured in the diff —
+    # without this, PRs that add files would silently downscore.
+    assert "git add -A" in es
+    assert "git diff --cached abc1234567890 > /tmp/predicted.patch" in es
     # The thin shim just invokes the baked-in verifier
     assert "/verifier/verifier.py" in es
     assert "/verifier/oracle.patch" in es
