@@ -101,13 +101,31 @@ uv tool install harbor
 # Run with the oracle adapter — applies the gold patch, must score reward=1.0
 harbor run -p ./datasets/<dataset-name> -a oracle --env docker
 
-# Or with a real agent (claude-code + Sonnet). The verifier's LLM judge
-# component also needs an API key — pass via --ve as well.
+# Or with a real coding agent. We show `claude-code` here because that's
+# what we used to verify our reference datasets, but Harbor ships 25+
+# agent harnesses — swap `-a claude-code -m anthropic/claude-sonnet-4-6`
+# for any of:
+#   openhands / openhands-sdk · codex · aider · gemini-cli · copilot-cli
+#   opencode · cursor-cli · qwen-coder · kimi-cli · goose · mini-swe-agent
+#   swe-agent · nemo-agent · terminus-2 · trae-agent · devin · ... etc.
+# Each agent expects its own provider env var (OPENAI_API_KEY,
+# GOOGLE_API_KEY, GITHUB_TOKEN for copilot, …) — see `harbor run --help`
+# for the full list. The verifier's LLM-judge component (when enabled)
+# also needs ANTHROPIC_API_KEY — pass via --ve so it reaches the verifier
+# container.
 harbor run \
   -p ./datasets/<dataset-name> \
   -a claude-code -m anthropic/claude-sonnet-4-6 \
   --ak max_budget_usd=2.00 \
   --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+
+# Same env, different agent — openhands with GPT-4o:
+harbor run \
+  -p ./datasets/<dataset-name> \
+  -a openhands -m openai/gpt-4o \
+  --ae OPENAI_API_KEY=$OPENAI_API_KEY \
   --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   --env docker
 

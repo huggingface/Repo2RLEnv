@@ -58,23 +58,27 @@ Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
 ## Pipelines
 
-Different methods to manufacture verifiable tasks from a repo. Pick one, run it, push the dataset.
+Nine pluggable synthesis methods. Each takes the same input shape (a repo + config) and emits Harbor-shaped tasks; they differ in **what** verifiable signal they manufacture.
 
-| Pipeline | What it does | Sandbox | LLM | Supported languages | Inspiration | Docs |
-|---|---|:-:|:-:|---|---|:-:|
-| `pr_diff` | Mine merged PR diffs; multi-component diff-similarity verifier + LLM judge | thin¹ | — | any | [SWE-RL](https://github.com/facebookresearch/swe-rl) | [📄](./docs/pipelines/pr_diff.md) |
-| `pr_runtime` | Mine merged PRs; sandbox-verify F2P/P2P oracle | ✅ | ✅ | Py · Node · Go · Rust | [SWE-bench](https://github.com/SWE-bench/SWE-bench) | [📄](./docs/pipelines/pr_runtime.md) |
-| `pr_stream` | Continuous PR mining (watermark-based, monthly cron) | ✅ | ✅ | Py · Node · Go · Rust | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) | [📄](./docs/pipelines/pr_stream.md) |
-| `commit_runtime` | Commit-level mining (bypass PR-review filters) | ✅ | ✅ | Py · Node · Go · Rust | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) | [📄](./docs/pipelines/commit_runtime.md) |
-| `mutation_bugs` | Inject bugs via AST mutations; tests must break | ✅ | ✅ | Py only | [SWE-smith](https://github.com/SWE-bench/SWE-smith) | [📄](./docs/pipelines/mutation_bugs.md) |
-| `code_instruct` | Repo-anchored OSS-Instruct with executable verifiers | ✅ | ✅ | Py only | [Magicoder / OSS-Instruct](https://github.com/ise-uiuc/magicoder) | [📄](./docs/pipelines/code_instruct.md) |
-| `equivalence_tests` | Extract a function; LLM writes equivalence tests | ✅ | ✅ | Py only | [R2E](https://github.com/r2e-project/r2e) | [📄](./docs/pipelines/equivalence_tests.md) |
-| `cve_patches` | Map OSV CVEs to fix commits in the target repo | ✅ | ✅ | Py · Node · Go · Rust | [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | [📄](./docs/pipelines/cve_patches.md) |
-| `refactor_synthesis` | Mine rename refactors from commit history | ✅ | ✅ | Py only | Python-native (drops [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner) JVM dep) | [📄](./docs/pipelines/refactor_synthesis.md) |
+**Every pipeline uses an LLM somewhere** — either inside the task (synthesis or judging) or during bootstrap (one-time env construction, then cached). The "LLM use" column shows the dominant location.
+
+| Pipeline | What it does | Sandbox | LLM use | Languages | Inspiration | Docs |
+|---|---|:-:|---|---|---|:-:|
+| [`pr_diff`](./docs/pipelines/pr_diff.md) | Mine merged PR diffs and turn them into Harbor-runnable envs. Each task ships a `python:3.12-slim` image with the repo cloned at the PR base. A 6-component verifier scores the agent's edit against the oracle: format / size / file-targeting (F1) / region-overlap / changes-only similarity / **LLM-as-judge** for semantic correctness. **100 envs published**: [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff). | thin¹ | at verify (judge) | any | [SWE-RL](https://github.com/facebookresearch/swe-rl) | [📄](./docs/pipelines/pr_diff.md) |
+| [`pr_runtime`](./docs/pipelines/pr_runtime.md) | Mine merged PRs and verify each one **inside the bootstrap sandbox** — the F2P/P2P test split must flip from FAIL→PASS when the oracle patch is applied. Strongest signal of the runtime pipelines. | ✅ | at bootstrap (cached) | Py · Node · Go · Rust | [SWE-bench](https://github.com/SWE-bench/SWE-bench) | [📄](./docs/pipelines/pr_runtime.md) |
+| [`pr_stream`](./docs/pipelines/pr_stream.md) | Continuous variant of `pr_runtime` — watermark-based incremental mining for monthly cron jobs. Same oracle shape; just adds an `after_iso` flag and a state file. | ✅ | at bootstrap (cached) | Py · Node · Go · Rust | [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) | [📄](./docs/pipelines/pr_stream.md) |
+| [`commit_runtime`](./docs/pipelines/commit_runtime.md) | Mine **commit history** directly, bypassing PR-review filters. Catches small "drive-by" fixes that never went through a PR. Same verifier as `pr_runtime`. | ✅ | at bootstrap (cached) | Py · Node · Go · Rust | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) | [📄](./docs/pipelines/commit_runtime.md) |
+| [`mutation_bugs`](./docs/pipelines/mutation_bugs.md) | **Synthesize** training tasks: AST-level bug mutations (operator flip, constant edit, …) into real source files until at least one test breaks. The agent must restore green. LLM ranks candidate bugs for plausibility. | ✅ | at synthesis | Py only | [SWE-smith](https://github.com/SWE-bench/SWE-smith) | [📄](./docs/pipelines/mutation_bugs.md) |
+| [`code_instruct`](./docs/pipelines/code_instruct.md) | Repo-anchored OSS-Instruct: LLM reads a real source file, writes a plausible problem + executable verifier, and the verifier runs against the agent's solution inside the sandbox. | ✅ | at synthesis | Py only | [Magicoder](https://github.com/ise-uiuc/magicoder) | [📄](./docs/pipelines/code_instruct.md) |
+| [`equivalence_tests`](./docs/pipelines/equivalence_tests.md) | Extract a real function as the reference; LLM authors equivalence tests that compare the agent's reimplementation against the original (`reference_<name>`) on a generated input distribution. | ✅ | at synthesis | Py only | [R2E](https://github.com/r2e-project/r2e) | [📄](./docs/pipelines/equivalence_tests.md) |
+| [`cve_patches`](./docs/pipelines/cve_patches.md) | OSV-driven security tasks: map CVE → fix commit → Harbor task. Reuses `pr_runtime`'s verifier — the security fix flips F2P. | ✅ | at bootstrap (cached) | Py · Node · Go · Rust | [PatchSeeker / CVE-Bench](https://github.com/hungkien05/PatchSeeker) | [📄](./docs/pipelines/cve_patches.md) |
+| [`refactor_synthesis`](./docs/pipelines/refactor_synthesis.md) | Mine rename-refactor commits via commit-message regex + multi-criteria diff verification. Multi-criteria verifier (structural + behavioral). Python-native — drops the JVM RefactoringMiner dep. | ✅ | at bootstrap (cached) | Py only | Python-native (drops [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner)) | [📄](./docs/pipelines/refactor_synthesis.md) |
+
+¹ `pr_diff` skips the bootstrap LLM entirely (no per-repo env build) — it ships a generic `python:3.12-slim` image with a base64-baked verifier and the oracle. The LLM only fires at *verify* time, as one of six reward components, and degrades gracefully (`status=no_api_key`) when no key is set.
 
 Python repos exercise all 9 pipelines; other supported languages exercise the 5 language-agnostic ones. Polyglot mutation + non-Python synthesis are on the v0.9 roadmap.
 
-Every pipeline flows through the same QA gate (determinism, oracle consistency, LLM judge, false-negative filter) before tasks are admitted to a dataset. Text-only pipelines skip the heavy QA layers since there's no execution to validate. See [`docs/pipelines/README.md`](./docs/pipelines/README.md) for reward kinds + GPU requirements.
+Every pipeline flows through the same QA gate (determinism, oracle consistency, LLM judge, false-negative filter) before tasks are admitted to a dataset. Text-only pipelines skip the heavy QA layers since there's no execution to validate. See [`docs/pipelines/README.md`](./docs/pipelines/README.md) for reward kinds, GPU requirements, and the per-pipeline reference dataset cards.
 
 ---
 

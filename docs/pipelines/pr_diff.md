@@ -37,7 +37,7 @@ For each merged PR within scope:
 4. Compute the **calibration baseline** (the score an empty patch would get against this oracle) and the **difficulty bucket** by LOC changed.
 5. Emit a Harbor-spec task: `instruction.md`, `solution/{patch.diff, solve.sh}`, `environment/Dockerfile`, `tests/test.sh`, `task.toml`.
 
-The environment is a thin `python:3.12-slim` image with git + claude-code pre-installed and the repo checked out at `base_commit`. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
+The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
 
 ## Multi-component reward
 
@@ -146,8 +146,12 @@ repo2rlenv generate \
 # Run it through harbor with the oracle adapter (must score reward=1.0)
 harbor run -p ./datasets/click-prdiff -a oracle --env docker -n 1
 
-# Run it through harbor with a real agent (Sonnet via claude-code).
-# The verifier's LLM judge also needs an API key — pass via --ve.
+# Run it through harbor with a real agent.
+# The verifier's LLM judge also needs an API key — pass via --ve so it
+# reaches the verifier container (the --ae key only reaches the agent).
+
+# Example 1: claude-code + Sonnet 4.6 (what we used to verify the
+# reference dataset).
 harbor run \
   -p ./datasets/click-prdiff \
   -a claude-code -m anthropic/claude-sonnet-4-6 \
@@ -155,6 +159,21 @@ harbor run \
   --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   --env docker -n 1
+
+# Example 2: same env, different agent — openhands + GPT-4o.
+harbor run \
+  -p ./datasets/click-prdiff \
+  -a openhands -m openai/gpt-4o \
+  --ae OPENAI_API_KEY=$OPENAI_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker -n 1
+
+# Harbor ships 25+ agent harnesses you can swap in here:
+#   claude-code · openhands / openhands-sdk · codex · aider · gemini-cli
+#   copilot-cli · opencode · cursor-cli · qwen-coder · kimi-cli · goose
+#   mini-swe-agent · swe-agent · nemo-agent · terminus-2 · trae-agent · ...
+# Each one expects its own provider env var via `--ae`. Run
+# `harbor run --help` to see the full list.
 
 # Generate locally, then push to HF Hub
 repo2rlenv push ./datasets/click-prdiff <your-org>/<dataset-name>

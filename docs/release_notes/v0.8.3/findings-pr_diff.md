@@ -23,7 +23,7 @@ harbor run -p /tmp/pr-diff -a oracle --env docker  # → reward = 1.000
 
 ### 1. Harbor-runnable environment (was text-only in v0.1)
 
-Each emitted task now ships `environment/Dockerfile` + `tests/test.sh`, so `harbor run` works directly. The Dockerfile is a thin `python:3.12-slim` + git + claude-code image with the repo cloned at `base_commit` and the oracle diff base64-baked in. No bootstrap LLM agent — image builds in ~30 s.
+Each emitted task now ships `environment/Dockerfile` + `tests/test.sh`, so `harbor run` works directly. The Dockerfile is a thin, **agent-agnostic** `python:3.12-slim` + git image with the repo cloned at `base_commit` and the oracle diff base64-baked in — Harbor's agent adapter installs whatever runtime the agent needs (claude-code / openhands / codex / aider). No bootstrap LLM agent — image builds in ~30 s.
 
 The verifier is a pure-stdlib Python module ([`_pr_diff_verifier.py`](../../../src/repo2rlenv/pipelines/_pr_diff_verifier.py)) base64-embedded in `tests/test.sh`. It captures the agent's edits via `git add -A; git diff --cached <base>` and scores them against the oracle.
 
@@ -110,7 +110,7 @@ Across three smoke runs (limit=1 → limit=5 → full 100), every successfully-c
 Two real verifier bugs were found and fixed by the pilots:
 
 1. `git diff <base>` skips untracked files → PRs that add files silently scored low. Fix: `git add -A; git diff --cached <base>`.
-2. `curl claude.ai/install.sh` saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: bake claude-code into the Dockerfile at build time so per-container install is a fast `claude --version` check.
+2. Harbor's claude-code agent setup (`curl claude.ai/install.sh`) saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: keep concurrency ≤ 5 (`run_pilot.py` default) and pass `--max-retries 2` to harbor. **Not** baking the agent into the task Dockerfile — that would couple every env to one vendor's CLI and violate the agent-agnostic contract of a Harbor task spec.
 
 ## Limitations
 
