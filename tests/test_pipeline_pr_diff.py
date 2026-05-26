@@ -258,6 +258,7 @@ def test_dockerfile_starts_from_python_slim() -> None:
         repo_url="https://github.com/pallets/click.git",
         base_commit="abc1234567890",
         oracle_diff="diff --git a/x.py b/x.py\n",
+        instruction="# Issue\n\nfix the thing",
     )
     assert "FROM python:3.12-slim" in df
     assert "apt-get install" in df and "git" in df
@@ -273,10 +274,27 @@ def test_dockerfile_bakes_oracle_diff_as_base64() -> None:
         repo_url="https://github.com/x/y.git",
         base_commit="deadbeef",
         oracle_diff=oracle,
+        instruction="anything",
     )
     encoded = base64.b64encode(oracle.encode("utf-8")).decode("ascii")
     assert encoded in df
     assert "base64 -d > /verifier/oracle.patch" in df
+
+
+def test_dockerfile_bakes_instruction_and_verifier_source() -> None:
+    import base64
+
+    instr = "# Issue\nTitle: Fix the thing"
+    df = build_pr_diff_environment_dockerfile(
+        repo_url="https://github.com/x/y.git",
+        base_commit="deadbeef",
+        oracle_diff="diff --git a/x b/x\n",
+        instruction=instr,
+    )
+    encoded_instr = base64.b64encode(instr.encode("utf-8")).decode("ascii")
+    assert encoded_instr in df
+    assert "base64 -d > /verifier/instruction.md" in df
+    assert "base64 -d > /verifier/verifier.py" in df
 
 
 def test_dockerfile_handles_oracle_with_special_chars() -> None:
@@ -286,40 +304,24 @@ def test_dockerfile_handles_oracle_with_special_chars() -> None:
         repo_url="https://github.com/x/y.git",
         base_commit="cafe",
         oracle_diff=oracle,
+        instruction="anything",
     )
     # No raw special chars from the patch should appear in the Dockerfile —
     # they're only in the base64 blob.
     assert "$y `cmd`" not in df
 
 
-def test_eval_script_shebang_and_reward_path() -> None:
+def test_eval_script_shebang_and_paths() -> None:
     es = build_pr_diff_eval_script(base_commit="abc1234567890")
     assert es.startswith("#!/bin/bash")
     assert "git diff abc1234567890 > /tmp/predicted.patch" in es
-    assert "/logs/verifier/reward.txt" in es
+    # The thin shim just invokes the baked-in verifier
+    assert "/verifier/verifier.py" in es
     assert "/verifier/oracle.patch" in es
+    assert "/verifier/instruction.md" in es
 
 
-def test_eval_script_embeds_difflib_python() -> None:
-    """The inline verifier should use difflib.SequenceMatcher — the same
-    SWE-RL-style routine reward.py exposes."""
+def test_eval_script_exits_zero() -> None:
+    """Verifier writes reward.txt; bash exit code is moot."""
     es = build_pr_diff_eval_script(base_commit="abc")
-    # The Python is base64-encoded, but the decode step must reference it
-    import base64
-
-    # Find the base64 blob between `echo "` and `" | base64 -d`
-    import re
-
-    m = re.search(r'echo "([A-Za-z0-9+/=]+)" \| base64 -d', es)
-    assert m, "expected base64-encoded Python inline in test.sh"
-    inline = base64.b64decode(m.group(1)).decode("utf-8")
-    assert "import difflib" in inline
-    assert "SequenceMatcher" in inline
-
-
-def test_eval_script_writes_reward_to_logs() -> None:
-    """The final reward file is what Harbor's verifier reads."""
-    es = build_pr_diff_eval_script(base_commit="abc")
-    assert 'echo "$REWARD" > /logs/verifier/reward.txt' in es
-    # Always exit 0 — score is the verdict
     assert "exit 0" in es

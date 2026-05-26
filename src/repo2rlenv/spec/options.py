@@ -69,11 +69,14 @@ class PRDiffOptions(_BaseOptions):
     max_files_per_pr: int = 5
     skip_drafts: bool = True
     # Emit environment/Dockerfile + tests/test.sh so the task is a fully
-    # Harbor-runnable env (oracle ⇒ reward 1.0; claude-code agent ⇒ a real
-    # diff-similarity score). Default on. Set False to fall back to the
+    # Harbor-runnable env. Default on. Set False to fall back to the
     # v0.8.1 text-only output (just instruction.md + solution/patch.diff)
     # for training pipelines that compute the reward externally.
     emit_harbor_env: bool = True
+    # Minimum number of +/- lines in the oracle diff to accept as a task.
+    # Below this is too trivial to be a meaningful RL signal — typically
+    # a one-character typo fix or a doc tweak.
+    min_loc_changed: int = 3
 
 
 class PRStreamOptions(PRRuntimeOptions):
