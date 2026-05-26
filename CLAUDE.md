@@ -25,7 +25,8 @@ src/repo2rlenv/
 ├── spec/                       # Pydantic input + output models (the contract)
 ├── pipelines/
 │   ├── base.py                 # Pipeline Protocol + PipelineResult
-│   ├── pr_diff.py              # SHIPPED — text-only PR mining (was: pr_mining_lite)
+│   ├── pr_diff.py              # SHIPPED — PR-diff mining; text-only gen, Docker-runnable env (6-component verifier)
+│   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
 │   └── <future pipelines>      # pr_runtime, commit_runtime, mutation_bugs, ...
 ├── bootstrap/                  # v0.2 — LLM-driven Docker env generation
 │   ├── runner.py               # ensure_bootstrap() orchestrator
@@ -196,7 +197,7 @@ uv add --dev <pkg>      # dev only
 ## Key external dependencies
 
 - **Harbor** (`uv tool install harbor`) — runs our generated tasks. We don't ship a parallel runtime.
-- **Docker** — required for the `bootstrap` phase and any `_runtime` pipeline. `_diff` pipelines (text-only) work without it.
+- **Docker** — required for the `bootstrap` phase and any `_runtime` pipeline. `pr_diff` *generates* without Docker, but its emitted task *runs* in Docker (thin `python:3.12-slim` env); set `emit_harbor_env=False` for pure-text output that needs no Docker at all.
 - **LiteLLM** — single client across all LLM providers (Anthropic / OpenAI / HF Router / Bedrock / Ollama / vLLM).
 - **Rich** — every CLI surface; foundation of `src/repo2rlenv/ui/`.
 - **huggingface_hub** — dataset publish/pull; auto-resolves token from `~/.cache/huggingface/token`.
@@ -226,7 +227,7 @@ uv add --dev <pkg>      # dev only
 ### Naming convention (post-rename)
 
 Pipelines follow `{source}_{shape}`:
-- `_diff` — text-only, no sandbox (e.g. `pr_diff`)
+- `_diff` — text-only generation, no sandbox at gen time (e.g. `pr_diff`). NB: `pr_diff` still emits a thin Docker env so the diff-similarity reward runs under `harbor` — "no sandbox" refers to generation, not consumption.
 - `_runtime` — runs inside the bootstrap sandbox to verify the oracle (e.g. `pr_runtime`, `commit_runtime`)
 - `_stream` — continuous mining variant
 - `_bugs` / `_patches` / `_instruct` / `_tests` / `_synthesis` — name of the artifact type for synthesized pipelines

@@ -1,14 +1,19 @@
-"""Text-only PR mining (SWE-RL-style).
+"""PR-diff mining (SWE-RL-style) → Harbor-runnable env.
 
-For each merged PR within scope:
+Generation is text-only (no sandbox): for each merged PR within scope:
   1. Pull metadata (title, body, base/head SHAs, files)
   2. Pull the unified diff via `gh pr diff`
   3. Skip if it touches too many files (likely a refactor) or is empty
   4. Build instruction text (issue/PR description rewritten to drop "Closes #...")
-  5. Emit a Harbor task: instruction.md + solution/patch.diff
+  5. Emit a Harbor task
 
-No Docker. No tests. Verifier = diff similarity (consumer applies our reward
-function or SWE-RL's, against the oracle).
+The *emitted* task is runnable in Docker (when ``emit_harbor_env=True``,
+the default): it ships a thin ``python:3.12-slim`` ``environment/Dockerfile``
++ a ``tests/test.sh`` carrying the 6-component diff-similarity verifier
+(``_pr_diff_verifier``). Reward kind is ``diff_similarity``; the component
+breakdown lands in ``/logs/verifier/reward.json``. With
+``emit_harbor_env=False`` the task is pure text (instruction.md +
+solution/patch.diff) for consumers who score the diff themselves.
 
 ----------------------------------------------------------------------------
 Acknowledgment
@@ -412,7 +417,10 @@ def _difficulty_for(oracle_diff: str) -> tuple[int, str]:
 
 
 class PRDiffPipeline:
-    """No-sandbox, text-only PR mining. Implements the `Pipeline` Protocol."""
+    """PR-diff mining: sandbox-free generation, Docker-runnable output.
+
+    Implements the `Pipeline` Protocol.
+    """
 
     name: ClassVar[PipelineName] = PipelineName.PR_DIFF
     requires_bootstrap: ClassVar[bool] = False
@@ -532,7 +540,10 @@ class PRDiffPipeline:
             "reference": pr.url,
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
-            "reward_kinds": ["diff_similarity_multi_component"],
+            # Spec reward kind is `diff_similarity` (see docs/reference/SPEC.md).
+            # The 6-component breakdown is *how* the similarity is scored — it's
+            # surfaced in /logs/verifier/reward.json, not as a separate kind.
+            "reward_kinds": ["diff_similarity"],
             **({"synthesis_llm": self.input.llm.qualified_name} if self.input.llm else {}),
             "pr_diff": {
                 "pr_merged_at": pr.merged_at,

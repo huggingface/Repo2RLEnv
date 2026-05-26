@@ -1,8 +1,13 @@
 """Write Harbor-compliant task directories.
 
-The lite path emits a minimal Harbor task:
+The minimal (text-only) path emits:
   task.toml + instruction.md + solution/patch.diff
-No environment/, no tests/. Reward kind = "diff_similarity" only.
+No environment/, no tests/. Reward kind = "diff_similarity".
+
+When a pipeline supplies `task.environment_dockerfile` + `task.test_script`
+(pr_diff with emit_harbor_env=True, and all _runtime pipelines), the writer
+also emits environment/Dockerfile + tests/test.sh and seeds the
+[metadata.repo2env.reproducibility] subtable.
 
 ----------------------------------------------------------------------------
 Acknowledgment

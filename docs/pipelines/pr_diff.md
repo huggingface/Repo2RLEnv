@@ -8,7 +8,7 @@
 | Sandbox required at gen | No (text-only generation; verifier runs in a thin `python:3.12-slim` container) |
 | LLM required at gen | No |
 | LLM required at verify | Optional — falls back to deterministic-only when no API key |
-| Reward kinds emitted | `diff_similarity_multi_component` |
+| Reward kinds emitted | `diff_similarity` (scored via the 6-component verifier — see below) |
 | Inspiration | [SWE-RL](https://github.com/facebookresearch/swe-rl) (Meta, NeurIPS '25) |
 | Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
 | Options model | [`PRDiffOptions`](../../src/repo2rlenv/spec/options.py) |
@@ -232,7 +232,7 @@ repo = "pallets/click"
 ref = "<base_commit_sha>"
 reference = "https://github.com/pallets/click/pull/3508"
 built_at = "2026-05-26T..."
-reward_kinds = ["diff_similarity_multi_component"]
+reward_kinds = ["diff_similarity"]
 
 [metadata.repo2env.pr_diff]
 pr_merged_at = "2026-05-23T..."

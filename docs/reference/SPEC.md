@@ -81,11 +81,11 @@ Every pipeline emits **standard Harbor task directories**. Repo2RLEnv-specific p
 ├── task.toml                # Harbor-native + [metadata.repo2env]
 ├── instruction.md           # natural-language prompt
 ├── solution/patch.diff      # oracle (lite) — for diff_similarity scoring
-├── environment/Dockerfile   # OPTIONAL — only emitted by sandbox-required pipelines
-└── tests/test.sh            # OPTIONAL — only emitted by sandbox-required pipelines
+├── environment/Dockerfile   # OPTIONAL — emitted by sandbox-required pipelines AND by pr_diff (emit_harbor_env=True)
+└── tests/test.sh            # OPTIONAL — emitted alongside environment/Dockerfile
 ```
 
-For the **lite** pipeline (`pr_diff`), only the first three exist. No Docker, no test script — verification is purely diff-similarity against the oracle.
+`pr_diff` generates without a sandbox, but by default (`emit_harbor_env=True`) it still emits an `environment/Dockerfile` (thin `python:3.12-slim`) + a `tests/test.sh` carrying its 6-component diff-similarity verifier, so the task is runnable directly via `harbor run`. With `emit_harbor_env=False` only the first three files exist (pure text — the consumer scores the diff themselves).
 
 ### `task.toml` example
 
@@ -170,9 +170,10 @@ Repo2RLEnv has **no sandbox abstraction of its own**. Generation-time execution 
 
 | Phase | Pipeline class | What runs the code |
 |---|---|---|
-| Generation | Lite (text-only, e.g. `pr_diff`) | Nothing — pure text manipulation |
+| Generation | Lite (text-only generation, e.g. `pr_diff`) | Nothing — pure text manipulation (no sandbox at gen time) |
 | Generation | Full (`pr_runtime`, `mutation_bugs`, etc.) | Harbor's sandbox layer (`harbor` invoked under the hood) |
-| Consumption | Lite | `from repo2rlenv.reward import calculate_diff_similarity_reward` — pure Python, no sandbox |
+| Consumption | `pr_diff` (default `emit_harbor_env=True`) | `harbor run` against the thin `python:3.12-slim` env + baked 6-component verifier |
+| Consumption | `pr_diff` (`emit_harbor_env=False`) or any stored-diff task | `from repo2rlenv.reward import calculate_diff_similarity_reward` — pure Python, no sandbox |
 | Consumption | Full | `harbor run -d <dataset> -e <modal\|daytona\|e2b\|local\|runloop> ...` |
 
 `SandboxSpec` exists to *describe* what the pipeline needs (provider, GPU, network), and at gen-time we lower it onto Harbor's flags. We don't ship a parallel runner. This keeps the surface area small — Harbor already handles GPU, multi-container, parallelism, and provider auth.
@@ -195,7 +196,7 @@ Lite pipelines never use this field. When set on a `harbor`-provider sandbox, we
 
 | Kind | What it is | Where the oracle lives |
 |---|---|---|
-| `diff_similarity` | SWE-RL-style sequence similarity between predicted and oracle unified diffs (returns float ∈ [0,1]) | `solution/patch.diff` |
+| `diff_similarity` | Similarity between the predicted and oracle unified diffs (float ∈ [0,1]). `pr_diff` scores this with a 6-component verifier (format / size / file-targeting / region-overlap / changes-only similarity / LLM-judge) written to `/logs/verifier/reward.txt`; the simpler stdlib `SequenceMatcher` path is available for `emit_harbor_env=False` tasks. | `solution/patch.diff` |
 | `test_execution` | Shell verifier writes a float to `/logs/verifier/reward.txt` | `tests/test.sh` |
 
 A task may emit both. The lite pipeline emits only `diff_similarity`; full sandbox-required pipelines emit `test_execution` (and may also emit `diff_similarity` if they capture the oracle as a diff).
