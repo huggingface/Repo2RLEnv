@@ -51,6 +51,19 @@ First match wins:
 
 Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../src/repo2rlenv/auth.py).
 
+## Private repos at task **build** time
+
+Generation only needs the token to fetch PR metadata + diffs via `gh` (resolved above). But a runnable `pr_diff` task also clones the repo *inside its Docker image* at build time. For **private** source repos, the consumer building that image supplies the token as a Docker build arg:
+
+```bash
+harbor run -p ./datasets/<private-dataset> -a oracle --env docker \
+  --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
+```
+
+The emitted Dockerfile declares `ARG GITHUB_TOKEN=` (empty default). When set, the clone goes through an `x-access-token:<token>@github.com/...` URL; the remote is reset to the clean URL immediately after, so the token never persists in `git config` inside the image and is never baked into a layer. **Public** repos need no build arg — the clone falls back to the anonymous URL.
+
+The same generation-time token also packages bootstrap-built images for `_runtime` pipelines (cloned host-side and `docker cp`'d in — never embedded). See [`reference/BOOTSTRAP.md`](./BOOTSTRAP.md).
+
 ## Failure modes
 
 | Symptom | Cause | Fix |

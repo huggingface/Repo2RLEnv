@@ -331,35 +331,23 @@ def test_eval_script_exits_zero() -> None:
     assert "exit 0" in es
 
 
-def test_private_repo_with_emit_harbor_env_fails_fast(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Generating a private repo with emit_harbor_env=True must surface a
-    clear error at run() time rather than silently emitting a Dockerfile
-    that fails at consumer build time (the inlined `git clone` is
-    unauthenticated, so the build would die fetching the repo).
-
-    See also docs/pipelines/pr_diff.md.
-    """
-    import pytest
-
-    from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
-    from repo2rlenv.spec.input import GenerationInput, OutputSpec, PipelineSpec, RepoSpec
-    from repo2rlenv.spec.options import PRDiffOptions
-
-    gi = GenerationInput(
-        repo=RepoSpec(url="foo/private-repo", access="private"),
-        pipeline=PipelineSpec(name="pr_diff"),
-        output=OutputSpec(
-            destination="local",
-            org="testorg",
-            dataset_name="d",
-        ),
+def test_dockerfile_supports_private_repo_build_arg() -> None:
+    """The emitted Dockerfile clones via an optional GITHUB_TOKEN build arg
+    so private repos work at consumer build time, then scrubs the remote so
+    the token never persists in git config inside the image."""
+    df = build_pr_diff_environment_dockerfile(
+        repo_url="https://github.com/myorg/private-repo.git",
+        base_commit="abc123",
+        oracle_diff="diff --git a/x b/x\n+1\n",
+        instruction="do it",
     )
-    pipe = PRDiffPipeline(input=gi, options=PRDiffOptions(emit_harbor_env=True))
-    import os
-
-    os.environ["GITHUB_TOKEN"] = "ghp_fake_token_for_test"
-    try:
-        with pytest.raises(RuntimeError, match="private repos with emit_harbor_env"):
-            pipe.run(tmp_path)
-    finally:
-        os.environ.pop("GITHUB_TOKEN", None)
+    # Build arg declared, empty default (public repos need no arg).
+    assert "ARG GITHUB_TOKEN=" in df
+    # Authed clone uses the x-access-token form when the arg is set.
+    assert "x-access-token:${GITHUB_TOKEN}@github.com/myorg/private-repo.git" in df
+    # Public fallback clone is the clean URL.
+    assert "git clone --filter=blob:none https://github.com/myorg/private-repo.git" in df
+    # Remote is reset to the clean URL so the token can't leak via git config.
+    assert "remote set-url origin https://github.com/myorg/private-repo.git" in df
+    # The token itself must never appear literally baked anywhere.
+    assert "ghp_" not in df

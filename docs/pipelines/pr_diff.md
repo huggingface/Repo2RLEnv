@@ -39,6 +39,8 @@ For each merged PR within scope:
 
 The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
 
+**Private repos** work the same way — the Dockerfile clones via an optional `GITHUB_TOKEN` build arg. Public repos need nothing; for a private source, the consumer passes `--build-arg GITHUB_TOKEN=$GITHUB_TOKEN` to `harbor run`. The token is used only for the clone and the remote is scrubbed afterward, so it never persists in the image. See [`reference/AUTH.md`](../reference/AUTH.md#private-repos-at-task-build-time).
+
 ## Multi-component reward
 
 The verifier captures the agent's edits as a unified diff against `base_commit`, then scores it against the oracle (gold) diff using **six components, weighted sum**:

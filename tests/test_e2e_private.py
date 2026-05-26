@@ -62,11 +62,7 @@ def test_e2e_private_trl_internal(tmp_path: Path):
             visibility="private",
         ),
     )
-    # emit_harbor_env=False: private repos can't generate runnable envs
-    # (the inlined `git clone` in the Dockerfile is unauthenticated), so
-    # this e2e test sticks to the text-only output that's always
-    # supported for private sources.
-    options = PRDiffOptions(limit=2, max_files_per_pr=10, emit_harbor_env=False)
+    options = PRDiffOptions(limit=2, max_files_per_pr=10)
     pipeline = PRDiffPipeline(gen_input, options)
 
     result = pipeline.run(tmp_path)
