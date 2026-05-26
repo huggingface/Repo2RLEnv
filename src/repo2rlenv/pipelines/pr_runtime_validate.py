@@ -248,11 +248,18 @@ def validate_pr(
         )
 
     # Compute F2P / P2P. Both sets are over the union of test names seen.
+    #
+    # F2P counts ERROR->PASSED as well as FAILED->PASSED: a new test that
+    # references a symbol the fix introduces *errors* (import/collection
+    # failure) at base_commit rather than asserting-failing. Restricting F2P
+    # to FAILED-only silently drops these, killing otherwise-valid candidates
+    # on `no_fail_to_pass`. Both transitions mean "broken at base, fixed by
+    # the gold patch" — the FAIL_TO_PASS contract.
     fail_to_pass: list[str] = []
     pass_to_pass: list[str] = []
     for tname, pre_st in pre_status.items():
         post_st = post_status.get(tname)
-        if pre_st == "FAILED" and post_st == "PASSED":
+        if pre_st in ("FAILED", "ERROR") and post_st == "PASSED":
             fail_to_pass.append(tname)
         elif pre_st == "PASSED" and post_st == "PASSED":
             pass_to_pass.append(tname)

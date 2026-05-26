@@ -38,6 +38,8 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import re
 from datetime import UTC, datetime
@@ -61,6 +63,46 @@ logger = logging.getLogger(__name__)
 
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
+
+# Boilerplate sections that bloat a PR body without describing the problem:
+# review checklists, changelog/release-note blocks, and PR-template headers.
+# Dropping them keeps the instruction focused on the issue (eval integrity).
+_BODY_NOISE_HEADER_RE = re.compile(
+    r"^\s*#{0,6}\s*"
+    r"(?:checklist|change\s*log|changelog|release\s*notes?|how\s+to\s+test|"
+    r"types?\s+of\s+changes?|pr\s+checklist|reviewer\s+notes?)\s*:?\s*$",
+    re.IGNORECASE,
+)
+# A markdown comment block (PR templates wrap guidance in <!-- ... -->).
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+# Collapse 3+ blank lines down to a single blank line.
+_MULTI_BLANK_RE = re.compile(r"\n{3,}")
+# Cap the instruction body so a 5000-word PR essay doesn't dominate context.
+_MAX_BODY_CHARS = 4000
+
+
+def _reflow_pr_body(body: str) -> str:
+    """Tidy a verbose PR body into a focused problem statement.
+
+    - drop HTML comment blocks (PR-template guidance)
+    - drop everything from the first checklist/changelog/template header on
+    - collapse runs of blank lines
+    - cap length
+
+    Conservative: only trims obvious boilerplate. Never rewrites prose (no
+    LLM call here — deterministic + cheap).
+    """
+    body = _HTML_COMMENT_RE.sub("", body)
+    kept: list[str] = []
+    for line in body.splitlines():
+        if _BODY_NOISE_HEADER_RE.match(line):
+            break  # the rest is checklist/changelog noise
+        kept.append(line)
+    out = _MULTI_BLANK_RE.sub("\n\n", "\n".join(kept)).strip()
+    if len(out) > _MAX_BODY_CHARS:
+        out = out[:_MAX_BODY_CHARS].rstrip() + "\n\n…(truncated)"
+    return out
+
 
 # Path-component classifier for "is this a test file?".
 #
@@ -148,7 +190,8 @@ def split_patch_and_test_patch(unified_diff: str) -> tuple[str, str]:
 def _build_instruction(pr: PullRequestSummary) -> str:
     """Strip 'Closes #N' style boilerplate from the PR description."""
     body = (pr.body or "").strip()
-    body = _CLOSES_RE.sub("", body).strip()
+    body = _CLOSES_RE.sub("", body)
+    body = _reflow_pr_body(body)
     if not body:
         body = "(no description provided in source PR)"
     return (
@@ -165,6 +208,16 @@ def _build_instruction(pr: PullRequestSummary) -> str:
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text or ""))
+
+
+def _verifier_source() -> str:
+    """Read the standalone graded verifier's source for base64 embedding.
+
+    Mirrors pr_diff: the verifier (`_pr_runtime_verifier.py`) runs inside
+    the task container, so we read its source at gen time and bake it into
+    `tests/test.sh` as a base64 blob.
+    """
+    return (Path(__file__).parent / "_pr_runtime_verifier.py").read_text(encoding="utf-8")
 
 
 def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
@@ -201,6 +254,14 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         f"    (apt-get update && apt-get install -y --no-install-recommends git \\\n"
         f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
         f"    apk add --no-cache git || true\n"
+        f"# Defensive: the graded F2P/P2P verifier is Python.\n"
+        f"# Language-specific bootstrap images (Go/Rust/Node) may not\n"
+        f"# ship python3 — install it so test.sh can score F2P/P2P. No-op when\n"
+        f"# python3 is already present (every Python-repo image has it).\n"
+        f"RUN command -v python3 >/dev/null 2>&1 || \\\n"
+        f"    (apt-get update && apt-get install -y --no-install-recommends python3 \\\n"
+        f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
+        f"    apk add --no-cache python3 || true\n"
         f"# Position the working tree at the PR's base commit so subsequent\n"
         f"# model-patch applications align with the line context the patch\n"
         f"# was authored against. The fetch is a no-op if the commit is\n"
@@ -246,6 +307,8 @@ def build_eval_script(
     test_cmds: list[str],
     *,
     language: str | None = None,
+    fail_to_pass: list[str] | None = None,
+    pass_to_pass: list[str] | None = None,
 ) -> str:
     """Build the `tests/test.sh` content that Harbor runs after the model patch.
 
@@ -255,12 +318,18 @@ def build_eval_script(
       2. Prepend known toolchain paths for the detected language (compensates
          for bootstrap agents that install Go/Rust/Node outside /usr/bin
          without exporting PATH in any persisted shell init file)
-      3. Reset test files to base_commit (so re-running stays clean)
+      3. Reset test files to base_commit (so re-running stays clean) — this is
+         the anti-tamper guard: the agent CANNOT pass by editing/deleting the
+         tests, because we restore them to base and re-apply the test_patch
       4. Apply the test_patch (via heredoc + git apply --reject)
-      5. Run test_cmds bracketed with START_TEST_OUTPUT / END_TEST_OUTPUT markers
-         so the log parser knows where tests started
-      6. Write the reward to /logs/verifier/reward.txt (Harbor's verifier
-         reads this; exit code alone isn't enough — see Verifier._parse_reward_text)
+      5. Run test_cmds, capturing stdout+stderr to a log file
+      6. Score the reward:
+         - GRADED (default, when fail_to_pass is provided): bake the standalone
+           graded verifier + the F2P/P2P test-name lists, parse the captured
+           log, and write reward = f2p_rate * p2p_rate to reward.txt (+ full
+           breakdown incl. the strict SWE-bench ``resolved`` bool to reward.json)
+         - BINARY (fallback, e.g. ``skip_validation`` with no F2P known): write
+           1.0 if the suite exited 0 else 0.0
       7. Reset test files again on the way out
 
     The model's predicted patch is applied by Harbor *before* this script runs.
@@ -275,7 +344,8 @@ def build_eval_script(
     apply = f"git apply --verbose --reject - <<'{heredoc}'\n{test_patch}\n{heredoc}"
     test_block = " && ".join(test_cmds) if test_cmds else "echo 'no test_cmds configured'"
     path_prelude = _path_prelude_for_language(language)
-    return (
+
+    head = (
         "#!/bin/bash\n"
         "set -uxo pipefail\n"
         f"{path_prelude}"  # may be empty
@@ -284,17 +354,47 @@ def build_eval_script(
         "mkdir -p /logs/verifier\n"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
         f"{apply}\n"
-        ": 'START_TEST_OUTPUT'\n"
-        f"{test_block}\n"
+        # Capture the suite output so the verifier can parse per-test status.
+        # `( ... )` subshell + redirect keeps the whole `a && b` block's output;
+        # pipefail preserves the real test exit code.
+        f"( {test_block} ) > /logs/verifier/test_output.log 2>&1\n"
         "TEST_EXIT_CODE=$?\n"
-        ": 'END_TEST_OUTPUT'\n"
-        # Harbor verifier reads /logs/verifier/reward.txt — write 1.0 if all
-        # tests passed, else 0.0. Exit-code-based pass/fail alone doesn't
-        # populate the reward file the verifier expects.
-        '[ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt\n'
+        "cat /logs/verifier/test_output.log\n"
+    )
+
+    if not fail_to_pass:
+        # No F2P oracle available (e.g. --skip-validation). Fall back to the
+        # binary exit-code reward.
+        return (
+            head + '[ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
+            '|| echo "0.0" > /logs/verifier/reward.txt\n'
+            f"{reset} || true\n"
+            "exit 0\n"
+        )
+
+    # Graded path: bake the verifier + F2P/P2P lists, run it.
+    def _b64(s: str) -> str:
+        return base64.b64encode(s.encode("utf-8")).decode("ascii")
+
+    verifier_b64 = _b64(_verifier_source())
+    f2p_b64 = _b64(json.dumps(fail_to_pass))
+    p2p_b64 = _b64(json.dumps(pass_to_pass or []))
+    cmds_str = " ".join(test_cmds).replace("'", "'\\''")
+    return (
+        head + "mkdir -p /tmp/r2e\n"
+        f'echo "{verifier_b64}" | base64 -d > /tmp/r2e/verifier.py\n'
+        f'echo "{f2p_b64}" | base64 -d > /tmp/r2e/f2p.json\n'
+        f'echo "{p2p_b64}" | base64 -d > /tmp/r2e/p2p.json\n'
+        "python3 /tmp/r2e/verifier.py "
+        "--log /logs/verifier/test_output.log "
+        "--f2p /tmp/r2e/f2p.json --p2p /tmp/r2e/p2p.json "
+        f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
+        "--out-dir /logs/verifier || "
+        # If python3 is somehow unavailable, never leave reward.txt empty.
+        '{ [ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
+        '|| echo "0.0" > /logs/verifier/reward.txt; }\n'
         f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
-        "exit $TEST_EXIT_CODE\n"
+        "exit 0\n"  # reward.txt is the verdict, not the bash exit code
     )
 
 
@@ -317,6 +417,30 @@ def _files_in_patch(unified_diff: str) -> list[str]:
 _NEW_TEST_FUNC_RE = re.compile(
     r"^\+\s*(?:def\s+test_\w+|class\s+\w*[Tt]est\w*|func\s+Test\w+|it\s*\(|test\s*\(|describe\s*\()",
 )
+
+
+def _diff_loc_changed(unified_diff: str) -> int:
+    """Count real +/- lines in a unified diff (excludes +++/--- file markers)."""
+    n = 0
+    for line in (unified_diff or "").splitlines():
+        if (line.startswith("+") or line.startswith("-")) and not line.startswith(("+++ ", "--- ")):
+            n += 1
+    return n
+
+
+def _difficulty_bucket(f2p_count: int, loc_changed: int) -> str:
+    """Coarse difficulty from oracle size — lets consumers slice train/eval.
+
+    Combines the fix size (LOC) and how many distinct behaviours must be
+    restored (F2P count). Mirrors Arc 1's pr_diff buckets on LOC.
+    """
+    if loc_changed <= 5 and f2p_count <= 1:
+        return "trivial"
+    if loc_changed <= 20:
+        return "small"
+    if loc_changed <= 80:
+        return "medium"
+    return "large"
 
 
 def _count_new_test_funcs(test_patch: str) -> int:
@@ -763,14 +887,17 @@ class PRRuntimePipeline:
         owner, name = self.input.repo.owner_name
         task_id = f"{owner}__{name}-{pr.number}"
 
+        resolved_test_cmds = targeted_test_cmds_for_pr(
+            normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+            _files_in_patch(test_patch),
+        )
         eval_script = build_eval_script(
             base_commit=pr.base_sha,
             test_patch=test_patch,
-            test_cmds=targeted_test_cmds_for_pr(
-                normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
-                _files_in_patch(test_patch),
-            ),
+            test_cmds=resolved_test_cmds,
             language=self.bootstrap.language.value,
+            fail_to_pass=fail_to_pass,
+            pass_to_pass=pass_to_pass,
         )
         # Use image_tag for local-only bootstraps (Docker can resolve locally),
         # image_digest only when the image is in a registry that BuildKit can
@@ -803,6 +930,20 @@ class PRRuntimePipeline:
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
                 "bootstrap_image": self.bootstrap.image_digest,
+                # Graded reward: reward.txt carries f2p_rate*p2p_rate (training
+                # signal); reward.json adds the strict SWE-bench `resolved` bool
+                # (eval signal). See _pr_runtime_verifier.py.
+                "reward_mode": "graded",
+            },
+            # Difficulty + coverage metadata so consumers can slice train/eval
+            # by hardness and judge regression-guard strength (p2p_count == 0
+            # means no P2P regression guard — weaker eval; see UTBoost).
+            "reward_calibration": {
+                "f2p_count": len(fail_to_pass),
+                "p2p_count": len(pass_to_pass),
+                "source_files": len(_files_in_patch(patch)),
+                "loc_changed": _diff_loc_changed(patch),
+                "difficulty": _difficulty_bucket(len(fail_to_pass), _diff_loc_changed(patch)),
             },
         }
 

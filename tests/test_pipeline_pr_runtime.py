@@ -16,8 +16,10 @@ import pytest
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
     _count_new_test_funcs,
+    _difficulty_bucket,
     _files_in_patch,
     _path_is_test,
+    _reflow_pr_body,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
@@ -121,16 +123,16 @@ def test_files_in_patch_returns_unique_paths():
 # --- eval script --------------------------------------------------------------
 
 
-def test_build_eval_script_includes_markers_and_test_cmds():
+def test_build_eval_script_captures_log_and_test_cmds():
     script = build_eval_script(
         base_commit="a" * 40,
         test_patch=_SAMPLE_DIFF,  # any non-empty diff works for the heredoc test
         test_cmds=["pytest -x tests/"],
     )
-    assert "START_TEST_OUTPUT" in script
-    assert "END_TEST_OUTPUT" in script
+    # The suite output is captured to a log file the verifier can parse.
+    assert "/logs/verifier/test_output.log" in script
     assert "pytest -x tests/" in script
-    # Reset comes before and after the test run (idempotency)
+    # Reset comes before and after the test run (idempotency + anti-tamper)
     assert script.count("git checkout") >= 2
     # Workspace + safe.directory wiring (matches SWE-bench)
     assert "/workspace" in script
@@ -158,11 +160,12 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
 
 
-def test_build_eval_script_preserves_test_exit_code():
-    """P1 fix: cleanup `git checkout || true` must NOT mask pytest's failure.
+def test_build_eval_script_captures_exit_code_before_cleanup():
+    """The reward is the verdict (written to reward.txt), so the script exits 0.
 
-    Harbor's verifier reads this script's exit code; if we always exit 0,
-    every model patch looks like a pass regardless of test outcome.
+    But the test exit code must be captured AFTER the test block and BEFORE
+    the cleanup reset, so the cleanup `git checkout || true` can't mask the
+    test outcome that feeds the binary fallback / verifier --exit-code.
     """
     script = build_eval_script(
         base_commit="a" * 40,
@@ -170,12 +173,11 @@ def test_build_eval_script_preserves_test_exit_code():
         test_cmds=["pytest -v"],
     )
     assert "TEST_EXIT_CODE=$?" in script
-    assert "exit $TEST_EXIT_CODE" in script
-    # The capture must come AFTER the test block and BEFORE the cleanup reset
+    assert "exit 0" in script  # reward.txt is the verdict, not bash exit code
     test_block_pos = script.find("pytest -v")
     capture_pos = script.find("TEST_EXIT_CODE=$?")
-    final_exit_pos = script.find("exit $TEST_EXIT_CODE")
-    assert test_block_pos < capture_pos < final_exit_pos
+    reward_pos = script.find("/logs/verifier/reward.txt")
+    assert test_block_pos < capture_pos < reward_pos
 
 
 def test_build_eval_script_writes_reward_file():
@@ -189,6 +191,36 @@ def test_build_eval_script_writes_reward_file():
     assert "/logs/verifier/reward.txt" in script
     # Should write 1.0 on pass, 0.0 on fail
     assert "1.0" in script and "0.0" in script
+
+
+def test_build_eval_script_binary_fallback_when_no_f2p():
+    """No F2P oracle (e.g. --skip-validation) → binary exit-code reward, no verifier."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+        fail_to_pass=None,
+    )
+    assert "/tmp/r2e/verifier.py" not in script
+    assert 'echo "1.0" > /logs/verifier/reward.txt' in script
+
+
+def test_build_eval_script_graded_bakes_verifier_and_lists():
+    """With F2P provided, the graded verifier + F2P/P2P lists are baked in."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+        fail_to_pass=["tests/t.py::t_fix"],
+        pass_to_pass=["tests/t.py::t_keep"],
+    )
+    # Verifier source + F2P/P2P JSON are base64-baked and decoded at run time.
+    assert "/tmp/r2e/verifier.py" in script
+    assert "/tmp/r2e/f2p.json" in script
+    assert "/tmp/r2e/p2p.json" in script
+    assert "python3 /tmp/r2e/verifier.py" in script
+    # Falls back to a written reward.txt if python3 is unavailable.
+    assert "/logs/verifier/reward.txt" in script
 
 
 def test_build_eval_script_no_path_prelude_for_python():
@@ -226,6 +258,38 @@ def test_build_eval_script_path_prelude_for_rust():
         language="rust",
     )
     assert ".cargo/bin" in script
+
+
+# --- instruction reflow + difficulty -----------------------------------------
+
+
+def test_reflow_drops_checklist_and_html_comments():
+    body = (
+        "This fixes a real bug in the parser.\n\n"
+        "<!-- please fill the template -->\n\n"
+        "## Checklist\n"
+        "- [ ] tests added\n"
+        "- [ ] docs updated\n"
+    )
+    out = _reflow_pr_body(body)
+    assert "real bug in the parser" in out
+    assert "Checklist" not in out
+    assert "fill the template" not in out
+    assert "[ ] tests added" not in out
+
+
+def test_reflow_collapses_blank_lines_and_caps_length():
+    body = "Problem.\n\n\n\n\nMore." + ("x" * 5000)
+    out = _reflow_pr_body(body)
+    assert "\n\n\n" not in out
+    assert len(out) <= 4100  # capped (+ truncation marker)
+
+
+def test_difficulty_bucket():
+    assert _difficulty_bucket(1, 3) == "trivial"
+    assert _difficulty_bucket(2, 15) == "small"
+    assert _difficulty_bucket(1, 50) == "medium"
+    assert _difficulty_bucket(3, 200) == "large"
 
 
 # --- build_environment_dockerfile --------------------------------------------
