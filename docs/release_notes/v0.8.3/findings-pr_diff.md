@@ -8,10 +8,15 @@ leaked the answer:
 1. **Multi-issue closes**: `Fixes #1, #2, #3` — only the first `#N` was stripped.
 2. **`See` / `refs` / `follow-up to` linkbacks**: pointers to related issues.
 3. **Markdown issue links**: `[#1234](https://github.com/x/y/issues/1234)`.
-4. **Bare GitHub URLs** to `/pull/`, `/issues/`, `/commit/` — including
+4. **Closes with markdown-link refs**: `Closes [#1234](url)` — the bare-`#N`
+   strip didn't catch the markdown-link form, leaving `Closes ` orphaned.
+5. **Descriptive markdown links to GH URLs**:
+   `[my analysis](https://github.com/x/y/pull/1234)` — the bare-URL strip
+   left `[my analysis]()` brackets behind.
+6. **Bare GitHub URLs** to `/pull/`, `/issues/`, `/commit/` — including
    `https://redirect.github.com/...` from Dependabot release notes.
-5. **Trailer lines**: `Co-authored-by`, `Signed-off-by`, `Reviewed-by`, `Acked-by`.
-6. **Title squash suffix**: GitHub's `" (#1234)"` AND manual
+7. **Trailer lines**: `Co-authored-by`, `Signed-off-by`, `Reviewed-by`, `Acked-by`.
+8. **Title squash suffix**: GitHub's `" (#1234)"` AND manual
    `" (fixes #1800)"` patterns on the PR title itself.
 
 All six patterns are now stripped before instructions land in
@@ -45,7 +50,7 @@ Before the fix, the same 38-repo run produced 1 title-leak
 
 ## Tests
 
-14 new unit tests in
+18 new unit tests in
 [`tests/test_pipeline_pr_diff.py`](../../../tests/test_pipeline_pr_diff.py)
 cover each pattern + the end-to-end `_build_instruction` shape. Total
-suite: **634 passing** (+14 net from this PR).
+suite: **638 passing** (+18 net from this PR).

@@ -57,12 +57,36 @@ logger = logging.getLogger(__name__)
 # GitHub-issue / GitHub-PR linkbacks that hint at the solution. We strip
 # them from instruction text so the agent can't shortcut by fetching the
 # linked artifact.
+#
+# Patterns come in two shapes for each kind: a "bare" form (`Closes #N`,
+# `https://github.com/.../pull/N`) and a markdown-link form (`Closes
+# [#N](url)`, `[descriptive text](https://github.com/.../pull/N)`). The
+# composite forms must run BEFORE the piece-wise ones so we don't leave
+# orphaned `Closes ` keywords or empty `[text]()` brackets behind.
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+(?:\s*,\s*#\d+)*\b", re.IGNORECASE)
 _REFS_RE = re.compile(
     r"\b(?:see(?:\s+also)?|refs?|follow[- ]?up\s+(?:to|of))\s+#\d+(?:\s*,\s*#\d+)*\b",
     re.IGNORECASE,
 )
+# "Closes [#1234](url)" / "Fixes [#1](url), [#2](url)" — same keyword set
+# as _CLOSES_RE / _REFS_RE but with markdown-link issue refs.
+_CLOSES_MD_RE = re.compile(
+    r"\b(?:closes|fixes|resolves)\s+\[#\d+\]\([^)]+\)(?:\s*,\s*\[#\d+\]\([^)]+\))*",
+    re.IGNORECASE,
+)
+_REFS_MD_RE = re.compile(
+    r"\b(?:see(?:\s+also)?|refs?|follow[- ]?up\s+(?:to|of))\s+"
+    r"\[#\d+\]\([^)]+\)(?:\s*,\s*\[#\d+\]\([^)]+\))*",
+    re.IGNORECASE,
+)
 _MD_ISSUE_LINK_RE = re.compile(r"\[#\d+\]\([^)]+\)")
+# Markdown link whose URL points at a GH pull/issues/commit, with arbitrary
+# link text. We strip the whole `[text](url)` construct so the prose doesn't
+# end up with empty `[text]()` brackets after the bare-URL strip below.
+_MD_GH_URL_RE = re.compile(
+    r"\[[^\]]+\]\(https?://(?:[a-z0-9.-]+\.)?github\.com/[^)]+/(?:pull|issues|commit)/[^)]+\)",
+    re.IGNORECASE,
+)
 # Matches github.com proper + common GH-proxy redirector hosts (Dependabot
 # release notes embed `redirect.github.com`, GitLab mirrors use
 # `mirror.github.com`, etc.).
@@ -89,7 +113,14 @@ def _strip_info_leak(body: str) -> str:
     The goal: leave the natural-language problem description intact, but
     drop linkbacks (Closes/See/follow-up #N + bare GH URLs + squash suffixes
     + commit trailers) that point to the answer.
+
+    Order matters: composite patterns (`Closes [#N](url)`, `[text](gh-url)`)
+    are stripped BEFORE the piece-wise patterns so we don't leave orphaned
+    `Closes ` keywords or empty `[text]()` markdown brackets behind.
     """
+    body = _CLOSES_MD_RE.sub("", body)
+    body = _REFS_MD_RE.sub("", body)
+    body = _MD_GH_URL_RE.sub("", body)
     body = _CLOSES_RE.sub("", body)
     body = _REFS_RE.sub("", body)
     body = _MD_ISSUE_LINK_RE.sub("", body)

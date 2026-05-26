@@ -154,6 +154,61 @@ def test_strips_redirect_github_url() -> None:
     assert "pull/1929" not in out
 
 
+def test_strips_closes_with_markdown_issue_link() -> None:
+    """`Closes [#1234](url)` — the markdown-link form of a Closes/Fixes ref.
+
+    Before the fix, _CLOSES_RE only handled bare `Closes #N`, so the
+    markdown-link form left the `Closes ` keyword orphaned in the output.
+    """
+    body = "Background prose. Closes [#1234](https://github.com/x/y/issues/1234). More."
+    out = _strip_info_leak(body)
+    assert "Closes" not in out
+    assert "#1234" not in out
+    assert "github.com" not in out
+    assert "Background prose" in out
+    assert "More." in out
+
+
+def test_strips_multi_closes_with_markdown_links() -> None:
+    """`Fixes [#1](url), [#2](url)` — closes-list of markdown-link refs."""
+    body = (
+        "Refactors the parser. "
+        "Fixes [#1](https://github.com/x/y/issues/1), [#2](https://github.com/x/y/issues/2). End."
+    )
+    out = _strip_info_leak(body)
+    assert "Fixes" not in out
+    assert "#1" not in out and "#2" not in out
+    assert "github.com" not in out
+    assert "Refactors the parser" in out
+
+
+def test_strips_descriptive_markdown_gh_link() -> None:
+    """`[some descriptive text](https://github.com/x/y/pull/N)` — markdown link
+    whose link-text isn't `[#N]` but whose URL still leaks the answer.
+
+    Before the fix, the bare-URL regex stripped the URL but left orphaned
+    `[some descriptive text]()` brackets behind.
+    """
+    body = (
+        "There's a deep discussion in "
+        "[my detailed analysis](https://github.com/x/y/pull/1234) you should read."
+    )
+    out = _strip_info_leak(body)
+    assert "github.com" not in out
+    assert "pull/1234" not in out
+    # No orphaned empty markdown brackets
+    assert "[" not in out and "]()" not in out
+    assert "There's a deep discussion in" in out
+
+
+def test_strips_see_with_markdown_issue_link() -> None:
+    body = "Context here. See [#42](https://github.com/x/y/issues/42)."
+    out = _strip_info_leak(body)
+    assert "See" not in out
+    assert "#42" not in out
+    assert "Context here." in out
+
+
 def test_empty_body_emits_placeholder() -> None:
     pr = _pr(title="No description here", body="")
     instr = _build_instruction(pr)
