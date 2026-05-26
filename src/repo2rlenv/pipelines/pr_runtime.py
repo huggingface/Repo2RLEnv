@@ -65,10 +65,22 @@ logger = logging.getLogger(__name__)
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 
+# `git clean -fdx` excludes. Keep language dependency/build dirs so resetting
+# to a PR's base_commit doesn't wipe installed deps the test suite needs:
+#   node_modules (npm/yarn) · target (cargo) · vendor (go) · .venv/venv/.tox
+#   (python) · .gradle/build (jvm). Without these, Node/Rust repos would yield
+#   ZERO tasks because the suite can't even import its deps after the clean.
+_GIT_CLEAN_EXCLUDES = (
+    "-e .venv -e venv -e __pycache__ -e .tox "
+    "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache"
+)
+
 # Which issue does this PR close? Used to source the problem statement from
 # the issue (bug report) instead of the PR body (fix description).
+# Matches `Fixes #123`, `Closes #123`, AND the markdown-link form
+# `fixes [#123](url)` that PR authors commonly use.
 _LINKED_ISSUE_RE = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b", re.IGNORECASE
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+\[?#(\d+)", re.IGNORECASE
 )
 
 # Boilerplate sections that bloat a PR body without describing the problem,
@@ -362,7 +374,7 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         f"RUN git config --global --add safe.directory /workspace \\\n"
         f"    && git fetch --depth 1 origin {base_commit} 2>/dev/null \\\n"
         f"       || git fetch --unshallow origin 2>/dev/null || true\n"
-        f"RUN git reset --hard {base_commit} && git clean -fdx -e .venv -e venv -e __pycache__\n"
+        f"RUN git reset --hard {base_commit} && git clean -fdx {_GIT_CLEAN_EXCLUDES}\n"
     )
 
 
