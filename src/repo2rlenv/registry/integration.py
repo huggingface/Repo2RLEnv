@@ -660,6 +660,26 @@ def _build_clean_recipe(owner: str, name: str, data: dict) -> str | None:
         lines.append(f"RUN git checkout {ref} || git checkout -f {ref} || true")
     for cmd in rebuild:
         lines.append(f"RUN {cmd}")
+    # Defensive: guarantee the TEST RUNNER (and its plugins) are installed.
+    # Bootstrap rebuild_cmds sometimes miss them — e.g. `pip install -e '.[tests]'`
+    # is a silent no-op on repos that declare test deps via PEP 735
+    # `[dependency-groups]` instead of `[project.optional-dependencies]` (e.g.
+    # werkzeug), where pip only warns "does not provide the extra 'tests'" and
+    # installs neither pytest nor pytest-timeout. The bootstrap *image* still
+    # worked because the agent installed them in a step not captured in
+    # rebuild_cmds; the recipe must not rely on that.
+    #   1. `pip install --group tests` (pip>=25.1) pulls the full PEP 735 group;
+    #      slim images ship pip 25.0 so upgrade first. Harmless when no group.
+    #   2. bare `pip install pytest` as a last-resort runner guarantee.
+    test_cmds_joined = " ".join(str(c) for c in (data.get("test_cmds") or []))
+    if "pytest" in test_cmds_joined or data.get("language") == "python":
+        lines.append(
+            "RUN (pip install -U pip -q && pip install --group tests -q) >/dev/null 2>&1 || true"
+        )
+        lines.append(
+            "RUN python3 -m pytest --version >/dev/null 2>&1 || "
+            "pip install pytest -q >/dev/null 2>&1 || pip3 install pytest -q >/dev/null 2>&1 || true"
+        )
     return "\n".join(lines) + "\n"
 
 

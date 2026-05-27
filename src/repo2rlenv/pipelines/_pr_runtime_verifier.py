@@ -239,15 +239,37 @@ def grade(
 
     f2p_rate   = (# F2P now PASSED) / (# F2P)
     p2p_rate   = (# P2P still PASSED) / (# P2P)   [1.0 when no P2P]
-    reward     = f2p_rate * p2p_rate
-    resolved   = all F2P pass AND all P2P pass    (strict SWE-bench)
+    reward     = f2p_rate * p2p_rate                       (dense training signal)
+    resolved   = all F2P pass AND all P2P pass   (SWE-bench TRACKED resolution —
+                 the gold patch always satisfies this, preserving the oracle
+                 invariant)
+
+    Two distinct EVAL signals (see the audit's "tracked vs command resolved"):
+      * `resolved`         — tracked resolution (above). Gold patch -> True.
+      * `command_resolved` — stricter: tracked resolution AND the selected test
+                             command had NO failures outside F2P/P2P AND exit
+                             code 0. Computed in main() where the exit code is
+                             known. A benchmark that wants "the whole command
+                             passed cleanly" gates on this; SWE-bench-style
+                             scoring uses `resolved`.
+
+    `untracked_failed` are FAILED tests in the run that are neither F2P nor
+    P2P (e.g. always-failing/flaky tests pulled in by running a whole test
+    file). They don't change the graded `reward` or tracked `resolved`, but
+    they block `command_resolved` and are recorded for transparency.
     """
     f2p_total = len(fail_to_pass)
     p2p_total = len(pass_to_pass)
+    f2p_set = set(fail_to_pass)
+    p2p_set = set(pass_to_pass)
     f2p_passed = sum(1 for t in fail_to_pass if status_map.get(t) == PASSED)
     p2p_passed = sum(1 for t in pass_to_pass if status_map.get(t) == PASSED)
     # Tests that should have stayed green but regressed (PASS->not-pass).
     regressions = [t for t in pass_to_pass if status_map.get(t) != PASSED]
+    # FAILED tests outside the tracked sets — the selected command isn't clean.
+    untracked_failed = sorted(
+        t for t, s in status_map.items() if s == FAILED and t not in f2p_set and t not in p2p_set
+    )
 
     f2p_rate = (f2p_passed / f2p_total) if f2p_total else 0.0
     p2p_rate = (p2p_passed / p2p_total) if p2p_total else 1.0
@@ -264,6 +286,8 @@ def grade(
         "p2p_passed": p2p_passed,
         "p2p_rate": round(p2p_rate, 6),
         "regressions": sorted(regressions),
+        "untracked_failed_count": len(untracked_failed),
+        "untracked_failed": untracked_failed[:20],  # cap the list
     }
 
 
@@ -321,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
         breakdown = {
             "reward": reward,
             "resolved": resolved,
+            "command_resolved": bool(resolved and args.exit_code == 0),
             "parse_status": "fallback_exitcode",
             "eval_trustworthy": not has_oracle,
             "runner": runner,
@@ -333,6 +358,15 @@ def main(argv: list[str] | None = None) -> int:
         breakdown["parse_status"] = "ok"
         breakdown["runner"] = runner
         breakdown["tests_parsed"] = len(status_map)
+        breakdown["exit_code"] = args.exit_code
+        # Strict eval signal: tracked resolution AND a clean command (no
+        # untracked failures, exit code 0). Benchmarks wanting "the whole test
+        # command passed" gate on this; SWE-bench-style scoring uses `resolved`.
+        breakdown["command_resolved"] = bool(
+            breakdown["resolved"]
+            and breakdown["untracked_failed_count"] == 0
+            and args.exit_code == 0
+        )
         reward = breakdown["reward"]
 
     os.makedirs(args.out_dir, exist_ok=True)

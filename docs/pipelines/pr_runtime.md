@@ -2,7 +2,12 @@
 
 SWE-bench-style PR mining with sandbox-verified oracles. Each task carries a `FAIL_TO_PASS` set (the tests that prove the bug existed) and a `PASS_TO_PASS` set (regression guard).
 
-**As of v0.8.3 the reward is graded, not binary** (see [findings-pr_runtime](../release_notes/v0.8.3/findings-pr_runtime.md)): an in-container verifier scores `reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (the dense training signal Harbor reads) and also writes the strict SWE-bench `resolved` bool to `/logs/verifier/reward.json` (the eval signal). The oracle patch still scores exactly `1.0`. The problem statement is sourced from the linked **issue** (not the PR body) and run through a solution-leak strip; backport/release/revert PRs are filtered out. **Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime)** — 100 oracle-verified envs (63 Python / 37 Go, 13 repos).
+**As of v0.8.3 the reward is graded, not binary** (see [findings-pr_runtime](../release_notes/v0.8.3/findings-pr_runtime.md)): an in-container verifier scores `reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (the dense training signal Harbor reads) and writes a full breakdown to `/logs/verifier/reward.json`. The eval signal is split into two booleans:
+
+- **`resolved`** — SWE-bench *tracked* resolution: all `FAIL_TO_PASS` + `PASS_TO_PASS` tests pass. The oracle (gold) patch satisfies it for every task (the oracle invariant), so use this for SWE-bench-style scoring and training.
+- **`command_resolved`** — stricter: `resolved` **and** the selected test command produced zero failures outside the F2P/P2P sets **and** exited 0. The gap is tasks whose whole-file test command pulls in pre-existing/flaky failures unrelated to the PR; they stay valid for training but are flagged out of strict eval. The reward.json also records `exit_code` + `untracked_failed_count` so the distinction is auditable.
+
+The oracle patch still scores `reward = 1.0`. The problem statement is sourced from the linked **issue** (not the PR body) and run through a solution-leak strip; backport/release/revert PRs are filtered out. **Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime)** — 100 oracle-verified envs (63 Python / 37 Go, 13 repos); 100 `resolved`, 88 `command_resolved`, 87 `eval_grade` (`command_resolved` + a non-empty P2P regression guard). The published `manifest.json` carries per-task build/oracle status, exit code, parser status, runtime, and artifact checksums; filter to `eval_grade == true` for a benchmark-grade subset.
 
 | | |
 |---|---|
@@ -113,9 +118,9 @@ if [ "$?" -ne 0 ]; then echo "0.000000" > /logs/verifier/reward.txt; ...; exit 0
 ( {test_cmds} ) > /logs/verifier/test_output.log 2>&1
 TEST_EXIT_CODE=$?
 
-# 3. Score: graded reward = f2p_rate*p2p_rate -> reward.txt; strict
-#    `resolved` + breakdown -> reward.json. Falls back to the exit code
-#    only if python3 is unavailable.
+# 3. Score: graded reward = f2p_rate*p2p_rate -> reward.txt; `resolved`
+#    (tracked) + `command_resolved` (strict) + breakdown -> reward.json.
+#    Falls back to the exit code only if python3 is unavailable.
 python3 "$SCRIPT_DIR/verifier.py" --log /logs/verifier/test_output.log \
   --f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" \
   --exit-code "$TEST_EXIT_CODE" --out-dir /logs/verifier
@@ -170,7 +175,7 @@ This gives smaller, more focused tasks — most usable for trainers that need a 
 
 | Kind | When emitted | What the trainer/agent sees |
 |---|---|---|
-| `test_execution` | Always (this is the point of `pr_runtime`) | **Graded** `reward = f2p_rate × p2p_rate` in `reward.txt` (dense training signal); strict `resolved` bool + breakdown in `reward.json` (eval signal). Oracle = 1.0. |
+| `test_execution` | Always (this is the point of `pr_runtime`) | **Graded** `reward = f2p_rate × p2p_rate` in `reward.txt` (dense training signal); `resolved` (tracked) + `command_resolved` (strict, requires exit 0 and no untracked failures) bools + breakdown in `reward.json` (eval signals). Oracle = 1.0. |
 | `diff_similarity` | Always (cheap fallback for trainers that can't run code) | Float 0..1 vs the gold patch |
 
 Resolution status (matches SWE-bench):

@@ -177,6 +177,63 @@ def _reward_doc_for(pipeline: str) -> str:
     )
 
 
+def _composition_block(summary: dict[str, Any] | None) -> str:
+    """Render the composition + validation section from an enriched manifest.
+
+    Returns "" when no validated manifest is available (so the card stays
+    accurate for plain pushes that never ran an oracle gate).
+    """
+    if not summary:
+        return ""
+    val = summary.get("validation", {}) or {}
+    dist = summary.get("repo_distribution", {}) or {}
+    n = summary.get("task_count")
+    tracked = val.get("tracked_resolved")
+    command = val.get("command_resolved")
+    eval_grade = val.get("eval_grade")
+
+    lines = ["## Validation & composition", ""]
+    if tracked is not None:
+        lines += [
+            f"Every task is **oracle-validated**: the gold patch was applied under "
+            f"`harbor run -a oracle --env docker` (harbor `{val.get('harbor_version', '?')}`) "
+            f"and scored. Per-task build status, oracle reward, exit code, parser status, "
+            f"runtime, and artifact checksums live in "
+            f"[`manifest.json`](./manifest.json).",
+            "",
+            "Two resolution signals are recorded per task:",
+            "",
+            f"- **`resolved`** — SWE-bench *tracked* resolution (all FAIL_TO_PASS + "
+            f"PASS_TO_PASS pass). The gold patch satisfies it for **{tracked}/{n}** tasks "
+            f"(the oracle invariant). Use this for SWE-bench-style scoring and training.",
+            f"- **`command_resolved`** — stricter: tracked-resolved **and** the selected "
+            f"test command had zero failures outside the F2P/P2P sets **and** exit code 0. "
+            f"**{command}/{n}** tasks qualify. The gap is tasks whose whole-file test "
+            f"command pulls in pre-existing/flaky failures unrelated to the PR; they remain "
+            f"valid for training but are flagged out of strict eval.",
+        ]
+        if eval_grade is not None:
+            lines += [
+                f"- **`eval_grade`** — `command_resolved` **and** `p2p_count > 0` (has a "
+                f"regression guard). **{eval_grade}/{n}** tasks. **For benchmark-grade "
+                f"evaluation, filter to `eval_grade == true`.**",
+            ]
+        lines += [""]
+    if dist:
+        lines += [
+            "### Repo distribution",
+            "",
+            "The set is **not balanced** — aggregate scores are influenced most by the "
+            "top repos. Report per-repo metrics and consider a balanced eval subset.",
+            "",
+            "| Repo | Tasks |",
+            "|---|---|",
+        ]
+        lines += [f"| [`{r}`](https://github.com/{r}) | {c} |" for r, c in dist.items()]
+        lines += ["", ""]
+    return "\n".join(lines)
+
+
 def _build_dataset_card(
     repo_id: str,
     dataset_name: str,
@@ -186,6 +243,7 @@ def _build_dataset_card(
     visibility: str,
     source_repos: list[str] | None = None,
     has_environment: bool = False,
+    manifest_summary: dict[str, Any] | None = None,
 ) -> str:
     """Render the HF Hub dataset card (README.md) for a published dataset.
 
@@ -193,9 +251,13 @@ def _build_dataset_card(
     that spans 25 repos) render a proper "Source repos" list; if absent, the
     single ``repo_source`` fallback is rendered. ``has_environment`` toggles
     the harbor-run section between a runnable-env recipe and the text-only
-    fallback.
+    fallback. ``manifest_summary`` (when the dataset carries an enriched,
+    oracle-validated manifest) renders a composition + validation section
+    with the per-repo task distribution and tracked/command resolution counts.
     """
     visualiser_link = f"{VISUALISER_BASE_URL}?dataset={repo_id}"
+
+    composition_block = _composition_block(manifest_summary)
 
     if source_repos and len(source_repos) > 1:
         repo_lines = "\n".join(f"  - [`{r}`](https://github.com/{r})" for r in source_repos)
@@ -285,7 +347,7 @@ repo2rlenv generate \\
 See the [pipeline docs](https://github.com/huggingface/Repo2RLEnv/blob/main/docs/pipelines/{pipeline}.md) for the full option list + reward design.
 
 {run_section}
-
+{composition_block}
 ## Reward signal
 
 The reward function is part of the task itself (`tests/test.sh` + the
@@ -445,10 +507,37 @@ def push_to_hub(
     # (repo, PR, base commit, F2P/P2P counts, difficulty, reward kind). Built
     # from the staged task.toml files so every published dataset carries it.
     # Top-level file → survives the tasks/** clean-sync on re-push.
-    (staging / "manifest.json").write_text(
-        _build_manifest(tasks_dir, repo_id=repo_id, pipeline=pipeline or "pr_diff"),
-        encoding="utf-8",
-    )
+    #
+    # Exception: if the source dir already carries an *enriched* manifest (one
+    # with a `validation` block — e.g. stamped launch-side after an oracle gate
+    # with per-task build/oracle status + checksums), preserve it verbatim.
+    # `push` can't run an oracle, so it must not clobber validation provenance.
+    src_manifest = local_dataset_dir / "manifest.json"
+    enriched = False
+    if src_manifest.exists():
+        try:
+            enriched = "validation" in json.loads(src_manifest.read_text())
+        except (OSError, ValueError):
+            enriched = False
+    manifest_summary: dict[str, Any] | None = None
+    if enriched:
+        manifest_text = src_manifest.read_text()
+        (staging / "manifest.json").write_text(manifest_text, encoding="utf-8")
+        logger.info("preserving enriched manifest.json (has validation block)")
+        try:
+            m = json.loads(manifest_text)
+            manifest_summary = {
+                "task_count": m.get("task_count"),
+                "validation": m.get("validation", {}),
+                "repo_distribution": m.get("repo_distribution", {}),
+            }
+        except (OSError, ValueError):
+            manifest_summary = None
+    else:
+        (staging / "manifest.json").write_text(
+            _build_manifest(tasks_dir, repo_id=repo_id, pipeline=pipeline or "pr_diff"),
+            encoding="utf-8",
+        )
 
     # Write README.md (dataset card)
     dataset_name = repo_id.split("/")[-1]
@@ -462,6 +551,7 @@ def push_to_hub(
             visibility="private" if private else "public",
             source_repos=sorted(source_repos),
             has_environment=has_environment,
+            manifest_summary=manifest_summary,
         ),
         encoding="utf-8",
     )

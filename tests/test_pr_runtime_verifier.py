@@ -114,6 +114,28 @@ def test_grade_zero_fix_zero_reward():
     assert r["resolved"] is False
 
 
+def test_grade_untracked_failure_keeps_tracked_resolved():
+    """All F2P + P2P pass, but a test outside both sets FAILED. Tracked
+    `resolved` stays True (gold-patch oracle invariant), reward stays 1.0, and
+    the untracked failure is recorded so main() can block `command_resolved`.
+    Audit P0 #1 (httpx-3412 case)."""
+    r = grade(
+        ["f1"],
+        ["keep"],
+        {"f1": "PASSED", "keep": "PASSED", "tests/other::cp1252": "FAILED"},
+    )
+    assert r["reward"] == 1.0  # tracked tests all green
+    assert r["resolved"] is True  # tracked resolution preserved
+    assert r["untracked_failed_count"] == 1
+    assert r["untracked_failed"] == ["tests/other::cp1252"]
+
+
+def test_grade_no_untracked_failure_resolves():
+    r = grade(["f1"], ["keep"], {"f1": "PASSED", "keep": "PASSED"})
+    assert r["resolved"] is True
+    assert r["untracked_failed_count"] == 0
+
+
 # --- main() / IO -------------------------------------------------------------
 
 
@@ -150,7 +172,42 @@ def test_main_writes_graded_reward(tmp_path: Path):
     assert (out_dir / "reward.txt").read_text().strip() == "1.000000"
     breakdown = json.loads((out_dir / "reward.json").read_text())
     assert breakdown["resolved"] is True
+    assert breakdown["command_resolved"] is True  # clean command, exit 0
     assert breakdown["parse_status"] == "ok"
+    assert breakdown["exit_code"] == 0  # always recorded, not just in fallback
+
+
+def test_main_command_resolved_false_on_untracked_failure(tmp_path: Path):
+    """All tracked tests pass (resolved True) but an untracked test failed and
+    the command exited nonzero -> resolved True, command_resolved False."""
+    log = _write(
+        tmp_path / "out.log",
+        "tests/t.py::t_fix PASSED\ntests/t.py::t_keep PASSED\ntests/t.py::t_flaky FAILED\n",
+    )
+    f2p = _write(tmp_path / "f2p.json", json.dumps(["tests/t.py::t_fix"]))
+    p2p = _write(tmp_path / "p2p.json", json.dumps(["tests/t.py::t_keep"]))
+    out_dir = tmp_path / "verifier"
+    main(
+        [
+            "--log",
+            log,
+            "--f2p",
+            f2p,
+            "--p2p",
+            p2p,
+            "--runner",
+            "pytest",
+            "--exit-code",
+            "1",
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+    b = json.loads((out_dir / "reward.json").read_text())
+    assert b["reward"] == 1.0  # tracked subset clean -> training reward 1.0
+    assert b["resolved"] is True  # tracked resolution preserved
+    assert b["command_resolved"] is False  # untracked failure + nonzero exit
+    assert b["untracked_failed_count"] == 1
 
 
 def test_main_falls_back_to_exit_code_on_unparseable_log(tmp_path: Path):
