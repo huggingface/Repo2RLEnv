@@ -1,13 +1,13 @@
 # `pr_runtime` — graded F2P/P2P reward + scale audit (Arc 2)
 
-This release upgrades `pr_runtime` from a binary pass/fail test-execution reward to a **graded** reward that gives RL training a dense gradient while still serving strict SWE-bench evaluation, and ships **100 oracle-verified environments** as the reference dataset.
+This release upgrades `pr_runtime` from a binary pass/fail test-execution reward to a **graded** reward that gives RL training a dense gradient while still serving strict SWE-bench evaluation, and ships **99 oracle-verified environments** as the reference dataset.
 
 ## Published dataset
 
 **<https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime>**
 
-- 100 environments, all oracle-verified (reward 1.0 with the gold patch)
-- **64 Python · 36 Go**, across 14 repos
+- 99 environments, all oracle-verified (reward 1.0 with the gold patch). (5 merge-forward "Merge stable into main" tasks were removed in an audit pass — see Limitations; clean count > round number.)
+- **63 Python · 36 Go**, across 13 repos
 - **Reproducible without registry creds**: each task's `environment/Dockerfile` is a clean recipe (`FROM <base>` → git clone the repo → checkout the bootstrap ref → run the verified `rebuild_cmds`), so consumers rebuild the env from scratch. Verified end-to-end: `docker build` succeeds and `harbor run -a oracle` scores 1.0 on the rebuilt image. (The earlier bootstrap "dockerfile_reconstruction" baked the agent's transcript — command *output* as RUN lines — and did not build; fixed to use `rebuild_cmds`.)
 - Difficulty spread: trivial 18 · small 31 · medium 38 · large 13
 - FAIL_TO_PASS: 1–462 tests/task (avg 8.4) · PASS_TO_PASS: 0–1048 (avg 401)
@@ -49,7 +49,9 @@ Each task stamps `[metadata.repo2env.reward_calibration]` with `f2p_count`, `p2p
 
 - **Rust yields little**: Rust tests are usually inline (`#[cfg(test)] mod tests` inside `src/*.rs`), so the path-based test/source split files them as source → "no test patch." Detecting inline `#[test]` hunks is a v0.9 item. The dataset is Python + Go.
 - **No flaky-test tolerance**: validation is single-run; a flaky P2P can cause a false regression. SWE-bench Verified handled this with manual curation. We drop sub-1.0 oracle tasks, which removes the worst offenders.
-- **Repo concentration**: the productive repos (click, urfave/cli, werkzeug) dominate the 100, since the big/quirky repos (pytest, sphinx, pydantic) yield few separable bug-fix-with-test PRs. Comparable to SWE-bench's repo skew.
+- **Merge-forward tasks removed (audit)**: an expert audit found 5 "Merge stable into main" branch-sync PRs had slipped past the non-bug filter (broad multi-area diffs, not focused bug fixes). The filter now catches `merge … into`, `merge stable/main`, `sync stable`, etc., and those 5 tasks were dropped — leaving 99 clean tasks.
+- **Hidden-test integrity**: `tests/test.sh` now fails CLOSED if the hidden test_patch doesn't apply (reward 0 + `parse_status=test_patch_apply_failed`), so an agent can't get credit by breaking patch application. And the unparseable-log fallback no longer reports `resolved: true` when an F2P oracle is declared (no per-test evidence ⇒ not resolved; reward stays a coarse training-only signal flagged `eval_trustworthy: false`).
+- **Repo concentration**: the productive repos (click, urfave/cli, werkzeug) dominate the set, since the big/quirky repos (pytest, sphinx, pydantic) yield few separable bug-fix-with-test PRs. Comparable to SWE-bench's repo skew.
 
 ## How it was generated
 
@@ -58,7 +60,7 @@ Each task stamps `[metadata.repo2env.reward_calibration]` with `f2p_count`, `p2p
 repo2rlenv generate --repo <owner>/<repo> --pipeline pr_runtime \
   --pipeline-opt limit=60 --llm anthropic/claude-sonnet-4-6 \
   --out ./stage/<repo>
-# Oracle-gate (keep reward 1.0), balance to 100, push
+# Oracle-gate (keep reward 1.0), balance, push
 harbor run -p ./pool -a oracle --env docker          # gate
 repo2rlenv push ./dataset AdithyaSK/repo2rlenv-pr-runtime
 ```
