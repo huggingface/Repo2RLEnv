@@ -95,6 +95,17 @@ LiteLLM resolves provider keys from provider-default env vars:
 
 Override with `llm.api_key_env` in your config if you have non-default names.
 
+### Container registry (image distribution for `_runtime` datasets)
+
+`repo2rlenv push` distributes bootstrap images to an OCI registry when a dataset ships `environment/Dockerfile`s. Creds resolve from explicit env vars first:
+
+| Registry | Env vars | Notes |
+|---|---|---|
+| GHCR | `GHCR_TOKEN` or `GITHUB_TOKEN` | one-time `gh auth refresh -h github.com -s write:packages` |
+| Docker Hub | `DOCKER_USERNAME` + `DOCKER_TOKEN` (PAT) | preferred over the credstore (whose OAuth token is often pull-only); pushes under the Docker Hub user's namespace |
+
+If no registry verifies, push falls back to **inline mode** — each task bakes its own rebuild recipe and stays reproducible with no registry at all. Full details: [`reference/REGISTRY_AUTH.md`](./REGISTRY_AUTH.md).
+
 ### E2B
 
 If you use Harbor with the E2B provider (`harbor run -d <dataset> -e e2b ...`), the E2B SDK reads `E2B_API_KEY` from env. Repo2RLEnv itself doesn't run E2B — Harbor does.

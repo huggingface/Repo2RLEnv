@@ -123,7 +123,7 @@ Logging is routed through `RichHandler` via `install_logging()` (called from `cl
 
 HF Hub auth is the `huggingface_hub` library's auto-resolution (`~/.cache/huggingface/token` or `$HF_TOKEN`). LLM keys via provider-default env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...) — see `auth.resolve_llm_api_key()`.
 
-For GHCR push: needs `gh auth refresh -h github.com -s write:packages` (one-time, the user does this).
+Registry push creds (for `_runtime` image distribution) resolve from explicit env vars first: GHCR reads `GHCR_TOKEN`/`GITHUB_TOKEN` (needs `gh auth refresh -h github.com -s write:packages` one-time); Docker Hub reads `DOCKER_USERNAME`+`DOCKER_TOKEN` (PAT — preferred over the credstore's pull-only OAuth token), and pushes under the Docker Hub *user's* namespace. Multi-repo datasets push one image per repo + rewrite each task to its own digest. See `docs/reference/REGISTRY_AUTH.md`.
 
 ## Cost tracking
 
@@ -210,6 +210,7 @@ uv add --dev <pkg>      # dev only
 3. **Test commands joined with `&&`** — `test_cmds` is a list run as one bash invocation so `export PATH=...` carries over to the next command. Don't iterate the list with `sandbox.exec(each)`.
 4. **registry_url uses Harbor's legacy format** — we publish a `registry.json` to HF Hub that `harbor download --registry-url <hf-url>` can consume directly. No Harbor patches needed.
 5. **No `repo2rlenv run` / no parallel sandbox runtime** — for full tasks, users run `harbor run`. We're synthesis-only.
+6. **Multi-repo datasets are supported in both push modes** — `inline` bakes each task's own bootstrap recipe (built from the verified `rebuild_cmds`, NOT the agent transcript); `registry` pushes each distinct image and rewrites each task to its own digest. `push` clean-syncs `tasks/**` (a removed task disappears from the Hub) and auto-writes `manifest.json`. `pr_runtime` ships `tests/{verifier.py,f2p.json,p2p.json}` as plain files (Harbor mounts `tests/` at `/tests`) — no base64 in `test.sh`.
 
 ## Status (May 2026)
 
