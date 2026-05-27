@@ -65,6 +65,55 @@ class PullResult:
     snapshot_path: Path  # actual on-disk location after snapshot_download
 
 
+def _build_manifest(tasks_dir: Path, *, repo_id: str, pipeline: str) -> str:
+    """Per-task composition manifest from the staged task.toml files.
+
+    One row per task: repo, PR URL, base commit, language hint, reward kinds,
+    difficulty + F2P/P2P counts (when stamped). Lets a consumer machine-check
+    the benchmark composition without downloading every task. Does NOT include
+    oracle/build status — that's a validation-time artifact a launch harness
+    can augment.
+    """
+    import tomllib
+
+    rows = []
+    for td in sorted(p for p in tasks_dir.iterdir() if p.is_dir()):
+        toml_path = td / "task.toml"
+        if not toml_path.is_file():
+            continue
+        try:
+            r2e = tomllib.loads(toml_path.read_text(encoding="utf-8"))["metadata"]["repo2env"]
+        except (KeyError, ValueError, OSError):
+            continue
+        sub = r2e.get(r2e.get("pipeline", ""), {})
+        cal = r2e.get("reward_calibration", {})
+        rows.append(
+            {
+                "task_id": td.name,
+                "repo": r2e.get("repo"),
+                "ref": r2e.get("ref"),
+                "reference": r2e.get("reference") or sub.get("pr_url"),
+                "reward_kinds": r2e.get("reward_kinds"),
+                "f2p_count": cal.get("f2p_count"),
+                "p2p_count": cal.get("p2p_count"),
+                "loc_changed": cal.get("loc_changed"),
+                "difficulty": cal.get("difficulty"),
+            }
+        )
+    manifest = {
+        "dataset": repo_id,
+        "pipeline": pipeline,
+        "task_count": len(rows),
+        "spec": "harbor task + [metadata.repo2env]",
+        "note": (
+            "Per-task composition record. oracle/build status is a "
+            "validation-time artifact and is not included here."
+        ),
+        "tasks": rows,
+    }
+    return json.dumps(manifest, indent=2)
+
+
 def _build_registry_json(
     repo_id: str,
     commit_sha: str,
@@ -391,6 +440,15 @@ def push_to_hub(
         pipeline = first_metadata.get("pipeline", "pr_diff")
     if not repo_source:
         repo_source = first_metadata.get("repo", "")
+
+    # Write manifest.json — a machine-checkable per-task composition record
+    # (repo, PR, base commit, F2P/P2P counts, difficulty, reward kind). Built
+    # from the staged task.toml files so every published dataset carries it.
+    # Top-level file → survives the tasks/** clean-sync on re-push.
+    (staging / "manifest.json").write_text(
+        _build_manifest(tasks_dir, repo_id=repo_id, pipeline=pipeline or "pr_diff"),
+        encoding="utf-8",
+    )
 
     # Write README.md (dataset card)
     dataset_name = repo_id.split("/")[-1]

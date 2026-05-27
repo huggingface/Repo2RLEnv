@@ -153,3 +153,65 @@ class TestPushAutoReadsMetadata:
         # Falls back to "pr_diff" default and empty repo_source
         assert captured["pipeline"] == "pr_diff"
         assert captured["repo_source"] == ""
+
+
+def test_reward_doc_is_pipeline_specific():
+    """pr_runtime card must document F2P/P2P, not pr_diff's LLM-judge."""
+    from repo2rlenv.hub import _reward_doc_for
+
+    rt = _reward_doc_for("pr_runtime")
+    assert "f2p_rate" in rt and "resolved" in rt
+    assert "LLM-judge" not in rt and "5-component" not in rt
+    pd = _reward_doc_for("pr_diff")
+    assert "6-component" in pd or "LLM-judge" in pd
+
+
+def test_build_manifest_from_task_tomls(tmp_path: Path):
+    """manifest.json is built from staged task.toml metadata, one row per task."""
+    import json
+
+    from repo2rlenv.hub import _build_manifest
+
+    tasks = tmp_path / "tasks"
+    for i in (1, 2):
+        d = tasks / f"o__r-{i}"
+        d.mkdir(parents=True)
+        (d / "task.toml").write_text(
+            "[metadata.repo2env]\n"
+            'pipeline="pr_runtime"\nrepo="o/r"\nref="sha"\n'
+            'reward_kinds=["test_execution"]\n'
+            "[metadata.repo2env.pr_runtime]\n"
+            f'pr_url="https://github.com/o/r/pull/{i}"\n'
+            "[metadata.repo2env.reward_calibration]\n"
+            f'f2p_count={i}\np2p_count=5\ndifficulty="small"\n'
+        )
+    m = json.loads(_build_manifest(tasks, repo_id="x/y", pipeline="pr_runtime"))
+    assert m["task_count"] == 2
+    assert {r["task_id"] for r in m["tasks"]} == {"o__r-1", "o__r-2"}
+    assert all(r["repo"] == "o/r" and r["difficulty"] == "small" for r in m["tasks"])
+
+
+def test_registry_and_manifest_cover_same_tasks(tmp_path: Path):
+    """Schema/consistency guard: registry.json, manifest.json, and the task
+    dirs must all reference the exact same task set."""
+    import json
+
+    from repo2rlenv.hub import _build_manifest, _build_registry_json
+
+    tasks = tmp_path / "tasks"
+    names = [f"o__r-{i}" for i in (1, 2, 3)]
+    for n in names:
+        d = tasks / n
+        d.mkdir(parents=True)
+        (d / "task.toml").write_text(
+            f'[task]\nname="o/r-{n}"\n[metadata.repo2env]\npipeline="pr_runtime"\nrepo="o/r"\nref="s"\n'
+        )
+    man = {
+        r["task_id"]
+        for r in json.loads(_build_manifest(tasks, repo_id="x/y", pipeline="pr_runtime"))["tasks"]
+    }
+    reg = _build_registry_json(
+        repo_id="x/y", commit_sha="abc", dataset_name="y", description="d", task_dirs=names
+    )
+    assert man == set(names)
+    assert len(reg) == 3  # one registry row per task
