@@ -83,35 +83,46 @@ Per-language log parsers map raw test output to `{PASSED, FAILED, SKIPPED, ERROR
 | Go (`go test`) | new (we write it) | `--- PASS:` / `--- FAIL:` |
 | Rust (`cargo test`) | new | `test foo ... ok` / `FAILED` |
 
-## Eval script (the one that ships in `tests/test.sh`)
+## Eval script + task artifacts
 
-Adapted from SWE-bench's `make_eval_script_list_common`:
+The graded task ships **plain, inspectable artifacts** in `tests/` (Harbor
+mounts the task's `tests/` at `/tests` in the container):
+
+- `tests/verifier.py` — the standalone graded F2P/P2P verifier
+- `tests/f2p.json` / `tests/p2p.json` — the oracle test-name lists
+- `tests/test.sh` — a thin orchestrator that reads the above (no base64 blobs)
 
 ```bash
 #!/bin/bash
 set -uxo pipefail
-
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"   # /tests in the container
 cd /workspace
 git config --global --add safe.directory /workspace
+mkdir -p /logs/verifier
 
-# 1. Reset test files (in case re-run inside same container)
-git checkout {base_commit} {test_files}
-
-# 2. Apply the test_patch
+# 1. Reset test files to base, then apply the hidden test_patch.
+git checkout {base_commit} {test_files} || true
 git apply --verbose --reject - <<'EOF_R2E_TEST_PATCH'
 {test_patch_content}
 EOF_R2E_TEST_PATCH
+# Fail CLOSED if the test_patch doesn't apply — never score against
+# stale/native tests.
+if [ "$?" -ne 0 ]; then echo "0.000000" > /logs/verifier/reward.txt; ...; exit 0; fi
 
-# 3. Run tests — bracketed for the log parser
-: 'START_TEST_OUTPUT'
-{test_cmds from BootstrapResult}
-: 'END_TEST_OUTPUT'
+# 2. Run tests, capture the log.
+( {test_cmds} ) > /logs/verifier/test_output.log 2>&1
+TEST_EXIT_CODE=$?
 
-# 4. Reset test files (so container can be reused)
-git checkout {base_commit} {test_files}
+# 3. Score: graded reward = f2p_rate*p2p_rate -> reward.txt; strict
+#    `resolved` + breakdown -> reward.json. Falls back to the exit code
+#    only if python3 is unavailable.
+python3 "$SCRIPT_DIR/verifier.py" --log /logs/verifier/test_output.log \
+  --f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" \
+  --exit-code "$TEST_EXIT_CODE" --out-dir /logs/verifier
+exit 0   # reward.txt is the verdict, not the bash exit code
 ```
 
-Harbor's runtime applies the model's predicted patch *before* running `test.sh`, so the model only ever sees source files — never the gold patch or the test_patch.
+Harbor applies the model's predicted patch *before* running `test.sh`, so the model only ever sees source files — never the gold patch or the test_patch. The test files are reset to `base_commit` + the test_patch re-applied each run, so an agent can't pass by editing the tests.
 
 ## Prerequisite: bootstrap
 

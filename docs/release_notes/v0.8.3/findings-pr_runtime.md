@@ -13,6 +13,7 @@ This release upgrades `pr_runtime` from a binary pass/fail test-execution reward
 - FAIL_TO_PASS: 1–462 tests/task (avg 8.4) · PASS_TO_PASS: 0–1048 (avg 401)
 - **Per-task validation manifest** (`manifest.json` in the dataset): one row per task — repo, PR URL, base commit, language, F2P/P2P counts, difficulty, oracle reward/resolved — so the benchmark composition is machine-checkable (all 100 rows: `oracle_reward=1.0, resolved=true`).
 - **Full leak re-audit**: all 100 instructions scanned — no dangerous solution leaks (residual `#refs` / failing-test tracebacks are realistic problem-statement content, as in SWE-bench).
+- **Plain task artifacts**: each task ships `tests/verifier.py` + `tests/f2p.json` + `tests/p2p.json` as inspectable files (Harbor mounts `tests/` at `/tests`); `test.sh` is a thin orchestrator — no base64 blobs. Verified end-to-end on Python + Go (`docker build` + oracle 1.0).
 
 ## What changed
 
