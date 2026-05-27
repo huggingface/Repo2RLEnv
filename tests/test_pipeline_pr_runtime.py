@@ -205,12 +205,14 @@ def test_build_eval_script_binary_fallback_when_no_f2p():
         test_cmds=["pytest -v"],
         fail_to_pass=None,
     )
-    assert "/tmp/r2e/verifier.py" not in script
+    assert "verifier.py" not in script
     assert 'echo "1.0" > /logs/verifier/reward.txt' in script
 
 
-def test_build_eval_script_graded_bakes_verifier_and_lists():
-    """With F2P provided, the graded verifier + F2P/P2P lists are baked in."""
+def test_build_eval_script_graded_reads_artifacts_from_tests_dir():
+    """With F2P provided, test.sh is a thin orchestrator that reads the plain
+    verifier.py + f2p.json + p2p.json artifacts from the mounted tests dir
+    ($SCRIPT_DIR) — NO base64 blobs."""
     script = build_eval_script(
         base_commit="a" * 40,
         test_patch="",
@@ -218,13 +220,25 @@ def test_build_eval_script_graded_bakes_verifier_and_lists():
         fail_to_pass=["tests/t.py::t_fix"],
         pass_to_pass=["tests/t.py::t_keep"],
     )
-    # Verifier source + F2P/P2P JSON are base64-baked and decoded at run time.
-    assert "/tmp/r2e/verifier.py" in script
-    assert "/tmp/r2e/f2p.json" in script
-    assert "/tmp/r2e/p2p.json" in script
-    assert "python3 /tmp/r2e/verifier.py" in script
-    # Falls back to a written reward.txt if python3 is unavailable.
-    assert "/logs/verifier/reward.txt" in script
+    assert 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"' in script
+    assert 'python3 "$SCRIPT_DIR/verifier.py"' in script
+    assert '"$SCRIPT_DIR/f2p.json"' in script
+    assert '"$SCRIPT_DIR/p2p.json"' in script
+    assert "base64" not in script  # no baked blobs
+    assert "/logs/verifier/reward.txt" in script  # python3-missing fallback
+
+
+def test_runtime_aux_files_shape():
+    """The graded path ships verifier.py + f2p.json + p2p.json as task files."""
+    from repo2rlenv.pipelines.pr_runtime import _runtime_aux_files
+
+    aux = _runtime_aux_files(["tests/t.py::a", "tests/t.py::b"], ["tests/t.py::keep"])
+    assert set(aux) == {"tests/verifier.py", "tests/f2p.json", "tests/p2p.json"}
+    import json as _json
+
+    assert _json.loads(aux["tests/f2p.json"]) == ["tests/t.py::a", "tests/t.py::b"]
+    assert _json.loads(aux["tests/p2p.json"]) == ["tests/t.py::keep"]
+    assert "def grade" in aux["tests/verifier.py"]  # real verifier source
 
 
 def test_build_eval_script_no_path_prelude_for_python():

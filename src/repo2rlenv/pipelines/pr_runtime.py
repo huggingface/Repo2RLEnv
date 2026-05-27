@@ -38,7 +38,6 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import re
@@ -482,6 +481,9 @@ def build_eval_script(
         "#!/bin/bash\n"
         "set -uxo pipefail\n"
         f"{path_prelude}"  # may be empty
+        # Harbor mounts the task's tests/ dir at /tests; resolve it so we can
+        # read the sibling verifier.py + f2p.json + p2p.json artifacts.
+        'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n'
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
@@ -505,22 +507,16 @@ def build_eval_script(
             "exit 0\n"
         )
 
-    # Graded path: bake the verifier + F2P/P2P lists, run it.
-    def _b64(s: str) -> str:
-        return base64.b64encode(s.encode("utf-8")).decode("ascii")
-
-    verifier_b64 = _b64(_verifier_source())
-    f2p_b64 = _b64(json.dumps(fail_to_pass))
-    p2p_b64 = _b64(json.dumps(pass_to_pass or []))
+    # Graded path: a thin orchestrator that runs the verifier + F2P/P2P lists
+    # shipped as PLAIN task artifacts (tests/verifier.py, tests/f2p.json,
+    # tests/p2p.json — written by `_runtime_aux_files`). No base64 blobs:
+    # the task semantics are inspectable, and test.sh stays small regardless
+    # of how many F2P/P2P tests a task has.
     cmds_str = " ".join(test_cmds).replace("'", "'\\''")
     return (
-        head + "mkdir -p /tmp/r2e\n"
-        f'echo "{verifier_b64}" | base64 -d > /tmp/r2e/verifier.py\n'
-        f'echo "{f2p_b64}" | base64 -d > /tmp/r2e/f2p.json\n'
-        f'echo "{p2p_b64}" | base64 -d > /tmp/r2e/p2p.json\n'
-        "python3 /tmp/r2e/verifier.py "
+        head + 'python3 "$SCRIPT_DIR/verifier.py" '
         "--log /logs/verifier/test_output.log "
-        "--f2p /tmp/r2e/f2p.json --p2p /tmp/r2e/p2p.json "
+        '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
         f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
         "--out-dir /logs/verifier || "
         # If python3 is somehow unavailable, never leave reward.txt empty.
@@ -529,6 +525,20 @@ def build_eval_script(
         f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
         "exit 0\n"  # reward.txt is the verdict, not the bash exit code
     )
+
+
+def _runtime_aux_files(fail_to_pass: list[str], pass_to_pass: list[str]) -> dict[str, str]:
+    """The plain task artifacts the graded test.sh reads from /tests.
+
+    Shipping these as files (vs base64 inside test.sh) keeps task semantics
+    inspectable and test.sh small. Harbor exposes tests/ at /tests in the
+    container.
+    """
+    return {
+        "tests/verifier.py": _verifier_source(),
+        "tests/f2p.json": json.dumps(fail_to_pass, indent=2),
+        "tests/p2p.json": json.dumps(pass_to_pass or [], indent=2),
+    }
 
 
 def _files_in_patch(unified_diff: str) -> list[str]:
@@ -1098,4 +1108,7 @@ class PRRuntimePipeline:
             keywords=[name, "pr_runtime"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
+            # Ship verifier.py + f2p.json + p2p.json as plain, inspectable task
+            # artifacts that test.sh reads from /tests (no base64 in test.sh).
+            aux_files=_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {},
         )

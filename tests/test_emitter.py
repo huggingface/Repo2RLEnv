@@ -97,6 +97,31 @@ def test_writes_environment_and_test_script_when_provided(tmp_path: Path):
     assert data["metadata"]["repo2env"]["reward_kinds"] == ["test_execution", "diff_similarity"]
 
 
+def test_writes_aux_files_under_task_dir(tmp_path: Path):
+    """Aux files (e.g. tests/verifier.py, tests/f2p.json) are written verbatim."""
+    task = _make_task("aux-task")
+    task.test_script = "#!/bin/bash\ntrue\n"
+    task.aux_files = {
+        "tests/verifier.py": "print('hi')\n",
+        "tests/f2p.json": '["a::b"]',
+        "tests/p2p.json": "[]",
+    }
+    out = write_harbor_task(task, tmp_path)
+    assert (out / "tests" / "verifier.py").read_text() == "print('hi')\n"
+    assert (out / "tests" / "f2p.json").read_text() == '["a::b"]'
+    assert (out / "tests" / "p2p.json").read_text() == "[]"
+
+
+def test_aux_file_path_cannot_escape_task_dir(tmp_path: Path):
+    """Defensive: an aux_file path that escapes the task dir is rejected."""
+    import pytest
+
+    task = _make_task("escape-task")
+    task.aux_files = {"../../etc/evil": "x"}
+    with pytest.raises(ValueError, match="escapes task dir"):
+        write_harbor_task(task, tmp_path)
+
+
 def test_omits_environment_and_test_script_when_absent(tmp_path: Path):
     """Lite tasks (pr_diff) don't write environment/ or tests/."""
     task = _make_task("lite-task")
