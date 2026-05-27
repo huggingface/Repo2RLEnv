@@ -58,6 +58,36 @@ harbor run -p ./datasets/<dataset-name> -a oracle --env docker
 
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
+## How it works
+
+Repo2RLEnv runs **synthesis pipelines** that read real repositories — source code, merged PRs, commits, CVEs — and use them as a *seed* to generate RL environments: tasks with a concrete, solvable objective and a programmatic reward (no human grading).
+
+**Input: any repo. Output: a runnable RL environment** you can point any LLM or coding agent at.
+
+```python
+# every pipeline shares one contract: read a repo, emit verifiable tasks
+class Pipeline(Protocol):
+    name: ClassVar[PipelineName]
+    def run(self, out_dir: Path) -> PipelineResult: ...   # writes tasks/<id>/
+```
+
+Generate from a repo, then run any agent against the result — the environment is scored automatically:
+
+```bash
+# 1. synthesize an environment from a repo
+repo2rlenv generate --repo pallets/click --pipeline pr_runtime \
+  --pipeline-opt limit=10 --llm anthropic/claude-sonnet-4-6 --out ./env-click
+
+# 2. run an agent inside the sandbox (swap -a / -m for any of 25+ harnesses)
+export ANTHROPIC_API_KEY=...   OPENAI_API_KEY=...
+harbor run -p ./env-click -a claude-code -m anthropic/claude-sonnet-4-6 --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY --env docker
+harbor run -p ./env-click -a openhands   -m openai/gpt-4o               --ae OPENAI_API_KEY=$OPENAI_API_KEY     --env docker
+harbor run -p ./env-click -a codex       -m openai/o3                   --ae OPENAI_API_KEY=$OPENAI_API_KEY     --env docker
+harbor run -p ./env-click -a hermes      -m anthropic/claude-sonnet-4-6 --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY --env docker
+```
+
+Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for training or eval.
+
 ## Pipelines
 
 A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended for production; **seven are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
@@ -85,20 +115,23 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 ### At a glance
 
 | Pipeline | Stability | Sandbox | LLM use | Languages |
-|---|:-:|:-:|:-:|---|
-| `pr_diff` | stable | thin | verify | any |
-| `pr_runtime` | stable | ✅ | bootstrap | Py · Go · Node · Rust |
-| `pr_stream` | experimental | ✅ | bootstrap | Py · Go · Node · Rust |
-| `commit_runtime` | experimental | ✅ | bootstrap | Py · Go · Node · Rust |
-| `cve_patches` | experimental | ✅ | bootstrap | Py · Go · Node · Rust |
-| `mutation_bugs` | experimental | ✅ | synthesis | Py |
-| `code_instruct` | experimental | ✅ | synthesis | Py |
-| `equivalence_tests` | experimental | ✅ | synthesis | Py |
-| `refactor_synthesis` | experimental | ✅ | bootstrap | Py |
+|---|:-:|:-:|---|---|
+| `pr_diff` | stable | thin | at verify — judges the solution | any |
+| `pr_runtime` | stable | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `pr_stream` | experimental | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `commit_runtime` | experimental | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `cve_patches` | experimental | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `mutation_bugs` | experimental | ✅ | at synthesis — writes the task | Py |
+| `code_instruct` | experimental | ✅ | at synthesis — writes the task | Py |
+| `equivalence_tests` | experimental | ✅ | at synthesis — writes the task | Py |
+| `refactor_synthesis` | experimental | ✅ | at env build — one-time, cached | Py |
 
 **What the columns mean**
 - **Sandbox** — whether the task runs inside Docker. `✅` = a per-repo image is built once by the [bootstrap phase](#bootstrap) and cached; `thin` = no bootstrap, just a generic `python:3.12-slim` image.
-- **LLM use** — when a language model is invoked: **bootstrap** (one-time env build, then cached), **synthesis** (the model writes the task itself), or **verify** (the model judges the agent's solution).
+- **LLM use** — *when* a language model is invoked, which sets where your API cost goes:
+  - **at env build** — only during bootstrap (constructing the Docker image); cached, so generation itself is LLM-free.
+  - **at synthesis** — the model authors the task (problem + verifier) for every task generated.
+  - **at verify** — the model judges the agent's solution at scoring time (one reward component), and degrades gracefully when no key is set.
 - **Languages** — source languages the pipeline supports.
 
 → **Full reference** — per-pipeline options, reward design, and dataset cards: [**`docs/pipelines/`**](./docs/pipelines/README.md).
@@ -127,9 +160,17 @@ A dataset that:
 
 ## Under the hood
 
-Repo2RLEnv emits datasets in the [Harbor](https://github.com/harbor-framework/harbor) task format. We don't ship our own sandbox, agent harness, or registry — Harbor already has those. We focus on **synthesis**: turning a real repo into verifiable, reproducible Harbor tasks. A small `[metadata.repo2env]` extension inside Harbor's `task.toml` carries provenance (pipeline, base commit, PR URL, content hash, reward kinds).
+Our focus is **synthesis** — we don't reimplement sandboxes, agent harnesses, or a registry. Tasks are emitted in the [Harbor](https://github.com/harbor-framework/harbor) format (with a small `[metadata.repo2env]` block for provenance: pipeline, base commit, PR URL, content hash, reward kinds), so they run on Harbor's existing stack — Local Docker / Modal / Daytona / E2B / Runloop, 25+ agent harnesses, parallel execution, and the publishing CLI.
 
-By targeting Harbor we inherit its full stack: Local Docker / Modal / Daytona / E2B / Runloop sandboxes, every major coding-agent harness, parallel execution, the publishing CLI, and downstream hooks for [OpenReward](https://docs.openreward.ai).
+## Contributing a pipeline
+
+Pipelines are pluggable by design — adding a synthesis strategy is the main way to extend Repo2RLEnv:
+
+1. Implement the `Pipeline` protocol (`name` + `run() -> PipelineResult`) in `src/repo2rlenv/pipelines/`.
+2. Register it in `PIPELINES` and add its options model; new pipelines start `experimental = True`.
+3. `uv run pytest tests/test_pipeline_contract.py` enforces the contract.
+
+Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/ADDING_A_PIPELINE.md`**](./docs/contributing/ADDING_A_PIPELINE.md). Issues and PRs welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## Documentation
 
