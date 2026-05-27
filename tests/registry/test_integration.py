@@ -246,9 +246,7 @@ class TestModeSelection:
             "_load_bootstrap_recipe",
             lambda ref: (f"FROM scratch\n# recipe for {ref}\n", "user_dockerfile"),
         )
-        result = prepare_dataset_for_push(
-            tmp_path, hf_owner="testorg", inline_dockerfile=True
-        )
+        result = prepare_dataset_for_push(tmp_path, hf_owner="testorg", inline_dockerfile=True)
         assert result.mode == "inline_dockerfile"
         assert result.tasks_rewritten == 2
         # Each task's Dockerfile baked ITS OWN ref's recipe.

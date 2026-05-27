@@ -333,6 +333,8 @@ def test_linked_issue_number():
     assert _linked_issue_number("blah\nFixes #3458 thanks") == 3458
     assert _linked_issue_number("Closes #12, #13") == 12
     assert _linked_issue_number("no refs here") is None
+    # markdown-link form (common in PR bodies): `fixes [#3458](url)`
+    assert _linked_issue_number("fixes [#3458](https://github.com/x/y/issues/3458)") == 3458
 
 
 def test_is_non_bug_pr():

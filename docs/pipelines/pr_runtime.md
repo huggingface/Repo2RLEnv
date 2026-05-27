@@ -1,6 +1,8 @@
 # `pr_runtime`
 
-SWE-bench-style PR mining with sandbox-verified oracles. Each task carries a `FAIL_TO_PASS` set (the tests that prove the bug existed) and a `PASS_TO_PASS` set (regression guard); reward is binary on whether both pass after the model patch is applied.
+SWE-bench-style PR mining with sandbox-verified oracles. Each task carries a `FAIL_TO_PASS` set (the tests that prove the bug existed) and a `PASS_TO_PASS` set (regression guard).
+
+**As of v0.8.3 the reward is graded, not binary** (see [findings-pr_runtime](../release_notes/v0.8.3/findings-pr_runtime.md)): an in-container verifier scores `reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (the dense training signal Harbor reads) and also writes the strict SWE-bench `resolved` bool to `/logs/verifier/reward.json` (the eval signal). The oracle patch still scores exactly `1.0`. The problem statement is sourced from the linked **issue** (not the PR body) and run through a solution-leak strip; backport/release/revert PRs are filtered out. **Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime)** — 100 oracle-verified envs (64 Python / 36 Go).
 
 | | |
 |---|---|
@@ -157,7 +159,7 @@ This gives smaller, more focused tasks — most usable for trainers that need a 
 
 | Kind | When emitted | What the trainer/agent sees |
 |---|---|---|
-| `test_execution` | Always (this is the point of `pr_runtime`) | Binary: F2P all pass AND P2P all pass ⇒ resolved |
+| `test_execution` | Always (this is the point of `pr_runtime`) | **Graded** `reward = f2p_rate × p2p_rate` in `reward.txt` (dense training signal); strict `resolved` bool + breakdown in `reward.json` (eval signal). Oracle = 1.0. |
 | `diff_similarity` | Always (cheap fallback for trainers that can't run code) | Float 0..1 vs the gold patch |
 
 Resolution status (matches SWE-bench):
