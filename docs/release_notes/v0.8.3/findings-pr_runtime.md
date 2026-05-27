@@ -11,8 +11,8 @@ This release upgrades `pr_runtime` from a binary pass/fail test-execution reward
 - **Reproducible without registry creds**: each task's `environment/Dockerfile` is a clean recipe (`FROM <base>` → git clone the repo → checkout the bootstrap ref → run the verified `rebuild_cmds`), so consumers rebuild the env from scratch. Verified end-to-end: `docker build` succeeds and `harbor run -a oracle` scores 1.0 on the rebuilt image. (The earlier bootstrap "dockerfile_reconstruction" baked the agent's transcript — command *output* as RUN lines — and did not build; fixed to use `rebuild_cmds`.)
 - Difficulty spread: trivial 18 · small 31 · medium 38 · large 12
 - FAIL_TO_PASS: 1–462 tests/task (avg 8.4) · PASS_TO_PASS: 0–1048 (avg 401)
-- **Per-task validation manifest** (`manifest.json` in the dataset): one row per task — repo, PR URL, base commit, language, F2P/P2P counts, difficulty, oracle reward/resolved — so the benchmark composition is machine-checkable (all 99 rows: `oracle_reward=1.0, resolved=true`).
-- **Full leak re-audit**: all 99 instructions scanned — no dangerous solution leaks (residual `#refs` / failing-test tracebacks are realistic problem-statement content, as in SWE-bench).
+- **Per-task validation manifest** (`manifest.json` in the dataset): one row per task — repo, PR URL, base commit, language, F2P/P2P counts, difficulty, oracle reward/resolved — so the benchmark composition is machine-checkable (all 100 rows: `oracle_reward=1.0, resolved=true`).
+- **Full leak re-audit**: all 100 instructions scanned — no dangerous solution leaks (residual `#refs` / failing-test tracebacks are realistic problem-statement content, as in SWE-bench).
 
 ## What changed
 
