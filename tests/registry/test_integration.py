@@ -233,6 +233,30 @@ class TestModeSelection:
         with pytest.raises(RuntimeError, match="distinct bootstrap images"):
             prepare_dataset_for_push(tmp_path, hf_owner="testorg")
 
+    def test_multi_image_allowed_in_inline_mode(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Multi-repo datasets (one image per repo) publish in inline mode —
+        each task bakes its OWN bootstrap recipe."""
+        _write_runtime_task(tmp_path, "task-1", bootstrap_ref="local/r2e:imgA")
+        _write_runtime_task(tmp_path, "task-2", bootstrap_ref="local/r2e:imgB")
+        # Each ref resolves to its own reconstructed recipe.
+        monkeypatch.setattr(
+            integ,
+            "_load_bootstrap_recipe",
+            lambda ref: (f"FROM scratch\n# recipe for {ref}\n", "user_dockerfile"),
+        )
+        result = prepare_dataset_for_push(
+            tmp_path, hf_owner="testorg", inline_dockerfile=True
+        )
+        assert result.mode == "inline_dockerfile"
+        assert result.tasks_rewritten == 2
+        # Each task's Dockerfile baked ITS OWN ref's recipe.
+        d1 = (tmp_path / "task-1" / "environment" / "Dockerfile").read_text()
+        d2 = (tmp_path / "task-2" / "environment" / "Dockerfile").read_text()
+        assert "recipe for local/r2e:imgA" in d1
+        assert "recipe for local/r2e:imgB" in d2
+
     def test_registry_mode_selected_when_probe_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
