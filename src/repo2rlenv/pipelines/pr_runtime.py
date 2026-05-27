@@ -304,8 +304,14 @@ def _word_count(text: str) -> int:
 # bodies routinely leak the fix (commit SHA to cherry-pick, the source PR).
 _NON_BUG_TITLE_RE = re.compile(
     r"\b(?:back[-\s]?port|cherry[-\s]?pick|revert|"
-    r"bump|release|changelog|merge\s+branch|forward[-\s]?merge|"
-    r"prepare\s+(?:for\s+)?release|version\s+bump|re-?sync|sync\s+stable)\b",
+    r"bump|release|changelog|forward[-\s]?merge|"
+    r"prepare\s+(?:for\s+)?release|version\s+bump|re-?sync)\b"
+    # merge-forward / branch-sync PRs: "merge branch", "merge stable into main",
+    # "merge X into Y", "sync stable", "sync main", "merge master" — these are
+    # broad branch syncs, not focused bug fixes, and produce huge noisy diffs.
+    r"|\bmerge\b[^\n]*\binto\b"
+    r"|\bmerge\s+(?:branch|stable|main|master|develop|upstream|release)\b"
+    r"|\bsync\s+(?:stable|main|master|branch|develop|upstream)\b",
     re.IGNORECASE,
 )
 
@@ -452,6 +458,26 @@ def build_eval_script(
     test_block = " && ".join(test_cmds) if test_cmds else "echo 'no test_cmds configured'"
     path_prelude = _path_prelude_for_language(language)
 
+    # Fail CLOSED if the hidden test_patch doesn't apply: an agent that edited
+    # tests or the file layout could make `git apply` fail, and we must NOT
+    # then score against stale/native tests. Write reward 0 + a clear status
+    # and stop. (Reset tolerates test files absent at base — that's `|| true`.)
+    apply_guard = (
+        ""
+        if not test_patch.strip()
+        else (
+            f"{apply}\n"
+            "R2E_APPLY_RC=$?\n"
+            'if [ "$R2E_APPLY_RC" -ne 0 ]; then\n'
+            '  echo "0.000000" > /logs/verifier/reward.txt\n'
+            "  printf '%s' "
+            '\'{"reward": 0.0, "resolved": false, "parse_status": '
+            '"test_patch_apply_failed"}\' > /logs/verifier/reward.json\n'
+            '  echo "R2E: test_patch failed to apply (rc=$R2E_APPLY_RC) — failing closed" >&2\n'
+            "  exit 0\n"
+            "fi\n"
+        )
+    )
     head = (
         "#!/bin/bash\n"
         "set -uxo pipefail\n"
@@ -460,7 +486,7 @@ def build_eval_script(
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
-        f"{apply}\n"
+        f"{apply_guard}"
         # Capture the suite output so the verifier can parse per-test status.
         # `( ... )` subshell + redirect keeps the whole `a && b` block's output;
         # pipefail preserves the real test exit code.

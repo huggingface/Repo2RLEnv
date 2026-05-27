@@ -309,12 +309,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if not status_map:
         # Unparseable runner output → fall back to the binary exit-code reward
-        # so we never silently zero a real fix on an unrecognized format.
+        # (a coarse TRAINING signal) so we never silently zero a real fix on an
+        # unrecognized format. But `resolved` is the strict EVAL signal: without
+        # parsed per-test status we have NO evidence the declared FAIL_TO_PASS
+        # tests passed, so when an F2P oracle exists we must NOT claim resolved.
+        # (resolved stays exit-code-based only when there's no declared oracle,
+        # e.g. --skip-validation.)
         reward = 1.0 if args.exit_code == 0 else 0.0
+        has_oracle = len(f2p) > 0
+        resolved = (args.exit_code == 0) and not has_oracle
         breakdown = {
             "reward": reward,
-            "resolved": args.exit_code == 0,
+            "resolved": resolved,
             "parse_status": "fallback_exitcode",
+            "eval_trustworthy": not has_oracle,
             "runner": runner,
             "f2p_total": len(f2p),
             "p2p_total": len(p2p),

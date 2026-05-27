@@ -92,6 +92,42 @@ def _build_registry_json(
     ]
 
 
+def _reward_doc_for(pipeline: str) -> str:
+    """Per-pipeline reward documentation for the dataset card.
+
+    Each pipeline scores differently — don't describe one pipeline's reward
+    on another's card (e.g. pr_runtime is test-execution F2P/P2P, NOT the
+    pr_diff LLM-as-judge).
+    """
+    if pipeline in ("pr_runtime", "commit_runtime", "pr_stream", "cve_patches"):
+        return (
+            "The reward is **test-execution (graded F2P/P2P)**. After your patch is "
+            "applied, `tests/test.sh` runs the suite and a baked verifier scores "
+            "`reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (a dense "
+            "training signal), and writes the strict SWE-bench `resolved` bool plus a "
+            "breakdown to `/logs/verifier/reward.json`:\n\n"
+            "```json\n"
+            '{"reward": 1.0, "resolved": true, "f2p_passed": 3, "f2p_total": 3,\n'
+            ' "p2p_passed": 595, "p2p_total": 595, "regressions": [], "parse_status": "ok"}\n'
+            "```\n\n"
+            "`resolved` requires **all** FAIL_TO_PASS to pass AND **all** PASS_TO_PASS "
+            "to be maintained. No API key is needed — grading is purely test-based."
+        )
+    if pipeline == "pr_diff":
+        return (
+            "The reward is a **6-component diff-similarity** score "
+            "(format / size / file-targeting / region-overlap / changes-only "
+            "similarity / LLM-judge). The `--ve ANTHROPIC_API_KEY=...` verifier-env "
+            "pass enables the LLM-judge component; without it the verifier still "
+            "produces a valid score with `llm_judge: null` and the deterministic "
+            "weights renormalized. Full breakdown in `/logs/verifier/reward.json`."
+        )
+    return (
+        "The reward function ships inside the task (`tests/test.sh` + verifier); "
+        "the breakdown is written to `/logs/verifier/reward.json` at run time."
+    )
+
+
 def _build_dataset_card(
     repo_id: str,
     dataset_name: str,
@@ -140,13 +176,9 @@ harbor run \\
   -a claude-code -m anthropic/claude-sonnet-4-6 \\
   --ak max_budget_usd=2.00 \\
   --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \\
-  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \\
   --env docker
 ```
-
-The `--ve` (verifier env) pass is what enables the LLM-as-judge component
-of the reward; without it the verifier still produces a valid 5-component
-score, just with `llm_judge: null`."""
+{_reward_doc_for(pipeline)}"""
     else:
         run_section = f"""## Use with Harbor
 

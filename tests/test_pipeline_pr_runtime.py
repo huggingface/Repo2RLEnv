@@ -345,6 +345,31 @@ def test_is_non_bug_pr():
     assert not _is_non_bug_pr("Fix crash in argument parsing")
 
 
+def test_is_non_bug_pr_catches_merge_forward():
+    """Merge-forward / branch-sync PRs are not bug fixes (audit P1)."""
+    assert _is_non_bug_pr("Merge stable into main")
+    assert _is_non_bug_pr("Merge Stable into master")
+    assert _is_non_bug_pr("merge branch 'release' into develop")
+    assert _is_non_bug_pr("Sync stable")
+    assert _is_non_bug_pr("merge main")
+    # a real fix that merely mentions merge behavior is kept
+    assert not _is_non_bug_pr("Fix merge conflict resolution in config loader")
+
+
+def test_build_eval_script_fails_closed_on_patch_apply():
+    """If the hidden test_patch can't apply, score 0 + flag — never run
+    against stale/native tests (audit P1)."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch=_SAMPLE_DIFF,
+        test_cmds=["pytest -v"],
+        fail_to_pass=["tests/test_foo.py::test_add"],
+    )
+    assert "R2E_APPLY_RC" in script
+    assert "test_patch_apply_failed" in script
+    assert script.find("R2E_APPLY_RC") < script.find("test_output.log")
+
+
 def test_build_instruction_falls_back_to_pr_when_no_issue():
     """No linked issue + no owner/name → use the PR body, leak-stripped."""
     from repo2rlenv.github import PullRequestSummary

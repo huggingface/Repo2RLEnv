@@ -179,6 +179,20 @@ def test_main_falls_back_to_exit_code_on_unparseable_log(tmp_path: Path):
     assert (out_dir / "reward.txt").read_text().strip() == "1.000000"
 
 
+def test_main_fallback_not_resolved_when_oracle_declared(tmp_path: Path):
+    """Unparseable log + declared F2P → reward may be exit-code-based, but
+    `resolved` must be False (no per-test evidence). Audit P1."""
+    log = _write(tmp_path / "out.log", "garbage no parser understands\n")
+    f2p = _write(tmp_path / "f2p.json", json.dumps(["t_fix"]))  # declared oracle
+    p2p = _write(tmp_path / "p2p.json", json.dumps([]))
+    out_dir = tmp_path / "verifier"
+    main(["--log", log, "--f2p", f2p, "--p2p", p2p, "--exit-code", "0", "--out-dir", str(out_dir)])
+    b = json.loads((out_dir / "reward.json").read_text())
+    assert b["parse_status"] == "fallback_exitcode"
+    assert b["resolved"] is False  # cannot confirm F2P passed
+    assert b["eval_trustworthy"] is False
+
+
 def test_main_fallback_exit_nonzero_is_zero(tmp_path: Path):
     log = _write(tmp_path / "out.log", "garbage\n")
     f2p = _write(tmp_path / "f2p.json", json.dumps(["t_fix"]))
