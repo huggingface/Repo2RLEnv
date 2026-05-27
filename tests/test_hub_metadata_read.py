@@ -213,5 +213,5 @@ def test_registry_and_manifest_cover_same_tasks(tmp_path: Path):
     reg = _build_registry_json(
         repo_id="x/y", commit_sha="abc", dataset_name="y", description="d", task_dirs=names
     )
-    assert man == set(names)
-    assert len(reg) == 3  # one registry row per task
+    reg_names = {t["name"] for spec in reg for t in spec["tasks"]}
+    assert man == set(names) == reg_names
