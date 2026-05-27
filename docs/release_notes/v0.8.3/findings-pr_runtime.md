@@ -8,6 +8,7 @@ This release upgrades `pr_runtime` from a binary pass/fail test-execution reward
 
 - 100 environments, all oracle-verified (reward 1.0 with the gold patch)
 - **64 Python · 36 Go**, across 14 repos
+- **Reproducible without registry creds**: each task's `environment/Dockerfile` is a clean recipe (`FROM <base>` → git clone the repo → checkout the bootstrap ref → run the verified `rebuild_cmds`), so consumers rebuild the env from scratch. Verified end-to-end: `docker build` succeeds and `harbor run -a oracle` scores 1.0 on the rebuilt image. (The earlier bootstrap "dockerfile_reconstruction" baked the agent's transcript — command *output* as RUN lines — and did not build; fixed to use `rebuild_cmds`.)
 - Difficulty spread: trivial 18 · small 31 · medium 38 · large 13
 - FAIL_TO_PASS: 1–462 tests/task (avg 8.4) · PASS_TO_PASS: 0–1048 (avg 401)
 
