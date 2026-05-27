@@ -162,8 +162,14 @@ def _build_namespace_for(auth: RegistryAuth, hf_owner: str) -> str:
         # back to "r2e".
         return "r2e"
     if auth.kind is RegistryKind.DOCKER_HUB:
-        # Use the logged-in username if we can resolve it; otherwise the HF owner.
-        return hf_owner.lower()
+        # Docker Hub repos live under the AUTHENTICATED USER's namespace, which
+        # is usually NOT the HF owner. Prefer DOCKER_USERNAME (the creds that
+        # actually grant push); fall back to the HF owner only if unset.
+        import os
+
+        return (
+            os.environ.get("DOCKER_USERNAME") or os.environ.get("DOCKERHUB_USERNAME") or hf_owner
+        ).lower()
     if auth.kind is RegistryKind.LOCAL:
         return "r2e"
     return hf_owner.lower()
@@ -424,17 +430,11 @@ def prepare_dataset_for_push(
         # subtable at all — there's no image to be reproducible about.
         return PrepareResult(mode="local_only", tasks_rewritten=0)
 
-    # Multi-image datasets (e.g. pr_runtime across many repos) are supported
-    # ONLY in inline mode, where each task bakes its OWN bootstrap recipe and
-    # is independently self-contained — no single shared image to push. The
-    # registry path still pushes one image, so multi-image there is rejected.
+    # Multi-image datasets (e.g. pr_runtime across many repos) are supported in
+    # BOTH modes: inline bakes each task's own recipe; registry pushes each
+    # distinct image and rewrites each task to its own digest. `local_ref` is
+    # just a representative for the single-image PrepareResult fields.
     distinct = {ref for ref, _ in refs}
-    if len(distinct) > 1 and not inline_dockerfile:
-        raise RuntimeError(
-            f"dataset has {len(distinct)} distinct bootstrap images: {sorted(distinct)}. "
-            "Multi-image datasets need --inline-dockerfile (each task bakes its "
-            "own recipe) — registry mode pushes a single image."
-        )
     local_ref = sorted(distinct)[0]
     looks_local = local_ref.startswith(("local/", "local-")) or local_ref.startswith("localhost")
 
@@ -716,72 +716,77 @@ def _go_registry(
     pushed_by: str | None,
     on_message,
 ) -> PrepareResult:
-    """Push the bootstrap image to the verified registry; rewrite tasks."""
+    """Push each distinct bootstrap image to the registry; rewrite each task
+    to ITS OWN image digest (multi-image aware)."""
+    from collections import defaultdict
+
     from repo2rlenv.registry.naming import build_image_ref
 
-    # Build the remote ref
-    owner, name, sha = _parse_local_tag(local_ref)
     registry_prefix = _registry_prefix_for_kind(selected.kind, selected.host, namespace)
-    remote_ref = build_image_ref(
-        registry_prefix=registry_prefix,
-        owner=owner,
-        name=name,
-        commit_sha=sha,
-    )
 
-    warnings: list[str] = []
-    image_pushed = False
-    digest: str = remote_ref
-
-    if skip_image_push:
-        on_message(f"--skip-image-push: not pushing; reusing {remote_ref}")
-    else:
-        try:
-            push_result = _do_push(local_ref, remote_ref, looks_local)
-            digest = push_result.digest
-            image_pushed = push_result.pushed
-            on_message(
-                f"pushed {remote_ref} → {digest[:64]}..."
-                if image_pushed
-                else f"manifest already at registry: {digest[:64]}..."
-            )
-        except PushError as exc:
-            warnings.append(f"image push failed: {exc}")
-            if require_registry:
-                raise
-            on_message(f"WARN image push failed; falling back to inline mode: {exc}")
-            # Fall back to inline
-            return _go_inline(
-                local_dir,
-                task_dirs,
-                refs,
-                local_ref=local_ref,
-                fallback_reason=f"image push failed: {exc}",
-                pushed_by=pushed_by,
-                on_message=on_message,
-            )
-
-    # Visibility
+    # Visibility (computed once; applies to every pushed image).
     effective_visibility: Literal["public", "private", "unknown"]
     if image_visibility == "inherit":
         effective_visibility = "private" if dataset_is_private else "public"
     else:
         effective_visibility = image_visibility  # type: ignore[assignment]
 
-    if effective_visibility == "public" and selected.kind is RegistryKind.GHCR:
-        vis = ensure_ghcr_visibility(remote_ref, target="public")
-        if not vis.success:
-            warnings.append(
-                f"GHCR visibility flip failed: {vis.error} (manual fix: {vis.manual_url})"
-            )
-            if require_registry:
-                raise RuntimeError(warnings[-1])
-            effective_visibility = "unknown"
-            on_message(f"WARN {warnings[-1]}")
+    by_ref: dict[str, list[Path]] = defaultdict(list)
+    for ref, df_path in refs:
+        by_ref[ref].append(df_path)
 
-    # Rewrite tasks
+    warnings: list[str] = []
+    any_pushed = False
+    # local_ref -> (remote_ref, digest)
+    pushed: dict[str, tuple[str, str]] = {}
+
+    for ref in sorted(by_ref):
+        owner, name, sha = _parse_local_tag(ref)
+        remote_ref = build_image_ref(
+            registry_prefix=registry_prefix, owner=owner, name=name, commit_sha=sha
+        )
+        digest = remote_ref
+        if skip_image_push:
+            on_message(f"--skip-image-push: not pushing; reusing {remote_ref}")
+        else:
+            try:
+                push_result = _do_push(ref, remote_ref, looks_local)
+                digest = push_result.digest
+                any_pushed = any_pushed or push_result.pushed
+                on_message(
+                    f"pushed {remote_ref} → {digest[:48]}..."
+                    if push_result.pushed
+                    else f"already at registry: {digest[:48]}..."
+                )
+            except PushError as exc:
+                warnings.append(f"image push failed for {ref}: {exc}")
+                if require_registry:
+                    raise
+                on_message(f"WARN push failed ({ref}); falling back to inline mode: {exc}")
+                # Fall back: bake ALL tasks inline (independently self-contained).
+                return _go_inline(
+                    local_dir,
+                    task_dirs,
+                    refs,
+                    local_ref=local_ref,
+                    fallback_reason=f"image push failed: {exc}",
+                    pushed_by=pushed_by,
+                    on_message=on_message,
+                )
+        if effective_visibility == "public" and selected.kind is RegistryKind.GHCR:
+            vis = ensure_ghcr_visibility(remote_ref, target="public")
+            if not vis.success:
+                warnings.append(f"GHCR visibility flip failed for {remote_ref}: {vis.error}")
+                if require_registry:
+                    raise RuntimeError(warnings[-1])
+                effective_visibility = "unknown"
+                on_message(f"WARN {warnings[-1]}")
+        pushed[ref] = (remote_ref, digest)
+
+    # Rewrite each task to its OWN image's digest.
     tasks_rewritten = 0
-    for _ref, df_path in refs:
+    for ref, df_path in refs:
+        remote_ref, digest = pushed[ref]
         if _rewrite_dockerfile_from(df_path, digest):
             tasks_rewritten += 1
         toml_path = df_path.parent.parent / "task.toml"
@@ -795,17 +800,19 @@ def _go_registry(
                 pushed_by=pushed_by,
             )
 
-    on_message(f"registry mode: rewrote {tasks_rewritten} task Dockerfiles → {digest[:48]}...")
-
+    primary = pushed.get(local_ref) or next(iter(pushed.values()))
+    on_message(
+        f"registry mode: pushed {len(pushed)} image(s), rewrote {tasks_rewritten} task Dockerfiles"
+    )
     return PrepareResult(
         mode="registry",
         tasks_rewritten=tasks_rewritten,
         selected_host=selected.host,
         selected_namespace=namespace,
-        image_remote_ref=remote_ref,
-        image_digest=digest,
+        image_remote_ref=primary[0],
+        image_digest=primary[1],
         image_visibility=effective_visibility,
-        image_pushed=image_pushed,
+        image_pushed=any_pushed,
         probe_results=probes,
         warnings=warnings,
     )

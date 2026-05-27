@@ -128,12 +128,44 @@ def _http_request(
         raise ProbeError(f"timeout after {timeout}s") from exc
 
 
+def _env_credential(host: str) -> tuple[str, str] | None:
+    """Explicit registry creds from env vars, for known hosts.
+
+    Preferred over the docker credstore: Docker Hub's credstore returns an
+    OAuth *identity token* (frequently pull-only for the token endpoint),
+    whereas an explicit username + access token (PAT) reliably grants push.
+    Checked first so `repo2rlenv push` works with the creds a user puts in
+    their environment / .env.
+
+      Docker Hub  : DOCKER_USERNAME + DOCKER_TOKEN (or DOCKERHUB_*)
+      GHCR        : (GITHUB_ACTOR | "x-access-token") + (GHCR_TOKEN | GITHUB_TOKEN)
+    """
+    import os
+
+    h = host.lower()
+    if "docker.io" in h or h == "docker.io" or h.endswith("index.docker.io"):
+        user = os.environ.get("DOCKER_USERNAME") or os.environ.get("DOCKERHUB_USERNAME")
+        token = os.environ.get("DOCKER_TOKEN") or os.environ.get("DOCKERHUB_TOKEN")
+        if user and token:
+            return (user, token)
+    if h == "ghcr.io" or h.endswith(".ghcr.io"):
+        token = os.environ.get("GHCR_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        if token:
+            return (os.environ.get("GITHUB_ACTOR") or "x-access-token", token)
+    return None
+
+
 def _resolve_credential(auth: RegistryAuth, host: str) -> tuple[str, str] | None:
     """Resolve (username, password/token) for `host` via the right cred source.
 
-    Returns None if the credential can't be resolved (helper missing, etc.) —
-    the probe will then degrade to anonymous-only behaviour.
+    Order: explicit env creds (for known registries) → the source recorded on
+    `auth` (inline config.json or credstore helper). Returns None if nothing
+    resolves — the probe then degrades to anonymous-only behaviour.
     """
+    env_cred = _env_credential(host)
+    if env_cred is not None:
+        return env_cred
+
     if auth.cred_source is CredentialSource.INLINE:
         # The inline path requires reading the original config.json again —
         # we do it lazily here to keep the public surface small.
