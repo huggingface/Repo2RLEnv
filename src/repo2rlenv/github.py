@@ -125,6 +125,39 @@ def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = Non
     )
 
 
+def fetch_issue(
+    owner: str, name: str, number: int, *, token: str | None = None
+) -> tuple[str, str] | None:
+    """Return (title, body) for an issue, or None if it can't be fetched.
+
+    Used by `pr_runtime` to source the problem statement from the linked
+    issue (the bug *report*) rather than the PR body (the *fix* description,
+    which routinely leaks the solution — commit SHAs, the approach, even the
+    grading test names). Mirrors SWE-bench, which builds problem statements
+    from issue text.
+
+    `gh issue view` also resolves issue numbers that are actually PRs on the
+    same repo; we tolerate that and just return whatever title/body comes
+    back. Returns None on any error (issue deleted, cross-repo ref, etc.) so
+    the caller can fall back to the PR body.
+    """
+    import json as _json
+
+    try:
+        raw = _run_gh(
+            ["issue", "view", str(number), "--repo", f"{owner}/{name}", "--json", "title,body"],
+            token=token,
+        )
+        data = _json.loads(raw)
+    except (GitHubError, _json.JSONDecodeError):
+        return None
+    title = (data.get("title") or "").strip()
+    body = (data.get("body") or "").strip()
+    if not title and not body:
+        return None
+    return title, body
+
+
 def get_primary_language(owner: str, name: str, *, token: str | None = None) -> str | None:
     """Return GitHub's primary language string for a repo, or None on failure.
 

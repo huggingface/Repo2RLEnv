@@ -38,6 +38,7 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import UTC, datetime
@@ -50,6 +51,7 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import (
     GitHubError,
     PullRequestSummary,
+    fetch_issue,
     fetch_pr_diff,
     list_merged_prs,
 )
@@ -61,6 +63,106 @@ logger = logging.getLogger(__name__)
 
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
+
+# `git clean -fdx` excludes. Keep language dependency/build dirs so resetting
+# to a PR's base_commit doesn't wipe installed deps the test suite needs:
+#   node_modules (npm/yarn) · target (cargo) · vendor (go) · .venv/venv/.tox
+#   (python) · .gradle/build (jvm). Without these, Node/Rust repos would yield
+#   ZERO tasks because the suite can't even import its deps after the clean.
+_GIT_CLEAN_EXCLUDES = (
+    "-e .venv -e venv -e __pycache__ -e .tox "
+    "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache"
+)
+
+# Which issue does this PR close? Used to source the problem statement from
+# the issue (bug report) instead of the PR body (fix description).
+# Matches `Fixes #123`, `Closes #123`, AND the markdown-link form
+# `fixes [#123](url)` that PR authors commonly use.
+_LINKED_ISSUE_RE = re.compile(
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+\[?#(\d+)", re.IGNORECASE
+)
+
+# Boilerplate sections that bloat a PR body without describing the problem,
+# OR leak the solution. We drop everything from the first such header on.
+# Crucially this includes test sections: a "Tests added / updated" block
+# names the exact FAIL_TO_PASS tests that grade the task (an eval leak).
+_BODY_NOISE_HEADER_RE = re.compile(
+    r"^\s*#{0,6}\s*"
+    r"(?:checklist|change\s*log|changelog|release\s*notes?|how\s+to\s+test|"
+    r"test\s*plan|tests?\s+added(?:\s*/?\s*updated)?|tests?\s+added\s+or\s+updated|"
+    r"testing|types?\s+of\s+changes?|pr\s+checklist|reviewer\s+notes?)\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+# Solution-leak patterns stripped from the problem statement before use.
+_LEAK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # "cherry-pick c3535905", "backport commit abc1234", "commit deadbeef1234"
+    re.compile(
+        r"\b(?:cherry[-\s]?pick(?:ed|ing|s)?|back[-\s]?port(?:ed|ing|s)?|commit)\b"
+        r"[^\n]*?\b[0-9a-f]{7,40}\b",
+        re.IGNORECASE,
+    ),
+    # Bare full 40-char SHAs (almost always a git ref pointing at the fix)
+    re.compile(r"\b[0-9a-f]{40}\b"),
+    # Markdown links to a github PR/issue/commit (point straight at the fix)
+    re.compile(r"\[[^\]]*\]\(https?://github\.com/[^\s)]*?/(?:pull|issues|commit)/[^\s)]*\)"),
+    # Bare github PR/issue/commit URLs (incl. redirect.github.com)
+    re.compile(r"https?://(?:\w+\.)?github\.com/[^\s)]*?/(?:pull|issues|commit)/\S+"),
+    # Closes/Fixes/Resolves/See/Refs #N (and cross-repo owner/repo#N)
+    re.compile(
+        r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|see|refs?|ref|follow[-\s]?up(?:\s+to)?)\b"
+        r"[:\s]*(?:[\w.-]+/[\w.-]+)?#\d+",
+        re.IGNORECASE,
+    ),
+    # Markdown issue/PR refs `[#1234](url)` and bare `[#1234]`
+    re.compile(r"\[#\d+\]\([^)]*\)"),
+)
+
+
+def _linked_issue_number(pr_body: str) -> int | None:
+    """Return the issue number this PR closes, if any (`Closes #123`)."""
+    m = _LINKED_ISSUE_RE.search(pr_body or "")
+    return int(m.group(1)) if m else None
+
+
+def _strip_info_leak(text: str) -> str:
+    """Remove solution-pointing references (SHAs, fix-PR links, #refs)."""
+    out = text
+    for pat in _LEAK_PATTERNS:
+        out = pat.sub("", out)
+    return out
+
+
+# A markdown comment block (PR templates wrap guidance in <!-- ... -->).
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+# Collapse 3+ blank lines down to a single blank line.
+_MULTI_BLANK_RE = re.compile(r"\n{3,}")
+# Cap the instruction body so a 5000-word PR essay doesn't dominate context.
+_MAX_BODY_CHARS = 4000
+
+
+def _reflow_pr_body(body: str) -> str:
+    """Tidy a verbose PR body into a focused problem statement.
+
+    - drop HTML comment blocks (PR-template guidance)
+    - drop everything from the first checklist/changelog/template header on
+    - collapse runs of blank lines
+    - cap length
+
+    Conservative: only trims obvious boilerplate. Never rewrites prose (no
+    LLM call here — deterministic + cheap).
+    """
+    body = _HTML_COMMENT_RE.sub("", body)
+    kept: list[str] = []
+    for line in body.splitlines():
+        if _BODY_NOISE_HEADER_RE.match(line):
+            break  # the rest is checklist/changelog noise
+        kept.append(line)
+    out = _MULTI_BLANK_RE.sub("\n\n", "\n".join(kept)).strip()
+    if len(out) > _MAX_BODY_CHARS:
+        out = out[:_MAX_BODY_CHARS].rstrip() + "\n\n…(truncated)"
+    return out
+
 
 # Path-component classifier for "is this a test file?".
 #
@@ -145,15 +247,45 @@ def split_patch_and_test_patch(unified_diff: str) -> tuple[str, str]:
     return "".join(patch_parts), "".join(test_parts)
 
 
-def _build_instruction(pr: PullRequestSummary) -> str:
-    """Strip 'Closes #N' style boilerplate from the PR description."""
-    body = (pr.body or "").strip()
-    body = _CLOSES_RE.sub("", body).strip()
+def _build_instruction(
+    pr: PullRequestSummary,
+    owner: str = "",
+    name: str = "",
+    *,
+    token: str | None = None,
+) -> str:
+    """Build the task instruction (problem statement).
+
+    Sources the problem from the **linked issue** (the bug *report*) when the
+    PR closes one, falling back to the PR body otherwise. The PR body is
+    written by the fixer and routinely leaks the solution (commit SHAs to
+    cherry-pick, the fix approach, the names of the grading tests); the issue
+    describes the *symptom*, which is what we want the agent to work from.
+    This mirrors SWE-bench, which builds problem statements from issue text.
+
+    Whatever text we use is then run through the info-leak strip + reflow so
+    stray fix-PR links / #refs / SHAs / test-section noise don't leak through.
+    """
+    title = pr.title
+    body = pr.body or ""
+
+    issue_num = _linked_issue_number(pr.body or "")
+    if issue_num is not None and owner and name:
+        fetched = fetch_issue(owner, name, issue_num, token=token)
+        if fetched:
+            i_title, i_body = fetched
+            title = i_title or pr.title
+            body = i_body or body
+
+    body = _CLOSES_RE.sub("", body)
+    body = _strip_info_leak(body)
+    body = _reflow_pr_body(body).strip()
     if not body:
-        body = "(no description provided in source PR)"
+        body = "(no description provided in source issue/PR)"
+    title = _strip_info_leak(title).strip() or pr.title
     return (
         f"# Issue\n\n"
-        f"**Title:** {pr.title}\n\n"
+        f"**Title:** {title}\n\n"
         f"## Description\n\n"
         f"{body}\n\n"
         f"## Task\n\n"
@@ -165,6 +297,37 @@ def _build_instruction(pr: PullRequestSummary) -> str:
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text or ""))
+
+
+# PR titles that signal a non-bug chore — not a meaningful SWE task, and their
+# bodies routinely leak the fix (commit SHA to cherry-pick, the source PR).
+_NON_BUG_TITLE_RE = re.compile(
+    r"\b(?:back[-\s]?port|cherry[-\s]?pick|revert|"
+    r"bump|release|changelog|forward[-\s]?merge|"
+    r"prepare\s+(?:for\s+)?release|version\s+bump|re-?sync)\b"
+    # merge-forward / branch-sync PRs: "merge branch", "merge stable into main",
+    # "merge X into Y", "sync stable", "sync main", "merge master" — these are
+    # broad branch syncs, not focused bug fixes, and produce huge noisy diffs.
+    r"|\bmerge\b[^\n]*\binto\b"
+    r"|\bmerge\s+(?:branch|stable|main|master|develop|upstream|release)\b"
+    r"|\bsync\s+(?:stable|main|master|branch|develop|upstream)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_non_bug_pr(title: str) -> bool:
+    """True if the PR title marks a backport / cherry-pick / release / revert."""
+    return bool(_NON_BUG_TITLE_RE.search(title or ""))
+
+
+def _verifier_source() -> str:
+    """Read the standalone graded verifier's source for base64 embedding.
+
+    Mirrors pr_diff: the verifier (`_pr_runtime_verifier.py`) runs inside
+    the task container, so we read its source at gen time and bake it into
+    `tests/test.sh` as a base64 blob.
+    """
+    return (Path(__file__).parent / "_pr_runtime_verifier.py").read_text(encoding="utf-8")
 
 
 def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
@@ -197,10 +360,20 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         f"# images vary — some (Python slim) don't ship git; some agents\n"
         f"# install it; others don't. Re-installing is a no-op when already\n"
         f"# present. Tries apt-get first (Debian/Ubuntu), then apk (Alpine).\n"
-        f"RUN command -v git >/dev/null 2>&1 || \\\n"
-        f"    (apt-get update && apt-get install -y --no-install-recommends git \\\n"
+        f"# Install git + ca-certificates. Minimal images (node:alpine) ship\n"
+        f"# without CA certs, so HTTPS git fetch fails verification.\n"
+        f"RUN (command -v git >/dev/null 2>&1 && [ -e /etc/ssl/certs/ca-certificates.crt ]) || \\\n"
+        f"    (apt-get update && apt-get install -y --no-install-recommends git ca-certificates \\\n"
         f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
-        f"    apk add --no-cache git || true\n"
+        f"    (apk add --no-cache git ca-certificates && update-ca-certificates) || true\n"
+        f"# Defensive: the graded F2P/P2P verifier is Python.\n"
+        f"# Language-specific bootstrap images (Go/Rust/Node) may not\n"
+        f"# ship python3 — install it so test.sh can score F2P/P2P. No-op when\n"
+        f"# python3 is already present (every Python-repo image has it).\n"
+        f"RUN command -v python3 >/dev/null 2>&1 || \\\n"
+        f"    (apt-get update && apt-get install -y --no-install-recommends python3 \\\n"
+        f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
+        f"    apk add --no-cache python3 || true\n"
         f"# Position the working tree at the PR's base commit so subsequent\n"
         f"# model-patch applications align with the line context the patch\n"
         f"# was authored against. The fetch is a no-op if the commit is\n"
@@ -208,7 +381,7 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         f"RUN git config --global --add safe.directory /workspace \\\n"
         f"    && git fetch --depth 1 origin {base_commit} 2>/dev/null \\\n"
         f"       || git fetch --unshallow origin 2>/dev/null || true\n"
-        f"RUN git reset --hard {base_commit} && git clean -fdx -e .venv -e venv -e __pycache__\n"
+        f"RUN git reset --hard {base_commit} && git clean -fdx {_GIT_CLEAN_EXCLUDES}\n"
     )
 
 
@@ -246,6 +419,8 @@ def build_eval_script(
     test_cmds: list[str],
     *,
     language: str | None = None,
+    fail_to_pass: list[str] | None = None,
+    pass_to_pass: list[str] | None = None,
 ) -> str:
     """Build the `tests/test.sh` content that Harbor runs after the model patch.
 
@@ -255,12 +430,18 @@ def build_eval_script(
       2. Prepend known toolchain paths for the detected language (compensates
          for bootstrap agents that install Go/Rust/Node outside /usr/bin
          without exporting PATH in any persisted shell init file)
-      3. Reset test files to base_commit (so re-running stays clean)
+      3. Reset test files to base_commit (so re-running stays clean) — this is
+         the anti-tamper guard: the agent CANNOT pass by editing/deleting the
+         tests, because we restore them to base and re-apply the test_patch
       4. Apply the test_patch (via heredoc + git apply --reject)
-      5. Run test_cmds bracketed with START_TEST_OUTPUT / END_TEST_OUTPUT markers
-         so the log parser knows where tests started
-      6. Write the reward to /logs/verifier/reward.txt (Harbor's verifier
-         reads this; exit code alone isn't enough — see Verifier._parse_reward_text)
+      5. Run test_cmds, capturing stdout+stderr to a log file
+      6. Score the reward:
+         - GRADED (default, when fail_to_pass is provided): bake the standalone
+           graded verifier + the F2P/P2P test-name lists, parse the captured
+           log, and write reward = f2p_rate * p2p_rate to reward.txt (+ full
+           breakdown incl. the strict SWE-bench ``resolved`` bool to reward.json)
+         - BINARY (fallback, e.g. ``skip_validation`` with no F2P known): write
+           1.0 if the suite exited 0 else 0.0
       7. Reset test files again on the way out
 
     The model's predicted patch is applied by Harbor *before* this script runs.
@@ -275,27 +456,89 @@ def build_eval_script(
     apply = f"git apply --verbose --reject - <<'{heredoc}'\n{test_patch}\n{heredoc}"
     test_block = " && ".join(test_cmds) if test_cmds else "echo 'no test_cmds configured'"
     path_prelude = _path_prelude_for_language(language)
-    return (
+
+    # Fail CLOSED if the hidden test_patch doesn't apply: an agent that edited
+    # tests or the file layout could make `git apply` fail, and we must NOT
+    # then score against stale/native tests. Write reward 0 + a clear status
+    # and stop. (Reset tolerates test files absent at base — that's `|| true`.)
+    apply_guard = (
+        ""
+        if not test_patch.strip()
+        else (
+            f"{apply}\n"
+            "R2E_APPLY_RC=$?\n"
+            'if [ "$R2E_APPLY_RC" -ne 0 ]; then\n'
+            '  echo "0.000000" > /logs/verifier/reward.txt\n'
+            "  printf '%s' "
+            '\'{"reward": 0.0, "resolved": false, "parse_status": '
+            '"test_patch_apply_failed"}\' > /logs/verifier/reward.json\n'
+            '  echo "R2E: test_patch failed to apply (rc=$R2E_APPLY_RC) — failing closed" >&2\n'
+            "  exit 0\n"
+            "fi\n"
+        )
+    )
+    head = (
         "#!/bin/bash\n"
         "set -uxo pipefail\n"
         f"{path_prelude}"  # may be empty
+        # Harbor mounts the task's tests/ dir at /tests; resolve it so we can
+        # read the sibling verifier.py + f2p.json + p2p.json artifacts.
+        'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n'
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
-        f"{apply}\n"
-        ": 'START_TEST_OUTPUT'\n"
-        f"{test_block}\n"
+        f"{apply_guard}"
+        # Capture the suite output so the verifier can parse per-test status.
+        # `( ... )` subshell + redirect keeps the whole `a && b` block's output;
+        # pipefail preserves the real test exit code.
+        f"( {test_block} ) > /logs/verifier/test_output.log 2>&1\n"
         "TEST_EXIT_CODE=$?\n"
-        ": 'END_TEST_OUTPUT'\n"
-        # Harbor verifier reads /logs/verifier/reward.txt — write 1.0 if all
-        # tests passed, else 0.0. Exit-code-based pass/fail alone doesn't
-        # populate the reward file the verifier expects.
-        '[ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt\n'
-        f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
-        "exit $TEST_EXIT_CODE\n"
+        "cat /logs/verifier/test_output.log\n"
     )
+
+    if not fail_to_pass:
+        # No F2P oracle available (e.g. --skip-validation). Fall back to the
+        # binary exit-code reward.
+        return (
+            head + '[ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
+            '|| echo "0.0" > /logs/verifier/reward.txt\n'
+            f"{reset} || true\n"
+            "exit 0\n"
+        )
+
+    # Graded path: a thin orchestrator that runs the verifier + F2P/P2P lists
+    # shipped as PLAIN task artifacts (tests/verifier.py, tests/f2p.json,
+    # tests/p2p.json — written by `_runtime_aux_files`). No base64 blobs:
+    # the task semantics are inspectable, and test.sh stays small regardless
+    # of how many F2P/P2P tests a task has.
+    cmds_str = " ".join(test_cmds).replace("'", "'\\''")
+    return (
+        head + 'python3 "$SCRIPT_DIR/verifier.py" '
+        "--log /logs/verifier/test_output.log "
+        '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
+        f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
+        "--out-dir /logs/verifier || "
+        # If python3 is somehow unavailable, never leave reward.txt empty.
+        '{ [ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
+        '|| echo "0.0" > /logs/verifier/reward.txt; }\n'
+        f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
+        "exit 0\n"  # reward.txt is the verdict, not the bash exit code
+    )
+
+
+def _runtime_aux_files(fail_to_pass: list[str], pass_to_pass: list[str]) -> dict[str, str]:
+    """The plain task artifacts the graded test.sh reads from /tests.
+
+    Shipping these as files (vs base64 inside test.sh) keeps task semantics
+    inspectable and test.sh small. Harbor exposes tests/ at /tests in the
+    container.
+    """
+    return {
+        "tests/verifier.py": _verifier_source(),
+        "tests/f2p.json": json.dumps(fail_to_pass, indent=2),
+        "tests/p2p.json": json.dumps(pass_to_pass or [], indent=2),
+    }
 
 
 def _files_in_patch(unified_diff: str) -> list[str]:
@@ -317,6 +560,30 @@ def _files_in_patch(unified_diff: str) -> list[str]:
 _NEW_TEST_FUNC_RE = re.compile(
     r"^\+\s*(?:def\s+test_\w+|class\s+\w*[Tt]est\w*|func\s+Test\w+|it\s*\(|test\s*\(|describe\s*\()",
 )
+
+
+def _diff_loc_changed(unified_diff: str) -> int:
+    """Count real +/- lines in a unified diff (excludes +++/--- file markers)."""
+    n = 0
+    for line in (unified_diff or "").splitlines():
+        if (line.startswith("+") or line.startswith("-")) and not line.startswith(("+++ ", "--- ")):
+            n += 1
+    return n
+
+
+def _difficulty_bucket(f2p_count: int, loc_changed: int) -> str:
+    """Coarse difficulty from oracle size — lets consumers slice train/eval.
+
+    Combines the fix size (LOC) and how many distinct behaviours must be
+    restored (F2P count). Mirrors Arc 1's pr_diff buckets on LOC.
+    """
+    if loc_changed <= 5 and f2p_count <= 1:
+        return "trivial"
+    if loc_changed <= 20:
+        return "small"
+    if loc_changed <= 80:
+        return "medium"
+    return "large"
 
 
 def _count_new_test_funcs(test_patch: str) -> int:
@@ -525,6 +792,7 @@ class PRRuntimePipeline:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         token = resolve_github_token(self.input.repo, self.input.auth)
+        self._token = token  # reused by _build_task to fetch linked-issue text
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
                 "private repo specified but no GitHub token resolved. "
@@ -671,6 +939,11 @@ class PRRuntimePipeline:
             return "not_merged"
         if not pr.changed_files:
             return "no_files"
+        if _is_non_bug_pr(pr.title):
+            # Backports / cherry-picks / release chores / reverts / version
+            # bumps aren't real fix tasks, and their bodies leak commit SHAs
+            # and fix-PR links. Drop them up front.
+            return "non_bug_pr"
         if (
             self.options.min_problem_statement_words > 0
             and _word_count(pr.body or "") < self.options.min_problem_statement_words
@@ -763,14 +1036,17 @@ class PRRuntimePipeline:
         owner, name = self.input.repo.owner_name
         task_id = f"{owner}__{name}-{pr.number}"
 
+        resolved_test_cmds = targeted_test_cmds_for_pr(
+            normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+            _files_in_patch(test_patch),
+        )
         eval_script = build_eval_script(
             base_commit=pr.base_sha,
             test_patch=test_patch,
-            test_cmds=targeted_test_cmds_for_pr(
-                normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
-                _files_in_patch(test_patch),
-            ),
+            test_cmds=resolved_test_cmds,
             language=self.bootstrap.language.value,
+            fail_to_pass=fail_to_pass,
+            pass_to_pass=pass_to_pass,
         )
         # Use image_tag for local-only bootstraps (Docker can resolve locally),
         # image_digest only when the image is in a registry that BuildKit can
@@ -803,6 +1079,20 @@ class PRRuntimePipeline:
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
                 "bootstrap_image": self.bootstrap.image_digest,
+                # Graded reward: reward.txt carries f2p_rate*p2p_rate (training
+                # signal); reward.json adds the strict SWE-bench `resolved` bool
+                # (eval signal). See _pr_runtime_verifier.py.
+                "reward_mode": "graded",
+            },
+            # Difficulty + coverage metadata so consumers can slice train/eval
+            # by hardness and judge regression-guard strength (p2p_count == 0
+            # means no P2P regression guard — weaker eval; see UTBoost).
+            "reward_calibration": {
+                "f2p_count": len(fail_to_pass),
+                "p2p_count": len(pass_to_pass),
+                "source_files": len(_files_in_patch(patch)),
+                "loc_changed": _diff_loc_changed(patch),
+                "difficulty": _difficulty_bucket(len(fail_to_pass), _diff_loc_changed(patch)),
             },
         }
 
@@ -810,7 +1100,7 @@ class PRRuntimePipeline:
             name=task_id,
             org=self.input.output.org,
             description=pr.title or task_id,
-            instruction=_build_instruction(pr),
+            instruction=_build_instruction(pr, owner, name, token=getattr(self, "_token", None)),
             oracle_diff=patch,
             repo2env=repo2env,
             difficulty="medium",
@@ -818,4 +1108,7 @@ class PRRuntimePipeline:
             keywords=[name, "pr_runtime"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
+            # Ship verifier.py + f2p.json + p2p.json as plain, inspectable task
+            # artifacts that test.sh reads from /tests (no base64 in test.sh).
+            aux_files=_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {},
         )

@@ -65,6 +65,55 @@ class PullResult:
     snapshot_path: Path  # actual on-disk location after snapshot_download
 
 
+def _build_manifest(tasks_dir: Path, *, repo_id: str, pipeline: str) -> str:
+    """Per-task composition manifest from the staged task.toml files.
+
+    One row per task: repo, PR URL, base commit, language hint, reward kinds,
+    difficulty + F2P/P2P counts (when stamped). Lets a consumer machine-check
+    the benchmark composition without downloading every task. Does NOT include
+    oracle/build status — that's a validation-time artifact a launch harness
+    can augment.
+    """
+    import tomllib
+
+    rows = []
+    for td in sorted(p for p in tasks_dir.iterdir() if p.is_dir()):
+        toml_path = td / "task.toml"
+        if not toml_path.is_file():
+            continue
+        try:
+            r2e = tomllib.loads(toml_path.read_text(encoding="utf-8"))["metadata"]["repo2env"]
+        except (KeyError, ValueError, OSError):
+            continue
+        sub = r2e.get(r2e.get("pipeline", ""), {})
+        cal = r2e.get("reward_calibration", {})
+        rows.append(
+            {
+                "task_id": td.name,
+                "repo": r2e.get("repo"),
+                "ref": r2e.get("ref"),
+                "reference": r2e.get("reference") or sub.get("pr_url"),
+                "reward_kinds": r2e.get("reward_kinds"),
+                "f2p_count": cal.get("f2p_count"),
+                "p2p_count": cal.get("p2p_count"),
+                "loc_changed": cal.get("loc_changed"),
+                "difficulty": cal.get("difficulty"),
+            }
+        )
+    manifest = {
+        "dataset": repo_id,
+        "pipeline": pipeline,
+        "task_count": len(rows),
+        "spec": "harbor task + [metadata.repo2env]",
+        "note": (
+            "Per-task composition record. oracle/build status is a "
+            "validation-time artifact and is not included here."
+        ),
+        "tasks": rows,
+    }
+    return json.dumps(manifest, indent=2)
+
+
 def _build_registry_json(
     repo_id: str,
     commit_sha: str,
@@ -92,6 +141,99 @@ def _build_registry_json(
     ]
 
 
+def _reward_doc_for(pipeline: str) -> str:
+    """Per-pipeline reward documentation for the dataset card.
+
+    Each pipeline scores differently — don't describe one pipeline's reward
+    on another's card (e.g. pr_runtime is test-execution F2P/P2P, NOT the
+    pr_diff LLM-as-judge).
+    """
+    if pipeline in ("pr_runtime", "commit_runtime", "pr_stream", "cve_patches"):
+        return (
+            "The reward is **test-execution (graded F2P/P2P)**. After your patch is "
+            "applied, `tests/test.sh` runs the suite and a baked verifier scores "
+            "`reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (a dense "
+            "training signal), and writes the strict SWE-bench `resolved` bool plus a "
+            "breakdown to `/logs/verifier/reward.json`:\n\n"
+            "```json\n"
+            '{"reward": 1.0, "resolved": true, "f2p_passed": 3, "f2p_total": 3,\n'
+            ' "p2p_passed": 595, "p2p_total": 595, "regressions": [], "parse_status": "ok"}\n'
+            "```\n\n"
+            "`resolved` requires **all** FAIL_TO_PASS to pass AND **all** PASS_TO_PASS "
+            "to be maintained. No API key is needed — grading is purely test-based."
+        )
+    if pipeline == "pr_diff":
+        return (
+            "The reward is a **6-component diff-similarity** score "
+            "(format / size / file-targeting / region-overlap / changes-only "
+            "similarity / LLM-judge). The `--ve ANTHROPIC_API_KEY=...` verifier-env "
+            "pass enables the LLM-judge component; without it the verifier still "
+            "produces a valid score with `llm_judge: null` and the deterministic "
+            "weights renormalized. Full breakdown in `/logs/verifier/reward.json`."
+        )
+    return (
+        "The reward function ships inside the task (`tests/test.sh` + verifier); "
+        "the breakdown is written to `/logs/verifier/reward.json` at run time."
+    )
+
+
+def _composition_block(summary: dict[str, Any] | None) -> str:
+    """Render the composition + validation section from an enriched manifest.
+
+    Returns "" when no validated manifest is available (so the card stays
+    accurate for plain pushes that never ran an oracle gate).
+    """
+    if not summary:
+        return ""
+    val = summary.get("validation", {}) or {}
+    dist = summary.get("repo_distribution", {}) or {}
+    n = summary.get("task_count")
+    tracked = val.get("tracked_resolved")
+    command = val.get("command_resolved")
+    eval_grade = val.get("eval_grade")
+
+    lines = ["## Validation & composition", ""]
+    if tracked is not None:
+        lines += [
+            f"Every task is **oracle-validated**: the gold patch was applied under "
+            f"`harbor run -a oracle --env docker` (harbor `{val.get('harbor_version', '?')}`) "
+            f"and scored. Per-task build status, oracle reward, exit code, parser status, "
+            f"runtime, and artifact checksums live in "
+            f"[`manifest.json`](./manifest.json).",
+            "",
+            "Two resolution signals are recorded per task:",
+            "",
+            f"- **`resolved`** — SWE-bench *tracked* resolution (all FAIL_TO_PASS + "
+            f"PASS_TO_PASS pass). The gold patch satisfies it for **{tracked}/{n}** tasks "
+            f"(the oracle invariant). Use this for SWE-bench-style scoring and training.",
+            f"- **`command_resolved`** — stricter: tracked-resolved **and** the selected "
+            f"test command had zero failures outside the F2P/P2P sets **and** exit code 0. "
+            f"**{command}/{n}** tasks qualify. The gap is tasks whose whole-file test "
+            f"command pulls in pre-existing/flaky failures unrelated to the PR; they remain "
+            f"valid for training but are flagged out of strict eval.",
+        ]
+        if eval_grade is not None:
+            lines += [
+                f"- **`eval_grade`** — `command_resolved` **and** `p2p_count > 0` (has a "
+                f"regression guard). **{eval_grade}/{n}** tasks. **For benchmark-grade "
+                f"evaluation, filter to `eval_grade == true`.**",
+            ]
+        lines += [""]
+    if dist:
+        lines += [
+            "### Repo distribution",
+            "",
+            "The set is **not balanced** — aggregate scores are influenced most by the "
+            "top repos. Report per-repo metrics and consider a balanced eval subset.",
+            "",
+            "| Repo | Tasks |",
+            "|---|---|",
+        ]
+        lines += [f"| [`{r}`](https://github.com/{r}) | {c} |" for r, c in dist.items()]
+        lines += ["", ""]
+    return "\n".join(lines)
+
+
 def _build_dataset_card(
     repo_id: str,
     dataset_name: str,
@@ -101,6 +243,7 @@ def _build_dataset_card(
     visibility: str,
     source_repos: list[str] | None = None,
     has_environment: bool = False,
+    manifest_summary: dict[str, Any] | None = None,
 ) -> str:
     """Render the HF Hub dataset card (README.md) for a published dataset.
 
@@ -108,9 +251,13 @@ def _build_dataset_card(
     that spans 25 repos) render a proper "Source repos" list; if absent, the
     single ``repo_source`` fallback is rendered. ``has_environment`` toggles
     the harbor-run section between a runnable-env recipe and the text-only
-    fallback.
+    fallback. ``manifest_summary`` (when the dataset carries an enriched,
+    oracle-validated manifest) renders a composition + validation section
+    with the per-repo task distribution and tracked/command resolution counts.
     """
     visualiser_link = f"{VISUALISER_BASE_URL}?dataset={repo_id}"
+
+    composition_block = _composition_block(manifest_summary)
 
     if source_repos and len(source_repos) > 1:
         repo_lines = "\n".join(f"  - [`{r}`](https://github.com/{r})" for r in source_repos)
@@ -140,13 +287,9 @@ harbor run \\
   -a claude-code -m anthropic/claude-sonnet-4-6 \\
   --ak max_budget_usd=2.00 \\
   --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \\
-  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \\
   --env docker
 ```
-
-The `--ve` (verifier env) pass is what enables the LLM-as-judge component
-of the reward; without it the verifier still produces a valid 5-component
-score, just with `llm_judge: null`."""
+{_reward_doc_for(pipeline)}"""
     else:
         run_section = f"""## Use with Harbor
 
@@ -204,7 +347,7 @@ repo2rlenv generate \\
 See the [pipeline docs](https://github.com/huggingface/Repo2RLEnv/blob/main/docs/pipelines/{pipeline}.md) for the full option list + reward design.
 
 {run_section}
-
+{composition_block}
 ## Reward signal
 
 The reward function is part of the task itself (`tests/test.sh` + the
@@ -360,6 +503,42 @@ def push_to_hub(
     if not repo_source:
         repo_source = first_metadata.get("repo", "")
 
+    # Write manifest.json — a machine-checkable per-task composition record
+    # (repo, PR, base commit, F2P/P2P counts, difficulty, reward kind). Built
+    # from the staged task.toml files so every published dataset carries it.
+    # Top-level file → survives the tasks/** clean-sync on re-push.
+    #
+    # Exception: if the source dir already carries an *enriched* manifest (one
+    # with a `validation` block — e.g. stamped launch-side after an oracle gate
+    # with per-task build/oracle status + checksums), preserve it verbatim.
+    # `push` can't run an oracle, so it must not clobber validation provenance.
+    src_manifest = local_dataset_dir / "manifest.json"
+    enriched = False
+    if src_manifest.exists():
+        try:
+            enriched = "validation" in json.loads(src_manifest.read_text())
+        except (OSError, ValueError):
+            enriched = False
+    manifest_summary: dict[str, Any] | None = None
+    if enriched:
+        manifest_text = src_manifest.read_text()
+        (staging / "manifest.json").write_text(manifest_text, encoding="utf-8")
+        logger.info("preserving enriched manifest.json (has validation block)")
+        try:
+            m = json.loads(manifest_text)
+            manifest_summary = {
+                "task_count": m.get("task_count"),
+                "validation": m.get("validation", {}),
+                "repo_distribution": m.get("repo_distribution", {}),
+            }
+        except (OSError, ValueError):
+            manifest_summary = None
+    else:
+        (staging / "manifest.json").write_text(
+            _build_manifest(tasks_dir, repo_id=repo_id, pipeline=pipeline or "pr_diff"),
+            encoding="utf-8",
+        )
+
     # Write README.md (dataset card)
     dataset_name = repo_id.split("/")[-1]
     (staging / "README.md").write_text(
@@ -372,6 +551,7 @@ def push_to_hub(
             visibility="private" if private else "public",
             source_repos=sorted(source_repos),
             has_environment=has_environment,
+            manifest_summary=manifest_summary,
         ),
         encoding="utf-8",
     )
@@ -383,6 +563,12 @@ def push_to_hub(
         repo_id=repo_id,
         repo_type="dataset",
         commit_message=commit_message or f"Repo2RLEnv: add {len(task_names)} tasks",
+        # Clean-sync the task tree: prune remote tasks/<id> dirs that aren't in
+        # this push, so removing a task locally (e.g. dropping a low-quality
+        # one) actually removes it from the Hub. Without this, re-pushes only
+        # add/update and stale tasks linger. Scoped to tasks/** so it never
+        # touches README.md / registry.json.
+        delete_patterns=["tasks/**"],
     )
     commit_sha = (
         op.oid

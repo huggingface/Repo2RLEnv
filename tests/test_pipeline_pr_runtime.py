@@ -15,9 +15,15 @@ import pytest
 
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
+    _build_instruction,
     _count_new_test_funcs,
+    _difficulty_bucket,
     _files_in_patch,
+    _is_non_bug_pr,
+    _linked_issue_number,
     _path_is_test,
+    _reflow_pr_body,
+    _strip_info_leak,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
@@ -121,16 +127,16 @@ def test_files_in_patch_returns_unique_paths():
 # --- eval script --------------------------------------------------------------
 
 
-def test_build_eval_script_includes_markers_and_test_cmds():
+def test_build_eval_script_captures_log_and_test_cmds():
     script = build_eval_script(
         base_commit="a" * 40,
         test_patch=_SAMPLE_DIFF,  # any non-empty diff works for the heredoc test
         test_cmds=["pytest -x tests/"],
     )
-    assert "START_TEST_OUTPUT" in script
-    assert "END_TEST_OUTPUT" in script
+    # The suite output is captured to a log file the verifier can parse.
+    assert "/logs/verifier/test_output.log" in script
     assert "pytest -x tests/" in script
-    # Reset comes before and after the test run (idempotency)
+    # Reset comes before and after the test run (idempotency + anti-tamper)
     assert script.count("git checkout") >= 2
     # Workspace + safe.directory wiring (matches SWE-bench)
     assert "/workspace" in script
@@ -158,11 +164,12 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
 
 
-def test_build_eval_script_preserves_test_exit_code():
-    """P1 fix: cleanup `git checkout || true` must NOT mask pytest's failure.
+def test_build_eval_script_captures_exit_code_before_cleanup():
+    """The reward is the verdict (written to reward.txt), so the script exits 0.
 
-    Harbor's verifier reads this script's exit code; if we always exit 0,
-    every model patch looks like a pass regardless of test outcome.
+    But the test exit code must be captured AFTER the test block and BEFORE
+    the cleanup reset, so the cleanup `git checkout || true` can't mask the
+    test outcome that feeds the binary fallback / verifier --exit-code.
     """
     script = build_eval_script(
         base_commit="a" * 40,
@@ -170,12 +177,11 @@ def test_build_eval_script_preserves_test_exit_code():
         test_cmds=["pytest -v"],
     )
     assert "TEST_EXIT_CODE=$?" in script
-    assert "exit $TEST_EXIT_CODE" in script
-    # The capture must come AFTER the test block and BEFORE the cleanup reset
+    assert "exit 0" in script  # reward.txt is the verdict, not bash exit code
     test_block_pos = script.find("pytest -v")
     capture_pos = script.find("TEST_EXIT_CODE=$?")
-    final_exit_pos = script.find("exit $TEST_EXIT_CODE")
-    assert test_block_pos < capture_pos < final_exit_pos
+    reward_pos = script.find("/logs/verifier/reward.txt")
+    assert test_block_pos < capture_pos < reward_pos
 
 
 def test_build_eval_script_writes_reward_file():
@@ -189,6 +195,50 @@ def test_build_eval_script_writes_reward_file():
     assert "/logs/verifier/reward.txt" in script
     # Should write 1.0 on pass, 0.0 on fail
     assert "1.0" in script and "0.0" in script
+
+
+def test_build_eval_script_binary_fallback_when_no_f2p():
+    """No F2P oracle (e.g. --skip-validation) → binary exit-code reward, no verifier."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+        fail_to_pass=None,
+    )
+    assert "verifier.py" not in script
+    assert 'echo "1.0" > /logs/verifier/reward.txt' in script
+
+
+def test_build_eval_script_graded_reads_artifacts_from_tests_dir():
+    """With F2P provided, test.sh is a thin orchestrator that reads the plain
+    verifier.py + f2p.json + p2p.json artifacts from the mounted tests dir
+    ($SCRIPT_DIR) — NO base64 blobs."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch="",
+        test_cmds=["pytest -v"],
+        fail_to_pass=["tests/t.py::t_fix"],
+        pass_to_pass=["tests/t.py::t_keep"],
+    )
+    assert 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"' in script
+    assert 'python3 "$SCRIPT_DIR/verifier.py"' in script
+    assert '"$SCRIPT_DIR/f2p.json"' in script
+    assert '"$SCRIPT_DIR/p2p.json"' in script
+    assert "base64" not in script  # no baked blobs
+    assert "/logs/verifier/reward.txt" in script  # python3-missing fallback
+
+
+def test_runtime_aux_files_shape():
+    """The graded path ships verifier.py + f2p.json + p2p.json as task files."""
+    from repo2rlenv.pipelines.pr_runtime import _runtime_aux_files
+
+    aux = _runtime_aux_files(["tests/t.py::a", "tests/t.py::b"], ["tests/t.py::keep"])
+    assert set(aux) == {"tests/verifier.py", "tests/f2p.json", "tests/p2p.json"}
+    import json as _json
+
+    assert _json.loads(aux["tests/f2p.json"]) == ["tests/t.py::a", "tests/t.py::b"]
+    assert _json.loads(aux["tests/p2p.json"]) == ["tests/t.py::keep"]
+    assert "def grade" in aux["tests/verifier.py"]  # real verifier source
 
 
 def test_build_eval_script_no_path_prelude_for_python():
@@ -226,6 +276,134 @@ def test_build_eval_script_path_prelude_for_rust():
         language="rust",
     )
     assert ".cargo/bin" in script
+
+
+# --- instruction reflow + difficulty -----------------------------------------
+
+
+def test_reflow_drops_checklist_and_html_comments():
+    body = (
+        "This fixes a real bug in the parser.\n\n"
+        "<!-- please fill the template -->\n\n"
+        "## Checklist\n"
+        "- [ ] tests added\n"
+        "- [ ] docs updated\n"
+    )
+    out = _reflow_pr_body(body)
+    assert "real bug in the parser" in out
+    assert "Checklist" not in out
+    assert "fill the template" not in out
+    assert "[ ] tests added" not in out
+
+
+def test_reflow_collapses_blank_lines_and_caps_length():
+    body = "Problem.\n\n\n\n\nMore." + ("x" * 5000)
+    out = _reflow_pr_body(body)
+    assert "\n\n\n" not in out
+    assert len(out) <= 4100  # capped (+ truncation marker)
+
+
+def test_difficulty_bucket():
+    assert _difficulty_bucket(1, 3) == "trivial"
+    assert _difficulty_bucket(2, 15) == "small"
+    assert _difficulty_bucket(1, 50) == "medium"
+    assert _difficulty_bucket(3, 200) == "large"
+
+
+# --- info-leak strip + issue sourcing + non-bug filter -----------------------
+
+
+def test_strip_info_leak_removes_shas_and_refs():
+    text = (
+        "This PR cherry-picks c3535905 from main.\n"
+        "See https://github.com/pallets/click/pull/3504 and fixes #3458.\n"
+        "Background in [#1234](https://github.com/x/y/issues/1234)."
+    )
+    out = _strip_info_leak(text)
+    assert "c3535905" not in out
+    assert "pull/3504" not in out
+    assert "#3458" not in out
+    assert "#1234" not in out
+
+
+def test_strip_info_leak_keeps_real_prose():
+    text = "The parser crashes on empty input because the index is off by one."
+    assert _strip_info_leak(text) == text
+
+
+def test_reflow_drops_tests_added_section():
+    """A 'Tests added/updated' block names the grading tests — must be cut."""
+    body = (
+        "The completion output isn't escaped for fish.\n\n"
+        "### Tests added / updated\n"
+        "- test_fish_format_completion_escapes_help\n"
+    )
+    out = _reflow_pr_body(body)
+    assert "completion output isn't escaped" in out
+    assert "test_fish_format_completion_escapes_help" not in out
+
+
+def test_linked_issue_number():
+    assert _linked_issue_number("blah\nFixes #3458 thanks") == 3458
+    assert _linked_issue_number("Closes #12, #13") == 12
+    assert _linked_issue_number("no refs here") is None
+    # markdown-link form (common in PR bodies): `fixes [#3458](url)`
+    assert _linked_issue_number("fixes [#3458](https://github.com/x/y/issues/3458)") == 3458
+
+
+def test_is_non_bug_pr():
+    assert _is_non_bug_pr("Backport #3504 from main to stable")
+    assert _is_non_bug_pr("Bump version to 8.4.2")
+    assert _is_non_bug_pr('Revert "fix the thing"')
+    assert _is_non_bug_pr("cherry-pick fix into stable")
+    assert not _is_non_bug_pr("Fix crash in argument parsing")
+
+
+def test_is_non_bug_pr_catches_merge_forward():
+    """Merge-forward / branch-sync PRs are not bug fixes (audit P1)."""
+    assert _is_non_bug_pr("Merge stable into main")
+    assert _is_non_bug_pr("Merge Stable into master")
+    assert _is_non_bug_pr("merge branch 'release' into develop")
+    assert _is_non_bug_pr("Sync stable")
+    assert _is_non_bug_pr("merge main")
+    # a real fix that merely mentions merge behavior is kept
+    assert not _is_non_bug_pr("Fix merge conflict resolution in config loader")
+
+
+def test_build_eval_script_fails_closed_on_patch_apply():
+    """If the hidden test_patch can't apply, score 0 + flag — never run
+    against stale/native tests (audit P1)."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch=_SAMPLE_DIFF,
+        test_cmds=["pytest -v"],
+        fail_to_pass=["tests/test_foo.py::test_add"],
+    )
+    assert "R2E_APPLY_RC" in script
+    assert "test_patch_apply_failed" in script
+    assert script.find("R2E_APPLY_RC") < script.find("test_output.log")
+
+
+def test_build_instruction_falls_back_to_pr_when_no_issue():
+    """No linked issue + no owner/name → use the PR body, leak-stripped."""
+    from repo2rlenv.github import PullRequestSummary
+
+    pr = PullRequestSummary(
+        number=1,
+        title="Fix crash on empty input",
+        body="The CLI crashes on empty input. cherry-pick abcdef1234567 later.",
+        state="closed",
+        merged_at="2026-01-01T00:00:00Z",
+        base_ref="main",
+        base_sha="0" * 40,
+        head_sha="1" * 40,
+        is_draft=False,
+        url="https://github.com/x/y/pull/1",
+        changed_files=["src/x.py"],
+    )
+    instr = _build_instruction(pr)  # no owner/name → no issue fetch
+    assert "Fix crash on empty input" in instr
+    assert "abcdef1234567" not in instr  # SHA leak stripped
 
 
 # --- build_environment_dockerfile --------------------------------------------

@@ -128,12 +128,44 @@ def _http_request(
         raise ProbeError(f"timeout after {timeout}s") from exc
 
 
+def _env_credential(host: str) -> tuple[str, str] | None:
+    """Explicit registry creds from env vars, for known hosts.
+
+    Preferred over the docker credstore: Docker Hub's credstore returns an
+    OAuth *identity token* (frequently pull-only for the token endpoint),
+    whereas an explicit username + access token (PAT) reliably grants push.
+    Checked first so `repo2rlenv push` works with the creds a user puts in
+    their environment / .env.
+
+      Docker Hub  : DOCKER_USERNAME + DOCKER_TOKEN (or DOCKERHUB_*)
+      GHCR        : (GITHUB_ACTOR | "x-access-token") + (GHCR_TOKEN | GITHUB_TOKEN)
+    """
+    import os
+
+    h = host.lower()
+    if "docker.io" in h or h == "docker.io" or h.endswith("index.docker.io"):
+        user = os.environ.get("DOCKER_USERNAME") or os.environ.get("DOCKERHUB_USERNAME")
+        token = os.environ.get("DOCKER_TOKEN") or os.environ.get("DOCKERHUB_TOKEN")
+        if user and token:
+            return (user, token)
+    if h == "ghcr.io" or h.endswith(".ghcr.io"):
+        token = os.environ.get("GHCR_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        if token:
+            return (os.environ.get("GITHUB_ACTOR") or "x-access-token", token)
+    return None
+
+
 def _resolve_credential(auth: RegistryAuth, host: str) -> tuple[str, str] | None:
     """Resolve (username, password/token) for `host` via the right cred source.
 
-    Returns None if the credential can't be resolved (helper missing, etc.) —
-    the probe will then degrade to anonymous-only behaviour.
+    Order: explicit env creds (for known registries) → the source recorded on
+    `auth` (inline config.json or credstore helper). Returns None if nothing
+    resolves — the probe then degrades to anonymous-only behaviour.
     """
+    env_cred = _env_credential(host)
+    if env_cred is not None:
+        return env_cred
+
     if auth.cred_source is CredentialSource.INLINE:
         # The inline path requires reading the original config.json again —
         # we do it lazily here to keep the public surface small.
@@ -308,8 +340,17 @@ def _l3_can_read(
     namespace: str,
     bearer: str | None,
     timeout: float,
-) -> tuple[bool, str | None]:
-    """HEAD /v2/<ns>/<probe>/manifests/<tag>; 200 or 404 = read OK."""
+) -> tuple[str, str | None]:
+    """HEAD /v2/<ns>/<probe>/manifests/<tag>.
+
+    Returns (status, err) where status is:
+      * "ok"           — 200/404: namespace reachable + readable.
+      * "inconclusive" — 401/403: AMBIGUOUS. Docker Hub (and some others)
+                         return 401 for a nonexistent/private repo even with
+                         valid push creds, so a 401 here does NOT mean "no
+                         access". The L4 write probe is authoritative.
+      * "fail"         — anything else (real problem).
+    """
     scheme = "http" if _is_local_host(host) else "https"
     url = f"{scheme}://{host}/v2/{namespace}/{PROBE_IMAGE}/manifests/{PROBE_TAG}"
     headers: dict[str, str] = {
@@ -323,12 +364,12 @@ def _l3_can_read(
     try:
         status, _, _ = _http_request("HEAD", url, headers=headers, timeout=timeout)
     except ProbeError as exc:
-        return (False, str(exc))
+        return ("fail", str(exc))
     if status in (200, 404):
-        return (True, None)
+        return ("ok", None)
     if status in (401, 403):
-        return (False, f"read denied ({status})")
-    return (False, f"unexpected status {status}")
+        return ("inconclusive", f"read ambiguous ({status}); deferring to write probe")
+    return ("fail", f"unexpected status {status}")
 
 
 # --------------------------------------------------------------------------
@@ -458,10 +499,13 @@ def probe(
 
     # L3
     if 3 in levels:
-        ok, err = _l3_can_read(auth.host, namespace, bearer, timeout)
-        result.can_read = ok
-        result.details[3] = "read OK" if ok else (err or "read failed")
-        if not ok:
+        status, err = _l3_can_read(auth.host, namespace, bearer, timeout)
+        result.can_read = status == "ok"
+        result.details[3] = "read OK" if status == "ok" else (err or "read failed")
+        # Only a hard "fail" stops here. An "inconclusive" 401/403 (e.g. Docker
+        # Hub on a nonexistent repo) falls through to the authoritative L4
+        # write probe — write access implies the namespace is usable.
+        if status == "fail":
             result.error = err
             result.elapsed_sec = round(time.monotonic() - started, 3)
             return result
@@ -479,6 +523,11 @@ def probe(
         ok, err = _l4_can_write(auth.host, namespace, bearer, timeout)
         result.can_write = ok
         result.details[4] = "write OK" if ok else (err or "write failed")
+        if ok and not result.can_read:
+            # Write access implies the namespace is usable (after a push the
+            # repo exists + is readable). Clears an inconclusive L3.
+            result.can_read = True
+            result.details[3] = "read OK (inferred from write access)"
         if not ok:
             result.error = err
 

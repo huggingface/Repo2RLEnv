@@ -58,6 +58,10 @@ class HarborTask:
     # default env / test runner for those.
     environment_dockerfile: str | None = None
     test_script: str | None = None
+    # Extra files written under the task dir (relative path -> content), e.g.
+    # {"tests/verifier.py": ..., "tests/f2p.json": ...}. Harbor exposes tests/
+    # at /tests in the container so test.sh can read them.
+    aux_files: dict[str, str] = field(default_factory=dict)
 
 
 def _content_hash(task: HarborTask) -> str:
@@ -167,5 +171,18 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
         (tests_dir / "test.sh").write_text(task.test_script, encoding="utf-8")
         # mark executable; harbor expects test.sh to be runnable
         (tests_dir / "test.sh").chmod(0o755)
+
+    # Auxiliary task files (relative paths under the task dir). Harbor mounts
+    # the task's tests/ dir into the container at /tests, so a pipeline can
+    # ship e.g. tests/verifier.py + tests/f2p.json + tests/p2p.json as plain,
+    # inspectable artifacts and have test.sh read them — instead of baking
+    # everything as base64 blobs inside test.sh.
+    for rel_path, content in (task.aux_files or {}).items():
+        # Defensive: keep aux files inside the task dir.
+        target = (task_path / rel_path).resolve()
+        if not str(target).startswith(str(task_path.resolve())):
+            raise ValueError(f"aux_file path escapes task dir: {rel_path!r}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
 
     return task_path

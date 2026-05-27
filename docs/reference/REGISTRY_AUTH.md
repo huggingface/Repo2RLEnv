@@ -114,6 +114,22 @@ docker login                          # interactive PAT prompt
 echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
 ```
 
+**Credential resolution.** For Docker Hub the probe prefers the explicit
+env vars **`DOCKER_USERNAME` + `DOCKER_TOKEN`** (a PAT) over the docker
+credstore — the credstore returns an OAuth *identity token* that is often
+pull-only at the token endpoint, while an explicit PAT reliably grants
+push. The push **namespace** is the authenticated Docker Hub user
+(`DOCKER_USERNAME`), not the HF dataset owner, so images land under
+`index.docker.io/<DOCKER_USERNAME>/…`. (GHCR analogously reads
+`GHCR_TOKEN` / `GITHUB_TOKEN`.)
+
+**Multi-repo datasets** (e.g. `pr_runtime` across many repos, with one
+bootstrap image per repo) are fully supported: `push` pushes **each**
+distinct image and rewrites **each** task's `environment/Dockerfile` to
+its own registry digest. If any push fails (or no registry is verified),
+it falls back to inline mode — each task bakes its own rebuild recipe and
+stays reproducible with no registry at all.
+
 ## Local / `registry:2` (testing only)
 
 For development tests that need a real OCI registry but don't want any
