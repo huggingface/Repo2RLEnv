@@ -415,6 +415,12 @@ def push_to_hub(
         repo_id=repo_id,
         repo_type="dataset",
         commit_message=commit_message or f"Repo2RLEnv: add {len(task_names)} tasks",
+        # Clean-sync the task tree: prune remote tasks/<id> dirs that aren't in
+        # this push, so removing a task locally (e.g. dropping a low-quality
+        # one) actually removes it from the Hub. Without this, re-pushes only
+        # add/update and stale tasks linger. Scoped to tasks/** so it never
+        # touches README.md / registry.json.
+        delete_patterns=["tasks/**"],
     )
     commit_sha = (
         op.oid
