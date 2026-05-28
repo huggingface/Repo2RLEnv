@@ -103,7 +103,7 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 
 > These run normally but emit a warning first — pin a release if you depend on them. Each links to its own page; the gist:
 
-- **[`commit_runtime`](./docs/pipelines/commit_runtime.md)** — mines commit history directly, catching fixes that never went through a PR.
+- **[`commit_runtime`](./docs/pipelines/commit_runtime.md)** — mines commit history directly, catching fixes that never went through a PR. Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 oracle-verified envs).
 - **[`cve_patches`](./docs/pipelines/cve_patches.md)** — security tasks from public CVEs, mapped to their fix commits.
 - **[`mutation_bugs`](./docs/pipelines/mutation_bugs.md)** — injects synthetic bugs into real code; the agent must restore the tests to green.
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
