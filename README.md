@@ -55,6 +55,8 @@ repo2rlenv pull <your-org>/<dataset-name> ./datasets/<dataset-name>
 harbor run -p ./datasets/<dataset-name> -a oracle --env docker
 ```
 
+→ Explore and visualize any Harbor dataset pushed to the Hub: [**Harbor Visualizer**](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser)
+
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
 ## How it works
@@ -112,18 +114,19 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 
 ### At a glance
 
-| Pipeline | Stability | Sandbox | LLM use | Languages |
-|---|:-:|:-:|---|---|
-| `pr_diff` | stable | thin | at verify — judges the solution | any |
-| `pr_runtime` | stable | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
-| `commit_runtime` | experimental | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
-| `cve_patches` | experimental | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
-| `mutation_bugs` | experimental | ✅ | at synthesis — writes the task | Py |
-| `code_instruct` | experimental | ✅ | at synthesis — writes the task | Py |
-| `equivalence_tests` | experimental | ✅ | at synthesis — writes the task | Py |
-| `refactor_synthesis` | experimental | ✅ | at env build — one-time, cached | Py |
+| Pipeline | Stability | Reward signal | Sandbox | LLM use | Languages |
+|---|:-:|---|:-:|---|---|
+| `pr_diff` | stable | `diff_similarity` | thin | at verify — judges the solution | any |
+| `pr_runtime` | stable | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `commit_runtime` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `cve_patches` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `mutation_bugs` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
+| `code_instruct` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
+| `equivalence_tests` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
+| `refactor_synthesis` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py |
 
 **What the columns mean**
+- **Reward signal** — the verifiable signal emitted per task. `test_execution` = the repo's own tests gate the reward (F2P/P2P or pytest pass rate); `diff_similarity` = the agent's output is scored against the oracle diff (format, file targeting, region overlap, LLM judge). Pipelines that emit both use `test_execution` as the primary training signal.
 - **Sandbox** — whether the task runs inside Docker. `✅` = a per-repo image is built once by the [bootstrap phase](#bootstrap) and cached; `thin` = no bootstrap, just a generic `python:3.12-slim` image.
 - **LLM use** — *when* a language model is invoked, which sets where your API cost goes:
   - **at env build** — only during bootstrap (constructing the Docker image); cached, so generation itself is LLM-free.
@@ -182,6 +185,7 @@ Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/
   - [`AGENTS.md`](./docs/reference/AGENTS.md) — Harbor agent harnesses + RL trace plumbing
 - 🛠 [**`CONTRIBUTING.md`**](./CONTRIBUTING.md) — dev setup, PR conventions, release flow
 - 🧪 [**`ADDING_A_PIPELINE.md`**](./docs/contributing/ADDING_A_PIPELINE.md) — cookbook for shipping a new pipeline
+- 🔭 [**Harbor Visualizer**](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore and inspect any Harbor dataset pushed to the Hub
 
 ## Adjacent projects
 
