@@ -46,11 +46,15 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
+from repo2rlenv.github import fetch_issue
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
+    _diff_loc_changed,
+    _difficulty_bucket,
     _files_in_patch,
     _linked_issue_number,
+    _reflow_pr_body,
     _strip_info_leak,
     build_environment_dockerfile,
     build_eval_script,
@@ -111,18 +115,32 @@ def _strip_commit_prefix(subject: str) -> str:
     return cleaned.strip()
 
 
-def build_instruction_from_commit(commit: CommitInfo) -> str:
-    """Render a commit's subject + body into a task-prompt-shaped string.
+def build_instruction_from_commit(
+    commit: CommitInfo,
+    *,
+    issue: tuple[str, str] | None = None,
+) -> str:
+    """Render a commit's subject + body (or a linked issue) into the task prompt.
 
-    Commit messages are leak-prone (the subject often names the function /
-    bug being fixed). We run subject + body through `_strip_info_leak`
-    (ported from `pr_runtime`) so cross-references to fix commits, SHAs,
-    markdown PR/issue links, and `#N` trailers don't pre-solve the task.
+    Sourcing order — same lesson as Arc 2's `pr_runtime` fix:
+      1. If the commit links an issue (``Closes #N``) and the caller has
+         fetched it, use the **issue title + body** as the problem statement.
+         The bug report is far less leak-prone than the commit message, which
+         frequently names the function being fixed and points at fix-PRs.
+      2. Otherwise fall back to the commit subject + body, run through
+         `_strip_info_leak` + `_reflow_pr_body` to scrub cross-refs and trim
+         template noise / line-wrap chatter.
     """
-    subject = _strip_info_leak(_strip_commit_prefix(commit.subject)).strip()
-    body = _CLOSES_RE.sub("", commit.body or "")
-    body = _strip_info_leak(body).strip()
-    parts = [f"# Issue\n\n**Title:** {subject}"]
+    if issue is not None:
+        i_title, i_body = issue
+        title = _strip_info_leak(i_title).strip()
+        body = _reflow_pr_body(_strip_info_leak(_CLOSES_RE.sub("", i_body or ""))).strip()
+    else:
+        title = _strip_info_leak(_strip_commit_prefix(commit.subject)).strip()
+        body = _reflow_pr_body(_strip_info_leak(_CLOSES_RE.sub("", commit.body or ""))).strip()
+    if not title:
+        title = _strip_commit_prefix(commit.subject) or "(no title)"
+    parts = [f"# Issue\n\n**Title:** {title}"]
     if body:
         parts.append("## Description\n\n" + body)
     parts.append(
@@ -301,6 +319,14 @@ class CommitRuntimePipeline:
                             self._emit_progress(label, "skip", outcome.reason or "no_fail_to_pass")
                             continue
 
+                    # Issue-fetch fallback: when the commit links an issue
+                    # (`Closes #N`), source the problem statement from the
+                    # issue body — the bug report is far less leak-prone than
+                    # the commit message. Same lesson as Arc 2 for pr_runtime.
+                    issue_num = _linked_issue_number(commit.message or "")
+                    issue = None
+                    if issue_num is not None:
+                        issue = fetch_issue(owner, name, issue_num, token=token)
                     task = self._build_task(
                         commit,
                         patch,
@@ -308,6 +334,7 @@ class CommitRuntimePipeline:
                         fail_to_pass=fail_to_pass,
                         pass_to_pass=pass_to_pass,
                         validation_status=validation_status,
+                        issue=issue,
                     )
                     write_harbor_task(task, out_dir)
                     emitted += 1
@@ -410,6 +437,7 @@ class CommitRuntimePipeline:
         fail_to_pass: list[str],
         pass_to_pass: list[str],
         validation_status: str,
+        issue: tuple[str, str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         # commit_runtime task ID convention: <owner>__<repo>-<sha12>
@@ -435,9 +463,11 @@ class CommitRuntimePipeline:
             base_commit=commit.parent_sha,
         )
 
+        loc_changed = _diff_loc_changed(patch)
+        difficulty = _difficulty_bucket(len(fail_to_pass), loc_changed)
         repo2env = {
             "pipeline": "commit_runtime",
-            "pipeline_version": "0.5.0",
+            "pipeline_version": "0.8.3",
             "repo": f"{owner}/{name}",
             "ref": commit.parent_sha,
             "reference": f"https://github.com/{owner}/{name}/commit/{commit.sha}",
@@ -456,16 +486,26 @@ class CommitRuntimePipeline:
                 "validation_status": validation_status,
                 "bootstrap_image": self.bootstrap.image_digest,
             },
+            # Calibration parity with pr_runtime: lets the manifest enricher
+            # compute difficulty / p2p_count == 0 / loc_changed sliceability
+            # without re-parsing the diff.
+            "reward_calibration": {
+                "f2p_count": len(fail_to_pass),
+                "p2p_count": len(pass_to_pass),
+                "source_files": len(_files_in_patch(patch)),
+                "loc_changed": loc_changed,
+                "difficulty": difficulty,
+            },
         }
 
         return HarborTask(
             name=task_id,
             org=self.input.output.org,
             description=_strip_commit_prefix(commit.subject) or task_id,
-            instruction=build_instruction_from_commit(commit),
+            instruction=build_instruction_from_commit(commit, issue=issue),
             oracle_diff=patch,
             repo2env=repo2env,
-            difficulty="medium",
+            difficulty=difficulty,
             category="bugfix",
             keywords=[name, "commit_runtime"],
             environment_dockerfile=dockerfile,
