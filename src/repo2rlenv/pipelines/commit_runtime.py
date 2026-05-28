@@ -50,6 +50,8 @@ from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
     _files_in_patch,
+    _linked_issue_number,
+    _strip_info_leak,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
@@ -62,12 +64,34 @@ from repo2rlenv.spec.options import CommitRuntimeOptions
 logger = logging.getLogger(__name__)
 
 
-# Strips "Closes #N", "Fixes #N", "Resolves #N" trailers from commit bodies
-_CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
+# Strips "Closes #N" / "Fixes [#N](...)" trailers from commit bodies.
+# Includes the markdown form Arc 2 added (`fixes [#1234](url)`) and the
+# bare `[#N](url)` link form too.
+_CLOSES_RE = re.compile(
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+\[?#\d+\]?(?:\([^)]*\))?",
+    re.IGNORECASE,
+)
 
 # Strips conventional-commit prefixes ("fix: ", "feat(scope): ", etc.) from subjects
 _CC_PREFIX_RE = re.compile(
     r"^(?:fix|feat|chore|docs|refactor|test|perf|build|ci|style|revert)(?:\([^)]+\))?:\s*",
+    re.IGNORECASE,
+)
+
+# Conventional-commit types that are NOT bugfixes. These slip into the
+# candidate pool today because `_CC_PREFIX_RE` only *strips* the prefix; it
+# doesn't reject. Mirrors `pr_runtime._NON_BUG_TITLE_RE` for the commit world.
+_NON_BUG_TYPE_RE = re.compile(
+    r"^(?:chore|docs|feat|refactor|style|test|ci|build|perf|revert)(?:\([^)]+\))?:\s*",
+    re.IGNORECASE,
+)
+
+# A bugfix-positive signal we look for when no `fix:` prefix is present and
+# no `Closes #N` trailer links an issue. Avoids letting feature commits with
+# no type prefix sail through.
+_BUGFIX_KEYWORD_RE = re.compile(
+    r"\b(?:fix(?:e[sd])?|fixing|bug(?:fix|s)?|regression|crash(?:e[sd]|ing)?|broken|"
+    r"incorrect(?:ly)?|wrong(?:ly)?|fail(?:s|ed|ing|ure)?|defect|hotfix|patch(?:e[sd])?)\b",
     re.IGNORECASE,
 )
 
@@ -88,9 +112,16 @@ def _strip_commit_prefix(subject: str) -> str:
 
 
 def build_instruction_from_commit(commit: CommitInfo) -> str:
-    """Render a commit's subject + body into a task-prompt-shaped string."""
-    subject = _strip_commit_prefix(commit.subject)
-    body = _CLOSES_RE.sub("", commit.body or "").strip()
+    """Render a commit's subject + body into a task-prompt-shaped string.
+
+    Commit messages are leak-prone (the subject often names the function /
+    bug being fixed). We run subject + body through `_strip_info_leak`
+    (ported from `pr_runtime`) so cross-references to fix commits, SHAs,
+    markdown PR/issue links, and `#N` trailers don't pre-solve the task.
+    """
+    subject = _strip_info_leak(_strip_commit_prefix(commit.subject)).strip()
+    body = _CLOSES_RE.sub("", commit.body or "")
+    body = _strip_info_leak(body).strip()
     parts = [f"# Issue\n\n**Title:** {subject}"]
     if body:
         parts.append("## Description\n\n" + body)
@@ -305,7 +336,16 @@ class CommitRuntimePipeline:
     # ----- filters ------------------------------------------------------------
 
     def _metadata_filter(self, commit: CommitInfo) -> str | None:
-        """Cheap filters that don't need the diff content."""
+        """Cheap filters that don't need the diff content.
+
+        Bugfix detection runs in two stages: (a) reject conventional-commit
+        types that are explicitly not bugfixes (chore/docs/feat/refactor/
+        style/test/ci/build/perf/revert), (b) require a positive bugfix
+        signal — `fix:` prefix, a `Closes #N` / `Fixes #N` issue trailer,
+        or a bugfix keyword in the subject. Together these mirror Arc 2's
+        non-bug-PR rejection and stop feature/refactor commits from
+        burning bootstrap cycles in validation.
+        """
         if self.options.skip_merge_commits and commit.is_merge:
             return "merge_commit"
         if commit.author_email in self.options.exclude_authors:
@@ -317,6 +357,16 @@ class CommitRuntimePipeline:
             and _word_count(commit.message) < self.options.min_problem_statement_words
         ):
             return "problem_statement_too_short"
+        subject = commit.subject or ""
+        # (a) explicit non-bugfix type prefix → reject.
+        if _NON_BUG_TYPE_RE.match(subject):
+            return "non_bugfix_type"
+        # (b) at least one bugfix signal must be present.
+        has_fix_prefix = bool(re.match(r"^fix(?:\([^)]+\))?:\s*", subject, re.IGNORECASE))
+        has_linked_issue = _linked_issue_number(commit.message or "") is not None
+        has_keyword = bool(_BUGFIX_KEYWORD_RE.search(subject))
+        if not (has_fix_prefix or has_linked_issue or has_keyword):
+            return "no_bugfix_signal"
         return None
 
     def _structural_filter(self, source_patch: str, test_patch: str) -> str | None:

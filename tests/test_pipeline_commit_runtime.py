@@ -133,6 +133,76 @@ def test_metadata_filter_passes_a_good_commit():
     assert pipe._metadata_filter(_make_commit()) is None
 
 
+def test_metadata_filter_rejects_non_bugfix_types():
+    """chore/docs/feat/refactor/style/test/ci/build/perf/revert are NOT bugfixes."""
+    pipe = _pipeline_for_filter_tests()
+    for prefix in (
+        "chore: bump",
+        "docs: typo fix",
+        "feat(api): new endpoint",
+        "refactor: rename helper",
+        "style: black format",
+        "test: add coverage",
+        "ci: pin actions",
+        "build: drop py3.10",
+        "perf: hot loop tweak",
+        "revert: revert previous change",
+    ):
+        c = _make_commit(subject=prefix, body="long enough body text here")
+        assert pipe._metadata_filter(c) == "non_bugfix_type", prefix
+
+
+def test_metadata_filter_no_bugfix_signal_is_rejected():
+    """No `fix:` prefix, no `Closes #N`, no bugfix keyword ⇒ rejected."""
+    pipe = _pipeline_for_filter_tests()
+    c = _make_commit(subject="Update README with new logo", body="")
+    assert pipe._metadata_filter(c) == "no_bugfix_signal"
+
+
+def test_metadata_filter_keeps_fix_prefix():
+    pipe = _pipeline_for_filter_tests()
+    c = _make_commit(subject="fix: off-by-one in pager", body="")
+    assert pipe._metadata_filter(c) is None
+
+
+def test_metadata_filter_keeps_linked_issue_even_without_keyword():
+    """A commit that links an issue (e.g. `Closes #42`) is a bugfix signal."""
+    pipe = _pipeline_for_filter_tests()
+    c = _make_commit(subject="Update token handling", body="Closes #42, see context.")
+    assert pipe._metadata_filter(c) is None
+
+
+def test_metadata_filter_keeps_bugfix_keyword_in_subject():
+    pipe = _pipeline_for_filter_tests()
+    c = _make_commit(subject="Repair broken parser regression on Windows", body="")
+    assert pipe._metadata_filter(c) is None
+
+
+# -------------------------- instruction leak strip ----------------------------
+
+
+def test_instruction_strips_fix_pr_link_leak():
+    """Markdown PR/commit links in the body must not leak into the instruction."""
+    commit = _make_commit(
+        body=(
+            "This bug was first noticed in [#1234](https://github.com/o/r/pull/1234) "
+            "and the fix is in commit 0123456789abcdef0123456789abcdef01234567. "
+            "Replaces the broken thing."
+        ),
+    )
+    out = build_instruction_from_commit(commit)
+    assert "1234" not in out
+    assert "0123456789abcdef" not in out
+    assert "Replaces the broken thing" in out  # context preserved
+
+
+def test_instruction_strips_leak_from_subject():
+    """Cross-references in the subject itself must also be stripped."""
+    commit = _make_commit(subject="fix: regression introduced in [#42](url)", body="")
+    out = build_instruction_from_commit(commit)
+    assert "#42" not in out
+
+
 # -------------------------- structural filter ---------------------------------
 
 
