@@ -99,6 +99,8 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 **[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. That makes it the strongest, least-gameable signal of the set.
 → Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified tasks).
 
+→ All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990)
+
 ### Experimental
 
 > These run normally but emit a warning first — pin a release if you depend on them. Each links to its own page; the gist:
