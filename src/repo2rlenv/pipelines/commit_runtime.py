@@ -55,6 +55,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     _files_in_patch,
     _linked_issue_number,
     _reflow_pr_body,
+    _runtime_aux_files,
     _strip_info_leak,
     build_environment_dockerfile,
     build_eval_script,
@@ -452,6 +453,11 @@ class CommitRuntimePipeline:
                 _files_in_patch(test_patch),
             ),
             language=self.bootstrap.language.value,
+            # Without F2P/P2P, build_eval_script returns the binary exit-code
+            # script and reward.json is never written. Pass them in so we get
+            # the graded path + tracked/command_resolved breakdown.
+            fail_to_pass=fail_to_pass,
+            pass_to_pass=pass_to_pass,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -510,4 +516,10 @@ class CommitRuntimePipeline:
             keywords=[name, "commit_runtime"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
+            # Ship the graded verifier + F2P/P2P JSON as plain task artifacts
+            # (Harbor mounts tests/ at /tests). Same shape pr_runtime ships
+            # after Arc 2's plain-artifacts refactor — without this, test.sh
+            # falls back to the exit-code reward and reward.json is never
+            # written, so tracked/command_resolved + the breakdown are lost.
+            aux_files=_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {},
         )

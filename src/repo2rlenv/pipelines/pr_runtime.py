@@ -116,6 +116,14 @@ _LEAK_PATTERNS: tuple[re.Pattern[str], ...] = (
     ),
     # Markdown issue/PR refs `[#1234](url)` and bare `[#1234]`
     re.compile(r"\[#\d+\]\([^)]*\)"),
+    # Parenthesized PR/issue ref at the end of a commit subject — common
+    # "merged via squash" trailer: `Fix X (#1234)`. Strip incl. preceding
+    # whitespace so the title cleans up to "Fix X".
+    re.compile(r"\s*\(#\d+\)"),
+    # Cross-repo issue refs without a closes keyword (`gorilla#739`).
+    # Distinct from owner/repo#N (which has a slash) — that's already
+    # covered by the closes pattern above when paired with a keyword.
+    re.compile(r"\b[a-zA-Z][\w.-]*#\d+\b"),
 )
 
 
