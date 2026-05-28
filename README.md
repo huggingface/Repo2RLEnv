@@ -174,6 +174,7 @@ Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/
 - 🚀 [**`docs/quickstart.md`**](./docs/quickstart.md) — install → first dataset → push, in 10 minutes
 - 📖 [**`docs/pipelines/`**](./docs/pipelines/README.md) — one page per pipeline (when to use, oracle shape, options)
 - 📚 Reference contracts:
+  - [`REWARD_SCHEMA.md`](./docs/reference/REWARD_SCHEMA.md) — `reward.txt` + `reward.json` fields for every pipeline
   - [`SPEC.md`](./docs/reference/SPEC.md) — input/output contract
   - [`API.md`](./docs/reference/API.md) — Python API for `src/repo2rlenv/`
   - [`AUTH.md`](./docs/reference/AUTH.md) — GitHub / HF / LLM auth resolution
