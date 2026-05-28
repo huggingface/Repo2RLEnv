@@ -4,7 +4,7 @@ This release sharpens `commit_runtime` end-to-end and ships **52 oracle-verified
 
 ## Published dataset
 
-**<https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime>** — added to the [Verifiable RL Environments](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990) collection.
+**<https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime>** — added to the [Verifiable RL Environments](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments) collection.
 
 - **52 environments**, all oracle-verified (`reward == 1.0` with the gold patch).
 - Resolution split: **52 `resolved`** (tracked SWE-bench-style) · **47 `command_resolved`** (clean test command) · **47 `eval_grade`** (`command_resolved` + non-empty P2P regression guard).
