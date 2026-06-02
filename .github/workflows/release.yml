@@ -40,7 +40,7 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
@@ -59,7 +59,7 @@ jobs:
     outputs:
       version: ${{ steps.read-version.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
@@ -96,7 +96,7 @@ jobs:
           uv pip install --python /tmp/check-install/bin/python dist/*.whl
           /tmp/check-install/bin/repo2rlenv --version
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-dist
           path: dist/
@@ -110,7 +110,7 @@ jobs:
       name: pypi
       url: https://pypi.org/p/repo2rlenv
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: release-dist
           path: dist/
@@ -136,7 +136,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: release-dist
           path: dist/
