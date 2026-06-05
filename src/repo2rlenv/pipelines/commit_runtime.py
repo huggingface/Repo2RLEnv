@@ -239,6 +239,15 @@ class CommitRuntimePipeline:
                 self.options.since,
                 self.options.until,
             )
+            if len(candidates) >= self.options.clone_depth:
+                logger.warning(
+                    "commit_runtime: candidate count (%d) reached clone_depth=%d — "
+                    "the shallow clone may be truncating history. "
+                    "Pass --pipeline-opt clone_depth=%d or higher to capture more commits.",
+                    len(candidates),
+                    self.options.clone_depth,
+                    self.options.clone_depth * 2,
+                )
 
             try:
                 for commit in candidates:
