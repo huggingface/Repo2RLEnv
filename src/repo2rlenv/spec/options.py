@@ -114,55 +114,6 @@ class CommitRuntimeOptions(_BaseOptions):
     min_problem_statement_words: int = 0
 
 
-class MutationBugsOptions(_BaseOptions):
-    """SWE-smith-style synthetic bug injection.
-
-    Picks Python source files in the target repo, applies an AST mutation
-    operator (flip_comparison / off_by_one / swap_arithmetic / ...), runs
-    the existing test suite, and accepts the mutation if it breaks between
-    `min_tests_broken` and `max_tests_broken` tests.
-
-    The "fix" the agent must produce is the inverse mutation; the oracle
-    is the original (pre-mutation) source. See docs/pipelines/mutation_bugs.md.
-    """
-
-    # --- Discovery ---
-    limit: int = 50
-    file_glob: str = "**/*.py"
-    exclude_glob: list[str] = [
-        "tests/**",
-        "test_**",
-        "**/test_*.py",
-        "**/*_test.py",
-        "**/conftest.py",
-        "**/setup.py",
-        "docs/**",
-        "examples/**",
-        "**/__init__.py",  # mutating __init__ tends to break imports catastrophically
-    ]
-
-    # --- Operators ---
-    operators: list[str] | None = None  # None ⇒ use every default operator
-    seed: int | None = None  # RNG seed for reproducibility (None ⇒ time-based)
-    max_attempts_per_file: int = 5  # give up on a file if it refuses to mutate productively
-
-    # --- Mutation filter ---
-    min_tests_broken: int = 1
-    max_tests_broken: int = 5
-    validation_timeout_sec: int = 300
-    skip_validation: bool = False  # emit candidates raw (debug / fast iteration)
-    # If set, restrict pytest to this path (or space-separated list of paths).
-    # Lets fast iteration scope to one test file (e.g. `tests/test_basic.py`)
-    # instead of running the whole suite per mutation candidate. The emitted
-    # task's verifier still uses the targeted file list derived from the
-    # specific broken tests, so this only affects the GENERATION-TIME scan.
-    test_target: str | None = None
-
-    # --- LLM ---
-    llm_temperature: float = 0.7
-    max_llm_tokens: int = 1024
-
-
 class CodeInstructOptions(_BaseOptions):
     """Magicoder-OSS-Instruct-style, anchored to a target repo + verified by execution.
 
@@ -203,42 +154,6 @@ class CodeInstructOptions(_BaseOptions):
 
     # --- Decontamination ---
     skip_decontamination: bool = False
-
-
-class RefactorSynthesisOptions(_BaseOptions):
-    """Mine historical rename refactors from commit history.
-
-    Two-stage detection:
-      1. Commit message regex matches a "rename X to Y" phrase
-      2. Diff verification: old token removed, new token added, no
-         surviving `def OLD(...)` / `class OLD ...` definition
-
-    Emitted task = "rename X to Y throughout the codebase"; verifier
-    checks both behavioral (tests still pass) and structural (old name
-    gone, new name present) criteria.
-
-    See docs/pipelines/refactor_synthesis.md.
-    """
-
-    # --- Mining ---
-    limit: int = 50
-    since: date | None = None
-    until: date | None = None
-    branch: str = "HEAD"
-    clone_depth: int = 200  # deeper than bootstrap's depth=1 so git log walks
-
-    # --- Metadata filters ---
-    skip_merge_commits: bool = True
-    exclude_authors: list[str] = []
-
-    # --- Verification ---
-    # Default False because real-world Python renames in mature libs keep a
-    # back-compat shim using the old name. Set True for stricter "old name
-    # must be fully removed" semantics (will reject most public-API renames).
-    require_old_name_gone: bool = False
-    require_new_name_present: bool = True
-    validation_timeout_sec: int = 300
-    skip_validation: bool = False
 
 
 class CVEPatchesOptions(_BaseOptions):
@@ -318,11 +233,9 @@ OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
     "commit_runtime": CommitRuntimeOptions,
-    "mutation_bugs": MutationBugsOptions,
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
-    "refactor_synthesis": RefactorSynthesisOptions,
 }
 
 

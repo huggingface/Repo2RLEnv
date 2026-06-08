@@ -56,10 +56,10 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
+from repo2rlenv.pipelines._eval_script import build_binary_eval_script, make_unified_diff
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.code_instruct import _all_tests_passed
-from repo2rlenv.pipelines.mutation_bugs import _make_unified_diff, build_mutation_eval_script
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import EquivalenceTestsOptions
 
@@ -496,8 +496,8 @@ class EquivalenceTestsPipeline:
         # /workspace by the verifier — see issue #54.
         stub_module = _stub_module(cand)
         oracle_module = _oracle_module(cand)
-        gold_diff = _make_unified_diff(stub_module, oracle_module, "task_module.py")
-        eval_script = build_mutation_eval_script(
+        gold_diff = make_unified_diff(stub_module, oracle_module, "task_module.py")
+        eval_script = build_binary_eval_script(
             [
                 f"cp /tests/{test_filename} /workspace/{test_filename}",
                 f"python -m pytest {test_filename} -v --no-header",

@@ -129,7 +129,7 @@ pr_merged_at = "2026-05-05T13:46:07Z"
 diff_format = "unified"
 context_files = ["trl/trainer/dpo_trainer.py", ...]
 
-# v0.2.0+ only — sandbox-required tasks (pr_runtime / mutation_bugs / ...)
+# v0.2.0+ only — sandbox-required tasks (pr_runtime / commit_runtime / ...)
 # carry this subtable so consumers know exactly what they're getting.
 [metadata.repo2env.reproducibility]
 mode = "registry"                                    # registry | inline_dockerfile | local_only
@@ -181,7 +181,7 @@ Repo2RLEnv has **no sandbox abstraction of its own**. Generation-time execution 
 | Phase | Pipeline class | What runs the code |
 |---|---|---|
 | Generation | Lite (text-only generation, e.g. `pr_diff`) | Nothing — pure text manipulation (no sandbox at gen time) |
-| Generation | Full (`pr_runtime`, `mutation_bugs`, etc.) | Harbor's sandbox layer (`harbor` invoked under the hood) |
+| Generation | Full (`pr_runtime`, `commit_runtime`, etc.) | Harbor's sandbox layer (`harbor` invoked under the hood) |
 | Consumption | `pr_diff` (default `emit_harbor_env=True`) | `harbor run` against the thin `python:3.12-slim` env + baked 6-component verifier |
 | Consumption | `pr_diff` (`emit_harbor_env=False`) or any stored-diff task | `from repo2rlenv.reward import calculate_diff_similarity_reward` — pure Python, no sandbox |
 | Consumption | Full | `harbor run -d <dataset> -e <modal\|daytona\|e2b\|local\|runloop> ...` |
@@ -215,7 +215,7 @@ The diff-similarity reward function is implemented at [`src/repo2rlenv/reward.py
 
 ## Image distribution (v0.2.0+)
 
-Sandbox-required tasks (`pr_runtime`, `mutation_bugs`, …) ship an `environment/Dockerfile` whose `FROM <ref>` line points at the *bootstrap image* — the working Docker environment for the source repo. At generate time the ref is `local/r2e-bootstrap/...` (un-pullable from any other machine). `repo2rlenv push` rewrites it in-place to one of two reproducible forms:
+Sandbox-required tasks (`pr_runtime`, `commit_runtime`, …) ship an `environment/Dockerfile` whose `FROM <ref>` line points at the *bootstrap image* — the working Docker environment for the source repo. At generate time the ref is `local/r2e-bootstrap/...` (un-pullable from any other machine). `repo2rlenv push` rewrites it in-place to one of two reproducible forms:
 
 | Mode | `FROM` ref | Reproducibility |
 |---|---|---|

@@ -64,7 +64,7 @@ repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 repo2rlenv pull <your-org>/<dataset-name>
 ```
 
-For sandbox-verified pipelines (`pr_runtime`, `mutation_bugs`, …), `repo2rlenv push` also uploads the bootstrap Docker image to a container registry (GHCR by default, auto-detected from `~/.docker/config.json`) and rewrites each task's Dockerfile to point at the registry-qualified digest. This makes the dataset fully reproducible on any machine:
+For sandbox-verified pipelines (`pr_runtime`, `commit_runtime`, …), `repo2rlenv push` also uploads the bootstrap Docker image to a container registry (GHCR by default, auto-detected from `~/.docker/config.json`) and rewrites each task's Dockerfile to point at the registry-qualified digest. This makes the dataset fully reproducible on any machine:
 
 ```bash
 # Anyone can pull + run your published dataset on a fresh machine:

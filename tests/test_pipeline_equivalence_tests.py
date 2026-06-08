@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from repo2rlenv.pipelines._eval_script import make_unified_diff
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate
 from repo2rlenv.pipelines.equivalence_tests import (
     EquivalenceTestsPipeline,
@@ -29,7 +30,6 @@ from repo2rlenv.pipelines.equivalence_tests import (
     build_equivalence_dockerfile,
     uses_both_names,
 )
-from repo2rlenv.pipelines.mutation_bugs import _make_unified_diff
 from repo2rlenv.spec.options import EquivalenceTestsOptions
 
 
@@ -224,7 +224,7 @@ def test_dockerfile_bakes_stub_module():
 def test_gold_patch_is_stub_to_oracle_modify_diff():
     """Gold patch transforms the baked stub into the oracle (not a new file)."""
     cand = _candidate()
-    diff = _make_unified_diff(_stub_module(cand), _oracle_module(cand), "task_module.py")
+    diff = make_unified_diff(_stub_module(cand), _oracle_module(cand), "task_module.py")
     assert "diff --git a/task_module.py b/task_module.py" in diff
     assert "new file mode" not in diff  # modify, not create
     assert "raise NotImplementedError" in diff  # the stub line is removed
@@ -237,7 +237,7 @@ def test_oracle_patch_applies_to_baked_stub(tmp_path: Path):
     cand = _candidate()
     stub = _stub_module(cand)
     oracle = _oracle_module(cand)
-    diff = _make_unified_diff(stub, oracle, "task_module.py")
+    diff = make_unified_diff(stub, oracle, "task_module.py")
 
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     (tmp_path / "task_module.py").write_text(stub)  # what the image bakes
