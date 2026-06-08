@@ -20,6 +20,7 @@ Stable contracts and module-level API.
 | **[reference/AUTH.md](./reference/AUTH.md)** | GitHub auth (PAT / `gh` CLI) + HF / LLM key resolution |
 | **[reference/BOOTSTRAP.md](./reference/BOOTSTRAP.md)** | v0.2 — LLM agent that iterates the per-repo Docker image until tests run |
 | **[reference/AGENTS.md](./reference/AGENTS.md)** | The 22+ Harbor agent harnesses, their inputs, and how RL traces / logprobs leave the sandbox |
+| **[reference/RELATED_WORK.md](./reference/RELATED_WORK.md)** | Per-pipeline provenance + adjacent papers, datasets, and frameworks (incl. recent Microsoft / NVIDIA code-RL work) |
 
 ## Contributing
 
