@@ -58,7 +58,11 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
 from repo2rlenv.pipelines.base import PipelineResult
-from repo2rlenv.pipelines.code_instruct import _all_tests_passed, build_code_instruct_dockerfile
+from repo2rlenv.pipelines.code_instruct import (
+    _all_tests_passed,
+    build_code_instruct_dockerfile,
+    make_solution_diff,
+)
 from repo2rlenv.pipelines.mutation_bugs import build_mutation_eval_script
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import EquivalenceTestsOptions
@@ -191,31 +195,6 @@ def _rename_function_source(source: str, old_name: str, new_name: str) -> str:
     """
     pattern = re.compile(rf"^(\s*)(async\s+def|def)\s+{re.escape(old_name)}\b", re.MULTILINE)
     return pattern.sub(rf"\1\2 {new_name}", source, count=1)
-
-
-def _make_two_file_diff(*, module_code: str, test_code: str, test_filename: str) -> str:
-    """Build a `git apply`-compatible diff adding `task_module.py` + a test file.
-
-    Lifted from code_instruct.py — same shape (two new files at repo root).
-    """
-
-    def new_file_hunk(content: str, path: str) -> str:
-        lines = content.splitlines()
-        n = len(lines)
-        header = (
-            f"diff --git a/{path} b/{path}\n"
-            f"new file mode 100644\n"
-            f"index 0000000..0000001\n"
-            f"--- /dev/null\n"
-            f"+++ b/{path}\n"
-            f"@@ -0,0 +1,{n} @@\n"
-        )
-        body = "".join(f"+{ln}\n" for ln in lines)
-        if not content.endswith("\n"):
-            body += "\\ No newline at end of file\n"
-        return header + body
-
-    return new_file_hunk(module_code, "task_module.py") + new_file_hunk(test_code, test_filename)
 
 
 class EquivalenceTestsPipeline:
@@ -490,11 +469,15 @@ class EquivalenceTestsPipeline:
         task_id = f"{owner}__{name}-eqv-{h.hexdigest()[:8]}"
 
         module_code = _oracle_module(cand)
-        gold_diff = _make_two_file_diff(
-            module_code=module_code, test_code=test_code, test_filename=test_filename
-        )
+        # Gold patch lands ONLY task_module.py. The equivalence test ships under
+        # tests/ (mounted at /tests for every agent) and is copied into
+        # /workspace by the verifier — see issue #54.
+        gold_diff = make_solution_diff(task_module_code=module_code)
         eval_script = build_mutation_eval_script(
-            [f"python -m pytest {test_filename} -v --no-header"],
+            [
+                f"cp /tests/{test_filename} /workspace/{test_filename}",
+                f"python -m pytest {test_filename} -v --no-header",
+            ],
             language=self.bootstrap.language.value,
         )
         image_ref = (
@@ -544,6 +527,7 @@ class EquivalenceTestsPipeline:
             keywords=[name, "equivalence_tests"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
+            aux_files={f"tests/{test_filename}": test_code},
         )
 
 

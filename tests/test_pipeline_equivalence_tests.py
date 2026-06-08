@@ -16,10 +16,10 @@ from __future__ import annotations
 import pytest
 
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate
+from repo2rlenv.pipelines.code_instruct import make_solution_diff
 from repo2rlenv.pipelines.equivalence_tests import (
     EquivalenceTestsPipeline,
     _extract_test_section,
-    _make_two_file_diff,
     _oracle_module,
     _rename_function_source,
     _stub_module,
@@ -187,39 +187,28 @@ def test_oracle_module_has_two_definitions():
 
 
 # ---------------------------------------------------------------------------
-# _make_two_file_diff
+# Gold patch shape — carries ONLY task_module.py (issue #54)
 # ---------------------------------------------------------------------------
 
 
-def test_two_file_diff_has_two_headers():
-    diff = _make_two_file_diff(
-        module_code="def add(x, y):\n    return x + y\n",
-        test_code="from task_module import add\n",
-        test_filename="test_r2e_abc.py",
-    )
-    assert diff.count("diff --git ") == 2
+def test_solution_diff_has_single_header():
+    diff = make_solution_diff(task_module_code="def add(x, y):\n    return x + y\n")
+    assert diff.count("diff --git ") == 1
     assert "diff --git a/task_module.py b/task_module.py" in diff
-    assert "diff --git a/test_r2e_abc.py b/test_r2e_abc.py" in diff
 
 
-def test_two_file_diff_marks_new_files():
-    diff = _make_two_file_diff(
-        module_code="x = 1\n",
-        test_code="y = 2\n",
-        test_filename="test_r2e_x.py",
-    )
-    assert diff.count("new file mode") == 2
-    assert diff.count("--- /dev/null") == 2
+def test_solution_diff_excludes_test_file():
+    """Regression for #54: the equivalence test ships under tests/, not in the
+    gold patch — otherwise only the OracleAgent could reach it."""
+    diff = make_solution_diff(task_module_code="x = 1\n")
+    assert "test_r2e" not in diff
+    assert diff.count("new file mode") == 1
+    assert diff.count("--- /dev/null") == 1
 
 
-def test_two_file_diff_hunk_line_counts():
-    diff = _make_two_file_diff(
-        module_code="line1\nline2\nline3\n",
-        test_code="a\nb\n",
-        test_filename="t.py",
-    )
+def test_solution_diff_hunk_line_counts():
+    diff = make_solution_diff(task_module_code="line1\nline2\nline3\n")
     assert "@@ -0,0 +1,3 @@" in diff
-    assert "@@ -0,0 +1,2 @@" in diff
 
 
 # ---------------------------------------------------------------------------
