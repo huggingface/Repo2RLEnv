@@ -180,6 +180,7 @@ Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/
 - 📖 [**`docs/pipelines/`**](./docs/pipelines/README.md) — one page per pipeline (when to use, oracle shape, options)
 - 📚 Reference contracts:
   - [`REWARD_SCHEMA.md`](./docs/reference/REWARD_SCHEMA.md) — `reward.txt` + `reward.json` fields for every pipeline
+  - [`RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) — per-pipeline provenance + adjacent papers, datasets, and frameworks
   - [`SPEC.md`](./docs/reference/SPEC.md) — input/output contract
   - [`API.md`](./docs/reference/API.md) — Python API for `src/repo2rlenv/`
   - [`AUTH.md`](./docs/reference/AUTH.md) — GitHub / HF / LLM auth resolution
@@ -198,7 +199,7 @@ Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/
 - [**SWE-Gym**](https://github.com/SWE-Gym/SWE-Gym) — RL-environment framing for SWE-bench-style tasks
 - [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect), [**OpenEnv**](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) — adjacent standardization efforts
 
-Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and Apache-2.0 licensed.
+Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and Apache-2.0 licensed. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) for the full per-pipeline provenance plus adjacent papers, datasets, and frameworks (incl. recent Microsoft and NVIDIA code-RL work).
 
 ## License
 
