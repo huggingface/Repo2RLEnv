@@ -7,25 +7,43 @@ Here we cover the pipeline's pure-Python pieces:
   - test_uses_both_names (test must reference both `name` and `reference_name`)
   - _stub_module / _oracle_module (task_module.py shape)
   - _rename_function_source (rename in source text)
-  - _make_two_file_diff (gold patch shape)
+  - build_equivalence_dockerfile + stub→oracle gold patch (solvability)
   - Pipeline contract (requires_bootstrap, missing-bootstrap rejection)
 """
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate
-from repo2rlenv.pipelines.code_instruct import make_solution_diff
 from repo2rlenv.pipelines.equivalence_tests import (
     EquivalenceTestsPipeline,
     _extract_test_section,
     _oracle_module,
     _rename_function_source,
     _stub_module,
+    build_equivalence_dockerfile,
     uses_both_names,
 )
+from repo2rlenv.pipelines.mutation_bugs import _make_unified_diff
 from repo2rlenv.spec.options import EquivalenceTestsOptions
+
+
+def _candidate() -> FunctionCandidate:
+    return FunctionCandidate(
+        relative_path="src/calc.py",
+        name="add",
+        lineno=1,
+        end_lineno=2,
+        body_loc=1,
+        source="def add(x, y):\n    return x + y\n",
+        docstring="",
+        arg_names=("x", "y"),
+    )
 
 
 def _make_candidate(
@@ -187,28 +205,48 @@ def test_oracle_module_has_two_definitions():
 
 
 # ---------------------------------------------------------------------------
-# Gold patch shape — carries ONLY task_module.py (issue #54)
+# Stub bake + stub→oracle gold patch (issue #54 — solvable by non-oracle agents)
 # ---------------------------------------------------------------------------
 
 
-def test_solution_diff_has_single_header():
-    diff = make_solution_diff(task_module_code="def add(x, y):\n    return x + y\n")
-    assert diff.count("diff --git ") == 1
+def test_dockerfile_bakes_stub_module():
+    """Every agent must start with the stub (reference_<name> present) — so it's
+    baked into the image, not packed into the OracleAgent-only solution/."""
+    stub = _stub_module(_candidate())
+    df = build_equivalence_dockerfile("local/img:abc", stub)
+    assert "FROM local/img:abc" in df
+    assert "base64 -d > /workspace/task_module.py" in df
+    # reference_<name> + stub must both be in the baked payload
+    assert "reference_add" in stub
+    assert "raise NotImplementedError" in stub
+
+
+def test_gold_patch_is_stub_to_oracle_modify_diff():
+    """Gold patch transforms the baked stub into the oracle (not a new file)."""
+    cand = _candidate()
+    diff = _make_unified_diff(_stub_module(cand), _oracle_module(cand), "task_module.py")
     assert "diff --git a/task_module.py b/task_module.py" in diff
+    assert "new file mode" not in diff  # modify, not create
+    assert "raise NotImplementedError" in diff  # the stub line is removed
 
 
-def test_solution_diff_excludes_test_file():
-    """Regression for #54: the equivalence test ships under tests/, not in the
-    gold patch — otherwise only the OracleAgent could reach it."""
-    diff = make_solution_diff(task_module_code="x = 1\n")
-    assert "test_r2e" not in diff
-    assert diff.count("new file mode") == 1
-    assert diff.count("--- /dev/null") == 1
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_oracle_patch_applies_to_baked_stub(tmp_path: Path):
+    """End-to-end solvability: applying the gold patch to the baked stub via
+    `git apply` (exactly what solve.sh does) yields the oracle module."""
+    cand = _candidate()
+    stub = _stub_module(cand)
+    oracle = _oracle_module(cand)
+    diff = _make_unified_diff(stub, oracle, "task_module.py")
 
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "task_module.py").write_text(stub)  # what the image bakes
+    (tmp_path / "patch.diff").write_text(diff)
+    subprocess.run(["git", "apply", "patch.diff"], cwd=tmp_path, check=True)
 
-def test_solution_diff_hunk_line_counts():
-    diff = make_solution_diff(task_module_code="line1\nline2\nline3\n")
-    assert "@@ -0,0 +1,3 @@" in diff
+    got = (tmp_path / "task_module.py").read_text()
+    assert got.rstrip("\n") == oracle.rstrip("\n")
+    assert "raise NotImplementedError" not in got  # stub really replaced
 
 
 # ---------------------------------------------------------------------------
