@@ -91,7 +91,7 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
-A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended for production; **six are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
+A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended for production; **four are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
 
 ### Stable
 
@@ -109,10 +109,8 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 
 - **[`commit_runtime`](./docs/pipelines/commit_runtime.md)** — mines commit history directly, catching fixes that never went through a PR. Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 oracle-verified envs).
 - **[`cve_patches`](./docs/pipelines/cve_patches.md)** — security tasks from public CVEs, mapped to their fix commits.
-- **[`mutation_bugs`](./docs/pipelines/mutation_bugs.md)** — injects synthetic bugs into real code; the agent must restore the tests to green.
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
 - **[`equivalence_tests`](./docs/pipelines/equivalence_tests.md)** — the agent reimplements a real function; generated tests check it matches the original.
-- **[`refactor_synthesis`](./docs/pipelines/refactor_synthesis.md)** — mines refactor commits and verifies behavior is preserved.
 
 ### At a glance
 
@@ -122,10 +120,8 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 | `pr_runtime` | stable | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `commit_runtime` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `cve_patches` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
-| `mutation_bugs` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
 | `code_instruct` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
 | `equivalence_tests` | experimental | `test_execution` | ✅ | at synthesis — writes the task | Py |
-| `refactor_synthesis` | experimental | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py |
 
 **What the columns mean**
 - **Reward signal** — the verifiable signal emitted per task. `test_execution` = the repo's own tests gate the reward (F2P/P2P or pytest pass rate); `diff_similarity` = the agent's output is scored against the oracle diff (format, file targeting, region overlap, LLM judge). Pipelines that emit both use `test_execution` as the primary training signal.

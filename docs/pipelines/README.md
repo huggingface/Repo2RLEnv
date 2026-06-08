@@ -19,18 +19,16 @@ flowchart LR
 
 ## Pipelines
 
-All 8 pipelines are shipped — 2 stable (`pr_diff`, `pr_runtime`), 6 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+All 6 pipelines are shipped — 2 stable (`pr_diff`, `pr_runtime`), 4 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
 
 | Pipeline | What it produces | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|---|:-:|---|---|
 | [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
 | [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
 | [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`mutation_bugs`](./mutation_bugs.md) | AST mutation that breaks a test; agent must restore green | ✅ | at synthesis (rank candidates) | Same as test suite | — | [SWE-smith](https://github.com/SWE-bench/SWE-smith) |
 | [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | ✅ | at synthesis (problem + verifier) | Sometimes | — | [Magicoder](https://github.com/ise-uiuc/magicoder) |
 | [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | ✅ | at synthesis (tests) | If function uses GPU | — | [R2E](https://github.com/r2e-project/r2e) |
 | [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | ✅ | at bootstrap (cached) | Rarely | — | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
-| [`refactor_synthesis`](./refactor_synthesis.md) | Rename-refactor commits + multi-criteria verifier | ✅ | at bootstrap (cached) | Rarely | — | Python-native rename detector (drops [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner)) |
 
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
 - **LLM use**: every pipeline calls an LLM at *some* stage. `at synthesis` = the pipeline itself authors task content (problems, mutations, tests) — this is the heavy spend. `at bootstrap (cached)` = the pipeline doesn't call the LLM, but the per-repo env construction does — that runs **once per repo**, content-addressed, then cached. `at verify` = an LLM is invoked at reward time (only `pr_diff`'s LLM-judge component).
@@ -130,11 +128,9 @@ For the full design rationale + dataset card layout + pilot evidence, see [`pr_d
 | `pr_diff` | ✅ | — |
 | `pr_runtime` | ✅ | ✅ |
 | `commit_runtime` | ✅ | ✅ |
-| `mutation_bugs` | (oracle as diff) | ✅ |
 | `code_instruct` | optional | ✅ |
 | `equivalence_tests` | — | ✅ |
 | `cve_patches` | ✅ | ✅ |
-| `refactor_synthesis` | ✅ | ✅ |
 
 `diff_similarity` works without a sandbox; `test_execution` requires one.
 

@@ -18,9 +18,7 @@ class PipelineName(StrEnum):
     CVE_PATCHES = "cve_patches"  # CVE patches as training data (was: cve_mining)
     # Synthesized by LLM
     CODE_INSTRUCT = "code_instruct"  # OSS-Instruct-style (was: oss_instruct)
-    MUTATION_BUGS = "mutation_bugs"  # synthetic bug injection (was: mutation)
     EQUIVALENCE_TESTS = "equivalence_tests"
-    REFACTOR_SYNTHESIS = "refactor_synthesis"
 
 
 class RepoSpec(BaseModel):

@@ -27,7 +27,7 @@ src/repo2rlenv/
 │   ├── base.py                 # Pipeline Protocol + PipelineResult
 │   ├── pr_diff.py              # SHIPPED — PR-diff mining; text-only gen, Docker-runnable env (6-component verifier)
 │   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
-│   └── <future pipelines>      # pr_runtime, commit_runtime, mutation_bugs, ...
+│   └── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests)
 ├── bootstrap/                  # v0.2 — LLM-driven Docker env generation
 │   ├── runner.py               # ensure_bootstrap() orchestrator
 │   ├── agent.py                # ReAct loop
@@ -221,15 +221,15 @@ uv add --dev <pkg>      # dev only
 - **v0.5.0** shipped on PyPI: `pr_stream` (continuous PR mining with watermark state — removed in v0.8.3 as scope-creep; pr_runtime handles the same niche on its own) + `commit_runtime` (commit-level mining, SWE-GEN style). Both Harbor-verified.
 - **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (procedural AST bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired by Magicoder). Both Harbor-verified on `pallets/click` (Mean reward 1.000).
 - **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract real function, LLM writes equivalence test against `reference_<name>` oracle, gold patch fills the candidate) + `cve_patches` (OSV-driven CVE→fix-commit pipeline, reuses pr_runtime validation harness). Both Harbor-verified.
-- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000). **All 9 pipelines now shipped. 622/622 tests pass.**
-- **v0.9 planned**: LLM-judged QA gate (SWE-Bench++ four-layer recipe), iterative refinement loop for `equivalence_tests`, LLM-synthesized PoC for `cve_patches`, Extract Method / Inline kinds for `refactor_synthesis`, polyglot mutation (tree-sitter)
-- No more pipelines planned in `docs/pipelines/` — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
+- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000).
+- **v0.9 (in progress)**: **removed `mutation_bugs` + `refactor_synthesis`** (pipeline audit — both binary-reward, Python-only, lowest signal value: synthetic AST bugs are unrealistic; renames are a near-no-op RL target). **6 pipelines now active.** Shared helpers (`make_unified_diff`, `build_binary_eval_script`) moved from `mutation_bugs.py` to `pipelines/_eval_script.py`. Planned next: env-setup pipeline (Repo2Run/SetupBench-style, agent makes a bare repo's tests run green), `test_synthesis` (SWE-Flow-style TDD), graded rewards for the binary synthesis pipelines, LLM-judged QA gate, iterative refinement loop for `equivalence_tests`.
+- No new pipelines planned in `docs/pipelines/` beyond the above — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
 
 ### Naming convention (post-rename)
 
 Pipelines follow `{source}_{shape}`:
 - `_diff` — text-only generation, no sandbox at gen time (e.g. `pr_diff`). NB: `pr_diff` still emits a thin Docker env so the diff-similarity reward runs under `harbor` — "no sandbox" refers to generation, not consumption.
 - `_runtime` — runs inside the bootstrap sandbox to verify the oracle (e.g. `pr_runtime`, `commit_runtime`)
-- `_bugs` / `_patches` / `_instruct` / `_tests` / `_synthesis` — name of the artifact type for synthesized pipelines
+- `_patches` / `_instruct` / `_tests` — name of the artifact type for synthesized pipelines (the `_bugs` and `_synthesis` shapes were retired with `mutation_bugs` / `refactor_synthesis` in v0.9)
 
 If anything in this file conflicts with the actual code, **trust the code** and fix this file.

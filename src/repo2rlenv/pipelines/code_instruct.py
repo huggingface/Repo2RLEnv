@@ -53,6 +53,7 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
+from repo2rlenv.pipelines._eval_script import build_binary_eval_script
 from repo2rlenv.pipelines._oss_instruct import (
     PROMPT_SYSTEM,
     PROMPT_USER_TEMPLATE,
@@ -65,10 +66,6 @@ from repo2rlenv.pipelines._oss_instruct import (
     sample_seed,
 )
 from repo2rlenv.pipelines.base import PipelineResult
-from repo2rlenv.pipelines.mutation_bugs import build_mutation_eval_script
-from repo2rlenv.pipelines.pr_runtime import (
-    _path_prelude_for_language,  # noqa: F401  (re-exported via mutation)
-)
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CodeInstructOptions
 
@@ -121,7 +118,7 @@ def make_solution_diff(*, task_module_code: str) -> str:
 def build_code_instruct_dockerfile(bootstrap_image: str) -> str:
     """Per-task Dockerfile: FROM bootstrap + defensive git install. HEAD state.
 
-    Unlike pr_runtime / mutation_bugs, code_instruct adds NEW files at
+    Unlike pr_runtime, code_instruct adds NEW files at
     test time (no patching needed at build time). The gold solution/patch.diff
     lands only `task_module.py`; the grading test ships under tests/ (mounted
     at /tests for every agent) and tests/test.sh copies it into /workspace
@@ -419,7 +416,7 @@ class CodeInstructPipeline:
         # The verifier copies the test out of /tests into /workspace, then runs
         # it specifically (NOT the bootstrap's recorded test_cmds — those are
         # for the original suite).
-        eval_script = build_mutation_eval_script(
+        eval_script = build_binary_eval_script(
             [
                 f"cp /tests/{test_filename} /workspace/{test_filename}",
                 f"python -m pytest {test_filename} -v --no-header",

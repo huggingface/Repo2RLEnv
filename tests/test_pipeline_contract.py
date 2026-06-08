@@ -58,7 +58,7 @@ def test_pipeline_stability_classification():
 
 
 def test_python_only_pipelines_declare_supported_languages():
-    """The 4 Python-only pipelines must restrict supported_languages to {PYTHON}.
+    """The Python-only pipelines must restrict supported_languages to {PYTHON}.
 
     Anything else risks the silent-late-failure mode the pre-flight check
     in cmd_generate is designed to prevent.
@@ -66,10 +66,8 @@ def test_python_only_pipelines_declare_supported_languages():
     from repo2rlenv.bootstrap.spec import LanguageHint
 
     python_only = {
-        "mutation_bugs",
         "code_instruct",
         "equivalence_tests",
-        "refactor_synthesis",
     }
     for name in python_only:
         cls = PIPELINES[name]

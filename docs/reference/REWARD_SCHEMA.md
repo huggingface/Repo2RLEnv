@@ -143,7 +143,7 @@ full breakdown for analysis, filtering, and debugging.
 
 ---
 
-## `mutation_bugs` · `code_instruct` · `equivalence_tests` · `refactor_synthesis`
+## `code_instruct` · `equivalence_tests`
 
 **Reward kind:** `test_execution`
 
@@ -170,7 +170,5 @@ reward = float(open("/logs/verifier/reward.txt").read().strip())  # 1.0 or 0.0
 | `pr_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `commit_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `cve_patches` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
-| `mutation_bugs` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
 | `code_instruct` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
 | `equivalence_tests` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
-| `refactor_synthesis` | 1.0 / 0.0 | ❌ | `reward` | `reward` |

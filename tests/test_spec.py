@@ -75,13 +75,13 @@ def test_generation_input_llm_defaults_to_none():
 
 def test_synthesis_pipeline_raises_without_llm():
     from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
-    from repo2rlenv.pipelines.mutation_bugs import MutationBugsPipeline
-    from repo2rlenv.spec.options import MutationBugsOptions
+    from repo2rlenv.pipelines.code_instruct import CodeInstructPipeline
+    from repo2rlenv.spec.options import CodeInstructOptions
 
     gen = GenerationInput.model_validate(
         {
             "repo": {"url": "pallets/click"},
-            "pipeline": {"name": "mutation_bugs"},
+            "pipeline": {"name": "code_instruct"},
             "output": {"destination": "./out", "org": "myorg", "dataset_name": "test"},
         }
     )
@@ -98,5 +98,5 @@ def test_synthesis_pipeline_raises_without_llm():
         build_time_sec=0.0,
         llm_provider="none",
     )
-    with pytest.raises(ValueError, match="mutation_bugs requires --llm"):
-        MutationBugsPipeline(gen, MutationBugsOptions(), bootstrap=fake_bootstrap)
+    with pytest.raises(ValueError, match="code_instruct requires --llm"):
+        CodeInstructPipeline(gen, CodeInstructOptions(), bootstrap=fake_bootstrap)

@@ -56,7 +56,7 @@ def test_dockerfile_minimal_shape():
     df = build_code_instruct_dockerfile("local/img:abc")
     assert df.startswith("# Auto-generated") or "FROM local/img:abc" in df
     assert "FROM local/img:abc" in df
-    # No patching at build time (unlike pr_runtime / mutation_bugs)
+    # No patching at build time (unlike pr_runtime)
     assert "git apply" not in df
     # Defensive git install (so `git config` works inside container)
     assert "apt-get install" in df
