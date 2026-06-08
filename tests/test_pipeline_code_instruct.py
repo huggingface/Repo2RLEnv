@@ -11,57 +11,39 @@ import pytest
 from repo2rlenv.pipelines.code_instruct import (
     CodeInstructPipeline,
     _all_tests_passed,
-    _make_two_file_diff,
     build_code_instruct_dockerfile,
+    make_solution_diff,
 )
 from repo2rlenv.spec.options import CodeInstructOptions
 
 # ---------------------------------------------------------------------------
-# _make_two_file_diff
+# make_solution_diff — gold patch carries ONLY task_module.py (issue #54)
 # ---------------------------------------------------------------------------
 
 
-def test_two_file_diff_has_two_headers():
-    diff = _make_two_file_diff(
-        task_module_code="def add(x, y):\n    return x + y\n",
-        test_code="from task_module import add\ndef test_add():\n    assert add(1, 2) == 3\n",
-        test_filename="test_r2e_xyz.py",
-    )
-    assert diff.count("diff --git ") == 2
+def test_solution_diff_has_single_header():
+    diff = make_solution_diff(task_module_code="def add(x, y):\n    return x + y\n")
+    assert diff.count("diff --git ") == 1
     assert "diff --git a/task_module.py b/task_module.py" in diff
-    assert "diff --git a/test_r2e_xyz.py b/test_r2e_xyz.py" in diff
 
 
-def test_two_file_diff_marks_new_files():
-    diff = _make_two_file_diff(
-        task_module_code="x = 1\n",
-        test_code="from task_module import x\n",
-        test_filename="test_r2e_xyz.py",
-    )
-    # Each file block opens with `new file mode` + `--- /dev/null`
-    assert diff.count("new file mode") == 2
-    assert diff.count("--- /dev/null") == 2
+def test_solution_diff_excludes_test_file():
+    """Regression for #54: the grading test must NOT be packed into the gold
+    patch — it ships under tests/ so non-oracle agents can reach it."""
+    diff = make_solution_diff(task_module_code="x = 1\n")
+    assert "test_r2e" not in diff
+    assert diff.count("new file mode") == 1
+    assert diff.count("--- /dev/null") == 1
 
 
-def test_two_file_diff_hunk_line_counts():
-    diff = _make_two_file_diff(
-        task_module_code="line1\nline2\nline3\n",
-        test_code="from task_module import x\nx\n",
-        test_filename="test_r2e.py",
-    )
-    # Hunk header for the 3-line task module
+def test_solution_diff_hunk_line_counts():
+    diff = make_solution_diff(task_module_code="line1\nline2\nline3\n")
     assert "@@ -0,0 +1,3 @@" in diff
-    # Hunk header for the 2-line test
-    assert "@@ -0,0 +1,2 @@" in diff
 
 
-def test_two_file_diff_handles_missing_trailing_newline():
+def test_solution_diff_handles_missing_trailing_newline():
     """If a file doesn't end with \\n, we emit the `\\ No newline at end of file` line."""
-    diff = _make_two_file_diff(
-        task_module_code="x = 1",  # no trailing newline
-        test_code="from task_module import x\n",
-        test_filename="test_r2e.py",
-    )
+    diff = make_solution_diff(task_module_code="x = 1")  # no trailing newline
     assert "\\ No newline at end of file" in diff
 
 

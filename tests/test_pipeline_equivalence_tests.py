@@ -7,11 +7,15 @@ Here we cover the pipeline's pure-Python pieces:
   - test_uses_both_names (test must reference both `name` and `reference_name`)
   - _stub_module / _oracle_module (task_module.py shape)
   - _rename_function_source (rename in source text)
-  - _make_two_file_diff (gold patch shape)
+  - build_equivalence_dockerfile + stub→oracle gold patch (solvability)
   - Pipeline contract (requires_bootstrap, missing-bootstrap rejection)
 """
 
 from __future__ import annotations
+
+import shutil
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -19,13 +23,27 @@ from repo2rlenv.pipelines._function_extractor import FunctionCandidate
 from repo2rlenv.pipelines.equivalence_tests import (
     EquivalenceTestsPipeline,
     _extract_test_section,
-    _make_two_file_diff,
     _oracle_module,
     _rename_function_source,
     _stub_module,
+    build_equivalence_dockerfile,
     uses_both_names,
 )
+from repo2rlenv.pipelines.mutation_bugs import _make_unified_diff
 from repo2rlenv.spec.options import EquivalenceTestsOptions
+
+
+def _candidate() -> FunctionCandidate:
+    return FunctionCandidate(
+        relative_path="src/calc.py",
+        name="add",
+        lineno=1,
+        end_lineno=2,
+        body_loc=1,
+        source="def add(x, y):\n    return x + y\n",
+        docstring="",
+        arg_names=("x", "y"),
+    )
 
 
 def _make_candidate(
@@ -187,39 +205,48 @@ def test_oracle_module_has_two_definitions():
 
 
 # ---------------------------------------------------------------------------
-# _make_two_file_diff
+# Stub bake + stub→oracle gold patch (issue #54 — solvable by non-oracle agents)
 # ---------------------------------------------------------------------------
 
 
-def test_two_file_diff_has_two_headers():
-    diff = _make_two_file_diff(
-        module_code="def add(x, y):\n    return x + y\n",
-        test_code="from task_module import add\n",
-        test_filename="test_r2e_abc.py",
-    )
-    assert diff.count("diff --git ") == 2
+def test_dockerfile_bakes_stub_module():
+    """Every agent must start with the stub (reference_<name> present) — so it's
+    baked into the image, not packed into the OracleAgent-only solution/."""
+    stub = _stub_module(_candidate())
+    df = build_equivalence_dockerfile("local/img:abc", stub)
+    assert "FROM local/img:abc" in df
+    assert "base64 -d > /workspace/task_module.py" in df
+    # reference_<name> + stub must both be in the baked payload
+    assert "reference_add" in stub
+    assert "raise NotImplementedError" in stub
+
+
+def test_gold_patch_is_stub_to_oracle_modify_diff():
+    """Gold patch transforms the baked stub into the oracle (not a new file)."""
+    cand = _candidate()
+    diff = _make_unified_diff(_stub_module(cand), _oracle_module(cand), "task_module.py")
     assert "diff --git a/task_module.py b/task_module.py" in diff
-    assert "diff --git a/test_r2e_abc.py b/test_r2e_abc.py" in diff
+    assert "new file mode" not in diff  # modify, not create
+    assert "raise NotImplementedError" in diff  # the stub line is removed
 
 
-def test_two_file_diff_marks_new_files():
-    diff = _make_two_file_diff(
-        module_code="x = 1\n",
-        test_code="y = 2\n",
-        test_filename="test_r2e_x.py",
-    )
-    assert diff.count("new file mode") == 2
-    assert diff.count("--- /dev/null") == 2
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_oracle_patch_applies_to_baked_stub(tmp_path: Path):
+    """End-to-end solvability: applying the gold patch to the baked stub via
+    `git apply` (exactly what solve.sh does) yields the oracle module."""
+    cand = _candidate()
+    stub = _stub_module(cand)
+    oracle = _oracle_module(cand)
+    diff = _make_unified_diff(stub, oracle, "task_module.py")
 
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "task_module.py").write_text(stub)  # what the image bakes
+    (tmp_path / "patch.diff").write_text(diff)
+    subprocess.run(["git", "apply", "patch.diff"], cwd=tmp_path, check=True)
 
-def test_two_file_diff_hunk_line_counts():
-    diff = _make_two_file_diff(
-        module_code="line1\nline2\nline3\n",
-        test_code="a\nb\n",
-        test_filename="t.py",
-    )
-    assert "@@ -0,0 +1,3 @@" in diff
-    assert "@@ -0,0 +1,2 @@" in diff
+    got = (tmp_path / "task_module.py").read_text()
+    assert got.rstrip("\n") == oracle.rstrip("\n")
+    assert "raise NotImplementedError" not in got  # stub really replaced
 
 
 # ---------------------------------------------------------------------------
