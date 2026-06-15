@@ -113,9 +113,11 @@ with BootstrapView(...) as view:
 
 Logging is routed through `RichHandler` via `install_logging()` (called from `cli.py:main()`). Noisy library loggers (litellm/httpx/anthropic/openai) are auto-suppressed to WARNING while a Live is active.
 
-## Auth resolution chain (GitHub)
+## Input sources + auth resolution
 
-`auth.resolve_github_token()` checks in order:
+`--repo` accepts a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://` — canonicalized to `file://<abspath>`). `RepoSpec.source_kind` classifies it; `sources.py` defines `Capability` (pull_requests / issues / commit_api) per source and each pipeline's `required_capabilities`. `cmd_generate` gates incompatible combos up front (e.g. `pr_diff` on a local repo → blocked with a clear error). Git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on any source; `pr_diff`/`pr_runtime`/`cve_patches` need GitHub. GitLab is clone+git only for now — MR mining tracked in #62.
+
+`auth.resolve_repo_token()` dispatches by source: local → None (no `gh` shell-out); gitlab → `repo.auth_token_env` then `$GITLAB_TOKEN`; github → `auth.resolve_github_token()`, which checks in order:
 1. `repo.auth_token_env` env var (if explicitly set in config)
 2. `gh auth token` (default — works for any user who's `gh auth login`'d)
 3. `$GITHUB_TOKEN`

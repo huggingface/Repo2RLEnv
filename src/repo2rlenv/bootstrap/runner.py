@@ -17,7 +17,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from repo2rlenv.auth import auth_clone_url, resolve_github_token
+from repo2rlenv.auth import auth_clone_url, resolve_repo_token
 from repo2rlenv.bootstrap import cache as cache_mod
 from repo2rlenv.bootstrap.agent import run_agent_loop
 from repo2rlenv.bootstrap.docker import (
@@ -466,7 +466,7 @@ def ensure_bootstrap(
         )
 
     auth = auth or AuthSpec()
-    token = resolve_github_token(repo, auth)
+    token = resolve_repo_token(repo, auth)
     if repo.access == "private" and not token:
         raise BootstrapError(
             "private repo requires a GitHub token. Run `gh auth login` or set GITHUB_TOKEN."

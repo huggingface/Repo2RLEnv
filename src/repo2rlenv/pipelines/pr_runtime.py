@@ -56,6 +56,7 @@ from repo2rlenv.github import (
     list_merged_prs,
 )
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import PRRuntimeOptions
 
@@ -766,6 +767,7 @@ class PRRuntimePipeline:
     """Sandbox-verified PR mining. Implements the `Pipeline` Protocol."""
 
     name: ClassVar[PipelineName] = PipelineName.PR_RUNTIME
+    required_capabilities: ClassVar[frozenset[Capability]] = frozenset({Capability.PULL_REQUESTS})
     requires_bootstrap: ClassVar[bool] = True
     experimental: ClassVar[bool] = False  # stable
 

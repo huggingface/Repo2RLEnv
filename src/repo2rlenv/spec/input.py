@@ -32,16 +32,39 @@ class RepoSpec(BaseModel):
     @classmethod
     def normalize_url(cls, v: str) -> str:
         v = v.strip()
+        # Local checkout — canonicalize to an absolute file:// URL.
+        if v.startswith("file://"):
+            return "file://" + str(Path(v[len("file://") :]).expanduser().resolve())
+        if v.startswith(("/", "~", "./", "../")):
+            return "file://" + str(Path(v).expanduser().resolve())
+        # Remote git host (github default for a bare owner/name; gitlab needs
+        # a full URL since a bare owner/name is indistinguishable from github).
         if "/" not in v:
-            raise ValueError(f"repo url must be 'owner/name' or full URL, got {v!r}")
+            raise ValueError(
+                f"repo url must be 'owner/name', a full git URL, or a local path, got {v!r}"
+            )
         if not v.startswith(("http://", "https://", "git@")):
             v = f"https://github.com/{v}"
         return v.rstrip("/").removesuffix(".git")
 
     @property
+    def source_kind(self):  # -> sources.SourceKind
+        from repo2rlenv.sources import detect_source_kind
+
+        return detect_source_kind(self.url)
+
+    @property
     def owner_name(self) -> tuple[str, str]:
-        """Return (owner, name) parsed from the URL."""
-        path = self.url.replace("https://github.com/", "").replace("git@github.com:", "")
+        """Return (owner, name). Local repos get a synthetic ('local', <dir>)."""
+        u = self.url
+        if u.startswith("file://"):
+            return "local", Path(u[len("file://") :]).name
+        path = (
+            u.replace("https://github.com/", "")
+            .replace("git@github.com:", "")
+            .replace("https://gitlab.com/", "")
+            .replace("git@gitlab.com:", "")
+        )
         parts = path.rstrip("/").split("/")
         if len(parts) < 2:
             raise ValueError(f"cannot parse owner/name from {self.url!r}")

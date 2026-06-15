@@ -62,6 +62,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
 )
+from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CVEPatchesOptions
 
@@ -91,6 +92,7 @@ class CVEPatchesPipeline:
     """OSV-driven CVE → fix-commit pipeline."""
 
     name: ClassVar[PipelineName] = PipelineName.CVE_PATCHES
+    required_capabilities: ClassVar[frozenset[Capability]] = frozenset({Capability.COMMIT_API})
     requires_bootstrap: ClassVar[bool] = True
     experimental: ClassVar[bool] = True
 

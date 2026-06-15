@@ -81,9 +81,35 @@ def resolve_llm_api_key(provider: str, llm_api_key_env: str | None = None) -> st
 
 
 def auth_clone_url(repo_url: str, token: str | None) -> str:
-    """Inject token into URL for private clone. Token never logged."""
+    """Inject token into URL for private clone. Token never logged.
+
+    Local (file://) and public clones pass through untouched.
+    """
     if not token:
         return repo_url
     if repo_url.startswith("https://github.com/"):
         return repo_url.replace("https://", f"https://x-access-token:{token}@")
+    if repo_url.startswith("https://gitlab.com/"):
+        return repo_url.replace("https://", f"https://oauth2:{token}@")
     return repo_url
+
+
+def resolve_repo_token(repo: RepoSpec, auth: AuthSpec) -> str | None:
+    """Source-aware token resolution.
+
+    - local: no token (and no `gh` shell-out)
+    - gitlab: `repo.auth_token_env` then `$GITLAB_TOKEN`
+    - github: the documented `resolve_github_token` chain (unchanged)
+    """
+    from repo2rlenv.sources import SourceKind
+
+    kind = repo.source_kind
+    if kind == SourceKind.LOCAL:
+        return None
+    if kind == SourceKind.GITLAB:
+        if repo.auth_token_env:
+            tok = os.environ.get(repo.auth_token_env)
+            if tok:
+                return tok
+        return os.environ.get("GITLAB_TOKEN")
+    return resolve_github_token(repo, auth)
