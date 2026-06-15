@@ -63,6 +63,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
 )
+from repo2rlenv.sources import Capability, capabilities_for
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CommitRuntimeOptions
 
@@ -333,10 +334,19 @@ class CommitRuntimePipeline:
                     # (`Closes #N`), source the problem statement from the
                     # issue body — the bug report is far less leak-prone than
                     # the commit message. Same lesson as Arc 2 for pr_runtime.
+                    # Issue enrichment is GitHub-only (gh API). On GitLab/local
+                    # sources there's no issue API here, so fall back to the
+                    # (scrubbed) commit message. Defensive try/except: a deleted
+                    # or private issue must not abort the whole run.
                     issue_num = _linked_issue_number(commit.message or "")
                     issue = None
-                    if issue_num is not None:
-                        issue = fetch_issue(owner, name, issue_num, token=token)
+                    if issue_num is not None and Capability.ISSUES in capabilities_for(
+                        self.input.repo.source_kind
+                    ):
+                        try:
+                            issue = fetch_issue(owner, name, issue_num, token=token)
+                        except Exception as exc:
+                            logger.debug("issue fetch failed (%s); using commit message", exc)
                     task = self._build_task(
                         commit,
                         patch,

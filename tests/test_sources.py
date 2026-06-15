@@ -65,9 +65,18 @@ def test_bare_single_token_still_rejected():
 
 
 def test_capabilities_by_source():
-    assert Capability.PULL_REQUESTS in capabilities_for(SourceKind.GITHUB)
+    gh = capabilities_for(SourceKind.GITHUB)
+    assert {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.COMMIT_API} <= gh
     assert capabilities_for(SourceKind.LOCAL) == frozenset()
     assert capabilities_for(SourceKind.GITLAB) == frozenset()
+
+
+def test_issues_capability_is_github_only():
+    """commit_runtime gates its `gh`-based issue enrichment on this — so a
+    local/GitLab commit with `Closes #N` must NOT trigger a GitHub call."""
+    for kind in (SourceKind.LOCAL, SourceKind.GITLAB):
+        assert Capability.ISSUES not in capabilities_for(kind)
+    assert Capability.ISSUES in capabilities_for(SourceKind.GITHUB)
 
 
 def test_detect_source_kind():
