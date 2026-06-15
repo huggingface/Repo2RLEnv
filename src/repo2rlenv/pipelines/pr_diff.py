@@ -54,6 +54,7 @@ from repo2rlenv.github import (
     list_merged_prs,
 )
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import PRDiffOptions
 
@@ -423,6 +424,7 @@ class PRDiffPipeline:
     """
 
     name: ClassVar[PipelineName] = PipelineName.PR_DIFF
+    required_capabilities: ClassVar[frozenset[Capability]] = frozenset({Capability.PULL_REQUESTS})
     requires_bootstrap: ClassVar[bool] = False
     experimental: ClassVar[bool] = False  # stable
 

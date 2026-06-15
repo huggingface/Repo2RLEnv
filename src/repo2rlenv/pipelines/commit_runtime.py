@@ -41,7 +41,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from repo2rlenv.auth import resolve_github_token
+from repo2rlenv.auth import resolve_repo_token
 from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
@@ -190,7 +190,7 @@ class CommitRuntimePipeline:
 
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
-        token = resolve_github_token(self.input.repo, self.input.auth)
+        token = resolve_repo_token(self.input.repo, self.input.auth)
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
                 "private repo specified but no GitHub token resolved. "

@@ -109,10 +109,39 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
     options = parse_options(gen_input.pipeline.name.value, gen_input.pipeline.options)
 
+    # Pre-flight: can this input source serve what the pipeline needs?
+    # PR-based pipelines (pr_diff, pr_runtime) and cve_patches require platform
+    # data (pull requests / commit API) that a local or GitLab source can't
+    # provide — block here with a clear message instead of failing mid-run.
+    from repo2rlenv.sources import SourceKind, capabilities_for
+
+    src_kind = gen_input.repo.source_kind
+    available_caps = capabilities_for(src_kind)
+    required_caps = getattr(pipeline_cls, "required_capabilities", frozenset())
+    missing_caps = required_caps - available_caps
+    if missing_caps:
+        compatible = sorted(
+            n
+            for n, c in PIPELINES.items()
+            if getattr(c, "required_capabilities", frozenset()) <= available_caps
+        )
+        console.error(
+            f"pipeline {gen_input.pipeline.name.value!r} needs "
+            f"{sorted(m.value for m in missing_caps)}, which a '{src_kind.value}' source "
+            f"does not provide. Pipelines that work on a '{src_kind.value}' source: "
+            f"{compatible}. For PR/CVE-based pipelines, point --repo at a GitHub repo."
+        )
+        return 2
+
     # Pre-flight: does this pipeline support this repo's primary language?
     # Cheap GitHub API call; runs BEFORE bootstrap so we fail fast on a
     # Go/Rust/Node repo + Python-only pipeline mismatch (~2s vs ~5 min).
-    if getattr(pipeline_cls, "supported_languages", None) is not None:
+    # Only GitHub exposes a language API; for local/GitLab the bootstrap phase
+    # detects the language from repo files instead.
+    if (
+        getattr(pipeline_cls, "supported_languages", None) is not None
+        and src_kind == SourceKind.GITHUB
+    ):
         from repo2rlenv.auth import resolve_github_token
         from repo2rlenv.bootstrap.language import language_from_github_name
         from repo2rlenv.github import get_primary_language

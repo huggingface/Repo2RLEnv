@@ -49,7 +49,21 @@ First match wins:
 3. `$GITHUB_TOKEN`
 4. None — anonymous clone (fails with a clear error if `access="private"`)
 
-Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../src/repo2rlenv/auth.py).
+Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../../src/repo2rlenv/auth.py).
+
+## Input sources (GitHub · GitLab · local)
+
+`--repo` accepts more than a GitHub `owner/name`:
+
+| Input | Source | Token | Notes |
+|---|---|---|---|
+| `owner/name` or `https://github.com/...` | GitHub | `resolve_github_token` chain above | unchanged — the default |
+| `https://gitlab.com/owner/name` | GitLab | `repo.auth_token_env` → `$GITLAB_TOKEN` (public needs none) | clone via `oauth2:<token>@` |
+| `/abs/path`, `./rel`, `~/x`, `file://…` | Local | none (no `gh` shell-out) | canonicalized to `file://<abspath>` |
+
+Source-aware resolution lives in [`auth.py:resolve_repo_token`](../../src/repo2rlenv/auth.py); detection + capabilities in [`sources.py`](../../src/repo2rlenv/sources.py).
+
+**Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice: the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source; `pr_diff` / `pr_runtime` / `cve_patches` need GitHub (PRs/CVEs don't exist in a bare clone). GitLab is currently clone+git only — MR mining is tracked in #62.
 
 ## Private repos at task **build** time
 
