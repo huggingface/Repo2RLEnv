@@ -67,16 +67,19 @@ def test_bare_single_token_still_rejected():
 def test_capabilities_by_source():
     gh = capabilities_for(SourceKind.GITHUB)
     assert {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.COMMIT_API} <= gh
+    # GitLab: MRs + issues via REST, but NOT commit_api (cve_patches is OSV/GitHub).
+    assert capabilities_for(SourceKind.GITLAB) == frozenset(
+        {Capability.PULL_REQUESTS, Capability.ISSUES}
+    )
     assert capabilities_for(SourceKind.LOCAL) == frozenset()
-    assert capabilities_for(SourceKind.GITLAB) == frozenset()
 
 
-def test_issues_capability_is_github_only():
-    """commit_runtime gates its `gh`-based issue enrichment on this — so a
-    local/GitLab commit with `Closes #N` must NOT trigger a GitHub call."""
-    for kind in (SourceKind.LOCAL, SourceKind.GITLAB):
-        assert Capability.ISSUES not in capabilities_for(kind)
+def test_issues_capability_present_on_remotes_only():
+    """commit_runtime gates issue enrichment on this — a *local* commit with
+    `Closes #N` must not trigger any host API call."""
     assert Capability.ISSUES in capabilities_for(SourceKind.GITHUB)
+    assert Capability.ISSUES in capabilities_for(SourceKind.GITLAB)
+    assert Capability.ISSUES not in capabilities_for(SourceKind.LOCAL)
 
 
 def test_detect_source_kind():
@@ -85,19 +88,31 @@ def test_detect_source_kind():
     assert detect_source_kind("file:///tmp/a") == SourceKind.LOCAL
 
 
-def test_pr_pipelines_blocked_on_local_and_gitlab():
-    """The gating contract: PR/CVE pipelines need caps local/gitlab lack;
-    the git/source pipelines need none."""
-    needs_caps = {"pr_diff", "pr_runtime", "cve_patches"}
-    git_only = {"commit_runtime", "code_instruct", "equivalence_tests"}
-    for kind in (SourceKind.LOCAL, SourceKind.GITLAB):
-        avail = capabilities_for(kind)
-        for n in needs_caps:
-            req = getattr(PIPELINES[n], "required_capabilities", frozenset())
-            assert not (req <= avail), f"{n} should be blocked on {kind}"
-        for n in git_only:
-            req = getattr(PIPELINES[n], "required_capabilities", frozenset())
-            assert req <= avail, f"{n} should run on {kind}"
+def _allowed(name: str, kind: SourceKind) -> bool:
+    req = getattr(PIPELINES[name], "required_capabilities", frozenset())
+    return req <= capabilities_for(kind)
+
+
+def test_gating_contract_per_source():
+    """LOCAL → only git/source pipelines. GITLAB → also PR pipelines (MR mining),
+    but NOT cve_patches (no commit_api). GITHUB → everything."""
+    git_only = ("commit_runtime", "code_instruct", "equivalence_tests")
+    pr_based = ("pr_diff", "pr_runtime")
+
+    # local: PR + CVE pipelines all blocked; git/source allowed
+    for n in (*pr_based, "cve_patches"):
+        assert not _allowed(n, SourceKind.LOCAL)
+    for n in git_only:
+        assert _allowed(n, SourceKind.LOCAL)
+
+    # gitlab: PR pipelines now allowed (MR mining), cve_patches still blocked
+    for n in pr_based:
+        assert _allowed(n, SourceKind.GITLAB)
+    assert not _allowed("cve_patches", SourceKind.GITLAB)
+
+    # github: all allowed
+    for n in PIPELINES:
+        assert _allowed(n, SourceKind.GITHUB)
 
 
 def test_all_pipelines_allowed_on_github():

@@ -42,8 +42,9 @@ _CAPABILITIES: dict[SourceKind, frozenset[Capability]] = {
     SourceKind.GITHUB: frozenset(
         {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.COMMIT_API}
     ),
-    # GitLab clone + git work today; MR/issue mining is tracked in #62.
-    SourceKind.GITLAB: frozenset(),
+    # GitLab: merge-request + issue mining via the REST API (#62). No
+    # COMMIT_API → cve_patches (OSV → github.com fix-commits) stays GitHub-only.
+    SourceKind.GITLAB: frozenset({Capability.PULL_REQUESTS, Capability.ISSUES}),
     # A local checkout has no platform layer at all — git only.
     SourceKind.LOCAL: frozenset(),
 }

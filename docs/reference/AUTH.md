@@ -63,7 +63,7 @@ Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../../src/repo2r
 
 Source-aware resolution lives in [`auth.py:resolve_repo_token`](../../src/repo2rlenv/auth.py); detection + capabilities in [`sources.py`](../../src/repo2rlenv/sources.py).
 
-**Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice: the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source; `pr_diff` / `pr_runtime` / `cve_patches` need GitHub (PRs/CVEs don't exist in a bare clone). GitLab is currently clone+git only — MR mining is tracked in #62.
+**Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice: the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source; `pr_diff` / `pr_runtime` mine pull/merge requests so they run on **GitHub or GitLab** (gitlab.com merge requests via the REST API); `cve_patches` is GitHub-only (OSV → github.com fix-commits + the GitHub commit API).
 
 ## Private repos at task **build** time
 
