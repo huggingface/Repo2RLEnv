@@ -95,6 +95,9 @@ def _pipeline_for_filter_tests(**opts):
     """Build a pipeline whose _metadata_filter/_structural_filter we can call."""
     from unittest.mock import MagicMock
 
+    # These tests target bugfix-signal/merge/author logic — isolate them from
+    # the problem-statement word gate (its own dedicated test covers it).
+    opts.setdefault("min_problem_statement_words", 0)
     pipe = CommitRuntimePipeline.__new__(CommitRuntimePipeline)
     pipe.options = CommitRuntimeOptions(**opts)
     pipe.bootstrap = MagicMock()
@@ -126,6 +129,14 @@ def test_metadata_filter_short_message():
     pipe = _pipeline_for_filter_tests(min_message_words=5)
     commit = _make_commit(subject="wip", body="")
     assert pipe._metadata_filter(commit) == "short_message"
+
+
+def test_metadata_filter_problem_statement_too_short():
+    """New gate: with min_problem_statement_words set, a terse commit is dropped."""
+    pipe = _pipeline_for_filter_tests(min_problem_statement_words=20)
+    # passes min_message_words(5) but under the 20-word problem-statement gate
+    c = _make_commit(subject="fix the parser so it stops crashing on empty input", body="")
+    assert pipe._metadata_filter(c) == "problem_statement_too_short"
 
 
 def test_metadata_filter_passes_a_good_commit():
@@ -251,7 +262,9 @@ def _stub_pipeline_for_build_task(test_cmds=None, language="python"):
     from unittest.mock import MagicMock
 
     pipe = CommitRuntimePipeline.__new__(CommitRuntimePipeline)
-    pipe.options = CommitRuntimeOptions()
+    # synthesis off → deterministic raw-text instruction (no LLM call on the mock)
+    pipe.options = CommitRuntimeOptions(synthesize_with_llm=False)
+    pipe._llm_cost_usd = 0.0
     pipe.bootstrap = SimpleNamespace(
         image_tag="local/r2e-bootstrap/o__r:abc",
         image_digest="local/r2e-bootstrap/o__r:abc",
