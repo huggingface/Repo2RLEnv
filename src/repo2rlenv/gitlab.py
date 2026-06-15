@@ -6,9 +6,13 @@ PR-mining pipelines (`pr_diff`, `pr_runtime`) can run against gitlab.com via
 the source dispatch in `provider.py`. GitLab "merge requests" map onto our
 PR abstraction (a merged MR == a merged PR; `iid` == PR number).
 
-Pure stdlib (`urllib`) — no extra dependency, no CLI. Public projects need
-no token; private ones read a `PRIVATE-TOKEN` (resolved from `$GITLAB_TOKEN`).
-Scoped to gitlab.com (see #62); self-hosted instances are out of scope.
+Pure stdlib (`urllib`) — no extra dependency, no CLI. Verified against
+**public** gitlab.com projects (no token needed). Private projects read a
+`PRIVATE-TOKEN` header (from `$GITLAB_TOKEN`) for the `/api/v4` calls, but
+the diff is fetched from a non-API web route that the header does NOT
+authenticate — so **private repos are not yet supported** (needs a
+session-/query-authed diff path; tracked as a follow-up). Scoped to
+gitlab.com; self-hosted instances are out of scope.
 """
 
 from __future__ import annotations
@@ -60,6 +64,9 @@ def list_merged_prs(
 ) -> list[PullRequestSummary]:
     """List recently merged MRs newest-first (mirrors github.list_merged_prs)."""
     pid = _project_id(owner, name)
+    # Single page (GitLab caps per_page at 100). Over-fetch ×3 to absorb
+    # client-side draft/date filtering; for limit > ~33 only the newest 100
+    # merged MRs are seen — fine for typical mining, paginate later if needed.
     per_page = min(limit * 3, 100)
     rows = _request(
         f"{GITLAB_API}/projects/{pid}/merge_requests"
@@ -106,7 +113,12 @@ def list_merged_prs(
 
 
 def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = None) -> str:
-    """Return the MR's unified diff via the `<mr>.diff` endpoint (git-format)."""
+    """Return the MR's unified diff via the `<mr>.diff` web route (git-format).
+
+    NOTE: this is a non-API route; the `PRIVATE-TOKEN` header does not
+    authenticate it, so it works for PUBLIC projects only. Private-repo diff
+    fetch needs a session-/query-authed path (follow-up).
+    """
     url = f"{GITLAB_HOST}/{owner}/{name}/-/merge_requests/{number}.diff"
     return _request(url, token, accept_json=False)
 
