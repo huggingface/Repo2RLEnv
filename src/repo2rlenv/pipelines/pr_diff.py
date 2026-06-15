@@ -45,20 +45,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from repo2rlenv.auth import resolve_github_token
+from repo2rlenv.auth import resolve_repo_token
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
-from repo2rlenv.github import (
-    GitHubError,
-    PullRequestSummary,
-    fetch_pr_diff,
-    list_merged_prs,
-)
+from repo2rlenv.github import GitHubError, PullRequestSummary
+from repo2rlenv.gitlab import GitLabError
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import PRDiffOptions
 
 logger = logging.getLogger(__name__)
+
+# PR/MR data calls dispatch by source (GitHub vs GitLab); either can raise.
+_PROVIDER_ERRORS = (GitHubError, GitLabError)
 
 
 # GitHub-issue / GitHub-PR linkbacks that hint at the solution. We strip
@@ -451,18 +451,19 @@ class PRDiffPipeline:
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        token = resolve_github_token(self.input.repo, self.input.auth)
+        token = resolve_repo_token(self.input.repo, self.input.auth)
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
-                "private repo specified but no GitHub token resolved. "
-                "Run `gh auth login` or set GITHUB_TOKEN."
+                "private repo specified but no token resolved. "
+                "Run `gh auth login` / set GITHUB_TOKEN (GitHub) or GITLAB_TOKEN (GitLab)."
             )
 
+        provider = provider_for(self.input.repo)
         owner, name = self.input.repo.owner_name
         logger.info("listing merged PRs for %s/%s (limit=%d)", owner, name, self.options.limit)
 
         try:
-            prs = list_merged_prs(
+            prs = provider.list_merged_prs(
                 owner,
                 name,
                 limit=self.options.limit,
@@ -471,7 +472,7 @@ class PRDiffPipeline:
                 skip_drafts=self.options.skip_drafts,
                 token=token,
             )
-        except GitHubError as exc:
+        except _PROVIDER_ERRORS as exc:
             raise RuntimeError(f"failed to list PRs: {exc}") from exc
 
         skip_reasons: dict[str, int] = {}
@@ -486,8 +487,8 @@ class PRDiffPipeline:
                 continue
 
             try:
-                diff = fetch_pr_diff(owner, name, pr.number, token=token)
-            except GitHubError as exc:
+                diff = provider.fetch_pr_diff(owner, name, pr.number, token=token)
+            except _PROVIDER_ERRORS as exc:
                 logger.warning("PR #%d: diff fetch failed: %s", pr.number, exc)
                 skip_reasons["diff_fetch_failed"] = skip_reasons.get("diff_fetch_failed", 0) + 1
                 self._emit_progress(pr_label, "error", "diff_fetch_failed")

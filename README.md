@@ -116,15 +116,15 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 
 | Pipeline | Stability | Source | Reward signal | Sandbox | LLM use | Languages |
 |---|:-:|:-:|---|:-:|---|---|
-| `pr_diff` | stable | GitHub | `diff_similarity` | thin | at verify — judges the solution | any |
-| `pr_runtime` | stable | GitHub | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `pr_diff` | stable | GitHub · GitLab | `diff_similarity` | thin | at verify — judges the solution | any |
+| `pr_runtime` | stable | GitHub · GitLab | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `commit_runtime` | experimental | GitHub · GitLab · local | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `cve_patches` | experimental | GitHub | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `code_instruct` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 | `equivalence_tests` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 
 **What the columns mean**
-- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`) — these pipelines need only git + source files. **`GitHub`** = needs pull requests / CVE data, which a local or GitLab clone can't provide, so `generate` blocks those up front with a clear error (GitLab merge-request mining is tracked in [#62](https://github.com/huggingface/Repo2RLEnv/issues/62)).
+- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
 - **Reward signal** — the verifiable signal emitted per task. `test_execution` = the repo's own tests gate the reward (F2P/P2P or pytest pass rate); `diff_similarity` = the agent's output is scored against the oracle diff (format, file targeting, region overlap, LLM judge). Pipelines that emit both use `test_execution` as the primary training signal.
 - **Sandbox** — whether the task runs inside Docker. `✅` = a per-repo image is built once by the [bootstrap phase](#bootstrap) and cached; `thin` = no bootstrap, just a generic `python:3.12-slim` image.
 - **LLM use** — *when* a language model is invoked, which sets where your API cost goes:

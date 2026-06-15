@@ -46,7 +46,6 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
-from repo2rlenv.github import fetch_issue
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
@@ -63,6 +62,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
 )
+from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability, capabilities_for
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CommitRuntimeOptions
@@ -344,7 +344,9 @@ class CommitRuntimePipeline:
                         self.input.repo.source_kind
                     ):
                         try:
-                            issue = fetch_issue(owner, name, issue_num, token=token)
+                            issue = provider_for(self.input.repo).fetch_issue(
+                                owner, name, issue_num, token=token
+                            )
                         except Exception as exc:
                             logger.debug("issue fetch failed (%s); using commit message", exc)
                     task = self._build_task(

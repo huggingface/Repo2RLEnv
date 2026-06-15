@@ -45,22 +45,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from repo2rlenv.auth import resolve_github_token
+from repo2rlenv import github
+from repo2rlenv.auth import resolve_repo_token
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
-from repo2rlenv.github import (
-    GitHubError,
-    PullRequestSummary,
-    fetch_issue,
-    fetch_pr_diff,
-    list_merged_prs,
-)
+from repo2rlenv.github import GitHubError, PullRequestSummary
+from repo2rlenv.gitlab import GitLabError
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import PRRuntimeOptions
 
 logger = logging.getLogger(__name__)
+
+# PR/MR data calls dispatch by source (GitHub vs GitLab); either can raise.
+_PROVIDER_ERRORS = (GitHubError, GitLabError)
 
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
@@ -262,6 +262,7 @@ def _build_instruction(
     name: str = "",
     *,
     token: str | None = None,
+    provider=github,
 ) -> str:
     """Build the task instruction (problem statement).
 
@@ -280,7 +281,7 @@ def _build_instruction(
 
     issue_num = _linked_issue_number(pr.body or "")
     if issue_num is not None and owner and name:
-        fetched = fetch_issue(owner, name, issue_num, token=token)
+        fetched = provider.fetch_issue(owner, name, issue_num, token=token)
         if fetched:
             i_title, i_body = fetched
             title = i_title or pr.title
@@ -802,18 +803,19 @@ class PRRuntimePipeline:
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        token = resolve_github_token(self.input.repo, self.input.auth)
+        token = resolve_repo_token(self.input.repo, self.input.auth)
         self._token = token  # reused by _build_task to fetch linked-issue text
+        self._provider = provider_for(self.input.repo)  # GitHub vs GitLab dispatch
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
-                "private repo specified but no GitHub token resolved. "
-                "Run `gh auth login` or set GITHUB_TOKEN."
+                "private repo specified but no token resolved. "
+                "Run `gh auth login` / set GITHUB_TOKEN (GitHub) or GITLAB_TOKEN (GitLab)."
             )
 
         owner, name = self.input.repo.owner_name
         logger.info("listing merged PRs for %s/%s (limit=%d)", owner, name, self.options.limit)
         try:
-            prs = list_merged_prs(
+            prs = self._provider.list_merged_prs(
                 owner,
                 name,
                 limit=self.options.limit,
@@ -822,7 +824,7 @@ class PRRuntimePipeline:
                 skip_drafts=self.options.skip_drafts,
                 token=token,
             )
-        except GitHubError as exc:
+        except _PROVIDER_ERRORS as exc:
             raise RuntimeError(f"failed to list PRs: {exc}") from exc
 
         skip_reasons: dict[str, int] = {}
@@ -842,8 +844,8 @@ class PRRuntimePipeline:
 
                 # Fetch diff
                 try:
-                    diff = fetch_pr_diff(owner, name, pr.number, token=token)
-                except GitHubError as exc:
+                    diff = self._provider.fetch_pr_diff(owner, name, pr.number, token=token)
+                except _PROVIDER_ERRORS as exc:
                     logger.warning("PR #%d: diff fetch failed: %s", pr.number, exc)
                     skip_reasons["diff_fetch_failed"] = skip_reasons.get("diff_fetch_failed", 0) + 1
                     self._emit_progress(pr_label, "error", "diff_fetch_failed")
@@ -1111,7 +1113,13 @@ class PRRuntimePipeline:
             name=task_id,
             org=self.input.output.org,
             description=pr.title or task_id,
-            instruction=_build_instruction(pr, owner, name, token=getattr(self, "_token", None)),
+            instruction=_build_instruction(
+                pr,
+                owner,
+                name,
+                token=getattr(self, "_token", None),
+                provider=getattr(self, "_provider", github),
+            ),
             oracle_diff=patch,
             repo2env=repo2env,
             difficulty="medium",
