@@ -21,15 +21,16 @@ flowchart LR
 
 All 6 pipelines are shipped — 2 stable (`pr_diff`, `pr_runtime`), 4 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
 
-| Pipeline | What it produces | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
-|---|---|:-:|---|:-:|---|---|
-| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
-| [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | ✅ | at synthesis (problem + verifier) | Sometimes | — | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | ✅ | at synthesis (tests) | If function uses GPU | — | [R2E](https://github.com/r2e-project/r2e) |
-| [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | ✅ | at bootstrap (cached) | Rarely | — | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
+| Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
+|---|---|:-:|:-:|---|:-:|---|---|
+| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | GitHub | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
+| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
+| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | — | [Magicoder](https://github.com/ise-uiuc/magicoder) |
+| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests) | If function uses GPU | — | [R2E](https://github.com/r2e-project/r2e) |
+| [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | — | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 
+- **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub` = needs pull requests / CVE data (no equivalent in a bare clone), so `generate` blocks a local/GitLab repo up front with a clear error. GitLab merge-request mining is tracked in [#62](https://github.com/huggingface/Repo2RLEnv/issues/62).
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
 - **LLM use**: every pipeline calls an LLM at *some* stage. `at synthesis` = the pipeline itself authors task content (problems, mutations, tests) — this is the heavy spend. `at bootstrap (cached)` = the pipeline doesn't call the LLM, but the per-repo env construction does — that runs **once per repo**, content-addressed, then cached. `at verify` = an LLM is invoked at reward time (only `pr_diff`'s LLM-judge component).
 
