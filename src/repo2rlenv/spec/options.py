@@ -108,10 +108,21 @@ class CommitRuntimeOptions(_BaseOptions):
     min_fail_to_pass: int = 1
     validation_timeout_sec: int = 600
     skip_validation: bool = False
+    # Cap PASS_TO_PASS regression set: whole-suite P2P (100s of tests) inflates
+    # flakiness + runtime. Keep a bounded, still-meaningful guard. 0 = no cap.
+    max_pass_to_pass: int = 50
 
     # --- Instruction synthesis ---
-    synthesize_with_llm: bool = False  # if False, use raw commit subject + body
-    min_problem_statement_words: int = 0
+    # Default ON: rewrite the commit/issue into a clean, leak-free, symptom-
+    # focused problem statement. Raw commit messages either leak the solution
+    # (changelog bullets) or are too thin (title-only) — both hurt solvability.
+    synthesize_with_llm: bool = True
+    # Low floor: with synthesis ON the LLM expands terse commits, so we only
+    # need *some* signal. 20 starved terse-commit repos (Rust crates, many Go);
+    # 8 keeps near-empty/title-only out while letting synthesis do the rest.
+    min_problem_statement_words: int = 8
+    llm_temperature: float = 0.3
+    max_llm_tokens: int = 1024
 
 
 class CodeInstructOptions(_BaseOptions):

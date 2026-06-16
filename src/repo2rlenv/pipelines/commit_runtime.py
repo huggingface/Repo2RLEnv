@@ -46,6 +46,7 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
+from repo2rlenv.llm import complete
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
@@ -104,6 +105,27 @@ _BUGFIX_KEYWORD_RE = re.compile(
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text or ""))
+
+
+# Synthesis prompt: turn the fix-commit / linked-issue text into a clean,
+# leak-free, symptom-focused problem statement (the bug as a user would report
+# it BEFORE the fix). Fixes both failure modes of raw commit text: solution
+# leakage (changelog bullets naming the fix) and thinness (title-only subjects).
+_SYNTH_SYSTEM = """You are writing a GitHub bug report for an AI coding agent to fix.
+
+You are given the commit message (and maybe a linked issue) that FIXED a bug.
+Rewrite it into a clear problem statement describing ONLY the observed problem
+and expected behavior — the symptom, as a user would report it BEFORE any fix
+existed.
+
+STRICT RULES:
+- Describe the symptom + expected vs actual behavior. Include a short
+  reproduction if one is evident.
+- Do NOT describe the solution, the fix approach, or which functions/files/tests
+  to change. Do NOT mention "fix", "patch", commit SHAs, PR/issue numbers,
+  file names, test names, "Signed-off-by", or changelog bullets.
+- Output exactly: a `**Title:**` line, then a `## Description` section. Markdown
+  allowed. Nothing else. Keep it concise (2-6 sentences)."""
 
 
 def _files_changed_in_diff(unified_diff: str) -> list[str]:
@@ -176,6 +198,48 @@ class CommitRuntimePipeline:
         self.options = options
         self.bootstrap = bootstrap
         self._progress_cb = None
+        self._llm_cost_usd = 0.0
+
+    def _synthesize_problem_statement(
+        self, commit: CommitInfo, issue: tuple[str, str] | None
+    ) -> str | None:
+        """LLM-rewrite the commit/issue into a clean, leak-free problem statement.
+
+        Returns the `**Title:** … ## Description …` body, or None on failure /
+        too-thin output (caller falls back to the raw-text builder).
+        """
+        if self.input.llm is None:
+            return None
+        src = f"Commit subject: {commit.subject}\n\nCommit body:\n{commit.body or ''}\n"
+        if issue is not None:
+            src += f"\nLinked issue title: {issue[0]}\nLinked issue body:\n{issue[1] or ''}\n"
+        try:
+            resp = complete(
+                self.input.llm,
+                system=_SYNTH_SYSTEM,
+                user=src,
+                max_tokens=self.options.max_llm_tokens,
+                temperature=self.options.llm_temperature,
+            )
+        except Exception as exc:
+            logger.warning("commit_runtime synthesis failed: %s", exc)
+            return None
+        self._llm_cost_usd += resp.cost_usd
+        body = (resp.content or "").strip()
+        return body if _word_count(body) >= 10 else None
+
+    def _build_instruction(self, commit: CommitInfo, *, issue: tuple[str, str] | None) -> str:
+        """Synthesized (clean) problem statement when enabled, else raw commit text."""
+        if self.options.synthesize_with_llm:
+            synth = self._synthesize_problem_statement(commit, issue)
+            if synth:
+                return (
+                    f"# Issue\n\n{synth}\n\n## Task\n\n"
+                    "Modify the repository so that the issue described above is resolved. "
+                    "The task's test suite verifies your patch by applying it on top of "
+                    f"the base commit `{commit.parent_sha[:12]}` and running the modified tests."
+                )
+        return build_instruction_from_commit(commit, issue=issue)
 
     def set_progress_callback(self, cb) -> None:
         self._progress_cb = cb
@@ -320,6 +384,19 @@ class CommitRuntimePipeline:
                         fail_to_pass = outcome.fail_to_pass
                         pass_to_pass = outcome.pass_to_pass
                         validation_status = outcome.status
+                        # Cap the P2P regression set: whole-suite P2P (100s of
+                        # tests) inflates flaky-reward risk + runtime. Prefer
+                        # tests in the patched files, then fill to the cap.
+                        cap = self.options.max_pass_to_pass
+                        if cap and len(pass_to_pass) > cap:
+                            changed = set(_files_in_patch(patch))
+                            near = [
+                                t
+                                for t in pass_to_pass
+                                if any(f.split("::")[0] in t for f in changed)
+                            ]
+                            far = [t for t in pass_to_pass if t not in set(near)]
+                            pass_to_pass = (near + far)[:cap]
                         if (
                             self.options.require_fail_to_pass
                             and len(fail_to_pass) < self.options.min_fail_to_pass
@@ -512,6 +589,10 @@ class CommitRuntimePipeline:
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
                 "bootstrap_image": self.bootstrap.image_digest,
+                "instruction_synthesized": bool(
+                    self.options.synthesize_with_llm and self.input.llm
+                ),
+                "llm_cost_usd": round(self._llm_cost_usd, 6),
             },
             # Calibration parity with pr_runtime: lets the manifest enricher
             # compute difficulty / p2p_count == 0 / loc_changed sliceability
@@ -529,7 +610,7 @@ class CommitRuntimePipeline:
             name=task_id,
             org=self.input.output.org,
             description=_strip_commit_prefix(commit.subject) or task_id,
-            instruction=build_instruction_from_commit(commit, issue=issue),
+            instruction=self._build_instruction(commit, issue=issue),
             oracle_diff=patch,
             repo2env=repo2env,
             difficulty=difficulty,
