@@ -181,7 +181,9 @@ class CommitRuntimePipeline:
 
     name: ClassVar[PipelineName] = PipelineName.COMMIT_RUNTIME
     requires_bootstrap: ClassVar[bool] = True
-    experimental: ClassVar[bool] = True
+    experimental: ClassVar[bool] = (
+        False  # stable (v0.8.4): synthesized instructions + graded F2P/P2P
+    )
 
     def __init__(
         self,

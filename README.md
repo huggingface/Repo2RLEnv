@@ -91,7 +91,7 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
-A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended for production; **four are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
+A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **three are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
 
 ### Stable
 
@@ -101,13 +101,15 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 **[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. That makes it the strongest, least-gameable signal of the set.
 → Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified tasks).
 
+**[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a clean, leak-free problem statement so the task isn't gameable.
+→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) (100 oracle-verified envs; Opus solves the sampled tasks).
+
 → All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments)
 
 ### Experimental
 
 > These run normally but emit a warning first — pin a release if you depend on them. Each links to its own page; the gist:
 
-- **[`commit_runtime`](./docs/pipelines/commit_runtime.md)** — mines commit history directly, catching fixes that never went through a PR. Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 oracle-verified envs).
 - **[`cve_patches`](./docs/pipelines/cve_patches.md)** — security tasks from public CVEs, mapped to their fix commits.
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
 - **[`equivalence_tests`](./docs/pipelines/equivalence_tests.md)** — the agent reimplements a real function; generated tests check it matches the original.
@@ -118,7 +120,7 @@ A pipeline turns a repo into Harbor tasks. **Two are stable** and recommended fo
 |---|:-:|:-:|---|:-:|---|---|
 | `pr_diff` | stable | GitHub · GitLab | `diff_similarity` | thin | at verify — judges the solution | any |
 | `pr_runtime` | stable | GitHub · GitLab | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
-| `commit_runtime` | experimental | GitHub · GitLab · local | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `commit_runtime` | stable | GitHub · GitLab · local | `test_execution` + `diff_similarity` | ✅ | at env build + per-task instruction synthesis | Py · Go · Node · Rust |
 | `cve_patches` | experimental | GitHub | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `code_instruct` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 | `equivalence_tests` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |

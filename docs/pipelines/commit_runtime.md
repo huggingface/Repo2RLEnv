@@ -2,15 +2,15 @@
 
 R2E-Gym SWE-GEN-style PR mining: walk **commits**, not PRs. Trades signal quality for yield, and catches drive-by fixes that never went through a PR — repos that squash-merge or commit directly to main aren't reachable from `pr_runtime` at all.
 
-**As of v0.8.3 the instruction is sourced the same leak-resistant way `pr_runtime` does** (Arc 3 findings: [`findings-commit_runtime`](../release_notes/v0.8.3/findings-commit_runtime.md)). When a commit links an issue with `Closes #N`, the GitHub issue body becomes the problem statement (less leak-prone than the commit message, which often names the function being fixed). Otherwise the commit subject + body are leak-stripped and reflowed.
+**As of v0.8.4 the problem statement is LLM-synthesized** (`synthesize_with_llm`, default on): the commit/issue text is rewritten into a clean, symptom-focused **problem statement with the solution stripped out**. This fixed the two failure modes of raw commit text — *leakage* (changelog bullets naming the fix → gameable) and *thinness* (title-only subjects → unsolvable). A `min_problem_statement_words` floor drops near-empty commits, and `max_pass_to_pass` (default 50) caps the regression set so whole-suite P2P doesn't inflate flaky-reward risk. A 100-env audit went from ~33% → **100% clean** instructions; Opus solves the sampled tasks (non-gameable: tasks that scored 1.0 only when the fix leaked now require a real solve).
 
-**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) — 52 oracle-verified envs across 12 repos (Python + Go).
+**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) — 100 oracle-verified envs (Python + Go). The original [`…-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 envs, pre-synthesis) is kept for comparison.
 
 | | |
 |---|---|
-| Status | **experimental** (will promote once the no-linked-issue tail is improved) |
+| Status | **stable** (v0.8.4) |
 | Sandbox at generation | Yes — reuses the bootstrap image from `pr_runtime` |
-| LLM use | bootstrap-time only (one-time env build, cached). **No** per-task synthesis — the prompt is the real issue or commit message, not generated. |
+| LLM use | bootstrap-time (one-time env build, cached) **+ one synthesis call per emitted task** to write the leak-free problem statement (`synthesize_with_llm`). |
 | Reward | Graded F2P/P2P (`reward = f2p_rate × p2p_rate`) via the in-container verifier, identical to `pr_runtime`. Tracked / `command_resolved` / `eval_grade` split documented in [`pr_runtime`](./pr_runtime.md). |
 | Languages | Any (commit_runtime inherits language-agnostic bootstrap from `pr_runtime`) |
 | Inspired by | [R2E-Gym (SWE-GEN)](https://github.com/R2E-Gym/R2E-Gym) (Jain et al., COLM '25) |
