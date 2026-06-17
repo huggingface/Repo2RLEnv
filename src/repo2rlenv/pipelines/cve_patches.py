@@ -39,6 +39,7 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,9 +52,12 @@ from repo2rlenv.github import (
     GitHubError,
     fetch_commit_diff,
     fetch_commit_parent,
+    fetch_file_at_ref,
 )
+from repo2rlenv.llm import complete
 from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.pipelines.code_instruct import new_file_hunk
 from repo2rlenv.pipelines.pr_runtime import (
     _files_in_patch,
     build_environment_dockerfile,
@@ -67,6 +71,37 @@ from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CVEPatchesOptions
 
 logger = logging.getLogger(__name__)
+
+# Synthesis prompt: write the regression test the CVE fix never shipped. The
+# test must FAIL on the pre-fix (vulnerable) code and PASS once the fix is
+# applied — that's what turns a CVE into a verifiable F2P oracle.
+_POC_SYSTEM = """You write a pytest regression test that proves a security fix.
+
+You are given a CVE description and the unified diff of the commit that FIXED it.
+Write ONE pytest test file that exercises the vulnerable behavior such that:
+- on the code BEFORE the fix it FAILS (the vulnerability/incorrect behavior is present),
+- on the code AFTER the fix it PASSES.
+
+STRICT RULES:
+- Output ONLY the Python test file content — no prose, no markdown fences.
+- Use plain `def test_*():` functions with `assert` (no unittest.TestCase, no network, no sleep/timing).
+- Import from the library under test by its real package name; build inputs as literals.
+- The test must be deterministic and self-contained. Target the SPECIFIC behavior the
+  diff changes (e.g. the now-rejected input, the corrected parse result), not unrelated APIs.
+- Do NOT reference the fix, commit SHAs, or that a patch exists."""
+
+
+def _poc_user_prompt(vuln: OSVVuln, patch: str, vuln_code: str = "") -> str:
+    desc = (vuln.summary or "") + "\n\n" + (vuln.details or "")
+    parts = [f"CVE: {vuln.cve_id or vuln.id}\n\nDescription:\n{desc.strip()[:3000]}\n"]
+    if vuln_code:
+        parts.append(
+            "\nVulnerable source BEFORE the fix (use this for the real import paths "
+            f"and how to call the affected code):\n```python\n{vuln_code[:9000]}\n```\n"
+        )
+    parts.append(f"\nThe fix (what changed):\n```diff\n{patch[:6000]}\n```\n")
+    parts.append("Write the regression test now (file content only).")
+    return "\n".join(parts)
 
 
 def _build_instruction(vuln: OSVVuln) -> str:
@@ -111,6 +146,51 @@ class CVEPatchesPipeline:
         self.options = options
         self.bootstrap = bootstrap
         self._progress_cb = None
+        self._llm_cost_usd = 0.0
+
+    def _synthesize_poc_test(
+        self, vuln: OSVVuln, patch: str, owner: str, name: str, base_sha: str, token: str | None
+    ) -> str | None:
+        """LLM-write the regression test the CVE fix omitted. Returns file content or None.
+
+        Feeds the LLM the *full vulnerable source* of the changed files (not just
+        the diff) so it knows the real import paths + how to call the affected
+        code — the diff alone is rarely enough to write a runnable test.
+        """
+        if self.input.llm is None:
+            return None
+        vuln_code = ""
+        for f in _files_in_patch(patch)[:2]:
+            content = fetch_file_at_ref(owner, name, f, base_sha, token=token)
+            if content:
+                vuln_code += f"# ===== {f} =====\n{content}\n\n"
+        try:
+            resp = complete(
+                self.input.llm,
+                system=_POC_SYSTEM,
+                user=_poc_user_prompt(vuln, patch, vuln_code),
+                max_tokens=self.options.max_llm_tokens,
+                temperature=self.options.llm_temperature,
+            )
+        except Exception as exc:
+            logger.warning("cve_patches PoC synthesis failed for %s: %s", vuln.id, exc)
+            return None
+        self._llm_cost_usd += resp.cost_usd
+        code = (resp.content or "").strip()
+        # strip an accidental ```python fence if the model added one
+        if code.startswith("```"):
+            code = code.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        if os.environ.get("R2E_POC_DEBUG") and code:  # debug aid: inspect generated tests
+            dbg = Path("/tmp/poc_debug")
+            dbg.mkdir(exist_ok=True)
+            (dbg / f"{(vuln.cve_id or vuln.id).replace('/', '_')}.py").write_text(code)
+        return code if ("def test" in code and len(code) > 40) else None
+
+    @staticmethod
+    def _poc_test_patch(test_code: str, slug: str) -> str:
+        """Wrap synthesized test code as a new-file `git apply` diff under tests/."""
+        path = f"tests/test_cve_{slug.lower().replace('-', '_')}.py"
+        return new_file_hunk(test_code if test_code.endswith("\n") else test_code + "\n", path)
 
     def set_progress_callback(self, cb) -> None:
         self._progress_cb = cb
@@ -211,38 +291,106 @@ class CVEPatchesPipeline:
                     self._emit_progress(label, "skip", "too_many_source_files")
                     continue
 
-                # Validation (if we have a test_patch + caller didn't skip)
+                # Build the F2P oracle. Two sources of a fail→pass test:
+                #   1. a real test_patch shipped in the fix commit (rare for CVEs)
+                #   2. an LLM-synthesized PoC test (default) — must FAIL pre-fix,
+                #      PASS post-fix, validated below. This is what makes a CVE
+                #      whose fix shipped no test into a verifiable, non-gameable env.
                 fail_to_pass: list[str] = []
                 pass_to_pass: list[str] = []
                 validation_status = "no_test_patch"
-                if test_patch.strip() and not self.options.skip_validation:
+                effective_test_patch = test_patch
+                lang = self.bootstrap.language.value
+
+                def _validate(tp: str, base: str, src_patch: str, language: str):
+                    nonlocal sandbox
                     if sandbox is None:
                         sandbox = self._start_validation_sandbox()
                     from repo2rlenv.pipelines.pr_runtime_validate import validate_pr
 
-                    targeted_cmds = targeted_test_cmds_for_pr(
-                        normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
-                        _files_in_patch(test_patch),
-                    )
-                    outcome = validate_pr(
+                    return validate_pr(
                         sandbox=sandbox,
-                        base_commit=parent_sha,
-                        patch=patch,
-                        test_patch=test_patch,
-                        test_cmds=targeted_cmds,
-                        language=self.bootstrap.language.value,
+                        base_commit=base,
+                        patch=src_patch,
+                        test_patch=tp,
+                        test_cmds=targeted_test_cmds_for_pr(
+                            normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                            _files_in_patch(tp),
+                        ),
+                        language=language,
                         timeout=self.options.validation_timeout_sec,
                     )
-                    fail_to_pass = outcome.fail_to_pass
-                    pass_to_pass = outcome.pass_to_pass
-                    validation_status = outcome.status
-                    if (
-                        self.options.require_fail_to_pass
-                        and len(fail_to_pass) < self.options.min_fail_to_pass
-                    ):
-                        skip_reasons["no_fail_to_pass"] = skip_reasons.get("no_fail_to_pass", 0) + 1
-                        self._emit_progress(label, "skip", outcome.reason or "no_fail_to_pass")
-                        continue
+
+                if self.options.skip_validation:
+                    pass
+                elif test_patch.strip():
+                    outcome = _validate(test_patch, parent_sha, patch, lang)
+                    fail_to_pass, pass_to_pass, validation_status = (
+                        outcome.fail_to_pass,
+                        outcome.pass_to_pass,
+                        outcome.status,
+                    )
+                elif self.options.synthesize_poc_test and lang == "python" and self.input.llm:
+                    if sandbox is None:
+                        sandbox = self._start_validation_sandbox()
+                    candidates: list[str] = []
+                    if self.options.poc_agent:
+                        # Agentic: an LLM with shell access in the vulnerable sandbox
+                        # explores the repo, writes the test, runs pytest, iterates —
+                        # so the test imports correctly and reproduces the CVE.
+                        from repo2rlenv.pipelines._poc_agent import synthesize_poc_agentic
+
+                        vuln_desc = (vuln.summary or "") + "\n\n" + (vuln.details or "")
+                        result, c = synthesize_poc_agentic(
+                            sandbox,
+                            parent_sha=parent_sha,
+                            vuln_desc=vuln_desc,
+                            fix_diff=patch,
+                            llm=self.input.llm,
+                            max_spend_usd=self.options.poc_agent_max_spend_usd,
+                        )
+                        self._llm_cost_usd += c
+                        if result:
+                            code = (
+                                result.test_code
+                                if result.test_code.endswith("\n")
+                                else result.test_code + "\n"
+                            )
+                            candidates.append(new_file_hunk(code, result.test_path.lstrip("/")))
+                    else:
+                        # One-shot prompt synthesis (fallback), retried.
+                        for _ in range(max(1, self.options.poc_max_attempts)):
+                            code = self._synthesize_poc_test(
+                                vuln, patch, owner, name, parent_sha, token
+                            )
+                            if code:
+                                candidates.append(
+                                    self._poc_test_patch(code, vuln.cve_id or vuln.id)
+                                )
+
+                    for cand in candidates:
+                        outcome = _validate(cand, parent_sha, patch, lang)
+                        if len(outcome.fail_to_pass) >= self.options.min_fail_to_pass:
+                            effective_test_patch = cand
+                            fail_to_pass, pass_to_pass = outcome.fail_to_pass, outcome.pass_to_pass
+                            validation_status = "poc_synthesized"
+                            break
+
+                # Require a real oracle: drop dead (0-reward) envs.
+                if (
+                    self.options.require_fail_to_pass
+                    and len(fail_to_pass) < self.options.min_fail_to_pass
+                ):
+                    skip_reasons["no_verifiable_oracle"] = (
+                        skip_reasons.get("no_verifiable_oracle", 0) + 1
+                    )
+                    self._emit_progress(label, "skip", "no_verifiable_oracle")
+                    continue
+
+                # Cap the P2P regression set (bounds flaky-reward + runtime).
+                cap = self.options.max_pass_to_pass
+                if cap and len(pass_to_pass) > cap:
+                    pass_to_pass = pass_to_pass[:cap]
 
                 # Emit the Harbor task
                 task = self._build_task(
@@ -250,7 +398,7 @@ class CVEPatchesPipeline:
                     fix_sha=fix_sha,
                     parent_sha=parent_sha,
                     patch=patch,
-                    test_patch=test_patch,
+                    test_patch=effective_test_patch,
                     fail_to_pass=fail_to_pass,
                     pass_to_pass=pass_to_pass,
                     validation_status=validation_status,
@@ -330,7 +478,7 @@ class CVEPatchesPipeline:
 
         repo2env = {
             "pipeline": "cve_patches",
-            "pipeline_version": "0.7.0",
+            "pipeline_version": "0.8.5",
             "repo": f"{owner}/{name}",
             "ref": parent_sha,
             "reference": f"https://github.com/{owner}/{name}/commit/{fix_sha}",
@@ -350,6 +498,8 @@ class CVEPatchesPipeline:
                 "fail_to_pass": fail_to_pass,
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
+                "poc_synthesized": validation_status == "poc_synthesized",
+                "llm_cost_usd": round(self._llm_cost_usd, 6),
                 "bootstrap_image": self.bootstrap.image_digest,
             },
         }
