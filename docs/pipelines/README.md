@@ -19,7 +19,7 @@ flowchart LR
 
 ## Pipelines
 
-All 6 pipelines are shipped — 2 stable (`pr_diff`, `pr_runtime`), 4 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 3 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|

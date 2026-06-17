@@ -43,11 +43,11 @@ def test_pipelines_declare_requires_bootstrap():
 
 
 def test_pipeline_stability_classification():
-    """Only pr_diff + pr_runtime are stable; every other pipeline is experimental.
+    """pr_diff, pr_runtime, commit_runtime are stable; the rest are experimental.
 
     cmd_generate warns before running any pipeline whose `experimental` is True.
     """
-    stable = {"pr_diff", "pr_runtime"}
+    stable = {"pr_diff", "pr_runtime", "commit_runtime"}
     for name, cls in PIPELINES.items():
         flag = getattr(cls, "experimental", False)
         assert isinstance(flag, bool)
