@@ -8,8 +8,9 @@ oracle is the upstream security patch.
 |---|---|
 | Status | **shipped (v0.7)** — Python ecosystem |
 | Sandbox required at gen | Yes |
-| LLM required at gen | No (the LLM spec is still required for bootstrap; the pipeline itself does no LLM calls) |
+| LLM required at gen | For bootstrap always; the pipeline also calls the LLM to synthesize a PoC regression test when a CVE ships no test (`synthesize_poc_test`, default on) |
 | Reward kinds emitted | `test_execution`, `diff_similarity` |
+| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19 verified envs) |
 | Inspiration | [PatchSeeker](https://github.com/hungkien05/PatchSeeker), CVE-Bench (NAACL '25) |
 
 ## Why this pipeline matters
