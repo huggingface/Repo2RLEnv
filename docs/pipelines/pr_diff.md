@@ -133,6 +133,28 @@ A PR may not become a task. The pipeline records counts per reason:
 | `diff_too_small` | Fewer than `min_loc_changed` `+`/`-` lines |
 | `instruction_too_thin` | Empty body + short title after info-leak strip |
 
+## Yield
+
+**Yield = emitted tasks ÷ merged PRs examined.** `pr_diff` is the **highest-yield**
+pipeline (**~80–95%**) because there is *no execution gate* — any merged PR with a
+non-trivial diff and a usable problem statement becomes a task. Nothing is dropped
+for failing to build or run.
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| `min_loc_changed` | 3 | ↑ drops more trivial one-liner/typo PRs (lower yield, higher signal) |
+| `max_files_per_pr` | 5 | ↓ excludes sprawling PRs (lower yield) |
+| `state` | `merged` | `all` admits unmerged PRs (higher yield, noisier oracle) |
+| `skip_drafts` | True | drafts excluded |
+
+The only structural drops are the buckets in the table above (test/docs-only,
+reverts, too-small, too-thin) — typically **5–20% combined** on a healthy repo.
+
+**Worked example:** to ship 100 tasks at ~90% yield you need ~110 merged PRs —
+one mid-sized repo (or two small ones) clears it in a single pass. This is why
+the reference dataset (`AdithyaSK/repo2rlenv-pr-diff`, 100 envs) was built from
+just a handful of repos.
+
 ## Example invocations
 
 ### CLI

@@ -87,6 +87,35 @@ See `CVEPatchesOptions` in `src/repo2rlenv/spec/options.py`.
 | `skip_validation` | False | emit raw without sandbox run (debug) |
 | `validation_timeout_sec` | 600 | per-candidate cap |
 
+## Yield
+
+**Yield = emitted tasks ÷ in-scope CVEs (those with a fix commit).** Expect
+**~5–25%** — the **lowest** of any pipeline, and the most repo-sensitive. A CVE
+becomes a task only if it has a **verifiable oracle**: either the fix commit
+shipped a regression test that flips fail→pass, *or* the agentic PoC synthesizer
+writes one that does. CVEs that resist a deterministic test (timing/network/
+environment-dependent) are dropped.
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| repo test health | — | **the dominant factor.** If the suite won't collect/run green in a slim container, yield ≈ 0. (Real pilot: `urllib3` → 0/16, tests need network; `sqlparse` → 2/4, suite clean.) |
+| `synthesize_poc_test` | True | the multiplier for no-test CVEs — off, those become 0-reward dead envs and are dropped |
+| `poc_agent` | True | agentic synth (shell in the sandbox) lands far more PoCs than the one-shot prompt fallback |
+| `require_fail_to_pass` | True | drops CVEs with no verifiable oracle (keeps the dataset honest) |
+| `min_severity` | low | ↑ shrinks the candidate pool to higher-severity CVEs |
+| `max_source_files_per_fix` | 50 | ↓ excludes sprawling fixes |
+
+Two further realities: most repos have a **bounded** number of fix-commit-bearing
+CVEs (often single digits), so you must mine **many** repos; and a published CVE
+is a contamination magnet — the emitted instruction is **leak-stripped** (no
+CVE/GHSA id, PR/commit URLs, or "fixed in vX.Y"), and solvability checks should
+run with the agent's web tools disabled.
+
+**Worked example:** at ~15% yield, 100 tasks ≈ ~670 in-scope CVEs spread over
+**15–20** CVE-rich, test-clean repos (≈5–8 emitted each). Use
+[`plans/cve_repo_scout.py`](../../plans/cve_repo_scout.py) to rank repos by
+fix-commit-bearing CVE count straight from the OSV dump.
+
 ## `[metadata.repo2env.cve_patches]` schema
 
 ```toml

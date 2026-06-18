@@ -51,6 +51,7 @@ from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import GitHubError, PullRequestSummary
 from repo2rlenv.gitlab import GitLabError
+from repo2rlenv.pipelines._env_guard import egress_guard_compose, git_history_scrub
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
@@ -392,6 +393,10 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         f"    && git fetch --depth 1 origin {base_commit} 2>/dev/null \\\n"
         f"       || git fetch --unshallow origin 2>/dev/null || true\n"
         f"RUN git reset --hard {base_commit} && git clean -fdx {_GIT_CLEAN_EXCLUDES}\n"
+        # ANTI-CHEAT: the working tree is at base_commit, but .git still holds
+        # the future (origin/main, tags, the fix commit + its hidden test),
+        # which an agent can read offline. Strip it down to base_commit.
+        + git_history_scrub(base_commit)
     )
 
 
@@ -1129,5 +1134,10 @@ class PRRuntimePipeline:
             test_script=eval_script,
             # Ship verifier.py + f2p.json + p2p.json as plain, inspectable task
             # artifacts that test.sh reads from /tests (no base64 in test.sh).
-            aux_files=_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {},
+            # The egress guard blackholes the hosts that serve this PR's merged
+            # diff so the agent cannot fetch the gold patch at run time.
+            aux_files={
+                **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
+                "environment/docker-compose.yaml": egress_guard_compose(),
+            },
         )

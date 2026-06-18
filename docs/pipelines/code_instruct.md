@@ -106,6 +106,30 @@ See `CodeInstructOptions` in `src/repo2rlenv/spec/options.py`. Key fields:
 | `skip_decontamination` | `False` | turn off benchmark substring check |
 | `skip_validation` | `False` | debug; emits without sandbox run |
 
+## Yield
+
+**Yield = emitted tasks ÷ seed snippets sampled.** Expect **~40–70%**. Here the
+gate is *synthesis quality*, not repo mining: a seed survives only if the LLM's
+generated test **fails on HEAD without the oracle solution and passes with it**.
+Failures are skipped, not retried beyond `max_attempts_per_seed`.
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| `max_attempts_per_seed` | 1 | ↑ retries a failed synthesis → higher yield, more LLM spend |
+| LLM model quality | — | the biggest lever — a stronger model writes verifiable tests more often |
+| `seed_min_loc` / `seed_max_loc` | 30 / 200 | very small or very large seeds yield weaker tasks; mid-range is the sweet spot |
+| `exclude_glob` | tests/docs/… | keeps seeds anchored to real logic (avoids untestable boilerplate) |
+| `skip_decontamination` | False | True keeps would-be-decontaminated seeds (higher yield, contamination risk) |
+
+Unlike the `*_runtime` pipelines, repo *test health* doesn't gate yield — the
+verifier is self-contained in the emitted task — but the repo still needs to
+**bootstrap** (the env runs the generated test). Cost scales with
+`limit × max_attempts_per_seed` LLM calls.
+
+**Worked example:** at ~55% yield with `max_attempts_per_seed=1`, 100 tasks ≈
+~180 seed snippets. Bumping attempts to 2 lifts yield toward ~70% (≈140 seeds)
+at roughly double the synthesis spend.
+
 ## End-to-end smoke
 
 ```bash

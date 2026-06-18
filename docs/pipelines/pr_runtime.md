@@ -160,6 +160,33 @@ class PRRuntimeOptions(_BaseOptions):
     min_problem_statement_words: int = 0    # Lite ≈ 40
 ```
 
+## Yield
+
+**Yield = emitted tasks ÷ merged PRs examined.** Expect **~15–40%**. Unlike
+`pr_diff`, every candidate must clear a real execution gate — a PR only survives
+if it ships a *new* test that flips fail→pass when the gold patch is applied, and
+the suite runs green in the bootstrap container.
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| `require_fail_to_pass` | True | the dominant gate — PRs with no fail→pass test are dropped. False keeps them (much higher yield, weaker oracle) |
+| `require_new_test_funcs` | True | ↑ drops PRs that don't add a test function (lower yield, cleaner F2P) |
+| `lite_filter` | False | True applies SWE-bench-Lite sampling → lower yield, higher quality |
+| `min_problem_statement_words` | 0 | ↑ drops thin issue/PR text (Lite ≈ 40) |
+| `max_source_files_per_pr` | 50 | ↓ excludes sprawling PRs |
+| `skip_ci_only` | True | drops PRs that only touch `.github/` |
+
+**The hidden multiplier is repo health.** If the suite needs network, GPUs, or
+flaky services, it won't run green in a slim container and yield collapses toward
+0 *regardless* of options — the same failure you'd see in `cve_patches`. ML repos
+often need `GPU helpful?` handling; pick CPU-only, pytest-clean repos for the
+highest yield.
+
+**Worked example:** at ~25% yield, 100 tasks ≈ 400 candidate PRs. Spread over
+~8 repos at `limit=60` (one cached bootstrap each) you examine ~480 PRs → ~120
+pass → cap at 100. Tightening `lite_filter`/`require_new_test_funcs` lowers the
+count but raises per-task quality.
+
 ## SWE-bench Lite-style filter
 
 When `lite_filter=True`, we apply the same heuristics SWE-bench Lite uses to subsample 300 self-contained instances from the original 2,294:

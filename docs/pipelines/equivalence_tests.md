@@ -113,6 +113,32 @@ See `EquivalenceTestsOptions` in `src/repo2rlenv/spec/options.py`.
 | `validation_timeout_sec` | 90 | per-candidate test run cap |
 | `skip_validation` | `False` | debug; emits without sandbox run |
 
+## Yield
+
+**Yield = emitted tasks ÷ functions extracted.** Expect **~30–60%**. A function
+survives only if the LLM writes an equivalence test that **fails when `<name>` is
+stubbed and passes against the frozen `reference_<name>` oracle**. Pure, total
+functions (deterministic, no I/O, no global state) convert well; functions with
+side effects, randomness, or heavy dependencies usually fail the gate and are
+dropped.
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| `max_attempts_per_function` | 1 | ↑ retries failed synthesis → higher yield, more spend |
+| `min_loc` / `max_loc` | 5 / 60 | the band that balances "too trivial to test" vs "too complex to cover" |
+| `exclude_glob` | tests/docs/`__init__`/setup | keeps extraction on real logic |
+| LLM model quality | — | stronger models craft discriminating inputs more often |
+| `llm_temperature` | 0.5 | lower than `code_instruct` on purpose — we want *stable* tests, which also helps yield |
+
+Function **purity is the dominant factor**: a repo of pure utility functions
+(parsers, encoders, math) yields far above one dominated by I/O-bound or
+stateful code. Repo test health doesn't gate (the verifier is self-contained),
+but the env must bootstrap.
+
+**Worked example:** at ~45% yield, 100 tasks ≈ ~220 qualifying functions across
+one or two utility-heavy repos. Raising `max_attempts_per_function` to 2 trades
+spend for ~10–15 points of yield.
+
 ## End-to-end smoke
 
 ```bash

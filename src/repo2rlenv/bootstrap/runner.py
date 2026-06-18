@@ -515,11 +515,25 @@ def ensure_bootstrap(
         if not force:
             cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
             if cached is not None and cached.image_digest:
-                logger.info("bootstrap cache hit: %s", cached.image_digest)
-                for p in ("pull", "sandbox", "agent", "commit"):
-                    _emit(f"{p}_skipped", {"detail": "cache hit"})
-                _emit("push_skipped", {"detail": "cache hit"})
-                return cached
+                # A filesystem cache hit is stale if the Docker image it points
+                # at was pruned/evicted since (common under disk pressure). Verify
+                # the image is actually present (or pullable from a registry)
+                # before trusting it — otherwise we return a dead tag that fails
+                # later at `docker pull` in the validation sandbox. Re-bootstrap
+                # on a miss.
+                probe = cached.image_tag or cached.image_digest
+                image_present = _run(
+                    ["docker", "image", "inspect", probe, "--format", "{{.Id}}"], timeout=15
+                ).ok
+                if image_present or cached.pushed_to_registry:
+                    logger.info("bootstrap cache hit: %s", cached.image_digest)
+                    for p in ("pull", "sandbox", "agent", "commit"):
+                        _emit(f"{p}_skipped", {"detail": "cache hit"})
+                    _emit("push_skipped", {"detail": "cache hit"})
+                    return cached
+                logger.warning(
+                    "bootstrap cache hit but image %r is gone locally — re-bootstrapping", probe
+                )
 
         # Decide language + base image
         lang = LanguageHint.UNKNOWN
