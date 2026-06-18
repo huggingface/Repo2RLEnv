@@ -47,6 +47,7 @@ from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
 from repo2rlenv.llm import complete
+from repo2rlenv.pipelines._env_guard import egress_guard_compose
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
@@ -625,5 +626,10 @@ class CommitRuntimePipeline:
             # after Arc 2's plain-artifacts refactor — without this, test.sh
             # falls back to the exit-code reward and reward.json is never
             # written, so tracked/command_resolved + the breakdown are lost.
-            aux_files=_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {},
+            # The egress guard blocks the hosts that serve this commit's
+            # upstream fix so the agent cannot fetch it at run time.
+            aux_files={
+                **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
+                "environment/docker-compose.yaml": egress_guard_compose(),
+            },
         )

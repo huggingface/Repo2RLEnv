@@ -188,10 +188,20 @@ class CVEPatchesOptions(_BaseOptions):
     limit: int = 50
 
     # --- Validation (mirrors PRRuntimeOptions) ---
-    require_fail_to_pass: bool = False  # CVE fixes often have no test_patch — accept anyway
-    min_fail_to_pass: int = 0
+    # Default ON: CVE fixes rarely ship a regression test, so an LLM synthesizes
+    # a PoC test that must FAIL on the pre-fix code and PASS on the post-fix code
+    # (real F2P oracle). Without this, no-test CVEs emit a 0-reward dead env.
+    synthesize_poc_test: bool = True
+    poc_agent: bool = True  # agentic synth (shell in the sandbox) vs one-shot prompt
+    poc_agent_max_spend_usd: float = 1.5  # per-CVE budget for the agentic synthesizer
+    poc_max_attempts: int = 2  # one-shot mode: retry a bad PoC generation this many times
+    require_fail_to_pass: bool = True  # with PoC synthesis we demand a real oracle
+    min_fail_to_pass: int = 1
+    max_pass_to_pass: int = 50  # cap regression set (bounds flaky-reward + runtime)
     validation_timeout_sec: int = 600
     skip_validation: bool = False
+    llm_temperature: float = 0.3
+    max_llm_tokens: int = 4096  # PoC test files can be long; raise via --pipeline-opt if needed
 
     # --- Structural filters ---
     require_new_test_funcs: bool = False  # security commits often DON'T add new tests

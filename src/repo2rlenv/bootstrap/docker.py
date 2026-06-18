@@ -78,8 +78,13 @@ def _run(args: list[str], *, timeout: int = 600, input_text: str | None = None) 
 
 
 def is_docker_available() -> bool:
-    """Return True if `docker version` succeeds."""
-    return _run(["docker", "version", "--format", "{{.Server.Version}}"], timeout=5).ok
+    """Return True if `docker version` succeeds.
+
+    Uses a generous timeout: `docker version` round-trips to the daemon and on
+    macOS/Docker-Desktop a cold call can take 3-4s, which under concurrent load
+    blows past a tight 5s budget and yields a spurious "daemon not running".
+    """
+    return _run(["docker", "version", "--format", "{{.Server.Version}}"], timeout=15).ok
 
 
 def pull_image(image: str, *, platform: str | None = None, timeout: int = 600) -> ExecResult:

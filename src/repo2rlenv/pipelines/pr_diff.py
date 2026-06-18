@@ -49,6 +49,7 @@ from repo2rlenv.auth import resolve_repo_token
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import GitHubError, PullRequestSummary
 from repo2rlenv.gitlab import GitLabError
+from repo2rlenv.pipelines._env_guard import git_history_scrub
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
@@ -240,7 +241,10 @@ def build_pr_diff_environment_dockerfile(
         "    || git fetch --unshallow origin 2>/dev/null || true\n"
         f"RUN git reset --hard {base_commit} \\\n"
         " && git clean -fdx -e .venv -e venv -e __pycache__\n"
-        "RUN mkdir -p /verifier\n"
+        # ANTI-CHEAT: strip .git down to base_commit so an agent cannot
+        # `git fetch`/`git show` the merged PR (the oracle) from origin.
+        + git_history_scrub(base_commit)
+        + "RUN mkdir -p /verifier\n"
         # Bake the oracle diff, instruction, and verifier source so the
         # container is fully self-contained (only the LLM-judge step
         # requires outbound network).

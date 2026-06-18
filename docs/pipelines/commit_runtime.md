@@ -73,6 +73,29 @@ min_fail_to_pass: int = 1
 validation_timeout_sec: int = 600
 ```
 
+## Yield
+
+**Yield = emitted tasks ÷ commits walked.** Expect **~10–35%** — same F2P
+execution gate as `pr_runtime`, applied to raw commits, so it's noisier and a
+notch lower. **The dominant factor is the repo's merge style:** on repos that
+squash- or merge-commit their PRs, the source change and its test live in *one*
+commit and the per-commit F2P check works; on repos where the fix and its test
+land in *separate* commits, neither commit shows a fail→pass transition and yield
+drops toward **0** (use `pr_runtime` there instead).
+
+| Knob | Default | Effect on yield |
+|---|:-:|---|
+| `skip_merge_commits` | True | merge commits never carry a clean F2P; kept out |
+| `require_new_test_funcs` | True | ↑ drops commits that add no test function |
+| `require_fail_to_pass` | True | the gate — commits with no fail→pass test are dropped |
+| `min_message_words` | 5 | ↑ drops "wip"/"fmt"/"typo" commits |
+| `max_source_files_per_commit` | 10 | ↓ excludes sprawling refactors |
+| `synthesize_with_llm` | True | **raises usable yield** — rewrites thin/leaky commit messages into clean problem statements, so borderline commits become emittable instead of being dropped as `instruction_too_thin` |
+
+**Worked example:** at ~20% yield, 100 tasks ≈ 500 commits walked. The reference
+`…-commit-runtime-v2` (100 envs) was built from a wide multi-language pool at
+`clone_depth=200` per repo — budget ~15–25 CPU-clean, non-squash repos.
+
 ## Known limitations (Arc 3 audit)
 
 - **Thin instructions when no issue link.** ~30% of emitted tasks lacked a `Closes #N`, so the instruction is sourced from the commit subject + body — which can be a one-liner. `pr_runtime` is naturally better when there's an issue to fall back on.

@@ -38,6 +38,44 @@ All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runti
 
 Reference repos are cloned shallowly under `references/` (gitignored).
 
+## Yield: how many tasks you actually get
+
+**Yield** = emitted tasks ÷ candidates examined. It is *not* `limit`: `limit` caps
+the output, but each pipeline discards candidates that fail its quality gate, so
+the realized count is usually lower. Plan your `limit` and repo list around the
+yield band below.
+
+| Pipeline | Typical yield | Dominant factor | Knobs that move it |
+|---|:-:|---|---|
+| `pr_diff` | **80–95%** | almost every merged PR qualifies (text-only, no execution gate) | `min_loc_changed`, `max_files_per_pr`, `skip_drafts` |
+| `pr_runtime` | **15–40%** | does a PR ship a *new* test that flips fail→pass, and does the suite run green in the container? | `require_fail_to_pass`, `require_new_test_funcs`, `lite_filter`, `min_problem_statement_words` |
+| `commit_runtime` | **10–35%** | same F2P gate as `pr_runtime`, on commits — **~0% on squash/merge-PR repos** (use `pr_runtime` there) | `skip_merge_commits`, `require_new_test_funcs`, `min_message_words`, `synthesize_with_llm` |
+| `code_instruct` | **40–70%** | fraction of seed snippets where the LLM's test fails-without / passes-with the oracle | `max_attempts_per_seed`, LLM quality, `seed_min/max_loc` |
+| `equivalence_tests` | **30–60%** | fraction of extracted functions where the LLM writes a test that fails-with-stub / passes-with-oracle | `max_attempts_per_function`, `min/max_loc`, LLM quality |
+| `cve_patches` | **5–25%** | does the CVE fix have a verifiable test (shipped *or* agent-synthesized) **and** does the repo's suite collect in a slim container? | `synthesize_poc_test`, `poc_agent`, `require_fail_to_pass`, `min_severity` |
+
+**The single biggest lever for every execution-gated pipeline (`*_runtime`,
+`cve_patches`, the synthesis pipelines) is repo health** — if the suite doesn't
+collect and run green inside the bootstrap container, yield is ~0 regardless of
+options. (Real example: `urllib3` → 0/16 CVEs, because its tests need network
+and collect nothing in a slim image; `sqlparse` → 2/4, because its suite runs
+clean.) Pick library-shaped, CPU-only, pytest-clean repos.
+
+### Numerical example — targeting 100 `pr_runtime` tasks
+
+At ~25% yield you need ~400 candidate PRs. Spread across repos (one bootstrap
+each, cached after the first run):
+
+```
+8 repos × limit=60  →  ~480 PRs examined  →  ~120 pass F2P  →  cap at 100
+```
+
+Bump `lite_filter`/`require_new_test_funcs` and yield drops (stricter), but the
+surviving tasks are higher quality. For `pr_diff` the same 100 tasks need only
+~110 candidate PRs (one or two repos). For `cve_patches`, budget **many** repos:
+at ~15% yield, 100 tasks ≈ 15–20 CVE-rich, test-clean repos (see
+`plans/cve_repo_scout.py`).
+
 ## Spotlight: `pr_diff` (v0.8.3 reference dataset)
 
 The first pipeline to ship a published 100-env reference dataset. Pull and run it on a fresh machine in two commands:

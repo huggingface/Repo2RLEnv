@@ -221,3 +221,26 @@ def fetch_commit_parent(owner: str, name: str, sha: str, *, token: str | None = 
         return parents[0].get("sha", "") or ""
     except (GitHubError, _json.JSONDecodeError):
         return ""
+
+
+def fetch_file_at_ref(
+    owner: str, name: str, path: str, ref: str, *, token: str | None = None
+) -> str | None:
+    """Return a file's raw text content at a given ref, or None on failure.
+
+    Hits `GET /repos/{owner}/{repo}/contents/{path}?ref={ref}` with the raw
+    media type. Used to give an LLM the full pre-fix source when synthesizing
+    a regression test (the diff alone lacks imports + surrounding code).
+    """
+    try:
+        return _run_gh(
+            [
+                "api",
+                f"repos/{owner}/{name}/contents/{path}?ref={ref}",
+                "-H",
+                "Accept: application/vnd.github.raw",
+            ],
+            token=token,
+        )
+    except GitHubError:
+        return None
