@@ -28,7 +28,7 @@ All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runti
 | [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
 | [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | — | [Magicoder](https://github.com/ise-uiuc/magicoder) |
 | [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests) | If function uses GPU | — | [R2E](https://github.com/r2e-project/r2e) |
-| [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | — | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
+| [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 
 - **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
@@ -172,6 +172,36 @@ For the full design rationale + dataset card layout + pilot evidence, see [`pr_d
 | `cve_patches` | ✅ | ✅ |
 
 `diff_similarity` works without a sandbox; `test_execution` requires one.
+
+## Contamination defenses
+
+A published fix lives on the package index and the code host, so an agent with
+open egress (or a leaky container) can fetch the gold patch for the very repo it
+is asked to fix. We saw this in practice: an agent blocked from the web fell back
+to `git diff origin/main`, and when that was closed it ran `pip download
+<pkg>==<fixed>` and read the fix out of the wheel. The principle we settled on:
+**the environment enforces, the prompt never asks.** Every sandbox-verified task
+(`pr_runtime`, `commit_runtime`, `cve_patches`, and `pr_diff`'s thin env) ships
+three defenses, all baked in at generation time by `pipelines/_env_guard.py`:
+
+- **Git-history scrub** — after checking out `base_commit`, the env removes the
+  `origin` remote and prunes every ref/commit past the base (then `gc`), so the
+  fix commit and hidden tests can't be read offline via `git diff origin/main` or
+  `git show origin/main:<testfile>`. `base_commit` stays reachable for the
+  verifier's anti-tamper reset.
+- **Egress guard** — an `environment/docker-compose.yaml` overlay blackholes the
+  package index + code host (`pypi.org`, `files.pythonhosted.org`, `github.com`,
+  their CDNs), so `pip download` / `git fetch` / web fetches against them fail
+  while the model API and the agent's installer stay reachable. This is a
+  denylist (the realistic control at the compose layer); a default-deny egress
+  allowlist proxy or a date-pinned package mirror is the stricter follow-up.
+- **Instruction leak-strip** — synthesized/CVE instructions drop fix-pointers
+  (CVE/GHSA ids, PR/commit URLs, "fixed in vX.Y"), leaving only the symptom.
+
+These reduce the attack surface but the real guarantee is network isolation;
+for trustworthy eval numbers, run with `allow_internet=false` (offline,
+self-contained image) or the allowlist proxy. The full investigation that drove
+these is in `plans/reward_hacking_writeups.md`.
 
 ## Adding a new pipeline
 
