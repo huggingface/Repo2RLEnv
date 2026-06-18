@@ -173,6 +173,36 @@ For the full design rationale + dataset card layout + pilot evidence, see [`pr_d
 
 `diff_similarity` works without a sandbox; `test_execution` requires one.
 
+## Contamination defenses
+
+A published fix lives on the package index and the code host, so an agent with
+open egress (or a leaky container) can fetch the gold patch for the very repo it
+is asked to fix. We saw this in practice: an agent blocked from the web fell back
+to `git diff origin/main`, and when that was closed it ran `pip download
+<pkg>==<fixed>` and read the fix out of the wheel. The principle we settled on:
+**the environment enforces, the prompt never asks.** Every sandbox-verified task
+(`pr_runtime`, `commit_runtime`, `cve_patches`, and `pr_diff`'s thin env) ships
+three defenses, all baked in at generation time by `pipelines/_env_guard.py`:
+
+- **Git-history scrub** — after checking out `base_commit`, the env removes the
+  `origin` remote and prunes every ref/commit past the base (then `gc`), so the
+  fix commit and hidden tests can't be read offline via `git diff origin/main` or
+  `git show origin/main:<testfile>`. `base_commit` stays reachable for the
+  verifier's anti-tamper reset.
+- **Egress guard** — an `environment/docker-compose.yaml` overlay blackholes the
+  package index + code host (`pypi.org`, `files.pythonhosted.org`, `github.com`,
+  their CDNs), so `pip download` / `git fetch` / web fetches against them fail
+  while the model API and the agent's installer stay reachable. This is a
+  denylist (the realistic control at the compose layer); a default-deny egress
+  allowlist proxy or a date-pinned package mirror is the stricter follow-up.
+- **Instruction leak-strip** — synthesized/CVE instructions drop fix-pointers
+  (CVE/GHSA ids, PR/commit URLs, "fixed in vX.Y"), leaving only the symptom.
+
+These reduce the attack surface but the real guarantee is network isolation;
+for trustworthy eval numbers, run with `allow_internet=false` (offline,
+self-contained image) or the allowlist proxy. The full investigation that drove
+these is in `plans/reward_hacking_writeups.md`.
+
 ## Adding a new pipeline
 
 See the **[cookbook](../contributing/ADDING_A_PIPELINE.md)** for the full step-by-step walkthrough — covers the enum + Options + Pipeline class + tests + doc page, with template snippets and conventions taken from `pr_diff`.

@@ -27,7 +27,9 @@ src/repo2rlenv/
 │   ├── base.py                 # Pipeline Protocol + PipelineResult
 │   ├── pr_diff.py              # SHIPPED — PR-diff mining; text-only gen, Docker-runnable env (6-component verifier)
 │   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
-│   └── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests)
+│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests)
+│   ├── _env_guard.py           # anti-contamination: git-history scrub + egress-guard compose (all runtime pipelines)
+│   └── _poc_agent.py           # agentic PoC-test synthesis for cve_patches (LLM + shell in the vuln sandbox)
 ├── bootstrap/                  # v0.2 — LLM-driven Docker env generation
 │   ├── runner.py               # ensure_bootstrap() orchestrator
 │   ├── agent.py                # ReAct loop
@@ -226,6 +228,7 @@ uv add --dev <pkg>      # dev only
 - **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000).
 - **v0.9 (in progress)**: **removed `mutation_bugs` + `refactor_synthesis`** (pipeline audit — both binary-reward, Python-only, lowest signal value: synthetic AST bugs are unrealistic; renames are a near-no-op RL target). **6 pipelines now active.** Shared helpers (`make_unified_diff`, `build_binary_eval_script`) moved from `mutation_bugs.py` to `pipelines/_eval_script.py`. Planned next: env-setup pipeline (Repo2Run/SetupBench-style, agent makes a bare repo's tests run green), `test_synthesis` (SWE-Flow-style TDD), graded rewards for the binary synthesis pipelines, LLM-judged QA gate, iterative refinement loop for `equivalence_tests`.
 - **v0.8.4 shipped on PyPI**: input-source abstraction (GitHub/GitLab/local, capability-gated) + GitLab MR mining for `pr_diff`/`pr_runtime` + **`commit_runtime` promoted to stable** (3 stable now: `pr_diff`, `pr_runtime`, `commit_runtime`). commit_runtime gained LLM-synthesized leak-free instructions (`synthesize_with_llm` default on) + `max_pass_to_pass` cap; audit went 33%→100% clean, Opus solves the sampled tasks (4/4 genuine). Reference dataset `…-commit-runtime-v2` (100 envs).
+- **anti-contamination pass (merged, PR #69)**: sandbox-verified tasks were gameable — an agent could fetch the published fix (and hidden tests) for the repo it was asked to fix. Now baked into the emitter for every task via `pipelines/_env_guard.py`: **git-history scrub** (strip the repo to `base_commit`: remove `origin`, prune future refs/commits, gc) + **egress guard** (`environment/docker-compose.yaml` blackholing PyPI+GitHub hosts so `pip download`/`git fetch`/web-fetch fail; model API + agent install stay up). Also: `cve_patches` now ships a **graded F2P/P2P verifier** (was binary whole-suite — scored the gold patch 0.0 on unrelated suite failures), a **leak-stripped instruction**, and **agentic PoC-test synthesis** (`_poc_agent.py`: an LLM with shell access in the vulnerable sandbox writes a regression test for no-test CVEs). `bootstrap` re-bootstraps when a cache hit points at an evicted image. Reference dataset `…-cve-patches` (19 verified envs); `cve_patches` stays **experimental**. Full write-up: `plans/reward_hacking_writeups.md`. The principle: the environment enforces, the prompt never asks.
 - No new pipelines planned in `docs/pipelines/` beyond the above — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
 
 ### Naming convention (post-rename)

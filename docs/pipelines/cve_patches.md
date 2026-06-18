@@ -6,7 +6,7 @@ oracle is the upstream security patch.
 
 | | |
 |---|---|
-| Status | **shipped (v0.7)** — Python ecosystem |
+| Status | **experimental** — Python ecosystem |
 | Sandbox required at gen | Yes |
 | LLM required at gen | For bootstrap always; the pipeline also calls the LLM to synthesize a PoC regression test when a CVE ships no test (`synthesize_poc_test`, default on) |
 | Reward kinds emitted | `test_execution`, `diff_similarity` |
@@ -32,9 +32,11 @@ flowchart TD
     E --> F[Split into patch + test_patch]
     F --> G{Has test_patch?}
     G -- yes --> H[Reuse pr_runtime_validate<br/>F2P/P2P inside bootstrap]
-    G -- no --> I[Skip validation;<br/>emit with validation_status=no_test_patch]
-    H --> J[Emit Harbor task<br/>(instruction=CVE description; oracle=fix diff)]
-    I --> J
+    G -- no --> P[Synthesize a PoC regression test<br/>agentic LLM in the sandbox]
+    P --> H
+    H --> K{F2P oracle?}
+    K -- yes --> J[Emit Harbor task<br/>instruction=leak-stripped CVE symptom;<br/>oracle=fix diff]
+    K -- no --> X[Skip: no_verifiable_oracle]
 ```
 
 ## Data source: OSV (Open Source Vulnerabilities)
@@ -61,15 +63,33 @@ Why OSV (vs NVD or GitHub Security Advisories):
 4. Source patch must be non-empty (some "fix" commits are CI-only)
 5. `len(source_files) ≤ max_source_files_per_fix` (default 50)
 
-## Validation
+## Validation + PoC synthesis
 
-Reuses `pipelines/pr_runtime_validate.py` verbatim:
-- If `test_patch` is non-empty → two-stage F2P/P2P (same as pr_runtime)
-- If `test_patch` is empty → skip validation; `validation_status="no_test_patch"`
-  is recorded in metadata. The Harbor verifier still runs the test suite
-  after the agent applies their patch — the reward signal is just
-  "tests still pass with the fix applied", which is weaker than F2P but
-  useful as training data.
+Reuses `pipelines/pr_runtime_validate.py` verbatim for the two-stage F2P/P2P
+check, with a graded reward (`f2p_rate × p2p_rate`, same as `pr_runtime`).
+
+The catch: most CVE fixes ship **no regression test in the fixing commit**, so
+the diff alone gives a 0-reward env. So when `test_patch` is empty and
+`synthesize_poc_test` is on (the default), an **LLM agent with shell access in
+the vulnerable sandbox** (`poc_agent`, default on) explores the repo, writes a
+regression test, runs it, and iterates until it fails for the vulnerability's
+reason. The pipeline then validates that synthesized test fail-pre / pass-post
+on a clean checkout. A CVE that yields no fail→pass oracle (shipped or
+synthesized) is **dropped** as `no_verifiable_oracle` rather than emitted as a
+dead 0-reward task.
+
+Anti-contamination (a published CVE fix is reachable many ways, so the
+environment enforces, it does not ask):
+- **Instruction is leak-stripped** — the CVE/GHSA id, fixing PR/commit URLs, and
+  "fixed in version X" lines are removed; the agent sees only the symptom + CWE.
+- **Git history is scrubbed** to the base commit (remove the remote, prune every
+  ref/commit past base) so `git diff origin/main` can't read the fix offline.
+- **Egress guard** — the emitted task ships an `environment/docker-compose.yaml`
+  that blackholes the package index + code host, so `pip download <pkg>==<fixed>`
+  / `git fetch github.com` / web fetches fail while the model API stays reachable.
+
+These ship with every emitted task; see `pipelines/_env_guard.py` and
+`docs/pipelines/README.md`.
 
 ## Options
 
@@ -81,8 +101,12 @@ See `CVEPatchesOptions` in `src/repo2rlenv/spec/options.py`.
 | `osv_package` | `None` (= repo name lowercased) | package identifier in the ecosystem |
 | `min_severity` | `"low"` | `low` / `medium` / `moderate` / `high` / `critical` |
 | `limit` | 50 | max emitted tasks |
-| `require_fail_to_pass` | **False** | CVE fixes often have no test_patch — accept anyway |
-| `min_fail_to_pass` | 0 | tighten if you want F2P-only |
+| `synthesize_poc_test` | **True** | LLM-write a PoC regression test when the CVE ships none |
+| `poc_agent` | **True** | agentic synth (shell in the sandbox) vs one-shot prompt |
+| `poc_agent_max_spend_usd` | 1.5 | per-CVE budget for the agentic synthesizer |
+| `require_fail_to_pass` | **True** | with PoC synthesis we demand a real F2P oracle; CVEs without one are dropped |
+| `min_fail_to_pass` | 1 | minimum fail→pass tests |
+| `max_pass_to_pass` | 50 | cap the regression set (bounds flaky reward + runtime) |
 | `max_source_files_per_fix` | 50 | reject sprawling fixes |
 | `require_new_test_funcs` | False | security commits often don't add new tests |
 | `skip_validation` | False | emit raw without sandbox run (debug) |
