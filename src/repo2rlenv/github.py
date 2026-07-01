@@ -12,10 +12,13 @@ If `gh` is not installed, we fall back to plain `curl`-style requests via
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 from dataclasses import dataclass
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubError(RuntimeError):
@@ -58,6 +61,25 @@ def _run_gh(args: list[str], token: str | None = None) -> str:
     return proc.stdout
 
 
+def _fetch_base_sha(owner: str, name: str, number: int, *, token: str | None = None) -> str | None:
+    """
+    Return a PR's base-branch commit SHA via the REST pulls endpoint, or None on failure.
+    """
+    try:
+        raw = _run_gh(
+            ["api", f"repos/{owner}/{name}/pulls/{number}", "--jq", ".base.sha"],
+            token=token,
+        )
+    except GitHubError as exc:
+        logger.warning("PR #%d: base_sha fetch failed, dropping: %s", number, exc)
+        return None
+    sha = raw.strip()
+    if not sha:
+        logger.warning("PR #%d: base_sha fetch returned empty, dropping", number)
+        return None
+    return sha
+
+
 def list_merged_prs(
     owner: str,
     name: str,
@@ -82,7 +104,7 @@ def list_merged_prs(
         "--limit",
         str(min(limit * 3, 1000)),  # over-fetch to allow client-side filtering
         "--json",
-        "number,title,body,state,mergedAt,baseRefName,baseRefOid,headRefOid,isDraft,url,files",
+        "number,title,body,state,mergedAt,baseRefName,headRefOid,isDraft,url,files",
     ]
     raw = _run_gh(args, token=token)
     rows = json.loads(raw)
@@ -96,6 +118,9 @@ def list_merged_prs(
             continue
         if until and merged_at and merged_at[:10] > until.isoformat():
             continue
+        base_sha = _fetch_base_sha(owner, name, r["number"], token=token)
+        if base_sha is None:
+            continue
         files = [f["path"] for f in (r.get("files") or [])]
         summaries.append(
             PullRequestSummary(
@@ -105,7 +130,7 @@ def list_merged_prs(
                 state=r["state"],
                 merged_at=merged_at,
                 base_ref=r.get("baseRefName") or "",
-                base_sha=r.get("baseRefOid") or "",
+                base_sha=base_sha,
                 head_sha=r.get("headRefOid") or "",
                 is_draft=bool(r.get("isDraft")),
                 url=r["url"],
