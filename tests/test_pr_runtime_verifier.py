@@ -170,7 +170,8 @@ def test_main_writes_graded_reward(tmp_path: Path):
     )
     assert rc == 0
     assert (out_dir / "reward.txt").read_text().strip() == "1.000000"
-    breakdown = json.loads((out_dir / "reward.json").read_text())
+    assert not (out_dir / "reward.json").exists()
+    breakdown = json.loads((out_dir / "reward-details.json").read_text())
     assert breakdown["resolved"] is True
     assert breakdown["command_resolved"] is True  # clean command, exit 0
     assert breakdown["parse_status"] == "ok"
@@ -203,7 +204,7 @@ def test_main_command_resolved_false_on_untracked_failure(tmp_path: Path):
             str(out_dir),
         ]
     )
-    b = json.loads((out_dir / "reward.json").read_text())
+    b = json.loads((out_dir / "reward-details.json").read_text())
     assert b["reward"] == 1.0  # tracked subset clean -> training reward 1.0
     assert b["resolved"] is True  # tracked resolution preserved
     assert b["command_resolved"] is False  # untracked failure + nonzero exit
@@ -231,7 +232,7 @@ def test_main_falls_back_to_exit_code_on_unparseable_log(tmp_path: Path):
             str(out_dir),
         ]
     )
-    breakdown = json.loads((out_dir / "reward.json").read_text())
+    breakdown = json.loads((out_dir / "reward-details.json").read_text())
     assert breakdown["parse_status"] == "fallback_exitcode"
     assert (out_dir / "reward.txt").read_text().strip() == "1.000000"
 
@@ -244,7 +245,7 @@ def test_main_fallback_not_resolved_when_oracle_declared(tmp_path: Path):
     p2p = _write(tmp_path / "p2p.json", json.dumps([]))
     out_dir = tmp_path / "verifier"
     main(["--log", log, "--f2p", f2p, "--p2p", p2p, "--exit-code", "0", "--out-dir", str(out_dir)])
-    b = json.loads((out_dir / "reward.json").read_text())
+    b = json.loads((out_dir / "reward-details.json").read_text())
     assert b["parse_status"] == "fallback_exitcode"
     assert b["resolved"] is False  # cannot confirm F2P passed
     assert b["eval_trustworthy"] is False
