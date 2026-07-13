@@ -154,7 +154,7 @@ def _reward_doc_for(pipeline: str) -> str:
             "applied, `tests/test.sh` runs the suite and a baked verifier scores "
             "`reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (a dense "
             "training signal), and writes the strict SWE-bench `resolved` bool plus a "
-            "breakdown to `/logs/verifier/reward.json`:\n\n"
+            "breakdown to `/logs/verifier/reward-details.json`:\n\n"
             "```json\n"
             '{"reward": 1.0, "resolved": true, "f2p_passed": 3, "f2p_total": 3,\n'
             ' "p2p_passed": 595, "p2p_total": 595, "regressions": [], "parse_status": "ok"}\n'
@@ -169,11 +169,11 @@ def _reward_doc_for(pipeline: str) -> str:
             "similarity / LLM-judge). The `--ve ANTHROPIC_API_KEY=...` verifier-env "
             "pass enables the LLM-judge component; without it the verifier still "
             "produces a valid score with `llm_judge: null` and the deterministic "
-            "weights renormalized. Full breakdown in `/logs/verifier/reward.json`."
+            "weights renormalized. Full breakdown in `/logs/verifier/reward-details.json`."
         )
     return (
         "The reward function ships inside the task (`tests/test.sh` + verifier); "
-        "the breakdown is written to `/logs/verifier/reward.json` at run time."
+        "the breakdown is written to `/logs/verifier/reward-details.json` at run time."
     )
 
 
@@ -352,7 +352,7 @@ See the [pipeline docs](https://github.com/huggingface/Repo2RLEnv/blob/main/docs
 
 The reward function is part of the task itself (`tests/test.sh` + the
 verifier code baked into the image). The full per-task breakdown is
-written to `/logs/verifier/reward.json` at run time — useful for slicing
+written to `/logs/verifier/reward-details.json` at run time — useful for slicing
 training data by component.
 
 See the [pipeline doc]({f"https://github.com/huggingface/Repo2RLEnv/blob/main/docs/pipelines/{pipeline}.md"}#multi-component-reward) for the component-by-component design.

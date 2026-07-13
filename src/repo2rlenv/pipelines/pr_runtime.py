@@ -1098,8 +1098,9 @@ class PRRuntimePipeline:
                 "validation_status": validation_status,
                 "bootstrap_image": self.bootstrap.image_digest,
                 # Graded reward: reward.txt carries f2p_rate*p2p_rate (training
-                # signal); reward.json adds the strict SWE-bench `resolved` bool
-                # (eval signal). See _pr_runtime_verifier.py.
+                # signal); the strict SWE-bench `resolved` bool + full breakdown
+                # go to reward-details.json (eval signal — Harbor's reward.json
+                # schema is flat-numeric-only). See _pr_runtime_verifier.py.
                 "reward_mode": "graded",
             },
             # Difficulty + coverage metadata so consumers can slice train/eval
