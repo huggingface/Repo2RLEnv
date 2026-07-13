@@ -381,6 +381,8 @@ def test_build_eval_script_fails_closed_on_patch_apply():
     )
     assert "R2E_APPLY_RC" in script
     assert "test_patch_apply_failed" in script
+    assert "/logs/verifier/reward-details.json" in script
+    assert "/logs/verifier/reward.json" not in script
     assert script.find("R2E_APPLY_RC") < script.find("test_output.log")
 
 

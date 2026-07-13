@@ -17,7 +17,7 @@ RL training — an agent that fixes 4 of 5 failing tests scores the same
 So this verifier emits BOTH:
   * /logs/verifier/reward.txt  — the GRADED scalar (training signal,
         which Harbor reads):  reward = f2p_rate * p2p_factor
-  * /logs/verifier/reward.json — carries the strict SWE-bench
+  * /logs/verifier/reward-details.json — carries the strict SWE-bench
         ``resolved`` bool (eval signal) PLUS the full breakdown.
 
 Refs: SWE-bench (F2P/P2P semantics), SWE-RL / SWE-Gym (dense reward for
@@ -372,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(args.out_dir, exist_ok=True)
     with open(os.path.join(args.out_dir, "reward.txt"), "w", encoding="utf-8") as f:
         f.write(f"{reward:.6f}\n")
-    with open(os.path.join(args.out_dir, "reward.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(args.out_dir, "reward-details.json"), "w", encoding="utf-8") as f:
         json.dump(breakdown, f, indent=2)
 
     print(json.dumps(breakdown, indent=2))

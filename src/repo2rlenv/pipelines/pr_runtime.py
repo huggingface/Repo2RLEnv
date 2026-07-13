@@ -454,7 +454,7 @@ def build_eval_script(
          - GRADED (default, when fail_to_pass is provided): bake the standalone
            graded verifier + the F2P/P2P test-name lists, parse the captured
            log, and write reward = f2p_rate * p2p_rate to reward.txt (+ full
-           breakdown incl. the strict SWE-bench ``resolved`` bool to reward.json)
+           breakdown incl. the strict SWE-bench ``resolved`` bool to reward-details.json)
          - BINARY (fallback, e.g. ``skip_validation`` with no F2P known): write
            1.0 if the suite exited 0 else 0.0
       7. Reset test files again on the way out
@@ -486,7 +486,7 @@ def build_eval_script(
             '  echo "0.000000" > /logs/verifier/reward.txt\n'
             "  printf '%s' "
             '\'{"reward": 0.0, "resolved": false, "parse_status": '
-            '"test_patch_apply_failed"}\' > /logs/verifier/reward.json\n'
+            '"test_patch_apply_failed"}\' > /logs/verifier/reward-details.json\n'
             '  echo "R2E: test_patch failed to apply (rc=$R2E_APPLY_RC) — failing closed" >&2\n'
             "  exit 0\n"
             "fi\n"
