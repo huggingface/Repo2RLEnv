@@ -33,9 +33,12 @@ Final reward is clipped to [0, 1] and additionally clamped to ≤ 0.40
 when ``size_sanity < 0.10`` (catastrophic-size hard cap — stops a
 charitable judge from inflating scores on wildly wrong-sized patches).
 
-Outputs:
-  /logs/verifier/reward.txt   — single float (Harbor reads this)
-  /logs/verifier/reward.json  — full component breakdown + status
+Outputs (mirrors `_pr_runtime_verifier.py` after #75):
+  /logs/verifier/reward.txt           — single float (Harbor reads this)
+  /logs/verifier/reward-details.json  — full component breakdown + status
+      (structured diagnostics; Harbor's `reward.json` schema is flat-numeric-
+      only, so the breakdown goes to the `reward-details.json` sidecar which
+      Harbor renders under Verifier Logs → Rewards)
 
 Pure stdlib — uses only ``difflib``, ``json``, ``os``, ``re``,
 ``urllib``, ``sys``. The same module is imported by the unit tests
@@ -479,7 +482,12 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs("/logs/verifier", exist_ok=True)
     with open("/logs/verifier/reward.txt", "w", encoding="utf-8") as f:
         f.write(f"{final:.6f}\n")
-    with open("/logs/verifier/reward.json", "w", encoding="utf-8") as f:
+    # Harbor's `reward.json` must be a flat map of floats/ints (spec, see
+    # <https://harborframework.com/docs/tasks>); our breakdown carries nested
+    # dicts, judge strings, and status strings, so it goes to the sidecar the
+    # Harbor UI renders under Verifier Logs → Rewards. Mirrors #75 (Neubig)
+    # for `_pr_runtime_verifier.py`.
+    with open("/logs/verifier/reward-details.json", "w", encoding="utf-8") as f:
         json.dump(breakdown, f, indent=2)
 
     # Also print to stdout so harbor's log captures the breakdown

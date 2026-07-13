@@ -11,7 +11,7 @@ The *emitted* task is runnable in Docker (when ``emit_harbor_env=True``,
 the default): it ships a thin ``python:3.12-slim`` ``environment/Dockerfile``
 + a ``tests/test.sh`` carrying the 6-component diff-similarity verifier
 (``_pr_diff_verifier``). Reward kind is ``diff_similarity``; the component
-breakdown lands in ``/logs/verifier/reward.json``. With
+breakdown lands in ``/logs/verifier/reward-details.json``. With
 ``emit_harbor_env=False`` the task is pure text (instruction.md +
 solution/patch.diff) for consumers who score the diff themselves.
 
@@ -263,7 +263,7 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
 
       1. Captures the agent's edits via ``git diff <base_commit>``
       2. Invokes the verifier, which writes ``/logs/verifier/reward.txt``
-         (single float) and ``/logs/verifier/reward.json`` (component
+         (single float) and ``/logs/verifier/reward-details.json`` (component
          breakdown) for Harbor + downstream inspection.
 
     Exit code: 0 always — the reward score is the verdict, not the bash
@@ -550,7 +550,7 @@ class PRDiffPipeline:
             "built_at": datetime.now(UTC).isoformat(),
             # Spec reward kind is `diff_similarity` (see docs/reference/SPEC.md).
             # The 6-component breakdown is *how* the similarity is scored — it's
-            # surfaced in /logs/verifier/reward.json, not as a separate kind.
+            # surfaced in /logs/verifier/reward-details.json, not as a separate kind.
             "reward_kinds": ["diff_similarity"],
             **({"synthesis_llm": self.input.llm.qualified_name} if self.input.llm else {}),
             "pr_diff": {

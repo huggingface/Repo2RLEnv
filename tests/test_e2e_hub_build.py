@@ -100,7 +100,7 @@ def test_hub_task_builds_and_oracle_resolves(tmp_path: Path) -> None:
     val = float(rewards[0].read_text().strip())
     assert val == 1.0, f"oracle reward {val} != 1.0 for {one.name}"
 
-    rj = list(jobs.glob("*/*/verifier/reward.json"))
+    rj = list(jobs.glob("*/*/verifier/reward-details.json"))
     if rj:
         breakdown = json.loads(rj[0].read_text())
         assert breakdown.get("resolved") is True, breakdown
