@@ -557,7 +557,7 @@ def _go_inline(
         if rec is None:
             raise RuntimeError(
                 f"inline mode requires the bootstrap reconstructed Dockerfile "
-                f"(saved under ./envs/<repo>/<sha>/Dockerfile). "
+                f"(saved under ./workspace/bootstrap/<repo>/<sha>/Dockerfile). "
                 f"Ref {ref!r} resolves to no cached Dockerfile. "
                 f"Either re-bootstrap or use registry mode."
             )
@@ -697,7 +697,14 @@ def _load_bootstrap_recipe(
     owner, name, sha = _parse_local_tag(local_ref)
     if not name or not sha:
         return None, None
-    candidates = [Path("./envs"), Path.cwd() / "envs"]
+    # Try the current default first, then the legacy path so existing
+    # ./envs/ caches keep resolving.
+    candidates = [
+        Path("./workspace/bootstrap"),
+        Path.cwd() / "workspace" / "bootstrap",
+        Path("./envs"),
+        Path.cwd() / "envs",
+    ]
     for cache_dir in candidates:
         if not cache_dir.is_dir():
             continue

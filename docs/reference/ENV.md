@@ -8,7 +8,7 @@ Variables are grouped by what they affect.
 
 | Variable | What it controls | Default |
 |---|---|---|
-| `R2E_CACHE_DIR` | Bootstrap image cache root — where the LLM-built per-repo Docker images are stored, keyed by content hash. The expensive step runs once per (repo, ref); subsequent generations reuse the cache. | `./envs` |
+| `R2E_CACHE_DIR` | Bootstrap image cache root — where the LLM-built per-repo Docker images are stored, keyed by content hash. The expensive step runs once per (repo, ref); subsequent generations reuse the cache. | `./workspace/bootstrap` |
 
 The CLI flag `--cache-dir` takes precedence over the env var, and the env var takes precedence over the default — standard layering.
 

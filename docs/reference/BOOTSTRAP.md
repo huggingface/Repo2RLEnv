@@ -149,7 +149,7 @@ repo2rlenv bootstrap \
   --max-iterations 25 \
   --max-spend-usd 2.0 \
   --image-registry ghcr.io/<your-org>/<repo>-r2e \
-  --out ./envs/<repo>/
+  --out ./workspace/bootstrap/<repo>/
 ```
 
 ### Forcing a cache miss
@@ -211,10 +211,10 @@ Bootstrap is expensive (multi-minute, real LLM cost). Reuse aggressively.
 
 The cache key is `(repo, commit, base_image, languages_hint)`. Anything that would produce a different image goes into the key; iteration limits and budget caps don't (they bound the build, not the result).
 
-A successful bootstrap writes to `./envs/<owner>__<name>/<short_commit>/`:
+A successful bootstrap writes to `./workspace/bootstrap/<owner>__<name>/<short_commit>/`:
 
 ```
-./envs/<owner>__<name>/<short_commit>/
+./workspace/bootstrap/<owner>__<name>/<short_commit>/
 ├── result.json            # image_digest, image_tag, rebuild_cmds, test_cmds, ...
 ├── transcript.jsonl       # full agent transcript (for debugging)
 └── (Dockerfile generated from the transcript, for reproducibility)
@@ -231,7 +231,7 @@ There are two invocation patterns:
 2. **Explicit** — call `repo2rlenv bootstrap ...` to pre-warm an image without running synthesis, or to debug a repeatedly-failing build. The cached image is then picked up by any later `generate` call against the same repo+ref.
 
 Use the explicit form when:
-- Debugging a build that fails repeatedly (full transcript at `./envs/<repo>/<sha>/transcript.jsonl`)
+- Debugging a build that fails repeatedly (full transcript at `./workspace/bootstrap/<repo>/<sha>/transcript.jsonl`)
 - Pre-warming an image for many subsequent generation runs
 - Sharing a working image with collaborators (push the env dir + image_digest)
 
@@ -247,7 +247,7 @@ The bootstrap phase is driven by `BootstrapSpec`. The fields you'll touch most o
 | `max_llm_spend_usd` | Hard cost cap (default $5.0). Loop aborts cleanly when crossed. |
 | `base_image` | Override the auto-detected Docker base image. |
 | `user_dockerfile` | Path to a Dockerfile that bypasses the agent entirely. |
-| `cache_dir` | Where to store cached results (default `./envs/`). |
+| `cache_dir` | Where to store cached results (default `./workspace/bootstrap/`). |
 | `image_registry` | If set, push the built image here so collaborators can pull it. |
 | `languages_hint` | Override language auto-detection (e.g. `["python", "rust"]`). |
 
@@ -256,7 +256,7 @@ You can set any of these on the CLI via `--bootstrap-opt key=value` (repeatable)
 ```bash
 # Point at a different cache directory (e.g. reuse a teammate's pre-built images)
 repo2rlenv generate ... \
-  --bootstrap-opt cache_dir=./envs-shared \
+  --bootstrap-opt cache_dir=./workspace/bootstrap-shared \
   --bootstrap-opt max_iterations=30 \
   --bootstrap-opt max_seconds=2400
 ```

@@ -224,17 +224,14 @@ plans/
 references/
 
 # Bootstrap cache (per-repo Docker images + transcripts) — local-only
-envs/
-envs-*/
 .r2e_cache/
 
 # Local demo / scratch scripts
 demo_*.sh
 
 # Generated datasets — committed only to the HF Hub, not to git
-datasets/
 
 
-jobs/
 .claude/
+workspace/
 .DS_Store

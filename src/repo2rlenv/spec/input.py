@@ -178,7 +178,9 @@ class BootstrapSpec(BaseModel):
     max_seconds: int = 1800  # 30-minute timeout per bootstrap
     base_image: str | None = None  # override per-language default
     user_dockerfile: Path | None = None  # bypass agent iteration entirely
-    cache_dir: Path = Field(default_factory=lambda: Path(os.environ.get("R2E_CACHE_DIR", "./envs")))
+    cache_dir: Path = Field(
+        default_factory=lambda: Path(os.environ.get("R2E_CACHE_DIR", "./workspace/bootstrap"))
+    )
     image_registry: str | None = None  # e.g. "ghcr.io/myorg"; None ⇒ keep local
     max_llm_spend_usd: float | None = 5.0
     platform: Literal["linux/amd64", "linux/arm64"] = "linux/amd64"

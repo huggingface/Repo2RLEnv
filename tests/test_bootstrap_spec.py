@@ -23,7 +23,7 @@ def test_defaults_are_sensible():
     assert spec.enabled is True
     assert spec.max_iterations == 20
     assert spec.max_seconds == 1800
-    assert spec.cache_dir == Path("./envs")
+    assert spec.cache_dir == Path("./workspace/bootstrap")
     assert spec.platform == "linux/amd64"
     assert spec.user_dockerfile is None
 
@@ -41,7 +41,7 @@ def test_bootstrap_included_in_generation_input_default():
         output=OutputSpec(destination="./out", org="x", dataset_name="y"),
     )
     assert g.bootstrap.enabled is True
-    assert g.bootstrap.cache_dir == Path("./envs")
+    assert g.bootstrap.cache_dir == Path("./workspace/bootstrap")
 
 
 def test_bootstrap_user_dockerfile_override():
