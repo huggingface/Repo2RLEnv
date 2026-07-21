@@ -53,7 +53,7 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
-from repo2rlenv.pipelines._eval_script import build_binary_eval_script
+from repo2rlenv.pipelines._eval_script import all_tests_passed, build_binary_eval_script
 from repo2rlenv.pipelines._oss_instruct import (
     PROMPT_SYSTEM,
     PROMPT_USER_TEMPLATE,
@@ -418,7 +418,7 @@ class CodeInstructPipeline:
         # on collection error or test failure. The wrapper command uses `|| true`
         # so the sandbox call always succeeds; we look for the "passed" summary
         # to decide.
-        pre_passed = _all_tests_passed(pre_log)
+        pre_passed = all_tests_passed(pre_log)
         if self.options.require_test_fails_without_oracle and pre_passed:
             return _VerifyOutcome(
                 accepted=False, reason="test_passes_without_oracle", pre_log=pre_log
@@ -437,7 +437,7 @@ class CodeInstructPipeline:
         )
         b = sandbox.exec(script_b, timeout=self.options.validation_timeout_sec)
         post_log = b.truncated(max_chars=4000)
-        post_passed = b.ok and _all_tests_passed(post_log)
+        post_passed = b.ok and all_tests_passed(post_log)
         if self.options.require_test_passes_with_oracle and not post_passed:
             return _VerifyOutcome(
                 accepted=False,
@@ -547,15 +547,6 @@ class CodeInstructPipeline:
         )
 
 
-def _all_tests_passed(log: str) -> bool:
-    """Heuristic: pytest summary line ends with `N passed` and no `failed`/`error`."""
-    import re as _re
-
-    lower = log.lower()
-    if "error" in lower and "collected 0 items" in lower:
-        return False
-    # `0 failed` is fine; anything else is a failure
-    if "failed" in lower and _re.search(r"\b[1-9]\d*\s+failed\b", lower):
-        return False
-    # A successful pytest run has a summary like `=== N passed in 0.12s ===`
-    return bool(_re.search(r"\b[1-9]\d*\s+passed\b", lower))
+# NOTE: `all_tests_passed` moved to `pipelines._eval_script` in v0.8.7 so
+# `equivalence_tests` can import it directly without cross-pipeline coupling.
+# Kept the import above for callers here.

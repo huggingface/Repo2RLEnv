@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
+from repo2rlenv.pipelines._eval_script import all_tests_passed as _all_tests_passed
 from repo2rlenv.pipelines.code_instruct import (
     CodeInstructPipeline,
-    _all_tests_passed,
     build_code_instruct_dockerfile,
     make_solution_diff,
 )

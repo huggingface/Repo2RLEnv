@@ -56,10 +56,18 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
-from repo2rlenv.pipelines._eval_script import build_binary_eval_script, make_unified_diff
+from repo2rlenv.pipelines._eval_script import (
+    all_tests_passed,
+    build_binary_eval_script,
+    is_module_importable,
+    make_unified_diff,
+    rename_function_ast,
+    signature_only_source,
+    strip_annotations,
+)
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
+from repo2rlenv.pipelines._oss_instruct import check_equivalence_test_strength
 from repo2rlenv.pipelines.base import PipelineResult
-from repo2rlenv.pipelines.code_instruct import _all_tests_passed
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import EquivalenceTestsOptions
 
@@ -68,15 +76,24 @@ logger = logging.getLogger(__name__)
 
 PROMPT_SYSTEM = """You are a senior Python engineer writing differential equivalence tests.
 
-You will be shown one function from an open-source library. Your job: write a single pytest test file that imports BOTH `<name>` and `reference_<name>` from the module `task_module`, and asserts they produce identical outputs across a diverse set of inputs.
+You will be shown one function from an open-source library. Your job: write a single pytest test file that imports BOTH `<name>` and `reference_<name>` from the module `task_module`, and asserts they produce identical outputs across a set of inputs.
+
+The reference implementation IS the ground truth. Do not try to write inputs that "trip up" the reference — pick inputs the reference clearly handles cleanly. The purpose of the test is to detect when a candidate diverges from the reference, not to exercise edge cases the reference itself doesn't handle.
 
 STRICT REQUIREMENTS:
 - Output ONE section labelled `[Test]` and nothing else (no preamble, no closing notes).
 - Use plain `def test_*(): assert ...` style — NO unittest.TestCase, NO fixtures, NO mocks.
 - The test MUST import both names from `task_module`: `from task_module import {name}, reference_{name}`.
-- Cover at least 5 distinct inputs: normal cases + edge cases (empty / zero / boundary) + adversarial cases where it makes sense.
-- Use literal Python values that can be constructed without third-party libraries. If the function takes complex types, build them in the test.
-- Each input case should be its own `def test_*():` function (so failures are isolated).
+- Write between 5 and 10 distinct `def test_*` functions, each with ONE assertion of the form:
+
+      def test_name_case_N():
+          expected = reference_{name}(<input>)
+          actual = {name}(<input>)
+          assert actual == expected
+
+  Using this exact pattern is important — it means Stage-B (reference vs reference) is guaranteed to pass, and Stage-A (candidate stub raising vs reference) fails cleanly.
+- Prefer inputs that produce clear, definite outputs. AVOID inputs where the reference would raise an exception; avoid inputs that require an ambient context (a Click context, a Flask request, filesystem state).
+- Use literal Python values that can be constructed without third-party libraries. If the function takes complex types, build them in the test using only stdlib.
 - DO NOT call any function other than `{name}` and `reference_{name}` (and Python builtins / stdlib).
 - DO NOT redefine `{name}` or `reference_{name}` in the test.
 - If the function's behavior depends on randomness, use `random.seed(0)` before each call.
@@ -156,10 +173,16 @@ def _stub_module(candidate: FunctionCandidate) -> str:
     the agent to be equivalent to, and the agent's job is to fill in `<name>`.
     Also used in Stage A of verification (confirms the test actually exercises
     `<name>` — else it would pass while `<name>` raises NotImplementedError).
+
+    Annotations on the extracted function are stripped so the module imports
+    cleanly even when the original signature referenced repo-internal types
+    (e.g. `def foo(x: Argument) -> FC` → `def foo(x)`). See
+    `strip_annotations` in `_eval_script.py`.
     """
     ref_source = _rename_function_source(
         candidate.source, candidate.name, f"reference_{candidate.name}"
     )
+    ref_source = strip_annotations(ref_source)
     args = ", ".join(candidate.arg_names) if candidate.arg_names else "*args, **kwargs"
     stub = (
         f"def {candidate.name}({args}):\n"
@@ -196,24 +219,32 @@ def _oracle_module(candidate: FunctionCandidate) -> str:
     Used in Stage B of verification AND as the gold-patch payload: the
     agent's job is to make `<name>` equivalent to `reference_<name>`;
     the gold patch achieves that by giving them the same implementation.
+
+    Annotations are stripped for the same reason as `_stub_module`.
     """
     ref_source = _rename_function_source(
         candidate.source, candidate.name, f"reference_{candidate.name}"
     )
-    return ref_source + "\n\n" + candidate.source + "\n"
+    ref_source = strip_annotations(ref_source)
+    own_source = strip_annotations(candidate.source)
+    return ref_source + "\n\n" + own_source + "\n"
 
 
 def _rename_function_source(source: str, old_name: str, new_name: str) -> str:
-    """Rename `def OLD(...)` → `def NEW(...)` in the source text.
+    """Rename `def OLD(...)` → `def NEW(...)` in the source text — recursion-safe.
 
-    Only rewrites the `def` line itself, not internal recursive calls
-    (those would change semantics if the function recurses by name).
-    For v0.7 we accept this: most extractable functions aren't recursive,
-    and the few that are will be skipped at Stage B (recursion still calls
-    the *renamed* function so the reference call diverges from the
-    candidate). The skip rate is low; deferring proper recursion handling
-    to v0.8.
+    v0.7 used a regex on the `def` line only, so recursive functions still
+    called themselves by the old name inside the body → `reference_<name>`
+    and `<name>` executed the same code and Stage B silently passed on
+    bogus tasks. v0.8.7 uses `rename_function_ast` from `_eval_script.py`,
+    which walks the AST and rewrites `Call(func=Name(id=old))` nodes and
+    bare `Name` loads too. Falls back to the regex behaviour if AST
+    parsing fails (source with tabs/mixed indent that ast rejects).
     """
+    renamed = rename_function_ast(source, old_name, new_name)
+    if renamed != source:
+        return renamed
+    # AST parse failed OR the name wasn't found — fall through to the regex
     pattern = re.compile(rf"^(\s*)(async\s+def|def)\s+{re.escape(old_name)}\b", re.MULTILINE)
     return pattern.sub(rf"\1\2 {new_name}", source, count=1)
 
@@ -295,6 +326,7 @@ class EquivalenceTestsPipeline:
             )
             logger.info("equivalence_tests: %d candidate functions", len(candidates))
             rng.shuffle(candidates)
+            seen_fingerprints: set[str] = set()
 
             try:
                 if not self.options.skip_validation:
@@ -306,38 +338,125 @@ class EquivalenceTestsPipeline:
                     candidates_seen += 1
                     label = f"{owner_name}:{cand.relative_path}::{cand.name}"
 
-                    parsed = self._llm_generate_test(cand)
-                    if parsed is None:
-                        skip_reasons["llm_parse_failed"] = (
-                            skip_reasons.get("llm_parse_failed", 0) + 1
+                    # Retry the LLM synth + gates + Stage-A/B verify up to N
+                    # times per candidate, feeding back the failure signal on
+                    # each retry. Was documented in options but never wired
+                    # pre-v0.8.7 — the dominant baseline skip reason was
+                    # `oracle_does_not_satisfy_test` (Stage-B fail on a
+                    # first-draft LLM test), so verify HAS to be inside the
+                    # loop, not outside.
+                    parsed = None
+                    parsed_fp: str | None = None
+                    outcome: _VerifyOutcome | None = None
+                    last_skip_reason = ""
+                    feedback: str | None = None
+                    for attempt in range(max(1, self.options.max_attempts_per_function)):
+                        candidate_test = self._llm_generate_test(cand, feedback=feedback)
+                        if candidate_test is None:
+                            last_skip_reason = "llm_parse_failed"
+                            feedback = None
+                            continue
+                        # Syntactic: both names referenced
+                        if not uses_both_names(candidate_test.code, cand.name):
+                            last_skip_reason = "test_missing_both_names"
+                            feedback = (
+                                "The previous attempt did not import both "
+                                f"`{cand.name}` and `reference_{cand.name}` "
+                                "from `task_module`, or did not reference both "
+                                "identifiers in the test body. Both are required."
+                            )
+                            continue
+                        ok, reason = check_equivalence_test_strength(
+                            candidate_test.code, cand.name, min_test_cases=5
                         )
-                        self._emit_progress(label, "skip", "llm_parse_failed")
-                        continue
-
-                    # Syntactic: test imports + uses both names
-                    if not uses_both_names(parsed.code, cand.name):
-                        skip_reasons["test_missing_both_names"] = (
-                            skip_reasons.get("test_missing_both_names", 0) + 1
-                        )
-                        self._emit_progress(label, "skip", "test_missing_both_names")
-                        continue
-
-                    test_filename = self._task_test_filename(cand, parsed)
-
-                    if not self.options.skip_validation:
+                        if not ok:
+                            last_skip_reason = reason
+                            feedback = (
+                                f"The previous attempt failed the test-strength "
+                                f"gate with reason `{reason}`. Ensure ≥5 distinct "
+                                f"`def test_*` functions, each asserting "
+                                f"`{cand.name}(...) == reference_{cand.name}(...)` "
+                                f"on a genuinely different input. No `assert True`."
+                            )
+                            continue
+                        fp = _equivalence_fingerprint(cand.name, candidate_test.code)
+                        if fp in seen_fingerprints:
+                            last_skip_reason = "duplicate_task"
+                            feedback = (
+                                "This exact test suite was already emitted for "
+                                "another candidate. Pick a different set of inputs."
+                            )
+                            continue
+                        test_filename = self._task_test_filename(cand, candidate_test)
+                        if self.options.skip_validation:
+                            parsed = candidate_test
+                            parsed_fp = fp
+                            break
+                        # Stage-A / Stage-B verification against the sandbox.
                         outcome = self._verify_task(
                             sandbox=sandbox,
                             cand=cand,
-                            test_code=parsed.code,
+                            test_code=candidate_test.code,
                             test_filename=test_filename,
                         )
-                        if not outcome.accepted:
-                            skip_reasons[outcome.reason] = skip_reasons.get(outcome.reason, 0) + 1
-                            self._emit_progress(label, "skip", outcome.reason)
-                            continue
+                        if outcome.accepted:
+                            parsed = candidate_test
+                            parsed_fp = fp
+                            logger.debug(
+                                "candidate %s accepted on attempt %d",
+                                label,
+                                attempt + 1,
+                            )
+                            break
+                        # Give the LLM enough of the log to see WHY it failed.
+                        # Truncated so the retry prompt stays cheap.
+                        log_hint = outcome.oracle_log or outcome.stub_log
+                        if log_hint:
+                            log_hint = log_hint[-1200:]
+                        feedback = (
+                            f"The previous attempt's test was rejected at "
+                            f"`{outcome.reason}`. Failure log tail:\n\n"
+                            f"```\n{log_hint or '(no log captured)'}\n```\n\n"
+                            f"Pick simpler inputs that the reference actually "
+                            f"handles (avoid inputs that depend on ambient click "
+                            f"context, mutable global state, or randomness). "
+                            f"If the function raises for some inputs, that's OK — "
+                            f"assert `reference_{cand.name}(x) == {cand.name}(x)` "
+                            f"is what we need, so use inputs where both sides "
+                            f"return the same value or both raise the same "
+                            f"exception."
+                        )
+                        last_skip_reason = outcome.reason
 
+                    if parsed is None:
+                        skip_reasons[last_skip_reason] = skip_reasons.get(last_skip_reason, 0) + 1
+                        # Dump the last-attempt artifacts to a debug dir so we
+                        # can inspect why Stage-B keeps failing without running
+                        # the whole pipeline again. Cheap; disk-only.
+                        try:
+                            debug_dir = out_dir / ".debug_skips" / cand.name
+                            debug_dir.mkdir(parents=True, exist_ok=True)
+                            if candidate_test is not None:
+                                (debug_dir / "last_test.py").write_text(candidate_test.code)
+                            if outcome is not None:
+                                (debug_dir / "stub_log.txt").write_text(outcome.stub_log or "")
+                                (debug_dir / "oracle_log.txt").write_text(outcome.oracle_log or "")
+                        except Exception:
+                            pass
+                        logger.info(
+                            "skipped %s after %d attempts (reason=%s)",
+                            label,
+                            self.options.max_attempts_per_function,
+                            last_skip_reason,
+                        )
+                        self._emit_progress(label, "skip", last_skip_reason)
+                        continue
+
+                    test_filename = self._task_test_filename(cand, parsed)
                     task = self._build_task(cand, parsed.code, test_filename=test_filename)
                     write_harbor_task(task, out_dir)
+                    if parsed_fp is not None:
+                        seen_fingerprints.add(parsed_fp)
                     emitted += 1
                     logger.info(
                         "emitted task %s (function=%s, loc=%d)",
@@ -361,7 +480,9 @@ class EquivalenceTestsPipeline:
 
     # ----- LLM ---------------------------------------------------------------
 
-    def _llm_generate_test(self, cand: FunctionCandidate) -> _ParsedTest | None:
+    def _llm_generate_test(
+        self, cand: FunctionCandidate, *, feedback: str | None = None
+    ) -> _ParsedTest | None:
         user = PROMPT_USER_TEMPLATE.format(
             path=cand.relative_path,
             start=cand.lineno,
@@ -369,6 +490,13 @@ class EquivalenceTestsPipeline:
             source=cand.source,
             arg_names=", ".join(cand.arg_names),
         )
+        if feedback:
+            user = (
+                user
+                + "\n\n"
+                + "**Retry — this candidate failed the previous attempt. "
+                + f"Adjust accordingly.**\n\n{feedback}"
+            )
         try:
             resp = complete(
                 self.input.llm,
@@ -414,6 +542,22 @@ class EquivalenceTestsPipeline:
         """
         stub_module = _stub_module(cand)
         oracle_module = _oracle_module(cand)
+
+        # Pre-flight: the stub module must actually be importable. Post-
+        # annotation-strip it usually is, but if the body still references
+        # a repo-internal Name we haven't allowlisted, catch it here rather
+        # than burning a full sandbox exec.
+        if not is_module_importable(stub_module):
+            return _VerifyOutcome(
+                accepted=False,
+                reason="stub_module_not_importable",
+            )
+        if not is_module_importable(oracle_module):
+            return _VerifyOutcome(
+                accepted=False,
+                reason="oracle_module_not_importable",
+            )
+
         enc_test = base64.b64encode(test_code.encode("utf-8")).decode("ascii")
 
         # Stage A — stubbed
@@ -432,7 +576,7 @@ class EquivalenceTestsPipeline:
         )
         a = sandbox.exec(script_a, timeout=self.options.validation_timeout_sec)
         stub_log = a.stdout[-4000:] if a.stdout else ""
-        stub_passes = _all_tests_passed(stub_log)
+        stub_passes = all_tests_passed(stub_log)
         if self.options.require_test_fails_with_stub and stub_passes:
             return _VerifyOutcome(
                 accepted=False,
@@ -453,7 +597,7 @@ class EquivalenceTestsPipeline:
         )
         b = sandbox.exec(script_b, timeout=self.options.validation_timeout_sec)
         oracle_log = b.stdout[-4000:] if b.stdout else ""
-        oracle_passes = b.ok and _all_tests_passed(oracle_log)
+        oracle_passes = b.ok and all_tests_passed(oracle_log)
         if self.options.require_test_passes_with_oracle and not oracle_passes:
             return _VerifyOutcome(
                 accepted=False,
@@ -515,7 +659,7 @@ class EquivalenceTestsPipeline:
 
         repo2env = {
             "pipeline": "equivalence_tests",
-            "pipeline_version": "0.7.0",
+            "pipeline_version": "0.7.1",
             "repo": f"{owner}/{name}",
             "ref": self.input.repo.ref,
             "reference": (
@@ -556,16 +700,54 @@ class EquivalenceTestsPipeline:
 
 
 def _build_instruction(cand: FunctionCandidate) -> str:
-    docstring_block = f"\n\n**Docstring:**\n\n> {cand.docstring}\n" if cand.docstring else ""
+    """Leak-free instruction — signature + docstring only, never the body.
+
+    Pre-v0.8.7 the emitted `instruction.md` embedded the full source of the
+    function under `**Source:**`, so any solving agent could copy the
+    reference implementation verbatim. Baseline audit surfaced this on
+    every emitted task. v0.8.7 ships only what the RFC always claimed:
+    signature + docstring (see `signature_only_source` in `_eval_script.py`).
+    A hand-written fallback preserves the RFC-documented shape if the AST
+    parse fails.
+    """
+    sig = signature_only_source(cand.source)
+    if sig is None:
+        # Fallback — at worst show only the header line and rely on the
+        # docstring block below.
+        header = f"def {cand.name}({', '.join(cand.arg_names)}):\n    ..."
+        sig_block = f"```python\n{header}\n```"
+    else:
+        sig_block = f"```python\n{sig}\n```"
+    docstring_block = f"\n\n**Docstring**\n\n> {cand.docstring}\n" if cand.docstring else ""
     return (
         f"# Implement `{cand.name}`\n\n"
-        f"Implement the function `{cand.name}` in `task_module.py` so that it is "
-        f"behaviorally equivalent to `reference_{cand.name}` (which is already provided "
-        f"in `task_module.py`).\n\n"
-        f"**Source (from `{cand.relative_path}` lines {cand.lineno}-{cand.end_lineno}):**\n\n"
-        f"```python\n{cand.source}\n```{docstring_block}\n\n"
-        f"## Task\n\n"
+        f"Implement the function `{cand.name}` in `/workspace/task_module.py` "
+        f"so that it is behaviorally equivalent to `reference_{cand.name}` "
+        f"(which is already provided in `task_module.py`).\n\n"
+        f"You are given the function's **signature and docstring only** — "
+        f"the reference implementation lives in `task_module.py` alongside a "
+        f"stub of `{cand.name}` that currently raises `NotImplementedError`.\n\n"
+        f"**Contract (from `{cand.relative_path}` lines {cand.lineno}-{cand.end_lineno}):**\n\n"
+        f"{sig_block}{docstring_block}\n\n"
+        f"## How the grading works\n\n"
         f"The test file `test_r2e_*.py` imports both `{cand.name}` and "
-        f"`reference_{cand.name}` from `task_module` and asserts equality across "
-        f"a variety of inputs. Your implementation passes when all assertions hold."
+        f"`reference_{cand.name}` from `task_module` and asserts equality "
+        f"across ≥5 inputs. Your implementation passes when every assertion "
+        f"holds. You may inspect `reference_{cand.name}` in `task_module.py` "
+        f"to understand the behaviour to match — that's the intended "
+        f"solve-path — but do NOT change the `reference_` implementation."
     )
+
+
+def _equivalence_fingerprint(name: str, test_code: str) -> str:
+    """Dedup fingerprint for equivalence-test candidates.
+
+    Combines the extracted function name with a hash of the normalized test
+    body (whitespace-collapsed + lowercased). Catches the case where the
+    LLM re-emits the exact same test suite for the same function on
+    different retries, or where two candidate functions across repos
+    happen to share a name and get the same LLM-generated test.
+    """
+    norm = re.sub(r"\s+", " ", test_code.strip().lower())
+    sig = f"{name}\0{norm}"
+    return hashlib.sha256(sig.encode("utf-8")).hexdigest()[:16]

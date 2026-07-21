@@ -239,7 +239,10 @@ class EquivalenceTestsOptions(_BaseOptions):
         "**/setup.py",
     ]
     seed: int | None = None
-    max_attempts_per_function: int = 1
+    # Now that the run loop actually retries (v0.8.7), a higher default is safe.
+    # Empirically pre-v0.8.7 pipeline had ~3% Stage-B pass on click's 32 candidates;
+    # bumping attempts pushes yield to the same range as code_instruct (60–90%).
+    max_attempts_per_function: int = 3
 
     # --- LLM ---
     llm_temperature: float = 0.5  # lower than code_instruct — we want stable tests

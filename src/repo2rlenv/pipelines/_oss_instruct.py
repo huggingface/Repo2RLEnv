@@ -486,6 +486,64 @@ def check_test_strength(test_code: str, instruction: str) -> tuple[bool, str]:
     return True, ""
 
 
+def check_equivalence_test_strength(
+    test_code: str, name: str, *, min_test_cases: int = 5
+) -> tuple[bool, str]:
+    """Reject weak equivalence-test files before sending them to the sandbox.
+
+    Different shape than `check_test_strength`: for equivalence tests the
+    LLM writes many `def test_*` bodies where each asserts
+    `name(x) == reference_name(x)` on distinct inputs. Weakness modes we
+    catch here (Stage-A / Stage-B in the sandbox catch the rest):
+
+      1. Fewer than `min_test_cases` distinct `def test_*` functions.
+      2. Any `def test_*` body that references only `reference_<name>` and
+         never calls `<name>` (would pass while `<name>` is stubbed).
+      3. `assert True` / `assert 1` / other trivial constant asserts.
+
+    The Stage-A gate downstream catches the "test never actually exercises
+    both names" case at the module level, so we don't reject candidates
+    just because the equivalence assertion goes through intermediate
+    variables (`a = name(x); b = ref(x); assert a == b` — very common
+    LLM output pattern that a strict same-line gate would reject).
+
+    Returns (accepted, reason). Reason is empty on accept.
+    """
+    try:
+        tree = ast.parse(test_code)
+    except SyntaxError as exc:
+        return False, f"test_syntax_error:{exc.msg}"
+    test_fns = [
+        n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
+    ]
+    if len(test_fns) < min_test_cases:
+        return False, f"too_few_test_functions:{len(test_fns)}<{min_test_cases}"
+
+    ref_name = f"reference_{name}"
+    trivial_asserts = 0
+    for fn in test_fns:
+        body_calls_name = False
+        body_calls_ref = False
+        for sub in ast.walk(fn):
+            if isinstance(sub, ast.Assert):
+                test = sub.test
+                if isinstance(test, ast.Constant) and (
+                    test.value in (True, False) or isinstance(test.value, (int, str))
+                ):
+                    trivial_asserts += 1
+            elif isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name):
+                if sub.func.id == name:
+                    body_calls_name = True
+                elif sub.func.id == ref_name:
+                    body_calls_ref = True
+        if not (body_calls_name and body_calls_ref):
+            return False, f"test_fn_missing_both_names:{fn.name}"
+
+    if trivial_asserts > 0:
+        return False, "trivial_assert_present"
+    return True, ""
+
+
 def task_fingerprints(problem: str, solution_code: str = "") -> set[str]:
     """Return the set of dedup signals for a candidate task.
 
