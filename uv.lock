@@ -1249,7 +1249,7 @@ wheels = [
 
 [[package]]
 name = "repo2rlenv"
-version = "0.8.5.post1"
+version = "0.8.6"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
