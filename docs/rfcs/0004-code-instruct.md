@@ -1,8 +1,8 @@
 # RFC 0004: `code_instruct`
 
-**Status:** implemented (experimental)
+**Status:** implemented (experimental) — hardened v0.8.6 with repo-anchoring gate + delivery contract
 **Author:** `@adithya-s-k`
-**Created:** 2026-04-01 *(retrospective — pipeline shipped in v0.6.0; RFC written 2026-07-15 as archival record)*
+**Created:** 2026-04-01 *(retrospective — pipeline shipped in v0.6.0; RFC written 2026-07-15 as archival record; updated 2026-07-21 for v0.8.6 self-improvement pass)*
 
 ## Summary
 
@@ -48,6 +48,28 @@ The key differentiator vs. Magicoder itself: **each task ships an executable ver
 - **Non-tamper** — same test-file reset + heredoc reapply as `pr_runtime`.
 
 **Known limitation**: reward is binary. Bringing this onto the shared graded machinery is a **v0.9 roadmap item** (`todo.md` bucket B).
+
+## v0.8.6 self-improvement pass (2026-07-21)
+
+The reference-dataset run flagged two failure modes that broke ~60% of trials without touching model quality:
+
+1. **Repo-anchoring collapse.** The v0.6 system prompt explicitly told the LLM to design a task *"that does NOT require any of the repo's APIs"* — the opposite of the RL goal. Baseline audit on 20 envs across 5 repos: mean repo-anchoring score **1.40 / 5**, zero of 20 imported the target package. Fixed by rewriting the synthesis prompt to demand a `from <pkg> import ...` in the oracle plus AST-level gates (`check_repo_anchoring`, `check_symbol_collision`, `check_test_strength`, `task_fingerprints`) in `_oss_instruct.py`. Retries wired via `max_attempts_per_seed` (default bumped 1 → 3). Post-fix audit: **RA 4.95 / TR 4.95 / OP 5.00 / RH 4.40**, zero scores ≤ 2.
+2. **Missing delivery contract in the emitted instruction.** All three real agents (Sonnet, GPT-5.3-Codex, Qwen3.6-35B) failed the exact same 3/5 sample tasks with `ModuleNotFoundError: No module named 'task_module'` at pytest collection. Every model correctly implemented the requested logic and wrote it to natural filenames (`ranged_float.py`, `fetcher.py`). Fix: append a delivery-contract paragraph to the emitted `instruction.md` at `_build_task` time. Solve rate on the previously-failing 3 tasks jumped **0/3 → 2/3** (Sonnet, `claude-code`), extrapolated matrix-solve rate **40% → 80%**.
+
+Both changes ride under `pipeline_version = "0.6.2"` in `[metadata.repo2env]`, so downstream consumers can distinguish pre-fix and post-fix tasks. All 5 iter1 gate helpers ship as tests in `tests/test_oss_instruct_gates.py`.
+
+## Anchoring gate details
+
+The gate layer in `_oss_instruct.py`:
+
+- **`detect_repo_package`** — resolves the target Python package name from `pyproject.toml` (with a fallback to standard `src/<name>` / `<name>` layouts). Special-cases `attrs` → `attr`.
+- **`list_repo_top_level_symbols`** — AST-walks the repo's package for all top-level class/def names. Used by the collision guard.
+- **`check_repo_anchoring`** — AST scan of the LLM-emitted oracle: at least one `Import`/`ImportFrom` naming the target package, and at least one imported name that appears outside its import line (rejects the "bare `import X`, never referenced" failure mode).
+- **`check_symbol_collision`** — reject candidates whose top-level class/def names are already in the repo (blocks `grep`-and-re-export cheats).
+- **`check_test_strength`** — reject weak tests: `<3` non-trivial `assert` statements, presence of `assert True` / literals / `x == x`, or missing `pytest.raises` on instructions that mention "raise / error / invalid".
+- **`task_fingerprints`** — dedup by problem-head (first 80 normalized chars) *and* by sorted public top-level symbol names. Overlap on either counts as duplicate (catches reworded-but-same-class variants like `RangedFloatType` shipped as both a `click.Command` and a `click.Option` binding).
+
+The synthesis prompt now names the target package explicitly and demands the oracle build on its public API. Failed candidates loop back through the retry knob rather than skipping the seed.
 
 ## Anti-contamination
 
@@ -97,10 +119,10 @@ Historic. v0.6.0 shipped experimental. Ongoing work: graded reward port (v0.9 ro
 | | |
 |---|---|
 | **Initial PR** | [#8](https://github.com/huggingface/Repo2RLEnv/pull/8) — v0.6: mutation_bugs + code_instruct (first LLM-synthesized pipelines) |
-| **Shipping release** | v0.6.0 (experimental) |
-| **Source file** | [`src/repo2rlenv/pipelines/code_instruct.py`](../../src/repo2rlenv/pipelines/code_instruct.py) |
+| **Shipping release** | v0.6.0 (experimental); hardened v0.8.6 (repo-anchoring + delivery contract + reference dataset) |
+| **Source file** | [`src/repo2rlenv/pipelines/code_instruct.py`](../../src/repo2rlenv/pipelines/code_instruct.py) · [`_oss_instruct.py`](../../src/repo2rlenv/pipelines/_oss_instruct.py) (gate helpers) |
 | **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `CodeInstructOptions` |
 | **Doc page** | [`docs/pipelines/code_instruct.md`](../pipelines/code_instruct.md) |
-| **Findings / release notes** | *(none yet — publish alongside the graded-reward + first reference dataset)* |
-| **Reference dataset** | *(none yet — bucket B of `plans/todo.md`)* |
+| **Findings / release notes** | v0.8.6 self-improvement writeup: `plans/code_instruct_audit_iter0.md`, `plans/code_instruct_audit_iter1.md`, `plans/code_instruct_audit_failure_modes.md` (gitignored working docs) |
+| **Reference dataset** | [`AdithyaSK/repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks across click, flask, requests, attrs, starlette (Sonnet-generated, oracle-verified, sample-validated 4/5 on Sonnet-solve) |
 | **Follow-up PRs** | [#55](https://github.com/huggingface/Repo2RLEnv/pull/55) fix grading-test unreachable to non-oracle agents · [#63](https://github.com/huggingface/Repo2RLEnv/pull/63) local + GitLab source · [#69](https://github.com/huggingface/Repo2RLEnv/pull/69) anti-contamination · [#75](https://github.com/huggingface/Repo2RLEnv/pull/75) / [#76](https://github.com/huggingface/Repo2RLEnv/pull/76) Harbor spec sidecar |

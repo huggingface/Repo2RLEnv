@@ -151,7 +151,9 @@ class CodeInstructOptions(_BaseOptions):
         "**/__init__.py",
     ]
     seed: int | None = None
-    max_attempts_per_seed: int = 1
+    # Repo-anchoring, symbol-collision, and test-strength gates reject a lot
+    # of the LLM's first drafts; give it a few tries per seed before moving on.
+    max_attempts_per_seed: int = 3
 
     # --- LLM ---
     llm_temperature: float = 0.7
