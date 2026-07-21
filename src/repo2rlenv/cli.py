@@ -1034,8 +1034,8 @@ def main(argv: list[str] | None = None) -> int:
     bs.add_argument("--max-seconds", type=int, default=1800)
     bs.add_argument(
         "--cache-dir",
-        default=os.environ.get("R2E_CACHE_DIR", "./envs"),
-        help="bootstrap image cache root (env: R2E_CACHE_DIR, default ./envs)",
+        default=os.environ.get("R2E_CACHE_DIR", "./workspace/bootstrap"),
+        help="bootstrap image cache root (env: R2E_CACHE_DIR, default ./workspace/bootstrap)",
     )
     bs.add_argument("--image-registry", help="e.g. ghcr.io/myorg/r2e — pushes after build")
     bs.add_argument("--platform", default="linux/amd64", choices=["linux/amd64", "linux/arm64"])
