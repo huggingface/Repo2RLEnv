@@ -8,10 +8,11 @@ with the original implementation.
 
 | | |
 |---|---|
-| Status | **shipped (v0.7)** — Python module-level functions |
+| Status | **shipped (v0.7), hardened v0.8.7** — Python module-level functions |
 | Sandbox required at gen | Yes |
-| LLM required at gen | Yes (writes the test only) |
+| LLM required at gen | Yes (writes the test only; retries with feedback on failure) |
 | Reward kinds emitted | `test_execution` |
+| Reference dataset | *pending v0.8.8 — the 5-repo (click/flask/requests/attrs/starlette) survey yielded only ~8 pure candidates combined; surveying a broader utility-lib set* |
 | Inspiration | [R2E](https://github.com/r2e-project/r2e) (ICML '24) |
 
 ## What's different vs `code_instruct`
@@ -31,13 +32,30 @@ working code, not LLM-imagined behavior.
 ```mermaid
 flowchart TD
     A[Repo URL] --> B[bootstrap: build env at HEAD]
-    B --> C[Walk Python files →<br/>extract module-level fns<br/>matching LOC + filter rules]
-    C --> D[LLM: write pytest test<br/>importing <name> and<br/>reference_<name> from task_module]
+    B --> C[Walk Python files → extract module-level fns<br/>matching LOC + purity + self-containment filters]
+    C --> D[LLM: write pytest test<br/>importing <name> and reference_<name> from task_module]
     D --> E[Syntactic: test uses both names?]
-    E --> F[Stage A: <name> stubbed →<br/>test must FAIL]
-    F --> G[Stage B: <name> = reference_<name><br/>= original → test must PASS]
-    G --> H[Emit Harbor task<br/>(adds task_module.py + test_r2e_<hash>.py)]
+    E --> F[Equivalence-test-strength gate:<br/>≥5 distinct test_* fns, no assert True]
+    F --> G[Dedup: fn-name + test-body fingerprint]
+    G --> H[Pre-flight: strip annotations, verify importability]
+    H --> I[Stage A: <name> stubbed → test must FAIL]
+    I --> J[Stage B: <name> = reference_<name> = original<br/>→ test must PASS]
+    J --> K{gate/verify OK?}
+    K -- no --> D
+    K -- yes --> L[Emit Harbor task]
 ```
+
+**Quality gates (added v0.8.7)** — the v0.7 pipeline emitted the full source in the instruction (leak) and never retried a failing candidate. Baseline audit found 97% of extracted candidates failed Stage-B with `oracle_does_not_satisfy_test` because the standalone `task_module.py` we bake couldn't import (referenced click-internal types like `Argument`, `FC`). The v0.8.7 pass layers:
+
+- **Leak-free instruction** — signature + docstring + `...` body only (via `signature_only_source` in `_eval_script.py`). Agent no longer sees the reference implementation in `instruction.md`.
+- **Recursion-safe rename** — `rename_function_ast` uses `ast.unparse` instead of a regex on the `def` line, so recursive functions actually recurse on the renamed name.
+- **Annotation strip at bake time** — `def foo(x: Argument) -> FC` → `def foo(x)` before writing `task_module.py`. Annotations are decorative at runtime, so this doesn't change behaviour, but it makes the standalone module importable even when the original signature referenced repo-internal types.
+- **Purity + self-containment filter** — extractor now rejects functions whose bodies reference names outside stdlib + own args + a small allowlist. Turns off the whole "task_module.py fails to import" tail. On click this cuts extractable candidates 32 → 2, but every survivor is actually verifiable.
+- **`is_module_importable` pre-flight** — before spending sandbox time, compile the baked stub and check every top-level Name resolves. Catches remaining bad candidates cheaply.
+- **Retry with feedback** — `max_attempts_per_function` (default now `3`, was documented but not wired pre-v0.8.7). On Stage-B failure, the last 1200 chars of the failure log are fed back to the LLM in the next attempt so it can pick better inputs.
+- **Test-strength gate** — `check_equivalence_test_strength` rejects tests with fewer than 5 `def test_*` functions, functions that don't reference both names, or `assert True` / trivial constant asserts.
+- **Task dedup** — `_equivalence_fingerprint` (function name + normalized test-body hash) catches the LLM re-emitting the same test suite on retry.
+- **Debug dumps** — every skipped candidate writes its last-attempt test + Stage-B log to `<out_dir>/.debug_skips/<fn_name>/` so failure-mode audits don't need a full pipeline re-run.
 
 ## Function extractor (R2E-style filters)
 

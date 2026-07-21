@@ -1,8 +1,8 @@
 # RFC 0005: `equivalence_tests`
 
-**Status:** implemented (experimental)
+**Status:** implemented (experimental) — hardened v0.8.7 (leak fix, retry, gates, purity + importability filters)
 **Author:** `@adithya-s-k`
-**Created:** 2026-05-01 *(retrospective — pipeline shipped in v0.7.0; RFC written 2026-07-15 as archival record)*
+**Created:** 2026-05-01 *(retrospective — pipeline shipped in v0.7.0; RFC written 2026-07-15 as archival record; updated 2026-07-22 for v0.8.7 self-improvement pass)*
 
 ## Summary
 
@@ -44,6 +44,28 @@ The counter-argument: it's Python-only and function-level, so the coverage is na
 - **Non-tamper** — same reset + reapply pattern.
 
 **Known limitation**: reward is binary. Graded port on the v0.9 roadmap.
+
+## v0.8.7 self-improvement pass (2026-07-22)
+
+Baseline audit + smoke on `pallets/click` surfaced two dominant failure modes that made the pipeline effectively unusable end-to-end:
+
+1. **Instruction leak.** `_build_instruction` embedded the full reference source in `instruction.md`, so any solving agent could copy the oracle verbatim. The RFC claimed "signature + docstring only" but the code shipped the whole body.
+2. **`oracle_does_not_satisfy_test` at 97% skip rate.** Root cause was NOT weak LLM tests — it was that `task_module.py` failed to *import*. The extractor happily picked functions whose signatures annotated params with repo-internal types (e.g. `def argument(*param_decls: str, cls: type[Argument] | None = None) -> Callable[[FC], FC]`) that don't exist in the standalone stub. The sandboxed pytest never reached the LLM's assertions; it crashed at collection with `NameError: name 'Argument' is not defined`.
+
+Both are pipeline bugs, not model-capability issues. Fixes shipped on the `equivalence-tests-selfimprove` branch:
+
+- **Leak fix** — `_build_instruction` now uses the new `signature_only_source` helper (in `_eval_script.py`) to emit `def name(args): """docstring""" ...` — no body. Instruction cleanly points the agent at `reference_<name>` in the mounted `task_module.py`.
+- **Retry with feedback** — the previously-dead `max_attempts_per_function` knob is wired into the run loop. Default bumped `1 → 3`. On Stage-A/B failure, the last ~1200 chars of the failure log are fed back to the LLM in the next attempt so it can pick better inputs.
+- **Purity + self-containment filter** — `_function_extractor.py` gained `_references_only_safe_names`, a scope-aware AST check requiring the body to reference only its own args, Python builtins, and a small stdlib allowlist. Combined with the pre-existing `_BODY_SIDE_EFFECT_PATTERNS` (extended with click/flask context patterns, `sys.stdout/stderr/stdin`, `random.*`, `datetime.now`, `time.sleep`, `warnings.warn`, `tempfile`, `threading`, `asyncio`, `uuid`, `secrets`), this cuts the candidate list to functions that can plausibly be equivalence-tested standalone.
+- **Annotation-strip at bake time** — `strip_annotations` in `_eval_script.py` removes all type annotations from the extracted source before writing `task_module.py`. Annotations are evaluated at def-time in Python and their unresolved Names crash import — stripping them is safe (annotations don't affect runtime behaviour) and unlocks functions whose only external refs are in the signature.
+- **`is_module_importable` pre-flight** — before spending sandbox time on Stage-A/B, the pipeline compiles the baked stub locally and checks every top-level Name resolves against builtins/known-modules. Catches any remaining bad candidates at zero cost. Emits `stub_module_not_importable` / `oracle_module_not_importable` skip reasons.
+- **Recursion-safe rename** — `rename_function_ast` (in `_eval_script.py`) uses `ast.unparse` instead of the v0.7 regex-on-the-def-line, so recursive calls in the body are rewritten too. Previously, `reference_<name>` and `<name>` both silently called the un-renamed name and Stage B trivially passed on incorrect setup.
+- **Test-strength gate** — `check_equivalence_test_strength` in `_oss_instruct.py` rejects test files with fewer than 5 `def test_*` functions, tests that reference only one of the two names, or `assert True` / trivial constant asserts.
+- **Task dedup** — `_equivalence_fingerprint` combines the function name with a hash of the normalized test body; catches the LLM re-emitting the same test suite on retry.
+- **Debug dumps** — every skipped candidate writes its last-attempt test + Stage-A/B log tails to `<out_dir>/.debug_skips/<fn_name>/` so failure-mode audits don't need a re-run.
+- **Cross-pipeline coupling cleanup** — `all_tests_passed` moved from `code_instruct.py` to `_eval_script.py`; both pipelines now import from the shared helper.
+
+**Result**: the pipeline emits valid, non-leaky tasks reliably on the candidates it accepts. The tradeoff is that the extractor's purity + importability filter is strict enough that framework-heavy repos (click, flask, starlette) yield only 0–2 pure candidates each. The 100-env reference dataset target has therefore been **deferred to v0.8.8**, contingent on surveying a broader utility-heavy repo set (packaging, itsdangerous, markupsafe, dateutil, etc.).
 
 ## Anti-contamination
 
