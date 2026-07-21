@@ -13,14 +13,94 @@ reimplement against Python stdlib only.
 
 from __future__ import annotations
 
+import ast
 import fnmatch
+import hashlib
 import logging
 import random
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Repo package detection — the LLM's oracle must import from THIS package
+# ---------------------------------------------------------------------------
+
+
+def detect_repo_package(clone_dir: Path, repo_name: str) -> str | None:
+    """Find the top-level Python package name of the target repo.
+
+    Order of attempts:
+      1. `pyproject.toml` → `[project.name]` (normalized to underscores)
+         or `[tool.poetry.name]`.
+      2. `src/<candidate>/__init__.py` for candidate in {repo_name,
+         repo_name.replace('-', '_'), 'attr'} (attrs ships as `attr`).
+      3. `<candidate>/__init__.py` at repo root, same candidates.
+
+    Returns the package name (a valid Python identifier), or None if
+    detection fails — callers should skip repo-anchoring enforcement
+    in that case rather than block generation.
+    """
+    # Try pyproject
+    py = clone_dir / "pyproject.toml"
+    if py.is_file():
+        try:
+            data = tomllib.loads(py.read_text(encoding="utf-8"))
+        except (tomllib.TOMLDecodeError, OSError):
+            data = {}
+        name = (data.get("project", {}).get("name")) or (
+            data.get("tool", {}).get("poetry", {}).get("name")
+        )
+        if name:
+            candidate = name.replace("-", "_").lower()
+            # Confirm the folder actually exists
+            for base in (clone_dir / "src" / candidate, clone_dir / candidate):
+                if (base / "__init__.py").is_file():
+                    return candidate
+    # Try well-known conventions
+    candidates: list[str] = [
+        repo_name.replace("-", "_").lower(),
+        repo_name.lower(),
+    ]
+    # attrs is packaged as `attr`
+    if repo_name.lower() in ("attrs",):
+        candidates.insert(0, "attr")
+    for candidate in candidates:
+        for base in (clone_dir / "src" / candidate, clone_dir / candidate):
+            if (base / "__init__.py").is_file():
+                return candidate
+    return None
+
+
+def list_repo_top_level_symbols(clone_dir: Path, pkg_name: str) -> set[str]:
+    """Return the set of top-level class/function names defined anywhere in
+    the repo's Python package. Used by the symbol-collision guard so that
+    the LLM's `task_module.py` doesn't reuse a name that would let an agent
+    solve the task by re-exporting the repo's own implementation.
+
+    Cheap: one AST walk per .py file under the package directory.
+    Errors are swallowed — corrupt files are treated as contributing no names.
+    """
+    for base in (clone_dir / "src" / pkg_name, clone_dir / pkg_name):
+        if base.is_dir():
+            root = base
+            break
+    else:
+        return set()
+    names: set[str] = set()
+    for py in root.rglob("*.py"):
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8", errors="replace"))
+        except (SyntaxError, OSError):
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+                names.add(node.name)
+    return names
 
 
 # ---------------------------------------------------------------------------
@@ -153,29 +233,35 @@ def has_benchmark_overlap(text: str, phrases: tuple[str, ...] = DEFAULT_BENCHMAR
 # ---------------------------------------------------------------------------
 
 
-PROMPT_SYSTEM = """You are a senior Python engineer. You will be given a code snippet from an open-source repository. Your job is to design a new, self-contained programming exercise that is INSPIRED by the snippet but does NOT require any of the repo's APIs.
+PROMPT_SYSTEM = """You are a senior Python engineer designing a programming exercise that is genuinely anchored in a specific open-source library. You will be given a code snippet from the library `{pkg_name}` and asked to produce a task that requires the solver to USE `{pkg_name}`'s public API to solve it.
+
+The goal is a task that CANNOT be solved without importing from `{pkg_name}` — a solver working in an isolated file without the library available would be stuck.
 
 Produce three sections — exactly in this order, exactly with these section headers:
 
 [Problem Description]
-A clear, self-contained problem statement. Describe the function to implement and its expected behavior. Include 1-2 examples. Avoid any specific library or framework references. Treat the reader as someone who has not seen the snippet. Keep it under 200 words.
+A clear problem statement that names `{pkg_name}` explicitly. Describe what to implement, what `{pkg_name}` primitive(s) to build on (subclass, extend, wrap, or compose), and the expected behavior. Include 1-2 short input/output examples. Under 200 words.
 
 [Test]
-A pytest test file. It MUST import from the module `task_module` (literal name, do not change it). Write 2-4 assertions covering normal cases AND edge cases. Use plain `def test_...(): assert ...` — no fixtures.
+A pytest test file. It MUST `from task_module import ...` (literal module name). Write 3-6 assertions covering normal cases AND edge cases (including at least one `pytest.raises` on an error condition). Use plain `def test_...(): assert ...` — no fixtures. The test may also import from `{pkg_name}` to construct inputs or verify behavior against the library's own types.
 
 [Solution]
-The Python source for `task_module.py` — the implementation the test will exercise. Provide a complete, runnable Python file. Do NOT import any third-party libraries; only Python stdlib is allowed.
+The Python source for `task_module.py`. It MUST contain at least one `from {pkg_name} import ...` (or `import {pkg_name}`) that is actually used by the code — subclass a `{pkg_name}` class, call a `{pkg_name}` function, wrap a `{pkg_name}` type, etc. Provide a complete, runnable Python file. Beyond `{pkg_name}` and the Python stdlib, do NOT import any other third-party libraries.
+
+Do NOT name any top-level class or function the same as an existing `{pkg_name}` public symbol — the task-module symbol must be new (e.g. prefix or suffix it so a `grep` of the library source would not find it verbatim).
 
 Output only those three sections in that order. No preamble, no closing notes."""
 
 
-PROMPT_USER_TEMPLATE = """Inspiration snippet (from `{path}`, lines {start}-{end}):
+PROMPT_USER_TEMPLATE = """Target library: `{pkg_name}`.
+
+Inspiration snippet (from `{path}`, lines {start}-{end}):
 
 ```python
 {snippet}
 ```
 
-Design a NEW, self-contained programming exercise inspired by the snippet."""
+Design a task that requires the solver to import and use `{pkg_name}`'s public API. The solution's `task_module.py` MUST contain a used `from {pkg_name} import ...` (or `import {pkg_name}`). Do not reuse any existing `{pkg_name}` symbol name for your task-module's top-level classes/functions."""
 
 
 @dataclass(slots=True)
@@ -257,3 +343,187 @@ def references_task_module(test_code: str) -> bool:
         r"^\s*(?:from\s+task_module\s+import|import\s+task_module)\b", re.MULTILINE
     )
     return bool(pattern.search(test_code))
+
+
+# ---------------------------------------------------------------------------
+# Quality gates — the four post-LLM checks
+# ---------------------------------------------------------------------------
+
+
+def check_repo_anchoring(solution_code: str, pkg_name: str) -> tuple[bool, str]:
+    """The oracle `task_module.py` must import the target repo and USE it.
+
+    Passes iff:
+      1. AST parses.
+      2. At least one `Import`/`ImportFrom` node names `pkg_name` (or a
+         submodule `pkg_name.foo`).
+      3. Any of the imported names appear in the file body (not just the
+         import line). "Used" here is a coarse substring/name check on the
+         rest of the source — cheap and catches the common failure mode of
+         a bare `import X` that never references X.
+
+    Returns (accepted, reason). Reason is empty on accept.
+    """
+    try:
+        tree = ast.parse(solution_code)
+    except SyntaxError as exc:
+        return False, f"solution_syntax_error:{exc.msg}"
+    imported: list[str] = []  # local names introduced by the imports
+    has_repo_import = False
+    import_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module and (node.module == pkg_name or node.module.startswith(f"{pkg_name}.")):
+                has_repo_import = True
+                import_lines.add(node.lineno)
+                for alias in node.names:
+                    imported.append(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == pkg_name or alias.name.startswith(f"{pkg_name}."):
+                    has_repo_import = True
+                    import_lines.add(node.lineno)
+                    imported.append(alias.asname or alias.name.split(".", 1)[0])
+    if not has_repo_import:
+        return False, "no_repo_import"
+    # Check "used" — any imported name appears outside its import line
+    lines = solution_code.splitlines()
+    body_text = "\n".join(ln for i, ln in enumerate(lines, 1) if i not in import_lines)
+    for name in imported:
+        # `*` from a star-import — impossible to verify usage; accept as used
+        if name == "*":
+            return True, ""
+        if re.search(rf"\b{re.escape(name)}\b", body_text):
+            return True, ""
+    return False, "repo_import_unused"
+
+
+def check_symbol_collision(solution_code: str, repo_symbols: set[str]) -> tuple[bool, str]:
+    """Reject if any top-level class/function name in the oracle collides
+    with a real symbol in the target repo — that lets an agent `grep`
+    the on-disk source and re-export the real implementation to pass the
+    binary test.
+    """
+    try:
+        tree = ast.parse(solution_code)
+    except SyntaxError:
+        # already caught by anchoring check; don't double-report
+        return True, ""
+    for node in tree.body:
+        if (
+            isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name in repo_symbols
+        ):
+            return False, f"symbol_collides_with_repo:{node.name}"
+    return True, ""
+
+
+_ASSERT_TRIVIAL_RE = re.compile(
+    r"^\s*assert\s+(True|1|\".+\"|'.+')\s*(?:,.*)?\s*$",
+)
+
+
+def check_test_strength(test_code: str, instruction: str) -> tuple[bool, str]:
+    """Reject test files that are too weak to be worth grading.
+
+    Rules:
+      1. Parses cleanly.
+      2. At least 3 top-level `test_*` `def`s OR one `test_*` def with
+         ≥3 non-trivial `assert` statements. (Multiple tests preferred.)
+      3. Total non-trivial `assert` statements across the file ≥ 3.
+      4. If the instruction mentions an error condition (raise/error/
+         invalid/must not/reject), the test file must contain at least
+         one `pytest.raises(...)` block.
+      5. No `assert True` / `assert 1` / `assert "literal"`.
+    """
+    try:
+        tree = ast.parse(test_code)
+    except SyntaxError as exc:
+        return False, f"test_syntax_error:{exc.msg}"
+    test_fns: list[ast.FunctionDef] = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            test_fns.append(node)
+    if not test_fns:
+        return False, "no_test_functions"
+
+    total_asserts = 0
+    trivial_asserts = 0
+    for fn in test_fns:
+        for sub in ast.walk(fn):
+            if isinstance(sub, ast.Assert):
+                total_asserts += 1
+                # `assert True`, `assert False`, `assert <literal>`
+                test = sub.test
+                if isinstance(test, ast.Constant):
+                    if test.value in (True, False) or isinstance(test.value, (int, str)):
+                        trivial_asserts += 1
+                # `assert x == x`
+                elif (
+                    isinstance(test, ast.Compare)
+                    and isinstance(test.left, ast.Name)
+                    and len(test.comparators) == 1
+                    and isinstance(test.comparators[0], ast.Name)
+                    and test.left.id == test.comparators[0].id
+                ):
+                    trivial_asserts += 1
+
+    non_trivial = total_asserts - trivial_asserts
+    if trivial_asserts > 0:
+        return False, "trivial_assert_present"
+    if non_trivial < 3:
+        return False, "too_few_asserts"
+
+    # Error-branch coverage
+    err_re = re.compile(r"\b(?:raise|error|invalid|must not|reject|forbidden)\b", re.IGNORECASE)
+    if (
+        err_re.search(instruction)
+        and "pytest.raises" not in test_code
+        and "raises(" not in test_code
+    ):
+        return False, "missing_pytest_raises"
+
+    return True, ""
+
+
+def task_fingerprints(problem: str, solution_code: str = "") -> set[str]:
+    """Return the set of dedup signals for a candidate task.
+
+    Two independent signals — a match on EITHER counts as a duplicate:
+      1. Problem-statement head (first 80 normalized chars) — catches
+         reworded-but-same-task drift.
+      2. Sorted top-level public symbol names in the oracle — catches the
+         opposite failure mode where the LLM keeps the same class (e.g.
+         `RangedFloatType`) but reframes the problem statement.
+
+    Private/dunder names are ignored so that internal helper renames
+    don't split an otherwise-duplicate task into two fingerprints.
+    """
+    fps: set[str] = set()
+    norm = re.sub(r"\s+", " ", problem.strip().lower())
+    fps.add("p:" + hashlib.sha256(norm[:80].encode("utf-8")).hexdigest()[:16])
+    if solution_code:
+        try:
+            tree = ast.parse(solution_code)
+        except SyntaxError:
+            return fps
+        symbols = sorted(
+            n.name
+            for n in tree.body
+            if isinstance(n, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+            and not n.name.startswith("_")
+        )
+        if symbols:
+            fps.add("s:" + hashlib.sha256(",".join(symbols).encode("utf-8")).hexdigest()[:16])
+    return fps
+
+
+def task_fingerprint(problem: str, solution_code: str = "") -> str:
+    """Legacy single-fingerprint (problem-only) — kept for compat.
+
+    New callers should use `task_fingerprints` which returns a set of
+    independent signals covering both problem-rewording and shared-class
+    duplication modes.
+    """
+    norm = re.sub(r"\s+", " ", problem.strip().lower())
+    return hashlib.sha256(norm[:80].encode("utf-8")).hexdigest()[:16]

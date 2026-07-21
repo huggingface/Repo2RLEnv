@@ -59,11 +59,17 @@ from repo2rlenv.pipelines._oss_instruct import (
     PROMPT_USER_TEMPLATE,
     ParsedTask,
     Seed,
+    check_repo_anchoring,
+    check_symbol_collision,
+    check_test_strength,
+    detect_repo_package,
     has_benchmark_overlap,
+    list_repo_top_level_symbols,
     list_source_files,
     parse_task_response,
     references_task_module,
     sample_seed,
+    task_fingerprints,
 )
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.spec.input import GenerationInput, PipelineName
@@ -209,6 +215,26 @@ class CodeInstructPipeline:
             )
             logger.info("code_instruct: %d candidate source files", len(source_files))
 
+            # Repo-anchoring context: which Python package should the LLM import,
+            # and which top-level symbols already exist in it (collision guard).
+            pkg_name = detect_repo_package(clone_dir, name)
+            if pkg_name is None:
+                logger.warning(
+                    "code_instruct: could not detect Python package for %s — "
+                    "repo-anchoring gate will be skipped",
+                    owner_name,
+                )
+                repo_symbols: set[str] = set()
+            else:
+                logger.info("code_instruct: target package `%s`", pkg_name)
+                repo_symbols = list_repo_top_level_symbols(clone_dir, pkg_name)
+                logger.info(
+                    "code_instruct: %d top-level symbols in `%s` (collision guard)",
+                    len(repo_symbols),
+                    pkg_name,
+                )
+            seen_fingerprints: set[str] = set()
+
             try:
                 if not self.options.skip_validation:
                     sandbox = self._start_sandbox()
@@ -235,30 +261,58 @@ class CodeInstructPipeline:
                         continue
                     label = f"{owner_name}:{seed.relative_path}#{seed.start_line}-{seed.end_line}"
 
-                    parsed = self._llm_synthesize(seed)
-                    if parsed is None:
-                        skip_reasons["llm_parse_failed"] = (
-                            skip_reasons.get("llm_parse_failed", 0) + 1
-                        )
-                        self._emit_progress(label, "skip", "llm_parse_failed")
-                        continue
-
-                    # Decontamination
-                    if not self.options.skip_decontamination:
-                        joined = parsed.problem + "\n" + parsed.solution_code
-                        if has_benchmark_overlap(joined):
-                            skip_reasons["benchmark_overlap"] = (
-                                skip_reasons.get("benchmark_overlap", 0) + 1
-                            )
-                            self._emit_progress(label, "skip", "benchmark_overlap")
+                    # Retry the LLM call up to N times per seed. If any attempt
+                    # produces a candidate that passes all gates, we advance.
+                    parsed = None
+                    last_skip_reason = ""
+                    for attempt in range(max(1, self.options.max_attempts_per_seed)):
+                        candidate = self._llm_synthesize(seed, pkg_name=pkg_name)
+                        if candidate is None:
+                            last_skip_reason = "llm_parse_failed"
                             continue
+                        # Decontamination
+                        if not self.options.skip_decontamination:
+                            joined = candidate.problem + "\n" + candidate.solution_code
+                            if has_benchmark_overlap(joined):
+                                last_skip_reason = "benchmark_overlap"
+                                continue
+                        # Syntactic: test must reference task_module
+                        if not references_task_module(candidate.test_code):
+                            last_skip_reason = "test_does_not_use_task_module"
+                            continue
+                        # Repo-anchoring gate (skip if we couldn't detect the package)
+                        if pkg_name is not None:
+                            ok, reason = check_repo_anchoring(candidate.solution_code, pkg_name)
+                            if not ok:
+                                last_skip_reason = reason
+                                continue
+                            ok, reason = check_symbol_collision(
+                                candidate.solution_code, repo_symbols
+                            )
+                            if not ok:
+                                last_skip_reason = reason
+                                continue
+                        # Test-strength gate
+                        ok, reason = check_test_strength(candidate.test_code, candidate.problem)
+                        if not ok:
+                            last_skip_reason = reason
+                            continue
+                        # Dedup against already-emitted tasks in this run.
+                        # ANY overlap of fingerprints (problem-head OR
+                        # symbol-set) counts as a duplicate.
+                        fps = task_fingerprints(candidate.problem, candidate.solution_code)
+                        if fps & seen_fingerprints:
+                            last_skip_reason = "duplicate_task"
+                            continue
+                        # All gates passed
+                        parsed = candidate
+                        parsed_fps = fps
+                        logger.debug("seed %s accepted on attempt %d", label, attempt + 1)
+                        break
 
-                    # Syntactic: test must reference task_module
-                    if not references_task_module(parsed.test_code):
-                        skip_reasons["test_does_not_use_task_module"] = (
-                            skip_reasons.get("test_does_not_use_task_module", 0) + 1
-                        )
-                        self._emit_progress(label, "skip", "test_does_not_use_task_module")
+                    if parsed is None:
+                        skip_reasons[last_skip_reason] = skip_reasons.get(last_skip_reason, 0) + 1
+                        self._emit_progress(label, "skip", last_skip_reason)
                         continue
 
                     # Sandbox verification
@@ -273,6 +327,7 @@ class CodeInstructPipeline:
                     # Emit
                     task = self._build_task(seed, parsed, test_filename=test_filename)
                     write_harbor_task(task, out_dir)
+                    seen_fingerprints.update(parsed_fps)
                     emitted += 1
                     logger.info("emitted task %s (seed=%s)", task.name, seed.relative_path)
                     self._emit_progress(task.name, "emit")
@@ -291,8 +346,15 @@ class CodeInstructPipeline:
 
     # ----- LLM ---------------------------------------------------------------
 
-    def _llm_synthesize(self, seed: Seed) -> ParsedTask | None:
+    def _llm_synthesize(self, seed: Seed, *, pkg_name: str | None) -> ParsedTask | None:
+        # If we couldn't detect the target package, we still fall back to a
+        # library-agnostic prompt so single-file / plain-repo cases don't
+        # bring the pipeline to a halt. The anchoring gate is skipped in
+        # that path (see run()).
+        effective_pkg = pkg_name or "the target library"
+        system = PROMPT_SYSTEM.format(pkg_name=effective_pkg)
         user = PROMPT_USER_TEMPLATE.format(
+            pkg_name=effective_pkg,
             path=seed.relative_path,
             start=seed.start_line,
             end=seed.end_line,
@@ -301,7 +363,7 @@ class CodeInstructPipeline:
         try:
             resp = complete(
                 self.input.llm,
-                system=PROMPT_SYSTEM,
+                system=system,
                 user=user,
                 max_tokens=self.options.max_llm_tokens,
                 temperature=self.options.llm_temperature,
@@ -432,7 +494,7 @@ class CodeInstructPipeline:
 
         repo2env = {
             "pipeline": "code_instruct",
-            "pipeline_version": "0.6.0",
+            "pipeline_version": "0.6.1",
             "repo": f"{owner}/{name}",
             "ref": self.input.repo.ref,
             "reference": (
