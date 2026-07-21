@@ -2,6 +2,8 @@
 
 Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](../../src/repo2rlenv/pipelines/pr_diff.py) as the canonical reference implementation throughout.
 
+> **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/README.md). The RFC captures *why* the pipeline exists in the shape it does — motivation, verification approach, contamination story, LLM use, yield expectations — and lets the design be reviewed without the implementation blur. Small reshapes of an existing pipeline don't need one; new `PipelineName` entries always do. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md` and land the RFC first, then follow this cookbook.
+
 ## What you're building
 
 A class that:
