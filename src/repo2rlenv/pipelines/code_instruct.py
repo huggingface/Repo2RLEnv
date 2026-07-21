@@ -494,7 +494,7 @@ class CodeInstructPipeline:
 
         repo2env = {
             "pipeline": "code_instruct",
-            "pipeline_version": "0.6.1",
+            "pipeline_version": "0.6.2",
             "repo": f"{owner}/{name}",
             "ref": self.input.repo.ref,
             "reference": (
@@ -515,11 +515,27 @@ class CodeInstructPipeline:
             },
         }
 
+        # Append the filename contract to the agent-visible instruction.
+        # The LLM's problem statement never mentions `task_module.py` — models
+        # write the correct logic to naturally-named files (ranged_float.py,
+        # fetcher.py, etc.) and pytest collection fails with
+        # `ModuleNotFoundError: No module named 'task_module'`. Empirically
+        # this was ~all of the 40% non-solve rate on iter1.
+        agent_instruction = (
+            parsed.problem
+            + "\n\n---\n"
+            + "**Delivery contract**: write your implementation to "
+            + "`/workspace/task_module.py`. Do not modify any existing files "
+            + "in the repository. The grading test imports directly from "
+            + "`task_module` (i.e. `from task_module import ...`), so the "
+            + "file MUST be at that exact path and MUST expose the symbols "
+            + "the problem statement names."
+        )
         return HarborTask(
             name=task_id,
             org=self.input.output.org,
             description=parsed.problem.split("\n", 1)[0][:120],
-            instruction=parsed.problem,
+            instruction=agent_instruction,
             oracle_diff=gold_diff,
             repo2env=repo2env,
             difficulty="medium",
