@@ -75,7 +75,7 @@ Repo2RLEnv is **synthesis-only** — we generate the datasets and let Harbor run
 |---|---|---|:-:|---|
 | [**pr_diff**](pipelines/pr_diff.md) | agent writes a patch matching a real PR's diff | 6-component diff-similarity + LLM judge | stable | [`repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) |
 | [**pr_runtime**](pipelines/pr_runtime.md) | SWE-bench-style: agent's patch flips F2P tests to green | graded F2P × P2P | stable | [`repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) |
-| [**commit_runtime**](pipelines/commit_runtime.md) | commit-level SWE-Gym-style tasks | graded F2P × P2P | stable | [`repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) |
+| [**commit_runtime**](pipelines/commit_runtime.md) | commit-level SWE-Gym-style tasks | graded F2P × P2P | stable | [`repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) |
 | [**code_instruct**](pipelines/code_instruct.md) | LLM-authored coding task anchored to a real repo's API | binary `test_execution` | experimental | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) |
 | [**equivalence_tests**](pipelines/equivalence_tests.md) | R2E-style: agent implements a function equivalent to a frozen reference | binary `test_execution` | experimental | [`repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) |
 | [**cve_patches**](pipelines/cve_patches.md) | OSV-driven CVE → fix-commit as a task | graded F2P × P2P | experimental | [`repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) |

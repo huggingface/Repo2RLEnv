@@ -103,7 +103,7 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 → Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified tasks).
 
 **[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a clean, leak-free problem statement so the task isn't gameable.
-→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) (100 oracle-verified envs; Opus solves the sampled tasks).
+→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100 oracle-verified envs; Opus solves the sampled tasks).
 
 → All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments)
 

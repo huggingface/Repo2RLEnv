@@ -47,7 +47,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 |---|---|---|---|---|
 | 0001 | `pr_diff` | implemented (stable) | [0001-pr-diff.md](./0001-pr-diff.md) | [`repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181) |
 | 0002 | `pr_runtime` | implemented (stable) | [0002-pr-runtime.md](./0002-pr-runtime.md) | [`repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) |
-| 0003 | `commit_runtime` | implemented (stable) | [0003-commit-runtime.md](./0003-commit-runtime.md) | [`…commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) (100) |
+| 0003 | `commit_runtime` | implemented (stable) | [0003-commit-runtime.md](./0003-commit-runtime.md) | [`…commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100) |
 | 0004 | `code_instruct` | implemented (experimental) | [0004-code-instruct.md](./0004-code-instruct.md) | — |
 | 0005 | `equivalence_tests` | implemented (experimental) | [0005-equivalence-tests.md](./0005-equivalence-tests.md) | — |
 | 0006 | `cve_patches` | implemented (experimental) | [0006-cve-patches.md](./0006-cve-patches.md) | [`…cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) |

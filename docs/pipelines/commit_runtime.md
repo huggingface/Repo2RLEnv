@@ -4,7 +4,7 @@ R2E-Gym SWE-GEN-style PR mining: walk **commits**, not PRs. Trades signal qualit
 
 **As of v0.8.4 the problem statement is LLM-synthesized** (`synthesize_with_llm`, default on): the commit/issue text is rewritten into a clean, symptom-focused **problem statement with the solution stripped out**. This fixed the two failure modes of raw commit text — *leakage* (changelog bullets naming the fix → gameable) and *thinness* (title-only subjects → unsolvable). A `min_problem_statement_words` floor drops near-empty commits, and `max_pass_to_pass` (default 50) caps the regression set so whole-suite P2P doesn't inflate flaky-reward risk. A 100-env audit went from ~33% → **100% clean** instructions; Opus solves the sampled tasks (non-gameable: tasks that scored 1.0 only when the fix leaked now require a real solve).
 
-**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) — 100 oracle-verified envs (Python + Go). The original [`…-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 envs, pre-synthesis) is kept for comparison.
+**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) — 100 oracle-verified envs (Python + Go). The original [`…commit-runtime-test`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 envs, pre-synthesis) is kept for comparison.
 
 | | |
 |---|---|
@@ -93,7 +93,7 @@ drops toward **0** (use `pr_runtime` there instead).
 | `synthesize_with_llm` | True | **raises usable yield** — rewrites thin/leaky commit messages into clean problem statements, so borderline commits become emittable instead of being dropped as `instruction_too_thin` |
 
 **Worked example:** at ~20% yield, 100 tasks ≈ 500 commits walked. The reference
-`…-commit-runtime-v2` (100 envs) was built from a wide multi-language pool at
+`…commit-runtime-test` (100 envs) was built from a wide multi-language pool at
 `clone_depth=200` per repo — budget ~15–25 CPU-clean, non-squash repos.
 
 ## Known limitations (Arc 3 audit)
