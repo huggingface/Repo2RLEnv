@@ -8,20 +8,28 @@
 #   ./scripts/gen_equivalence_tests_100.sh              # generate only
 #   PUSH_HF=1 ./scripts/gen_equivalence_tests_100.sh    # generate + push to HF Hub
 #   HF_DATASET=YourOrg/name ./scripts/gen_equivalence_tests_100.sh   # override target
+#   TARGET=200 ./scripts/gen_equivalence_tests_100.sh   # generate more envs
 #
 # The script:
 #   - Sources ./.env for API keys (ANTHROPIC_API_KEY, HF_TOKEN, ...)
-#   - Runs repo2rlenv generate --pipeline equivalence_tests per repo, in order
-#   - STOPS AS SOON AS the total emitted count crosses 100
+#   - Runs repo2rlenv generate --pipeline equivalence_tests per repo, in
+#     order-of-candidate-density (best repos first)
+#   - STOPS AS SOON AS the total emitted count crosses $TARGET (default 100)
 #   - Bootstraps missing images on demand (first pass ≈ 5-15 min per repo);
 #     subsequent runs cache-hit
-#   - Skips repos already generated in this run (idempotent)
+#   - Skips repo subdirs already populated in this run (idempotent re-runs)
 #   - Logs to workspace/datasets/eqv-100/gen.log
 #
-# Wall clock: highly variable. First-time bootstraps dominate. Expect
-# 30-90 min end-to-end on a laptop with concurrency=1 (default).
+# Diversity: per-repo caps balance yield with dataset variety, so sympy
+# (with 143 candidates) doesn't dominate the emitted set. Sum of caps is
+# ~250 candidates, giving ~5-10x oversampling headroom at typical
+# Stage-B pass rates (~40-60%).
 #
-# LLM spend: ~$5-20 depending on retry churn on hard candidates.
+# Wall clock: highly variable. First-time bootstraps of large repos
+# (django, setuptools, sympy) can take 10-20 min each. Expect
+# 45-120 min end-to-end on a laptop with default concurrency.
+#
+# LLM spend: ~$10-25 depending on retry churn.
 
 set -euo pipefail
 
@@ -43,48 +51,72 @@ PUSH_HF="${PUSH_HF:-0}"
 TARGET="${TARGET:-100}"
 
 mkdir -p "$OUT_DIR"
-: > "$LOG"
+touch "$LOG"
 
-echo "===== equivalence_tests 100-env generation =====" | tee -a "$LOG"
+echo "===== equivalence_tests $TARGET-env generation =====" | tee -a "$LOG"
 echo "target=$TARGET  out=$OUT_DIR  push_hf=$PUSH_HF  hf_dataset=$HF_DATASET" | tee -a "$LOG"
 date | tee -a "$LOG"
 
-# Repos ordered roughly by pure-candidate density (higher first). Each entry
-# is `owner/name:per-repo-limit`. Per-repo limits are ceilings; the pipeline
-# will emit fewer if it exhausts candidates. The outer loop stops as soon as
-# the total emitted count crosses $TARGET, so extra repos in this list are
-# defensive slack.
+# Repos ordered by pure-candidate density (`walk_repo` count), with
+# per-repo caps that balance diversity. Each entry: `owner/name:cap`.
+# Sum of caps: ~250 → ~5x headroom at 40-60% Stage-B pass.
+#
+# Numbers in comments are the raw candidate counts observed during
+# the v0.8.7 audit probe (`_function_extractor.walk_repo` output).
 declare -a REPOS=(
-    "django/django:35"
-    "pypa/setuptools:25"
-    "pypa/pip:20"
-    "pytest-dev/pytest:15"
-    "sqlalchemy/sqlalchemy:15"
-    "huggingface/huggingface_hub:10"
-    "psf/black:10"
-    "tiangolo/typer:10"
-    "python-jsonschema/jsonschema:8"
-    "pallets/werkzeug:8"
-    "psf/requests:5"
-    "python-attrs/attrs:5"
-    "pallets/jinja:5"
-    "pypa/packaging:5"
-    "simplejson/simplejson:5"
-    "encode/httpx:3"
-    "pallets/click:3"
-    "encode/starlette:3"
-    "huggingface/safetensors:3"
-    "huggingface/tokenizers:3"
-    "aio-libs/yarl:3"
-    "python-hyper/h11:3"
-    "python-openxml/python-docx:3"
-    "pdm-project/pdm:3"
-    "tox-dev/tox:3"
-    "pypa/pipx:3"
-    "ronf/asyncssh:3"
-    "tiangolo/fastapi-cli:3"
-    "psf/black:3"
-    "dateutil/dateutil:3"
+    # Tier 1 — math & core utilities (huge yield)
+    "sympy/sympy:30"                  # 143 candidates
+    "mpmath/mpmath:20"                # 42
+    "hypothesisworks/hypothesis:15"   # 25
+    "more-itertools/more-itertools:12" # 15
+    "Suor/funcy:10"                   # 10
+
+    # Tier 2 — packaging / dev tools (bootstrap-cheap, well-tested)
+    "django/django:20"                # 56
+    "pypa/setuptools:15"              # 35
+    "pypa/pip:15"                     # 29
+    "pytest-dev/pytest:12"            # 15
+    "sqlalchemy/sqlalchemy:10"        # 14
+    "pygments/pygments:10"            # 14
+
+    # Tier 3 — HuggingFace ecosystem
+    "huggingface/accelerate:12"       # 17
+    "huggingface/evaluate:8"          # 9
+    "huggingface/huggingface_hub:6"   # 6
+    "huggingface/tokenizers:3"        # 2
+    "huggingface/safetensors:3"       # 1
+
+    # Tier 4 — smaller but useful utility libs
+    "psf/black:7"                     # 7
+    "tiangolo/typer:5"                # 7
+    "google/yapf:5"                   # 5
+    "python-babel/babel:5"            # 5
+    "huggingface/optimum:5"           # 5
+    "python-jsonschema/jsonschema:4"  # 4
+    "pallets/werkzeug:3"              # 3
+
+    # Tier 5 — original v0.8.7 audit set (kept for regression continuity)
+    "psf/requests:4"                  # 4
+    "python-attrs/attrs:2"            # 2
+    "pallets/jinja:2"                 # 2
+    "pypa/packaging:2"                # 2
+    "encode/httpx:2"                  # 2
+    "pallets/click:2"                 # 2
+
+    # Tier 6 — fallback single-candidate repos (only reached if we're
+    # struggling; each contributes 1 emit at most)
+    "simplejson/simplejson:1"         # 1
+    "gruns/furl:1"                    # 1
+    "lark-parser/lark:2"              # 2
+    "prompt-toolkit/python-prompt-toolkit:2" # 2
+    "python-poetry/poetry:1"          # 1
+    "MongoEngine/mongoengine:3"       # 3
+    "pypa/pipx:2"                     # 2
+    "ronf/asyncssh:2"                 # 2
+    "pdm-project/pdm:2"               # 2
+    "python-openxml/python-docx:2"    # 2
+    "encode/starlette:1"              # 0-1
+    "dateutil/dateutil:1"             # 1
 )
 
 count_emits() {
@@ -103,9 +135,10 @@ for entry in "${REPOS[@]}"; do
         break
     fi
 
-    # Skip repos already generated in this run (idempotent re-run)
-    if [ -d "$OUT_DIR/$slug" ] && [ "$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d | grep -v '.debug_skips' | wc -l | tr -d ' ')" -gt 0 ]; then
-        already=$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d | grep -v '.debug_skips' | wc -l | tr -d ' ')
+    # Idempotent re-run — skip repos already populated
+    if [ -d "$OUT_DIR/$slug" ] \
+        && [ "$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')" -gt 0 ]; then
+        already=$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')
         echo "----- $repo -> $slug: already has $already envs, skipping" | tee -a "$LOG"
         continue
     fi
@@ -168,3 +201,5 @@ uv run repo2rlenv push \
 echo "===== DONE =====" | tee -a "$LOG"
 date | tee -a "$LOG"
 echo "Dataset: https://huggingface.co/datasets/$HF_DATASET"
+echo ""
+echo "Next: ./scripts/add_to_collection.sh $HF_DATASET \"equivalence_tests v0.7.1 — <N> envs across ~30 Python utility libs\""
