@@ -147,8 +147,11 @@ declare -a REPOS=(
 )
 
 count_emits() {
+    # `|| true` on grep because grep exits 1 when no lines match, which
+    # combined with `set -e -o pipefail` at the top would kill the script
+    # silently on the first iteration (when the out dir is empty).
     find "$OUT_DIR" -maxdepth 2 -mindepth 2 -type d 2>/dev/null \
-        | grep -v '.debug_skips' | wc -l | tr -d ' '
+        | { grep -v '.debug_skips' || true; } | wc -l | tr -d ' '
 }
 
 for entry in "${REPOS[@]}"; do
@@ -163,9 +166,11 @@ for entry in "${REPOS[@]}"; do
     fi
 
     # Idempotent re-run — skip repos already populated
-    if [ -d "$OUT_DIR/$slug" ] \
-        && [ "$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')" -gt 0 ]; then
-        already=$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')
+    already=$(
+        find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
+            | { grep -v '.debug_skips' || true; } | wc -l | tr -d ' '
+    )
+    if [ -d "$OUT_DIR/$slug" ] && [ "$already" -gt 0 ]; then
         echo "----- $repo -> $slug: already has $already envs, skipping" | _out
         continue
     fi
