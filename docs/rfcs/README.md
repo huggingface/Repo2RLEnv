@@ -18,7 +18,7 @@ An RFC also front-loads the audit: writing the "how does contamination get in?" 
 
 ## Process
 
-1. **Pick a candidate** from [`plans/candidate_pipelines.md`](../../plans/candidate_pipelines.md), or propose a new one.
+1. **Pick a candidate** from [`plans/candidate_pipelines.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/candidate_pipelines.md), or propose a new one.
 2. **Copy [`TEMPLATE.md`](./TEMPLATE.md)** to `docs/rfcs/NNNN-<name>.md` (next unused 4-digit number, kebab-case name).
 3. **Fill in every section** — write "n/a" if a section genuinely doesn't apply, don't just delete it. If you don't know an answer yet, mark it `TBD` and open it in "Open questions."
 4. **PR the RFC alone** first — reviews want to look at the design without the implementation blur. RFCs at this stage should carry the label `rfc:draft` (add it via `gh pr edit --add-label rfc:draft`).
@@ -60,6 +60,6 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 
 ## Related
 
-- [`plans/candidate_pipelines.md`](../../plans/candidate_pipelines.md) — the backlog. Ranking + inspirations. RFCs are drawn from here (or a fresh proposal).
+- [`plans/candidate_pipelines.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/candidate_pipelines.md) — the backlog. Ranking + inspirations. RFCs are drawn from here (or a fresh proposal).
 - [`docs/contributing/ADDING_A_PIPELINE.md`](../contributing/ADDING_A_PIPELINE.md) — the implementation cookbook. RFC covers the *why*; the cookbook covers the *how*.
 - [`docs/reference/RELATED_WORK.md`](../reference/RELATED_WORK.md) — provenance table for shipped pipelines. Add an entry here when an RFC ships.

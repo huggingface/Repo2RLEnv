@@ -25,7 +25,7 @@ harbor run -p /tmp/pr-diff -a oracle --env docker  # → reward = 1.000
 
 Each emitted task now ships `environment/Dockerfile` + `tests/test.sh`, so `harbor run` works directly. The Dockerfile is a thin, **agent-agnostic** `python:3.12-slim` + git image with the repo cloned at `base_commit` and the oracle diff base64-baked in — Harbor's agent adapter installs whatever runtime the agent needs (claude-code / openhands / codex / aider). No bootstrap LLM agent — image builds in ~30 s.
 
-The verifier is a pure-stdlib Python module ([`_pr_diff_verifier.py`](../../../src/repo2rlenv/pipelines/_pr_diff_verifier.py)) base64-embedded in `tests/test.sh`. It captures the agent's edits via `git add -A; git diff --cached <base>` and scores them against the oracle.
+The verifier is a pure-stdlib Python module ([`_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py)) base64-embedded in `tests/test.sh`. It captures the agent's edits via `git add -A; git diff --cached <base>` and scores them against the oracle.
 
 ### 2. Six-component multi-component reward
 

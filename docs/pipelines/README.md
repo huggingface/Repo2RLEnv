@@ -207,7 +207,7 @@ these is in `plans/reward_hacking_writeups.md`.
 
 See the **[cookbook](../contributing/ADDING_A_PIPELINE.md)** for the full step-by-step walkthrough — covers the enum + Options + Pipeline class + tests + doc page, with template snippets and conventions taken from `pr_diff`.
 
-TL;DR: every pipeline must satisfy the [`Pipeline` Protocol](../../src/repo2rlenv/pipelines/base.py):
+TL;DR: every pipeline must satisfy the [`Pipeline` Protocol](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py):
 
 ```python
 class Pipeline(Protocol):

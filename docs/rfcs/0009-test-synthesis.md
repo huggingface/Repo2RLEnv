@@ -163,8 +163,8 @@ For a 100-env dataset: ~$10-15 in synthesis LLM spend, plus bootstrap amortizati
 |---|---|
 | **Initial PR** | _(pending)_ |
 | **Shipping release** | _(pending — target v0.9.x)_ |
-| **Source file** | [`src/repo2rlenv/pipelines/test_synthesis.py`](../../src/repo2rlenv/pipelines/test_synthesis.py) *(pending)* |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `TestSynthesisOptions` *(pending)* |
+| **Source file** | [`src/repo2rlenv/pipelines/test_synthesis.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/test_synthesis.py) *(pending)* |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `TestSynthesisOptions` *(pending)* |
 | **Doc page** | [`docs/pipelines/test_synthesis.md`](../pipelines/test_synthesis.md) *(pending)* |
 | **Findings / release notes** | _(pending)_ |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-test-synthesis`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-test-synthesis) *(pending)* |

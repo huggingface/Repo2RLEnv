@@ -313,7 +313,7 @@ The `max_llm_spend_usd` cap aborts the agent loop the moment the running total c
 - The bootstrap agent + sandbox primitives live under `src/repo2rlenv/bootstrap/`. Entry point: `ensure_bootstrap(repo, spec, llm)`.
 - The agent loop is a ReAct-style Thought / Action / Input parser; tools are `BASH`, `READ_FILE`, `LIST_DIR`, `SAVE_SETUP`, `GIVE_UP`.
 - Per-language hints live in `bootstrap/presets.py` and get injected into the agent's system prompt — that's where to add new languages or fix common mistakes the agent makes for a given ecosystem.
-- See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) for how to add tests + the lint/format flow.
+- See [`CONTRIBUTING.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/CONTRIBUTING.md) for how to add tests + the lint/format flow.
 
 ## See also
 

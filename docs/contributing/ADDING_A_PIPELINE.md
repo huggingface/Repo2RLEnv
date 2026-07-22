@@ -1,6 +1,6 @@
 # Cookbook: adding a new pipeline
 
-Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](../../src/repo2rlenv/pipelines/pr_diff.py) as the canonical reference implementation throughout.
+Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) as the canonical reference implementation throughout.
 
 > **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/README.md). The RFC captures *why* the pipeline exists in the shape it does — motivation, verification approach, contamination story, LLM use, yield expectations — and lets the design be reviewed without the implementation blur. Small reshapes of an existing pipeline don't need one; new `PipelineName` entries always do. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md` and land the RFC first, then follow this cookbook.
 
@@ -8,7 +8,7 @@ Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](
 
 A class that:
 
-- Implements the [`Pipeline` Protocol](../../src/repo2rlenv/pipelines/base.py)
+- Implements the [`Pipeline` Protocol](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py)
 - Validates its kwargs through a Pydantic Options model
 - Reads from a repo (using `gh` and/or `git`) and/or an LLM (via LiteLLM)
 - Optionally builds Docker envs (via Harbor for full pipelines)
@@ -27,7 +27,7 @@ The whole thing is typically 100–300 LOC. Lite (text-only) pipelines are at th
 
 ### 1. Add the enum value
 
-Edit [`src/repo2rlenv/spec/input.py`](../../src/repo2rlenv/spec/input.py):
+Edit [`src/repo2rlenv/spec/input.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/input.py):
 
 ```python
 class PipelineName(StrEnum):
@@ -38,7 +38,7 @@ class PipelineName(StrEnum):
 
 ### 2. Create the Options model
 
-Edit [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py). All Options classes inherit from `_BaseOptions` (which sets `extra="forbid"` so unknown keys raise):
+Edit [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py). All Options classes inherit from `_BaseOptions` (which sets `extra="forbid"` so unknown keys raise):
 
 ```python
 class YourPipelineOptions(_BaseOptions):
@@ -197,7 +197,7 @@ Use what already exists — don't re-invent:
 
 ### 5. Register the pipeline
 
-Edit [`src/repo2rlenv/pipelines/__init__.py`](../../src/repo2rlenv/pipelines/__init__.py):
+Edit [`src/repo2rlenv/pipelines/__init__.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/__init__.py):
 
 ```python
 from repo2rlenv.pipelines.your_pipeline import YourPipeline

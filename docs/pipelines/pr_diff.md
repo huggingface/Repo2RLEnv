@@ -10,8 +10,8 @@
 | LLM required at verify | Optional — falls back to deterministic-only when no API key |
 | Reward kinds emitted | `diff_similarity` (scored via the 6-component verifier — see below) |
 | Inspiration | [SWE-RL](https://github.com/facebookresearch/swe-rl) (Meta, NeurIPS '25) |
-| Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
-| Options model | [`PRDiffOptions`](../../src/repo2rlenv/spec/options.py) |
+| Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
+| Options model | [`PRDiffOptions`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) |
 | Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) on HF Hub |
 
 ## What it does
@@ -282,7 +282,7 @@ oracle = (task_dir / "solution" / "patch.diff").read_text()
 reward, meta = calculate_diff_similarity_reward(oracle, prediction_diff)
 ```
 
-This is the (single-component, dense) signal SWE-RL trained on. For higher fidelity, run the predicted diff through the same six-component verifier — it's a pure-stdlib module at [`_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) that can be imported directly.
+This is the (single-component, dense) signal SWE-RL trained on. For higher fidelity, run the predicted diff through the same six-component verifier — it's a pure-stdlib module at [`_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) that can be imported directly.
 
 ## Acknowledgments
 

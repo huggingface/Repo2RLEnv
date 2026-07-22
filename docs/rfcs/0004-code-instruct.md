@@ -120,8 +120,8 @@ Historic. v0.6.0 shipped experimental. Ongoing work: graded reward port (v0.9 ro
 |---|---|
 | **Initial PR** | [#8](https://github.com/huggingface/Repo2RLEnv/pull/8) — v0.6: mutation_bugs + code_instruct (first LLM-synthesized pipelines) |
 | **Shipping release** | v0.6.0 (experimental); hardened v0.8.6 (repo-anchoring + delivery contract + reference dataset) |
-| **Source file** | [`src/repo2rlenv/pipelines/code_instruct.py`](../../src/repo2rlenv/pipelines/code_instruct.py) · [`_oss_instruct.py`](../../src/repo2rlenv/pipelines/_oss_instruct.py) (gate helpers) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `CodeInstructOptions` |
+| **Source file** | [`src/repo2rlenv/pipelines/code_instruct.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/code_instruct.py) · [`_oss_instruct.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_oss_instruct.py) (gate helpers) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `CodeInstructOptions` |
 | **Doc page** | [`docs/pipelines/code_instruct.md`](../pipelines/code_instruct.md) |
 | **Findings / release notes** | v0.8.6 self-improvement writeup: `plans/code_instruct_audit_iter0.md`, `plans/code_instruct_audit_iter1.md`, `plans/code_instruct_audit_failure_modes.md` (gitignored working docs) |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks across click, flask, requests, attrs, starlette (Sonnet-generated, oracle-verified, sample-validated 4/5 on Sonnet-solve) |

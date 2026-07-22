@@ -98,9 +98,9 @@ Historic — none active.
 |---|---|
 | **Initial PR** | Multiple commits pre-#4 (`be7a0f5` renamed; earlier commits landed the pipeline) |
 | **Shipping release** | v0.1.0 |
-| **Source file** | [`src/repo2rlenv/pipelines/pr_diff.py`](../../src/repo2rlenv/pipelines/pr_diff.py) |
-| **Verifier** | [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](../../src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `PrDiffOptions` |
+| **Source file** | [`src/repo2rlenv/pipelines/pr_diff.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) |
+| **Verifier** | [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `PrDiffOptions` |
 | **Doc page** | [`docs/pipelines/pr_diff.md`](../pipelines/pr_diff.md) |
 | **Findings / release notes** | [`docs/release_notes/v0.8.3/findings-pr_diff.md`](../release_notes/v0.8.3/findings-pr_diff.md) |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 envs) |

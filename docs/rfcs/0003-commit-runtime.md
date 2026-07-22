@@ -93,8 +93,8 @@ Historic — none active.
 |---|---|
 | **Initial PR** | Landed in `ecd31f2` — "Two new pipelines: pr_stream (continuous) + commit_runtime (commit-level)" |
 | **Shipping release** | v0.5.0 (experimental); promoted to stable in v0.8.4 |
-| **Source file** | [`src/repo2rlenv/pipelines/commit_runtime.py`](../../src/repo2rlenv/pipelines/commit_runtime.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `CommitRuntimeOptions` |
+| **Source file** | [`src/repo2rlenv/pipelines/commit_runtime.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/commit_runtime.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `CommitRuntimeOptions` |
 | **Doc page** | [`docs/pipelines/commit_runtime.md`](../pipelines/commit_runtime.md) |
 | **Findings / release notes** | [`docs/release_notes/v0.8.3/findings-commit_runtime.md`](../release_notes/v0.8.3/findings-commit_runtime.md) |
 | **Reference datasets** | [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 envs, pre-synthesis) · [`AdithyaSK/repo2rlenv-commit-runtime-v2`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2) (100 envs, LLM-synthesized instructions) |

@@ -14,7 +14,7 @@ This is **Harbor's responsibility**, not Repo2RLEnv's — but understanding it m
 
 ## 1. The 25 built-in agents
 
-From [`src/harbor/models/agent/name.py`](../references/harbor/src/harbor/models/agent/name.py) — the canonical enum.
+From [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py) — the canonical enum.
 
 ### Real coding agents (22)
 
@@ -281,7 +281,7 @@ Token IDs and logprobs can be captured at two different layers, depending on how
 
 ### Path A — agent self-reports (Terminus 2)
 
-The LLM API response carries token IDs and logprobs (vLLM/SGLang return these natively; HF Router returns them per-provider — see [`references/hf_inference.md`](../references/hf_inference.md)). Agent unpacks them directly. Cleanest path; works whenever the agent and LLM endpoint cooperate.
+The LLM API response carries token IDs and logprobs (vLLM/SGLang return these natively; HF Router returns them per-provider — see [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md)). Agent unpacks them directly. Cleanest path; works whenever the agent and LLM endpoint cooperate.
 
 **Requires:**
 
@@ -341,14 +341,14 @@ For TRL specifically (HF's RL library), no official integration is shipped yet. 
 
 ## 7. References
 
-- [`src/harbor/models/agent/name.py`](../references/harbor/src/harbor/models/agent/name.py) — `AgentName` enum
-- [`src/harbor/agents/base.py`](../references/harbor/src/harbor/agents/base.py) — `BaseAgent`
-- [`src/harbor/agents/installed/base.py`](../references/harbor/src/harbor/agents/installed/base.py) — `BaseInstalledAgent`, `CliFlag`, `EnvVar`
-- [`src/harbor/agents/installed/claude_code.py`](../references/harbor/src/harbor/agents/installed/claude_code.py) — example CLI-based agent
-- [`src/harbor/agents/terminus_2/terminus_2.py`](../references/harbor/src/harbor/agents/terminus_2/terminus_2.py) — Harbor's RL-friendly reference agent
-- [`src/harbor/models/agent/rollout_detail.py`](../references/harbor/src/harbor/models/agent/rollout_detail.py) — `RolloutDetail` schema
-- [`src/harbor/agents/factory.py`](../references/harbor/src/harbor/agents/factory.py) — registration + dynamic `_AGENT_MAP`
-- [`references/hf_inference.md`](../references/hf_inference.md) — per-provider HF Router logprobs support matrix
+- [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py) — `AgentName` enum
+- [`src/harbor/agents/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/base.py) — `BaseAgent`
+- [`src/harbor/agents/installed/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/base.py) — `BaseInstalledAgent`, `CliFlag`, `EnvVar`
+- [`src/harbor/agents/installed/claude_code.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/claude_code.py) — example CLI-based agent
+- [`src/harbor/agents/terminus_2/terminus_2.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/terminus_2/terminus_2.py) — Harbor's RL-friendly reference agent
+- [`src/harbor/models/agent/rollout_detail.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/rollout_detail.py) — `RolloutDetail` schema
+- [`src/harbor/agents/factory.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/factory.py) — registration + dynamic `_AGENT_MAP`
+- [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md) — per-provider HF Router logprobs support matrix
 - [Harbor agents docs](https://www.harborframework.com/docs/agents)
 - [Terminus 2 docs](https://www.harborframework.com/docs/agents/terminus-2)
 - [SPEC.md](./SPEC.md) — Repo2RLEnv reward_kinds and how they map to this pipe

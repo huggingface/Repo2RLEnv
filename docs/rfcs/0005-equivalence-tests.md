@@ -121,8 +121,8 @@ Graded reward port + reference dataset + promotion to stable also pending, all o
 |---|---|
 | **Initial PR** | [#10](https://github.com/huggingface/Repo2RLEnv/pull/10) — v0.7: equivalence_tests + cve_patches |
 | **Shipping release** | v0.7.0 (experimental) |
-| **Source file** | [`src/repo2rlenv/pipelines/equivalence_tests.py`](../../src/repo2rlenv/pipelines/equivalence_tests.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `EquivalenceTestsOptions` |
+| **Source file** | [`src/repo2rlenv/pipelines/equivalence_tests.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/equivalence_tests.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `EquivalenceTestsOptions` |
 | **Doc page** | [`docs/pipelines/equivalence_tests.md`](../pipelines/equivalence_tests.md) |
 | **Findings / release notes** | *(none yet — publish alongside the graded-reward + iterative-refinement work)* |
 | **Reference dataset** | *(none yet — bucket B of `plans/todo.md`)* |

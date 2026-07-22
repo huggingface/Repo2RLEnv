@@ -49,7 +49,7 @@ First match wins:
 3. `$GITHUB_TOKEN`
 4. None — anonymous clone (fails with a clear error if `access="private"`)
 
-Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../../src/repo2rlenv/auth.py).
+Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/auth.py).
 
 ## Input sources (GitHub · GitLab · local)
 
@@ -61,7 +61,7 @@ Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](../../src/repo2r
 | `https://gitlab.com/owner/name` | GitLab | `repo.auth_token_env` → `$GITLAB_TOKEN` (public needs none) | clone via `oauth2:<token>@` |
 | `/abs/path`, `./rel`, `~/x`, `file://…` | Local | none (no `gh` shell-out) | canonicalized to `file://<abspath>` |
 
-Source-aware resolution lives in [`auth.py:resolve_repo_token`](../../src/repo2rlenv/auth.py); detection + capabilities in [`sources.py`](../../src/repo2rlenv/sources.py).
+Source-aware resolution lives in [`auth.py:resolve_repo_token`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/auth.py); detection + capabilities in [`sources.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/sources.py).
 
 **Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice: the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source; `pr_diff` / `pr_runtime` mine pull/merge requests so they run on **GitHub or GitLab** (gitlab.com merge requests via the REST API); `cve_patches` is GitHub-only (OSV → github.com fix-commits + the GitHub commit API).
 

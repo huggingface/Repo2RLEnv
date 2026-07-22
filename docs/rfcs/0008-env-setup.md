@@ -146,8 +146,8 @@ For a 100-env dataset across ~30 repos, budget: 30 × ~$1 = **~$30** in bootstra
 |---|---|
 | **Initial PR** | _(pending)_ |
 | **Shipping release** | _(pending — target v0.9.0)_ |
-| **Source file** | [`src/repo2rlenv/pipelines/env_setup.py`](../../src/repo2rlenv/pipelines/env_setup.py) *(pending)* |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `EnvSetupOptions` *(pending)* |
+| **Source file** | [`src/repo2rlenv/pipelines/env_setup.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/env_setup.py) *(pending)* |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `EnvSetupOptions` *(pending)* |
 | **Doc page** | [`docs/pipelines/env_setup.md`](../pipelines/env_setup.md) *(pending)* |
 | **Findings / release notes** | _(pending)_ |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-env-setup`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-env-setup) *(pending)* |

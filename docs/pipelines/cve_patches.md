@@ -138,7 +138,7 @@ run with the agent's web tools disabled.
 
 **Worked example:** at ~15% yield, 100 tasks ≈ ~670 in-scope CVEs spread over
 **15–20** CVE-rich, test-clean repos (≈5–8 emitted each). Use
-[`plans/cve_repo_scout.py`](../../plans/cve_repo_scout.py) to rank repos by
+[`plans/cve_repo_scout.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/cve_repo_scout.py) to rank repos by
 fix-commit-bearing CVE count straight from the OSV dump.
 
 ## `[metadata.repo2env.cve_patches]` schema

@@ -97,10 +97,10 @@ Historic — none active. The `command_resolved` / `eval_grade` split is now the
 |---|---|
 | **Initial PR** | [#4](https://github.com/huggingface/Repo2RLEnv/pull/4) — `pr_runtime` pipeline v0.3: SWE-bench-style PR mining with sandbox verification |
 | **Shipping release** | v0.3.0 |
-| **Source file** | [`src/repo2rlenv/pipelines/pr_runtime.py`](../../src/repo2rlenv/pipelines/pr_runtime.py) |
-| **Verifier** | [`src/repo2rlenv/pipelines/_pr_runtime_verifier.py`](../../src/repo2rlenv/pipelines/_pr_runtime_verifier.py) |
-| **Validation harness** | [`src/repo2rlenv/pipelines/pr_runtime_validate.py`](../../src/repo2rlenv/pipelines/pr_runtime_validate.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `PrRuntimeOptions` |
+| **Source file** | [`src/repo2rlenv/pipelines/pr_runtime.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_runtime.py) |
+| **Verifier** | [`src/repo2rlenv/pipelines/_pr_runtime_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_runtime_verifier.py) |
+| **Validation harness** | [`src/repo2rlenv/pipelines/pr_runtime_validate.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_runtime_validate.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `PrRuntimeOptions` |
 | **Doc page** | [`docs/pipelines/pr_runtime.md`](../pipelines/pr_runtime.md) |
 | **Findings / release notes** | [`docs/release_notes/v0.8.3/findings-pr_runtime.md`](../release_notes/v0.8.3/findings-pr_runtime.md) |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified envs; 100 tracked / 88 command / 87 eval_grade) |

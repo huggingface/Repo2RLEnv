@@ -1,0 +1,181 @@
+# Project information
+site_name: Repo2RLEnv
+site_url: https://huggingface.github.io/Repo2RLEnv/
+site_author: Adithya S Kolavi
+site_description: >-
+  Turn any GitHub repository into a verifiable RL training and evaluation
+  environment. End-to-end synthesis → standardize → train + eval, in the
+  Harbor task format.
+
+# Repository
+repo_name: huggingface/Repo2RLEnv
+repo_url: https://github.com/huggingface/Repo2RLEnv
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: >
+  Copyright &copy; 2026 Hugging Face — Apache-2.0 licensed —
+  <a href="https://github.com/huggingface/Repo2RLEnv" target="_blank">github.com/huggingface/Repo2RLEnv</a>
+
+# Configuration
+theme:
+  name: material
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s​\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: iso_date
+      fallback_to_build_date: true
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Anchor link to this section
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: huggingface
+      repo: Repo2RLEnv
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/huggingface/Repo2RLEnv
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/repo2rlenv/
+    - icon: material/database
+      link: https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990
+      name: Reference datasets on Hugging Face
+  version:
+    provider: mike
+    default: latest
+
+# Navigation
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Pipelines:
+      - Overview: pipelines/README.md
+      - "pr_diff (stable)": pipelines/pr_diff.md
+      - "pr_runtime (stable)": pipelines/pr_runtime.md
+      - "commit_runtime (stable)": pipelines/commit_runtime.md
+      - "code_instruct (experimental)": pipelines/code_instruct.md
+      - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
+      - "cve_patches (experimental)": pipelines/cve_patches.md
+  - RFCs:
+      - Index: rfcs/README.md
+      - "0001 — pr_diff": rfcs/0001-pr-diff.md
+      - "0002 — pr_runtime": rfcs/0002-pr-runtime.md
+      - "0003 — commit_runtime": rfcs/0003-commit-runtime.md
+      - "0004 — code_instruct": rfcs/0004-code-instruct.md
+      - "0005 — equivalence_tests": rfcs/0005-equivalence-tests.md
+      - "0006 — cve_patches": rfcs/0006-cve-patches.md
+      - "0007 — pr_to_env (draft)": rfcs/0007-pr-to-env.md
+      - "0008 — env_setup (draft)": rfcs/0008-env-setup.md
+      - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
+      - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
+      - Template: rfcs/TEMPLATE.md
+  - Reference:
+      - API: reference/API.md
+      - SPEC: reference/SPEC.md
+      - Auth: reference/AUTH.md
+      - Bootstrap: reference/BOOTSTRAP.md
+      - Agents: reference/AGENTS.md
+      - Reward schema: reference/REWARD_SCHEMA.md
+      - Environment variables: reference/ENV.md
+      - Registry auth: reference/REGISTRY_AUTH.md
+      - Related work: reference/RELATED_WORK.md
+  - Contributing:
+      - Adding a pipeline: contributing/ADDING_A_PIPELINE.md
+  - Release notes:
+      - v0.8.2.post3: release_notes/v0.8.2.post3.md

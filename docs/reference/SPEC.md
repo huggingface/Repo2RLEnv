@@ -4,7 +4,7 @@ Two contracts: what you feed Repo2RLEnv (input) and what comes out (output). Sam
 
 ## Input contract — `GenerationInput`
 
-The single root model is [`src/repo2rlenv/spec/input.py:GenerationInput`](../../src/repo2rlenv/spec/input.py). The CLI is a thin shim that builds this object from flags and/or a YAML/TOML config file.
+The single root model is [`src/repo2rlenv/spec/input.py:GenerationInput`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/input.py). The CLI is a thin shim that builds this object from flags and/or a YAML/TOML config file.
 
 ```python
 class GenerationInput(BaseModel):
@@ -172,7 +172,7 @@ harbor download <dataset-name> \
   --registry-url https://huggingface.co/datasets/<owner>/<name>/resolve/main/registry.json
 ```
 
-Implementation: [`src/repo2rlenv/hub.py:push_to_hub`](../../src/repo2rlenv/hub.py).
+Implementation: [`src/repo2rlenv/hub.py:push_to_hub`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/hub.py).
 
 ## Sandbox model — we don't have one
 
@@ -211,7 +211,7 @@ Lite pipelines never use this field. When set on a `harbor`-provider sandbox, we
 
 A task may emit both. The lite pipeline emits only `diff_similarity`; full sandbox-required pipelines emit `test_execution` (and may also emit `diff_similarity` if they capture the oracle as a diff).
 
-The diff-similarity reward function is implemented at [`src/repo2rlenv/reward.py:calculate_diff_similarity_reward`](../../src/repo2rlenv/reward.py) — pure stdlib (`difflib.SequenceMatcher`), Apache-2.0, no SWE-RL CC-BY-NC code vendored.
+The diff-similarity reward function is implemented at [`src/repo2rlenv/reward.py:calculate_diff_similarity_reward`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/reward.py) — pure stdlib (`difflib.SequenceMatcher`), Apache-2.0, no SWE-RL CC-BY-NC code vendored.
 
 ## Image distribution (v0.2.0+)
 

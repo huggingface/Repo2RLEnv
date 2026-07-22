@@ -19,7 +19,7 @@ This release upgrades `pr_runtime` from a binary pass/fail test-execution reward
 
 ### 1. Graded F2P/P2P reward (was binary)
 
-`tests/test.sh` used to write `1.0` if the suite exited 0 else `0.0`. An agent that fixed 4 of 5 failing tests scored the same `0.0` as one that fixed nothing — a poor RL gradient. A new in-container verifier ([`_pr_runtime_verifier.py`](../../../src/repo2rlenv/pipelines/_pr_runtime_verifier.py), pure stdlib, base64-baked) now scores:
+`tests/test.sh` used to write `1.0` if the suite exited 0 else `0.0`. An agent that fixed 4 of 5 failing tests scored the same `0.0` as one that fixed nothing — a poor RL gradient. A new in-container verifier ([`_pr_runtime_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_runtime_verifier.py), pure stdlib, base64-baked) now scores:
 
 ```
 reward           = f2p_rate × p2p_rate     # f2p_rate = F2P now passing / total

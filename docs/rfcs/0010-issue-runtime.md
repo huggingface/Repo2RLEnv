@@ -170,8 +170,8 @@ For a 100-env dataset with `strip_maintainer_hints=False`: ~$0 in synthesis cost
 |---|---|
 | **Initial PR** | _(pending)_ |
 | **Shipping release** | _(pending — target v0.9.x)_ |
-| **Source file** | [`src/repo2rlenv/pipelines/issue_runtime.py`](../../src/repo2rlenv/pipelines/issue_runtime.py) *(pending)* |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `IssueRuntimeOptions` *(pending)* |
+| **Source file** | [`src/repo2rlenv/pipelines/issue_runtime.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/issue_runtime.py) *(pending)* |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `IssueRuntimeOptions` *(pending)* |
 | **Doc page** | [`docs/pipelines/issue_runtime.md`](../pipelines/issue_runtime.md) *(pending)* |
 | **Findings / release notes** | _(pending)_ |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-issue-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-issue-runtime) *(pending)* |

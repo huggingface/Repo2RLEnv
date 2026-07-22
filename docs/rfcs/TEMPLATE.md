@@ -107,8 +107,8 @@ The lifecycle any new pipeline goes through, adapted to yours:
 |---|---|
 | **Initial PR** | (link) |
 | **Shipping release** | v?.?.? |
-| **Source file** | [`src/repo2rlenv/pipelines/<name>.py`](../../src/repo2rlenv/pipelines/<name>.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](../../src/repo2rlenv/spec/options.py) — `<Name>Options` |
+| **Source file** | [`src/repo2rlenv/pipelines/<name>.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/<name>.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `<Name>Options` |
 | **Doc page** | [`docs/pipelines/<name>.md`](../pipelines/<name>.md) |
 | **Findings / release notes** | [`docs/release_notes/v?.?.?/findings-<name>.md`](../release_notes/) *(if published)* |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-<name>`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-<name>) *(if published)* |

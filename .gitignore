@@ -235,3 +235,6 @@ demo_*.sh
 .claude/
 workspace/
 .DS_Store
+
+# MkDocs build output
+site/
