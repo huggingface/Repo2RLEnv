@@ -5,10 +5,19 @@
 # utility-heavy Python repos, then (optionally) push to HF Hub.
 #
 # Usage:
-#   ./scripts/gen_equivalence_tests_100.sh              # generate only
+#   ./scripts/gen_equivalence_tests_100.sh              # generate only, WITH Rich UI
 #   PUSH_HF=1 ./scripts/gen_equivalence_tests_100.sh    # generate + push to HF Hub
+#   LOG_FILE=1 ./scripts/gen_equivalence_tests_100.sh   # capture output to gen.log (no UI)
 #   HF_DATASET=YourOrg/name ./scripts/gen_equivalence_tests_100.sh   # override target
 #   TARGET=200 ./scripts/gen_equivalence_tests_100.sh   # generate more envs
+#
+# UI vs log tradeoff:
+#   * Default: Rich UI streams to your terminal (Live panel, colored logs).
+#     No file capture — if the run dies, terminal scrollback is your only
+#     record.
+#   * `LOG_FILE=1`: tee output to workspace/datasets/eqv-100/gen.log.
+#     Rich auto-degrades to plain text when stdout is a pipe, so you lose
+#     the panel but gain a persistent, greppable log.
 #
 # The script:
 #   - Sources ./.env for API keys (ANTHROPIC_API_KEY, HF_TOKEN, ...)
@@ -49,13 +58,31 @@ LOG="$OUT_DIR/gen.log"
 HF_DATASET="${HF_DATASET:-AdithyaSK/repo2rlenv-equivalence-tests}"
 PUSH_HF="${PUSH_HF:-0}"
 TARGET="${TARGET:-100}"
+LOG_FILE="${LOG_FILE:-0}"
 
 mkdir -p "$OUT_DIR"
 touch "$LOG"
 
-echo "===== equivalence_tests $TARGET-env generation =====" | tee -a "$LOG"
-echo "target=$TARGET  out=$OUT_DIR  push_hf=$PUSH_HF  hf_dataset=$HF_DATASET" | tee -a "$LOG"
-date | tee -a "$LOG"
+# Helper: if LOG_FILE=1, pipe through tee; else pass through directly so
+# Rich's Live UI + colored RichHandler output reach the terminal.
+if [ "$LOG_FILE" = "1" ]; then
+    echo "===== equivalence_tests $TARGET-env generation (LOG_FILE mode) ====="  | tee -a "$LOG"
+    echo "target=$TARGET  out=$OUT_DIR  push_hf=$PUSH_HF  hf_dataset=$HF_DATASET" | tee -a "$LOG"
+    date | tee -a "$LOG"
+else
+    echo "===== equivalence_tests $TARGET-env generation (UI mode) ====="
+    echo "target=$TARGET  out=$OUT_DIR  push_hf=$PUSH_HF  hf_dataset=$HF_DATASET"
+    date
+fi
+
+# Convenience: swap `tee -a "$LOG"` in when LOG_FILE=1, else pass-through.
+_out() {
+    if [ "$LOG_FILE" = "1" ]; then
+        tee -a "$LOG"
+    else
+        cat
+    fi
+}
 
 # Repos ordered by pure-candidate density (`walk_repo` count), with
 # per-repo caps that balance diversity. Each entry: `owner/name:cap`.
@@ -131,7 +158,7 @@ for entry in "${REPOS[@]}"; do
 
     current=$(count_emits)
     if [ "$current" -ge "$TARGET" ]; then
-        echo "===== HIT $TARGET — stopping =====" | tee -a "$LOG"
+        echo "===== HIT $TARGET — stopping =====" | _out
         break
     fi
 
@@ -139,28 +166,43 @@ for entry in "${REPOS[@]}"; do
     if [ -d "$OUT_DIR/$slug" ] \
         && [ "$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')" -gt 0 ]; then
         already=$(find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | grep -v '.debug_skips' | wc -l | tr -d ' ')
-        echo "----- $repo -> $slug: already has $already envs, skipping" | tee -a "$LOG"
+        echo "----- $repo -> $slug: already has $already envs, skipping" | _out
         continue
     fi
 
-    echo "===== $repo -> $slug (limit=$limit, so far=$current/$TARGET) =====" | tee -a "$LOG"
-    date | tee -a "$LOG"
+    echo "===== $repo -> $slug (limit=$limit, so far=$current/$TARGET) =====" | _out
+    date | _out
 
-    uv run repo2rlenv generate \
-        --repo "$repo" \
-        --pipeline equivalence_tests \
-        --pipeline-opt "limit=$limit" \
-        --pipeline-opt "seed=1" \
-        --llm anthropic/claude-sonnet-4-6 \
-        --out "$OUT_DIR/$slug" 2>&1 | tee -a "$LOG" | tail -10 || {
-            echo "!! $repo generation errored — continuing to next repo" | tee -a "$LOG"
-            continue
-        }
+    if [ "$LOG_FILE" = "1" ]; then
+        # Pipe through tee for a persistent log; Rich degrades to plain text.
+        uv run repo2rlenv generate \
+            --repo "$repo" \
+            --pipeline equivalence_tests \
+            --pipeline-opt "limit=$limit" \
+            --pipeline-opt "seed=1" \
+            --llm anthropic/claude-sonnet-4-6 \
+            --out "$OUT_DIR/$slug" 2>&1 | tee -a "$LOG" | tail -12 || {
+                echo "!! $repo generation errored — continuing to next repo" | tee -a "$LOG"
+                continue
+            }
+    else
+        # No pipe: Rich sees a TTY and shows the Live UI + colored logs.
+        uv run repo2rlenv generate \
+            --repo "$repo" \
+            --pipeline equivalence_tests \
+            --pipeline-opt "limit=$limit" \
+            --pipeline-opt "seed=1" \
+            --llm anthropic/claude-sonnet-4-6 \
+            --out "$OUT_DIR/$slug" || {
+                echo "!! $repo generation errored — continuing to next repo"
+                continue
+            }
+    fi
 done
 
 final=$(count_emits)
-echo "===== GENERATION COMPLETE: $final / $TARGET envs =====" | tee -a "$LOG"
-date | tee -a "$LOG"
+echo "===== GENERATION COMPLETE: $final / $TARGET envs =====" | _out
+date | _out
 
 if [ "$final" -lt "$TARGET" ]; then
     echo "warn: only $final / $TARGET envs generated. Consider adding more repos to the REPOS array." >&2
@@ -190,16 +232,15 @@ done
 flat_count=$(find "$FLAT_DIR" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')
 echo "flat tasks: $flat_count" | tee -a "$LOG"
 
-echo "===== Pushing to $HF_DATASET =====" | tee -a "$LOG"
+echo "===== Pushing to $HF_DATASET =====" | _out
 uv run repo2rlenv push \
     "$FLAT_DIR" \
     "$HF_DATASET" \
     --inline-dockerfile \
-    --message "Repo2RLEnv: equivalence_tests v0.7.1 — $flat_count function-level equivalence-test envs across utility-heavy Python repos" \
-    2>&1 | tee -a "$LOG"
+    --message "Repo2RLEnv: equivalence_tests v0.7.1 — $flat_count function-level equivalence-test envs across utility-heavy Python repos"
 
-echo "===== DONE =====" | tee -a "$LOG"
-date | tee -a "$LOG"
+echo "===== DONE =====" | _out
+date | _out
 echo "Dataset: https://huggingface.co/datasets/$HF_DATASET"
 echo ""
 echo "Next: ./scripts/add_to_collection.sh $HF_DATASET \"equivalence_tests v0.7.1 — <N> envs across ~30 Python utility libs\""
