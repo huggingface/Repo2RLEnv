@@ -147,10 +147,11 @@ declare -a REPOS=(
 )
 
 count_emits() {
-    # `|| true` on grep because grep exits 1 when no lines match, which
-    # combined with `set -e -o pipefail` at the top would kill the script
-    # silently on the first iteration (when the out dir is empty).
-    find "$OUT_DIR" -maxdepth 2 -mindepth 2 -type d 2>/dev/null \
+    # Guards for set -euo pipefail:
+    #  * `find` returns exit 1 when the target dir doesn't exist even with
+    #    `2>/dev/null` — wrap in `|| true`.
+    #  * `grep -v` returns exit 1 when there are no lines to filter — same.
+    { find "$OUT_DIR" -maxdepth 2 -mindepth 2 -type d 2>/dev/null || true; } \
         | { grep -v '.debug_skips' || true; } | wc -l | tr -d ' '
 }
 
@@ -165,9 +166,10 @@ for entry in "${REPOS[@]}"; do
         break
     fi
 
-    # Idempotent re-run — skip repos already populated
+    # Idempotent re-run — skip repos already populated. Same
+    # find-exits-1-on-missing-path guard as count_emits above.
     already=$(
-        find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
+        { find "$OUT_DIR/$slug" -maxdepth 1 -mindepth 1 -type d 2>/dev/null || true; } \
             | { grep -v '.debug_skips' || true; } | wc -l | tr -d ' '
     )
     if [ -d "$OUT_DIR/$slug" ] && [ "$already" -gt 0 ]; then
