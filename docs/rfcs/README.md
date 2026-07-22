@@ -52,6 +52,9 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0005 | `equivalence_tests` | implemented (experimental) | [0005-equivalence-tests.md](./0005-equivalence-tests.md) | — |
 | 0006 | `cve_patches` | implemented (experimental) | [0006-cve-patches.md](./0006-cve-patches.md) | [`…cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) |
 | 0007 | `pr_to_env` | draft | [0007-pr-to-env.md](./0007-pr-to-env.md) | — |
+| 0008 | `env_setup` | draft | [0008-env-setup.md](./0008-env-setup.md) | — |
+| 0009 | `test_synthesis` | draft | [0009-test-synthesis.md](./0009-test-synthesis.md) | — |
+| 0010 | `issue_runtime` | draft | [0010-issue-runtime.md](./0010-issue-runtime.md) | — |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 
