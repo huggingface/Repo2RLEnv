@@ -11,6 +11,7 @@
   <a href="https://github.com/huggingface/Repo2RLEnv/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/huggingface/Repo2RLEnv/actions/workflows/ci.yml/badge.svg"></a>
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-green"></a>
   <a href="https://github.com/harbor-framework/harbor"><img alt="Harbor" src="https://img.shields.io/badge/spec-Harbor-FFD21F"></a>
+  <a href="https://huggingface.github.io/Repo2RLEnv/"><img alt="Docs" src="https://img.shields.io/badge/docs-live-brightgreen"></a>
 </p>
 
 <p align="center">
@@ -175,20 +176,16 @@ Full cookbook (oracle invariant, reward design, QA gate): [**`docs/contributing/
 
 ## Documentation
 
-- 🚀 [**`docs/quickstart.md`**](./docs/quickstart.md) — install → first dataset → push, in 10 minutes
-- 📖 [**`docs/pipelines/`**](./docs/pipelines/README.md) — one page per pipeline (when to use, oracle shape, options)
-- 📚 Reference contracts:
-  - [`REWARD_SCHEMA.md`](./docs/reference/REWARD_SCHEMA.md) — `reward.txt` + `reward.json` fields for every pipeline
-  - [`RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) — per-pipeline provenance + adjacent papers, datasets, and frameworks
-  - [`SPEC.md`](./docs/reference/SPEC.md) — input/output contract
-  - [`API.md`](./docs/reference/API.md) — Python API for `src/repo2rlenv/`
-  - [`AUTH.md`](./docs/reference/AUTH.md) — GitHub / HF / LLM auth resolution
-  - [`ENV.md`](./docs/reference/ENV.md) — every environment variable the tool reads, in one place
-  - [`BOOTSTRAP.md`](./docs/reference/BOOTSTRAP.md) — LLM-iterated per-repo Docker image
-  - [`AGENTS.md`](./docs/reference/AGENTS.md) — Harbor agent harnesses + RL trace plumbing
-- 🛠 [**`CONTRIBUTING.md`**](./CONTRIBUTING.md) — dev setup, PR conventions, release flow
-- 🧪 [**`ADDING_A_PIPELINE.md`**](./docs/contributing/ADDING_A_PIPELINE.md) — cookbook for shipping a new pipeline
-- 🔭 [**Harbor Visualizer**](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore and inspect any Harbor dataset pushed to the Hub
+**📖 [huggingface.github.io/Repo2RLEnv](https://huggingface.github.io/Repo2RLEnv/)** — the full docs site, built from `docs/` and refreshed on every push to `main`.
+
+Fastest jumps:
+
+- 🚀 [Quickstart](https://huggingface.github.io/Repo2RLEnv/quickstart/) — install → generate → push, in 10 min
+- 📦 [Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/) — one page per pipeline (status, oracle shape, options, yield)
+- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — design docs for every pipeline (10 total, 6 implemented + 4 draft)
+- 📚 [Reference](https://huggingface.github.io/Repo2RLEnv/reference/API/) — API, SPEC, AUTH, ENV, BOOTSTRAP, AGENTS, REWARD_SCHEMA, RELATED_WORK
+- 🛠 [Adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/) — cookbook
+- 🔭 [Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore any Harbor dataset pushed to the Hub
 
 ## Adjacent projects
 

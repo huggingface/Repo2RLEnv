@@ -238,3 +238,6 @@ workspace/
 
 # MkDocs build output
 site/
+
+# Local helper scripts (not for distribution)
+scripts/
