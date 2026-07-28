@@ -175,6 +175,7 @@ nav:
       - Environment variables: reference/ENV.md
       - Registry auth: reference/REGISTRY_AUTH.md
       - Related work: reference/RELATED_WORK.md
+      - OpenEnv compatibility: reference/OPENENV.md
   - Contributing:
       - Adding a pipeline: contributing/ADDING_A_PIPELINE.md
   - Release notes:

@@ -155,6 +155,7 @@ A dataset that:
 - **Is verifiable** — every task carries an executable test (`test_execution`) or a stored oracle diff (`diff_similarity`); your trainer picks the reward type.
 - **Is content-addressed** — a `content_hash` over each task; identical artifacts ⇒ identical hash.
 - **Trains anywhere via Harbor** — TRL, SkyRL, Prime-RL, Tinker, Miles, Slime, harbor.rl.
+- **Runs on OpenEnv unchanged** — [OpenEnv](https://github.com/huggingface/OpenEnv)'s `harbor_env` serves the emitted task dirs as Gymnasium-style environments, forwarding the verifier's reward. No export step. See [OpenEnv compatibility](./docs/reference/OPENENV.md).
 - **Evaluates with any agent harness** — Claude Code, OpenHands, Codex CLI, Gemini CLI, …
 - **Is language-agnostic by spec** — runtime pipelines emit a Dockerfile + shell verifier; `pr_diff` is pure text and works for any language.
 - **Publishes natively** to the Hub — `repo2rlenv push` writes a Harbor-compatible `registry.json` so consumers `harbor download` (or `repo2rlenv pull`) with zero glue.
@@ -193,7 +194,8 @@ Fastest jumps:
 - [**RepoLaunch**](https://github.com/microsoft/RepoLaunch) (Microsoft) — LLM-agent env setup; our `bootstrap` is an independent reimplementation
 - [**OpenReward**](https://docs.openreward.ai) — ORS protocol + extra trainer integrations above Harbor
 - [**SWE-Gym**](https://github.com/SWE-Gym/SWE-Gym) — RL-environment framing for SWE-bench-style tasks
-- [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect), [**OpenEnv**](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) — adjacent standardization efforts
+- [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect) — adjacent standardization effort
+- [**OpenEnv**](https://github.com/huggingface/OpenEnv) (Meta + HF) — Gymnasium-style env standard that **runs our task dirs directly** via its `harbor_env` ([compatibility guide](./docs/reference/OPENENV.md))
 
 Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and Apache-2.0 licensed. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) for the full per-pipeline provenance plus adjacent papers, datasets, and frameworks (incl. recent Microsoft and NVIDIA code-RL work).
 
