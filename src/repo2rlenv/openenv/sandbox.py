@@ -180,7 +180,14 @@ class DockerSandbox:
         stream = io.BytesIO()
         with tarfile.open(fileobj=stream, mode="w") as archive:
             for entry in sorted(source.rglob("*")):
-                archive.add(entry, arcname=entry.relative_to(source).as_posix())
+                # rglob yields directories as well as files, and `add` recurses
+                # by default — leaving it on archives every nested file once
+                # via its parent and again on its own iteration.
+                archive.add(
+                    entry,
+                    arcname=entry.relative_to(source).as_posix(),
+                    recursive=False,
+                )
         container.put_archive(destination, stream.getvalue())
 
     def mkdirs(self, *paths: str) -> None:
@@ -308,13 +315,24 @@ def resolve_within(base: str, relative: str) -> str:
     outside the checkout — in particular it cannot reach /tests or /solution.
 
     Raises:
-        ValueError: if `relative` is absolute or escapes `base`.
+        ValueError: if `relative` is empty, is absolute, names the checkout
+            itself, or escapes `base`.
     """
+    if not relative.strip():
+        raise ValueError("path must name a file relative to the working directory")
     if posixpath.isabs(relative):
         raise ValueError(f"path must be relative to the working directory: {relative!r}")
     base_norm = posixpath.normpath(base)
     target = posixpath.normpath(posixpath.join(base_norm, relative))
-    if target != base_norm and not target.startswith(base_norm.rstrip("/") + "/"):
+    if target == base_norm:
+        # "", "." and "a/.." all land here. A read would try to cat a
+        # directory; a write is worse — the target splits into ("/",
+        # "workspace"), dropping a regular file over the whole checkout.
+        raise ValueError(
+            f"path must name a file inside the working directory, not the "
+            f"directory itself: {relative!r}"
+        )
+    if not target.startswith(base_norm.rstrip("/") + "/"):
         raise ValueError(f"path escapes the working directory: {relative!r}")
     return target
 

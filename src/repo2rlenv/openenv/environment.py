@@ -98,6 +98,12 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         del seed
 
         self.close()
+        # A failed reset must not leave the previous episode in state: close()
+        # has already torn the container down, so anything read from `state`
+        # after a raise below would describe a task that is not running.
+        self._state = Repo2RLEnvState()
+        self._refresh_dataset_state()
+
         task = self.tasks.get(self._select_task_id(kwargs.get("task_id")))
         sandbox = self._sandbox_factory()
         try:

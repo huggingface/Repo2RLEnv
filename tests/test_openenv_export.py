@@ -358,14 +358,104 @@ def test_agent_paths_inside_the_workspace_resolve(relative: str):
     assert resolve_within("/workspace", relative).startswith("/workspace")
 
 
-def test_grading_and_solving_are_not_agent_actions():
-    """An agent that could grade or solve on demand would break the boundary."""
+@pytest.mark.parametrize("relative", ["", "   ", ".", "a/.."])
+def test_agent_paths_cannot_name_the_workspace_itself(relative: str):
+    """A degenerate path must not resolve to the checkout directory.
+
+    `Repo2RLEnvAction.path` defaults to "", so this is reachable by simply
+    omitting the field. A read would try to cat a directory; a write is worse —
+    the target splits into ("/", "workspace"), dropping a regular file over the
+    entire checkout.
+    """
     pytest.importorskip("openenv")
+    from repo2rlenv.openenv.sandbox import resolve_within
+
+    with pytest.raises(ValueError):
+        resolve_within("/workspace", relative)
+
+
+def test_docker_upload_dir_archives_each_entry_once(tmp_path: Path, monkeypatch):
+    """`rglob` yields directories too, and `tarfile.add` recurses by default.
+
+    Left alone, every nested file is archived once through its parent directory
+    and again on its own iteration.
+    """
+    pytest.importorskip("openenv")
+    import io
+    import tarfile
+
+    from repo2rlenv.openenv.sandbox import DockerSandbox
+
+    source = tmp_path / "tests"
+    (source / "nested").mkdir(parents=True)
+    (source / "test.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (source / "nested" / "verifier.py").write_text("x = 1\n", encoding="utf-8")
+
+    captured: dict[str, bytes] = {}
+
+    class _FakeContainer:
+        def put_archive(self, path: str, data: bytes) -> bool:
+            captured["data"] = data
+            return True
+
+    sandbox = DockerSandbox()
+    monkeypatch.setattr(sandbox, "_require_container", lambda: _FakeContainer())
+    monkeypatch.setattr(sandbox, "mkdirs", lambda *args, **kwargs: None)
+
+    sandbox.upload_dir(source, "/tests")
+
+    with tarfile.open(fileobj=io.BytesIO(captured["data"])) as archive:
+        names = archive.getnames()
+
+    assert sorted(names) == ["nested", "nested/verifier.py", "test.sh"]
+    assert len(names) == len(set(names))
+
+
+def test_failed_reset_does_not_leave_the_previous_episode_in_state(tmp_path: Path):
+    """reset() tears the container down before it can fail.
+
+    Reporting the previous task afterwards would tell a trainer an episode is
+    running when nothing is.
+    """
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
+
+    dataset = tmp_path / "ds"
+    _emit(dataset, "demo__task-1")
+    env = Repo2RLEnvEnvironment(dataset=str(dataset))
+
+    # Hand-populate state as a completed episode would leave it, without
+    # needing Docker to run one.
+    env._state.task_id = "demo__task-1"
+    env._state.workdir = "/workspace"
+    env._state.reward = 1.0
+    env._state.evaluated = True
+
+    with pytest.raises(KeyError):
+        env.reset(task_id="no-such-task")
+
+    assert env._state.task_id == ""
+    assert env._state.workdir == ""
+    assert env._state.reward is None
+    assert not env._state.evaluated
+    # The dataset listing survives — it belongs to no single episode.
+    assert env._state.task_count == 1
+
+
+def test_grading_and_solving_are_not_agent_actions():
+    """An agent that could grade or solve on demand would break the boundary.
+
+    The two sets must stay a partition of what the server actually handles: a
+    new action type nobody classified would silently read as agent-reachable.
+    """
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
     from repo2rlenv.openenv.models import AGENT_ACTIONS, CONTROL_ACTIONS
 
     assert {"exec", "read", "write"} == AGENT_ACTIONS
     assert {"evaluate", "solve"} == CONTROL_ACTIONS
     assert not (AGENT_ACTIONS & CONTROL_ACTIONS)
+    assert set(Repo2RLEnvEnvironment()._handlers) == AGENT_ACTIONS | CONTROL_ACTIONS
 
 
 def test_action_schema_rejects_unknown_action_types():

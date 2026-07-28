@@ -8,21 +8,27 @@ Shared by the client and the server; neither side imports the other.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field
 
-#: What an agent may do while solving the task.
-AGENT_ACTIONS: frozenset[str] = frozenset({"exec", "read", "write"})
+#: Actions an agent may take while solving the task.
+AgentActionType = Literal["exec", "read", "write"]
 
-#: Reserved for training orchestration. `evaluate` grades the episode and ends
-#: it; `solve` applies the task's own oracle patch. Neither belongs to the
-#: agent's action space — an agent that could grade or solve on demand would be
-#: able to end its own episode or read out the answer.
-CONTROL_ACTIONS: frozenset[str] = frozenset({"evaluate", "solve"})
+#: Actions reserved for training orchestration. `evaluate` grades the episode
+#: and ends it; `solve` applies the task's own oracle patch. Neither belongs to
+#: the agent's action space — an agent that could grade or solve on demand
+#: would be able to end its own episode or read out the answer.
+ControlActionType = Literal["evaluate", "solve"]
 
-ActionType = Literal["exec", "read", "write", "evaluate", "solve"]
+AGENT_ACTIONS: frozenset[str] = frozenset(get_args(AgentActionType))
+CONTROL_ACTIONS: frozenset[str] = frozenset(get_args(ControlActionType))
+
+#: Every action the server accepts. Composed from the two above rather than
+#: restated, so the wire schema and the agent/orchestration split cannot drift:
+#: a new action has to be classified as one or the other to exist at all.
+ActionType = AgentActionType | ControlActionType
 
 
 class Repo2RLEnvAction(Action):
