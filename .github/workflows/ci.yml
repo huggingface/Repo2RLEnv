@@ -69,6 +69,29 @@ jobs:
       - name: Run pytest
         run: uv run pytest -q
 
+  openenv:
+    name: OpenEnv runtime tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install project + dev dependencies
+        run: uv sync --group dev --frozen
+
+      # The `openenv` extra stays out of the lock so the default install and the
+      # 3.13/3.14 matrix legs stay lean; --with pulls it just for this job, which
+      # is what makes the runtime invariants (agent path confinement, the
+      # agent/orchestration split, the client wire contract) actually run in CI
+      # instead of skipping.
+      - name: Run OpenEnv export + runtime tests
+        run: uv run --with openenv --with docker pytest tests/test_openenv_export.py -q
+
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest

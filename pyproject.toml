@@ -39,6 +39,16 @@ dependencies = [
     "tomli-w>=1.2.0",
 ]
 
+[project.optional-dependencies]
+# Serve emitted datasets as OpenEnv environments (`repo2rlenv export --format
+# openenv`, `repo2rlenv.openenv`). Kept optional so the default install stays
+# lean — reading a dataset needs neither of these.
+openenv = [
+    "openenv>=0.4.1",
+    "docker>=7.1.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
 [project.scripts]
 repo2rlenv = "repo2rlenv.cli:main"
 
