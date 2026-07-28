@@ -42,8 +42,8 @@ repo2rlenv generate \
   --out ./tasks
 
 # 2. Confirm every task is solvable by its own oracle before training on it
-#    (from an OpenEnv checkout)
-PYTHONPATH=src:envs uv run python envs/harbor_env/examples/validate_taskset.py \
+#    (from an OpenEnv checkout; `--with docker` supplies the Docker SDK)
+PYTHONPATH=src:envs uv run --with docker python envs/harbor_env/examples/validate_taskset.py \
   --tasks ./tasks --mode docker
 
 # 3. Serve the task set
@@ -126,7 +126,12 @@ The task-directory shape we emit — `version = "1.0"`, `[metadata.repo2env]`,
 
 | Runtime | No-op agent | Oracle (`solution/solve.sh`) |
 |---|---|---|
-| `harbor run` (Harbor 0.20) | 0.0 | 1.0 |
+| `harbor run` (Harbor 0.20.0) | 0.0 | 1.0 |
 | OpenEnv `harbor_env`, `docker` mode | 0.0 | 1.0 |
+
+On the OpenEnv side the working directory resolves to `/workspace` from the
+image, the scalar is read from `reward.txt`, and `reward-details.json` arrives
+intact as `observation.info["reward_details"]` (F2P/P2P counts, `resolved`,
+`parse_status`).
 
 See also [Related work](./RELATED_WORK.md).
