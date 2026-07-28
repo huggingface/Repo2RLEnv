@@ -199,9 +199,13 @@ three runtimes. They agree:
 On the OpenEnv side the working directory resolves to `/workspace` from the
 image, the scalar is read from `reward.txt`, and `reward-details.json` arrives
 intact as `observation.info["reward_details"]` (F2P/P2P counts, `resolved`,
-`parse_status`). The exported environment was additionally driven end to end
-over the WebSocket API — `reset` → `write_file` → `evaluate` — taking the same
-task from 0.0 to 1.0 through an agent edit rather than the oracle.
+`parse_status`).
+
+The exported environment was verified as a *built container*, not just in
+process: `docker build` on the emitted Dockerfile, run with the host Docker
+socket mounted, then driven over the WebSocket API — `reset` → `write_file` →
+`evaluate` — taking the same task from 0.0 to 1.0 through an agent edit rather
+than the oracle.
 
 ## Where the code lives
 
