@@ -261,6 +261,45 @@ class DockerSandbox:
                 f"could not give {user!r} ownership of {list(paths)}: {result.output.strip()}"
             )
 
+    def resolve_agent_path(self, relative: str) -> str:
+        """Resolve an agent-supplied path, refusing anything outside the workdir.
+
+        Two checks, because either alone is insufficient:
+
+        1. `resolve_within` rejects absolute paths and lexical `..` escapes.
+        2. The result is canonicalized inside the container, which is the only
+           way to catch a symlink the agent planted with `exec`. Without it,
+           `ln -s /tests t` then `read path="t/test.sh"` walks straight out of
+           the working directory and reads the grader.
+
+        Raises:
+            ValueError: if the path escapes the working directory, before or
+                after symlink resolution.
+        """
+        target = resolve_within(self.paths.workdir, relative)
+        real = self.real_path(target)
+        # Canonicalize the base too — the workdir itself may sit behind a link.
+        base = self.real_path(self.paths.workdir)
+        if real != base and not real.startswith(base.rstrip("/") + "/"):
+            raise ValueError(f"path escapes the working directory through a link: {relative!r}")
+        return real
+
+    def real_path(self, path: str) -> str:
+        """Canonicalize `path` inside the container, resolving symlinks.
+
+        `readlink -m` rather than `-f`: a `write` may legitimately create
+        directories that do not exist yet, while symlinks that *do* exist are
+        still resolved, which is the only part confinement depends on.
+        """
+        result = self.exec(f"readlink -m {_quote(path)}", timeout_s=60.0)
+        canonical = result.output.strip()
+        if not result.ok or not canonical:
+            raise SandboxError(
+                f"could not canonicalize {path!r} inside the sandbox; refusing the "
+                "action rather than trusting an unresolved path"
+            )
+        return canonical
+
     def mkdirs(self, *paths: str) -> None:
         """Create directories inside the container.
 

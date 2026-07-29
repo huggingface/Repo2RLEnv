@@ -27,7 +27,7 @@ from repo2rlenv.openenv.models import (
     Repo2RLEnvObservation,
     Repo2RLEnvState,
 )
-from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult, SandboxError, resolve_within
+from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult, SandboxError
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         self, action: Repo2RLEnvAction, sandbox: DockerSandbox, task: Repo2RLEnvTask
     ) -> Repo2RLEnvObservation:
         del task
-        target = resolve_within(sandbox.paths.workdir, action.path)
+        target = sandbox.resolve_agent_path(action.path)
         content = sandbox.read_text(target, user=sandbox.agent_user)
         if content is None:
             raise FileNotFoundError(f"no such file: {action.path}")
@@ -236,7 +236,7 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         self, action: Repo2RLEnvAction, sandbox: DockerSandbox, task: Repo2RLEnvTask
     ) -> Repo2RLEnvObservation:
         del task
-        target = resolve_within(sandbox.paths.workdir, action.path)
+        target = sandbox.resolve_agent_path(action.path)
         sandbox.write_text(target, action.content, user=sandbox.agent_user)
         return self._observe("write", output=f"wrote {len(action.content)} bytes to {action.path}")
 

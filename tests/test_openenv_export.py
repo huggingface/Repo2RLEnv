@@ -680,3 +680,31 @@ def test_agent_reads_and_writes_run_as_the_declared_user(tmp_path: Path):
 
     assert seen["cat"] == "nobody"
     assert seen["printf"] == "nobody"
+
+
+def test_symlinks_cannot_walk_read_write_out_of_the_workdir(tmp_path: Path):
+    """`resolve_within` is lexical, so it cannot see a link the agent planted.
+
+    `exec ln -s /tests t` then `read path="t/test.sh"` would otherwise walk
+    straight out of the working directory and read the grader.
+    """
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult
+
+    sandbox = DockerSandbox()
+
+    def _fake_exec(command, *, timeout_s, env=None, workdir=None, user=None, **kw):
+        # Model a container where `link` points at /tests.
+        if command.startswith("readlink -m"):
+            target = command.split("'")[1]
+            resolved = target.replace("/workspace/link", "/tests")
+            return ExecResult(0, resolved + "\n")
+        return ExecResult(0, "")
+
+    sandbox.exec = _fake_exec  # type: ignore[method-assign]
+
+    with pytest.raises(ValueError, match="escapes"):
+        sandbox.resolve_agent_path("link/test.sh")
+
+    # A path that stays inside resolves normally.
+    assert sandbox.resolve_agent_path("calc.py") == "/workspace/calc.py"
