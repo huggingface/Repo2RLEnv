@@ -602,3 +602,34 @@ def test_control_actions_can_be_refused_server_side(tmp_path: Path):
         observation = env.step(Repo2RLEnvAction(action_type=action_type))
         assert not observation.success
         assert "orchestration control" in observation.error
+
+
+def test_declared_user_gets_ownership_of_what_it_must_write(tmp_path: Path):
+    """`[agent].user` is useless if the agent cannot write its own workdir.
+
+    The Harbor directories are created by the image's default account, so a
+    non-root phase inherits a tree it cannot touch.
+    """
+    pytest.importorskip("openenv")
+    from dataclasses import replace
+
+    from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult
+
+    task = replace(
+        Repo2RLEnvTask.load(_emit(tmp_path)),
+        agent_user="nobody",
+        verifier_user="nobody",
+    )
+    chowned: list[str] = []
+    sandbox = DockerSandbox()
+
+    def _fake_exec(command, *, timeout_s, env=None, workdir=None, user=None, **kw):
+        if command.startswith("chown"):
+            chowned.append(command)
+        return ExecResult(0, "")
+
+    sandbox.exec = _fake_exec  # type: ignore[method-assign]
+    sandbox.upload_dir = lambda *a, **k: None  # type: ignore[method-assign]
+    sandbox.run_verifier(task)
+
+    assert any("nobody" in c and "verifier" in c for c in chowned), chowned

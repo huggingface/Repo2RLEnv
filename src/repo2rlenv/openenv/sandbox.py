@@ -143,6 +143,10 @@ class DockerSandbox:
         self.agent_user = task.agent_user
         self.paths = SandboxPaths(workdir=task.declared_workdir or self._image_workdir(client))
         self.mkdirs(self.paths.workdir, self.paths.logs_verifier, self.paths.logs_agent)
+        # Those directories belong to the image's default account. A task that
+        # asks for [agent].user would otherwise get a working directory it
+        # cannot write to, breaking every edit the agent makes.
+        self.chown(task.agent_user, self.paths.workdir, self.paths.logs_agent)
 
     def close(self) -> None:
         """Remove the container."""
@@ -217,6 +221,21 @@ class DockerSandbox:
                 )
         container.put_archive(destination, stream.getvalue())
 
+    def chown(self, user: str | None, *paths: str) -> None:
+        """Hand `paths` to `user`, so a non-root phase can write to them.
+
+        A no-op when the task declares no user. Runs as the image's default
+        account, the only one able to change ownership.
+        """
+        if not user or not paths:
+            return
+        quoted = " ".join(_quote(path) for path in paths)
+        result = self.exec(f"chown -R {_quote(user)} {quoted}", timeout_s=120.0, workdir="/")
+        if not result.ok:
+            raise SandboxError(
+                f"could not give {user!r} ownership of {list(paths)}: {result.output.strip()}"
+            )
+
     def mkdirs(self, *paths: str) -> None:
         """Create directories inside the container.
 
@@ -248,6 +267,9 @@ class DockerSandbox:
         self.exec(f"rm -rf {_quote(self.paths.logs_verifier)}", timeout_s=60.0, workdir="/")
         self.mkdirs(self.paths.logs_verifier)
         self._replace_dir(task.tests_dir, self.paths.tests)
+        # Same reason as the working directory: a [verifier].user that cannot
+        # write its reward file would make every such task unscorable.
+        self.chown(task.verifier_user, self.paths.logs_verifier, self.paths.tests)
         script = posixpath.join(self.paths.tests, task.test_script.name)
         return self.exec(
             f"bash {_quote(script)}",
@@ -266,6 +288,7 @@ class DockerSandbox:
                 f"task {task.task_id!r} has no solution/solve.sh, so it has no oracle"
             )
         self._replace_dir(task.solution_dir, self.paths.solution)
+        self.chown(task.agent_user, self.paths.solution)
         script = posixpath.join(self.paths.solution, task.solve_script.name)
         return self.exec(
             f"bash {_quote(script)}",
