@@ -39,6 +39,14 @@ class TaskFormatError(ValueError):
     """Raised when a directory is not a well-formed Repo2RLEnv task."""
 
 
+#: Harbor's network policies, from `[environment].network_mode`.
+NETWORK_NONE = "no-network"
+NETWORK_PUBLIC = "public"
+NETWORK_ALLOWLIST = "allowlist"
+
+_NETWORK_MODES = frozenset({NETWORK_NONE, NETWORK_PUBLIC, NETWORK_ALLOWLIST})
+
+
 @dataclass(frozen=True)
 class Repo2RLEnvTask:
     """One emitted task directory, parsed.
@@ -74,6 +82,13 @@ class Repo2RLEnvTask:
     metadata: dict[str, Any] = field(default_factory=dict)
     agent_timeout_s: float = DEFAULT_AGENT_TIMEOUT_S
     verifier_timeout_s: float = DEFAULT_VERIFIER_TIMEOUT_S
+    network_mode: str = NETWORK_PUBLIC
+    cpus: int | None = None
+    memory_mb: int | None = None
+    gpus: int | None = None
+    agent_user: str | None = None
+    verifier_user: str | None = None
+    declared_workdir: str | None = None
 
     # --- layout -------------------------------------------------------------
 
@@ -175,6 +190,7 @@ class Repo2RLEnvTask:
         metadata = _table(config, "metadata")
         repo2env = _table(metadata, "repo2env")
         repro = _table(repo2env, "reproducibility")
+        environment = _table(config, "environment")
 
         instruction_path = task_dir / INSTRUCTION_FILE
         instruction = (
@@ -202,6 +218,13 @@ class Repo2RLEnvTask:
             metadata=repo2env,
             agent_timeout_s=_timeout(config, "agent", DEFAULT_AGENT_TIMEOUT_S),
             verifier_timeout_s=_timeout(config, "verifier", DEFAULT_VERIFIER_TIMEOUT_S),
+            network_mode=_network_mode(environment),
+            cpus=_positive_int(environment.get("cpus")),
+            memory_mb=_positive_int(environment.get("memory_mb")),
+            gpus=_positive_int(environment.get("gpus")),
+            agent_user=_user(_table(config, "agent").get("user")),
+            verifier_user=_user(_table(config, "verifier").get("user")),
+            declared_workdir=str(environment["workdir"]) if environment.get("workdir") else None,
         )
 
 
@@ -272,6 +295,39 @@ class TaskSet:
                 else:
                     stack.append((child, depth + 1))
         return found
+
+
+def _network_mode(environment: dict[str, Any]) -> str:
+    """Read `[environment].network_mode`, honouring the deprecated spelling.
+
+    An unrecognized value is a parse error rather than a silent downgrade to
+    `public` — quietly granting a sandboxed task the internet is exactly the
+    failure this parsing exists to prevent.
+    """
+    raw = environment.get("network_mode")
+    if raw is None:
+        return NETWORK_NONE if environment.get("allow_internet") is False else NETWORK_PUBLIC
+    mode = str(raw).strip().lower()
+    if mode not in _NETWORK_MODES:
+        raise TaskFormatError(
+            f"unknown network_mode {raw!r}; expected one of {sorted(_NETWORK_MODES)}"
+        )
+    return mode
+
+
+def _user(value: Any) -> str | None:
+    """`[agent].user` / `[verifier].user`, which Harbor allows as a name or UID."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    return str(value).strip()
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _table(config: dict[str, Any], key: str) -> dict[str, Any]:

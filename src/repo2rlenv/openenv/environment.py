@@ -21,7 +21,12 @@ from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 
 from repo2rlenv.openenv.dataset import Repo2RLEnvTask, TaskSet
-from repo2rlenv.openenv.models import Repo2RLEnvAction, Repo2RLEnvObservation, Repo2RLEnvState
+from repo2rlenv.openenv.models import (
+    CONTROL_ACTIONS,
+    Repo2RLEnvAction,
+    Repo2RLEnvObservation,
+    Repo2RLEnvState,
+)
 from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult, SandboxError, resolve_within
 
 logger = logging.getLogger(__name__)
@@ -61,10 +66,19 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         dataset: str | None = None,
         default_task_id: str | None = None,
         command_timeout_s: float = DEFAULT_COMMAND_TIMEOUT_S,
+        allow_control_actions: bool | None = None,
         sandbox_factory: Callable[[], DockerSandbox] | None = None,
     ) -> None:
         super().__init__()
         self.command_timeout_s = command_timeout_s
+        self.allow_control_actions = (
+            allow_control_actions
+            if allow_control_actions is not None
+            else (
+                os.getenv("REPO2RLENV_ALLOW_CONTROL_ACTIONS", "1").strip().lower()
+                not in {"0", "false", "no", "off"}
+            )
+        )
         self.default_task_id = default_task_id or os.getenv("REPO2RLENV_DEFAULT_TASK_ID") or None
         self._sandbox_factory = sandbox_factory or DockerSandbox
         self.tasks = TaskSet(_resolve_dataset(dataset))
@@ -125,7 +139,15 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         )
         self._refresh_dataset_state()
 
-        return self._observe("reset", output="", info={"task": task.summary()})
+        return self._observe(
+            "reset",
+            output="",
+            info={
+                "task": task.summary(),
+                # Agent-visible paths only — the observation reaches the policy.
+                "paths": sandbox.paths.as_env(agent_visible=True),
+            },
+        )
 
     def step(
         self,
@@ -143,13 +165,33 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         self._state.last_action_type = action.action_type
 
         try:
+            if self._state.evaluated:
+                # `evaluate` ends the episode. Serving further actions would let
+                # a caller step past a terminal state and, worse, report
+                # done=False after already reporting done=True.
+                raise SandboxError(
+                    "the episode ended when the verifier ran; call reset() to start another"
+                )
+            if action.action_type in CONTROL_ACTIONS and not self.allow_control_actions:
+                raise PermissionError(
+                    f"{action.action_type!r} is a training-orchestration control, not an "
+                    "agent action; the server was started with "
+                    "REPO2RLENV_ALLOW_CONTROL_ACTIONS=0"
+                )
             sandbox, task = self._require_episode()
             return self._handlers[action.action_type](action, sandbox, task)
         except Exception as exc:
             # Invalid actions and sandbox failures come back in the observation
             # so a policy can recover; only server faults propagate.
             logger.info("action %s failed: %s", action.action_type, exc)
-            return self._observe(action.action_type, output="", success=False, error=str(exc))
+            return self._observe(
+                action.action_type,
+                output="",
+                success=False,
+                error=str(exc),
+                # A terminated episode stays terminated — never walk done back.
+                done=self._state.evaluated,
+            )
 
     @property
     def state(self) -> Repo2RLEnvState:
@@ -171,7 +213,12 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         del task
         if not action.command.strip():
             raise ValueError("exec requires a non-empty command")
-        result = sandbox.exec(action.command, timeout_s=action.timeout_s or self.command_timeout_s)
+        result = sandbox.exec(
+            action.command,
+            timeout_s=action.timeout_s or self.command_timeout_s,
+            user=sandbox.agent_user,
+            agent_visible=True,
+        )
         return self._from_exec("exec", result)
 
     def _do_read(

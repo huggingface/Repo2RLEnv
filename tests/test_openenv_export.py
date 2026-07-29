@@ -17,6 +17,7 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.emitter.openenv import EmitError, write_openenv_env
 from repo2rlenv.openenv.dataset import Repo2RLEnvTask, TaskFormatError, TaskSet
 from repo2rlenv.openenv.reward import read_reward
+from repo2rlenv.openenv.sandbox import SandboxError
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -493,3 +494,111 @@ def test_client_round_trips_what_the_server_serializes():
 
     action = Repo2RLEnvAction(action_type="write", path="a.py", content="x = 1\n")
     assert Repo2RLEnvAction.model_validate(client._step_payload(action)) == action
+
+
+# ---------------------------------------------------------------------------
+# task policies and episode termination
+# ---------------------------------------------------------------------------
+
+
+def test_network_and_resource_policies_are_parsed(tmp_path: Path):
+    path = _emit(tmp_path)
+    toml_path = path / "task.toml"
+    data = tomllib.loads(toml_path.read_text())
+    data["environment"] = {
+        "network_mode": "no-network",
+        "cpus": 2,
+        "memory_mb": 512,
+        "workdir": "/srv/app",
+    }
+    data["agent"] = {"user": "agent", "timeout_sec": 1800.0}
+    toml_path.write_text(_dumps(data))
+
+    task = Repo2RLEnvTask.load(path)
+
+    assert task.network_mode == "no-network"
+    assert task.cpus == 2
+    assert task.memory_mb == 512
+    assert task.agent_user == "agent"
+    assert task.declared_workdir == "/srv/app"
+
+
+def test_unknown_network_mode_is_rejected_not_downgraded(tmp_path: Path):
+    """Treating an unrecognized mode as `public` is the bug to avoid."""
+    path = _emit(tmp_path)
+    toml_path = path / "task.toml"
+    data = tomllib.loads(toml_path.read_text())
+    data["environment"] = {"network_mode": "vpn"}
+    toml_path.write_text(_dumps(data))
+
+    with pytest.raises(TaskFormatError, match="network_mode"):
+        Repo2RLEnvTask.load(path)
+
+
+def test_container_limits_translate_declared_policies(tmp_path: Path):
+    pytest.importorskip("openenv")
+    from dataclasses import replace
+
+    from repo2rlenv.openenv.sandbox import _container_limits
+
+    task = Repo2RLEnvTask.load(_emit(tmp_path))
+
+    assert _container_limits(task) == {}
+    limits = _container_limits(replace(task, network_mode="no-network", cpus=2, memory_mb=512))
+    assert limits["network_mode"] == "none"
+    assert limits["cpu_quota"] == 200_000
+    assert limits["mem_limit"] == "512m"
+
+    with pytest.raises(SandboxError, match="allowlist"):
+        _container_limits(replace(task, network_mode="allowlist"))
+    with pytest.raises(SandboxError, match="GPU"):
+        _container_limits(replace(task, gpus=1))
+
+
+def test_agent_is_not_told_where_the_verifier_lives():
+    """`/tests` holds the grading logic and `/solution` holds the answer."""
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.sandbox import SandboxPaths
+
+    paths = SandboxPaths()
+
+    agent_view = paths.as_env(agent_visible=True)
+    assert set(agent_view) == {"HARBOR_WORKDIR", "HARBOR_AGENT_LOGS_DIR"}
+    # The verifier and oracle still get the full set.
+    assert "HARBOR_TESTS_DIR" in paths.as_env()
+    assert "HARBOR_LOGS_DIR" in paths.as_env()
+
+
+def test_episode_stays_terminal_after_evaluate(tmp_path: Path):
+    """`done` must never walk back from True to False."""
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
+    from repo2rlenv.openenv.models import Repo2RLEnvAction
+
+    dataset = tmp_path / "ds"
+    _emit(dataset, "demo__task-1")
+    env = Repo2RLEnvEnvironment(dataset=str(dataset))
+    # Mark the episode graded without needing Docker to run one.
+    env._state.evaluated = True
+
+    observation = env.step(Repo2RLEnvAction(action_type="exec", command="ls"))
+
+    assert observation.done
+    assert not observation.success
+    assert "episode ended" in observation.error
+
+
+def test_control_actions_can_be_refused_server_side(tmp_path: Path):
+    """The agent/orchestration split, enforced rather than documented."""
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
+    from repo2rlenv.openenv.models import CONTROL_ACTIONS, Repo2RLEnvAction
+
+    dataset = tmp_path / "ds"
+    _emit(dataset, "demo__task-1")
+    env = Repo2RLEnvEnvironment(dataset=str(dataset), allow_control_actions=False)
+
+    for action_type in sorted(CONTROL_ACTIONS):
+        observation = env.step(Repo2RLEnvAction(action_type=action_type))
+        assert not observation.success
+        assert "orchestration control" in observation.error

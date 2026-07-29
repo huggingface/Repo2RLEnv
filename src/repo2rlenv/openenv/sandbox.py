@@ -27,7 +27,11 @@ import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from repo2rlenv.openenv.dataset import Repo2RLEnvTask
+from repo2rlenv.openenv.dataset import (
+    NETWORK_ALLOWLIST,
+    NETWORK_NONE,
+    Repo2RLEnvTask,
+)
 from repo2rlenv.openenv.reward import RewardReport, read_reward
 
 logger = logging.getLogger(__name__)
@@ -74,18 +78,29 @@ class SandboxPaths:
     def logs_agent(self) -> str:
         return posixpath.join(self.logs, "agent")
 
-    def as_env(self) -> dict[str, str]:
+    def as_env(self, *, agent_visible: bool = False) -> dict[str, str]:
         """Path layout exported to task scripts.
 
         Harbor-lineage scripts read `TEST_DIR`; ours use absolute paths, but
         exporting both keeps third-party tasks working unchanged.
+
+        Args:
+            agent_visible: return only the paths an agent legitimately needs.
+                The verifier and oracle directories are withheld — that is where
+                the grading logic and the answer live, and only the verifier and
+                oracle themselves need to be told where they are.
         """
-        return {
+        agent_paths = {
             "HARBOR_WORKDIR": self.workdir,
+            "HARBOR_AGENT_LOGS_DIR": self.logs_agent,
+        }
+        if agent_visible:
+            return agent_paths
+        return {
+            **agent_paths,
             "HARBOR_TESTS_DIR": self.tests,
             "HARBOR_SOLUTION_DIR": self.solution,
             "HARBOR_LOGS_DIR": self.logs_verifier,
-            "HARBOR_AGENT_LOGS_DIR": self.logs_agent,
             "TEST_DIR": self.tests,
         }
 
@@ -98,6 +113,7 @@ class DockerSandbox:
     """
 
     def __init__(self, keep_container: bool = False) -> None:
+        self.agent_user: str | None = None
         self.paths = SandboxPaths()
         self.keep_container = keep_container
         self._client = None
@@ -122,8 +138,10 @@ class DockerSandbox:
             detach=True,
             labels={"repo2rlenv.task": task.task_id},
             auto_remove=False,
+            **_container_limits(task),
         )
-        self.paths = SandboxPaths(workdir=self._image_workdir(client))
+        self.agent_user = task.agent_user
+        self.paths = SandboxPaths(workdir=task.declared_workdir or self._image_workdir(client))
         self.mkdirs(self.paths.workdir, self.paths.logs_verifier, self.paths.logs_agent)
 
     def close(self) -> None:
@@ -145,15 +163,24 @@ class DockerSandbox:
         timeout_s: float,
         env: dict[str, str] | None = None,
         workdir: str | None = None,
+        user: str | None = None,
+        agent_visible: bool = False,
     ) -> ExecResult:
-        """Run `command` through bash and return its merged output."""
+        """Run `command` through bash and return its merged output.
+
+        Args:
+            user: account to run as, from `[agent].user` / `[verifier].user`.
+            agent_visible: whether this is the agent's own command. Agent
+                commands are not told where the verifier and oracle live.
+        """
         container = self._require_container()
-        process_env = dict(self.paths.as_env())
+        process_env = dict(self.paths.as_env(agent_visible=agent_visible))
         process_env.update(env or {})
         exit_code, output = container.exec_run(
             cmd=["bash", "-c", self._with_timeout(command, timeout_s)],
             workdir=workdir or self.paths.workdir,
             environment=process_env,
+            user=user or "",
             demux=False,
         )
         text = output.decode("utf-8", errors="replace") if output else ""
@@ -220,9 +247,13 @@ class DockerSandbox:
         # reward file that outlives a verifier which fails before writing one.
         self.exec(f"rm -rf {_quote(self.paths.logs_verifier)}", timeout_s=60.0, workdir="/")
         self.mkdirs(self.paths.logs_verifier)
-        self.upload_dir(task.tests_dir, self.paths.tests)
+        self._replace_dir(task.tests_dir, self.paths.tests)
         script = posixpath.join(self.paths.tests, task.test_script.name)
-        return self.exec(f"bash {_quote(script)}", timeout_s=task.verifier_timeout_s)
+        return self.exec(
+            f"bash {_quote(script)}",
+            timeout_s=task.verifier_timeout_s,
+            user=task.verifier_user,
+        )
 
     def run_solution(self, task: Repo2RLEnvTask) -> ExecResult:
         """Stage `solution/` and run `solution/solve.sh` — the oracle.
@@ -234,9 +265,22 @@ class DockerSandbox:
             raise SandboxError(
                 f"task {task.task_id!r} has no solution/solve.sh, so it has no oracle"
             )
-        self.upload_dir(task.solution_dir, self.paths.solution)
+        self._replace_dir(task.solution_dir, self.paths.solution)
         script = posixpath.join(self.paths.solution, task.solve_script.name)
-        return self.exec(f"bash {_quote(script)}", timeout_s=task.agent_timeout_s)
+        return self.exec(
+            f"bash {_quote(script)}",
+            timeout_s=task.agent_timeout_s,
+            user=task.agent_user,
+        )
+
+    def _replace_dir(self, source: Path, destination: str) -> None:
+        """Upload `source` over a freshly emptied `destination`.
+
+        The agent shares the container and can pre-create these paths; anything
+        it leaves behind must not survive into the verifier's view.
+        """
+        self.exec(f"rm -rf {_quote(destination)}", timeout_s=60.0, workdir="/")
+        self.upload_dir(source, destination)
 
     def reward_report(self) -> RewardReport:
         """Read the verifier's verdict out of `/logs/verifier`."""
@@ -306,6 +350,39 @@ class DockerSandbox:
         if self._container is None:
             raise SandboxError("sandbox is not running; call start() first")
         return self._container
+
+
+def _container_limits(task: Repo2RLEnvTask) -> dict[str, object]:
+    """Translate a task's declared policies into `containers.run` kwargs.
+
+    Raises:
+        SandboxError: if the task asks for something this backend cannot enforce
+            faithfully. Failing closed matters more than breadth: silently
+            granting a `no-network` task the daemon's default bridge would both
+            corrupt the result and hand a sandboxed process the internet.
+    """
+    kwargs: dict[str, object] = {}
+
+    if task.network_mode == NETWORK_ALLOWLIST:
+        raise SandboxError(
+            f"task {task.task_id!r} declares network_mode='allowlist', which needs a "
+            "filtering proxy this backend does not run. Grade it with `harbor run`."
+        )
+    if task.network_mode == NETWORK_NONE:
+        kwargs["network_mode"] = "none"
+
+    if task.cpus is not None:
+        # Docker expresses CPU count as a quota against a 100ms period.
+        kwargs["cpu_period"] = 100_000
+        kwargs["cpu_quota"] = int(task.cpus * 100_000)
+    if task.memory_mb is not None:
+        kwargs["mem_limit"] = f"{task.memory_mb}m"
+    if task.gpus is not None:
+        raise SandboxError(
+            f"task {task.task_id!r} requests {task.gpus} GPU(s); this backend does not "
+            "allocate accelerators. Grade it with `harbor run`."
+        )
+    return kwargs
 
 
 def resolve_within(base: str, relative: str) -> str:
