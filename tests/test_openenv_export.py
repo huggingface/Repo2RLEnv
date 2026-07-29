@@ -633,3 +633,50 @@ def test_declared_user_gets_ownership_of_what_it_must_write(tmp_path: Path):
     sandbox.run_verifier(task)
 
     assert any("nobody" in c and "verifier" in c for c in chowned), chowned
+
+
+def test_state_does_not_carry_the_host_task_path(tmp_path: Path):
+    """`state` rides the same socket as `step`, so it must not name the oracle."""
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
+
+    dataset = tmp_path / "ds"
+    _emit(dataset, "demo__task-1")
+    env = Repo2RLEnvEnvironment(dataset=str(dataset))
+
+    assert "task_path" not in env.state.model_dump()
+
+
+def test_agent_reads_and_writes_run_as_the_declared_user(tmp_path: Path):
+    """`read` used `cat` as root and `write` extracted a root-owned tar.
+
+    Either would let a task that declared an unprivileged agent reach files
+    that agent could never have touched with `exec`.
+    """
+    pytest.importorskip("openenv")
+    from repo2rlenv.openenv.environment import Repo2RLEnvEnvironment
+    from repo2rlenv.openenv.models import Repo2RLEnvAction
+    from repo2rlenv.openenv.sandbox import DockerSandbox, ExecResult
+
+    seen: dict[str, str | None] = {}
+    sandbox = DockerSandbox()
+    sandbox.agent_user = "nobody"
+    sandbox.start = lambda task: None  # type: ignore[method-assign]
+
+    def _fake_exec(command, *, timeout_s, env=None, workdir=None, user=None, **kw):
+        seen[command.split()[0]] = user
+        return ExecResult(0, "contents")
+
+    sandbox.exec = _fake_exec  # type: ignore[method-assign]
+
+    dataset = tmp_path / "ds"
+    _emit(dataset, "demo__task-1")
+    env = Repo2RLEnvEnvironment(dataset=str(dataset), sandbox_factory=lambda: sandbox)
+    env.reset(task_id="demo__task-1")
+    sandbox.agent_user = "nobody"
+
+    env.step(Repo2RLEnvAction(action_type="read", path="a.py"))
+    env.step(Repo2RLEnvAction(action_type="write", path="a.py", content="x = 1\n"))
+
+    assert seen["cat"] == "nobody"
+    assert seen["printf"] == "nobody"

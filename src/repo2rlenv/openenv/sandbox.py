@@ -19,6 +19,7 @@ environment server can itself run inside a container.
 
 from __future__ import annotations
 
+import base64
 import io
 import logging
 import posixpath
@@ -192,13 +193,37 @@ class DockerSandbox:
         status = int(exit_code) if exit_code is not None else 1
         return ExecResult(status, text, timed_out=status == TIMEOUT_EXIT_CODE)
 
-    def read_text(self, path: str) -> str | None:
-        """Read a text file, returning None when it does not exist."""
-        result = self.exec(f"cat {_quote(path)}", timeout_s=60.0)
+    def read_text(self, path: str, user: str | None = None) -> str | None:
+        """Read a text file, returning None when it does not exist.
+
+        Args:
+            user: read as this account. Agent reads must pass the task's
+                `[agent].user`, or a task that declared an unprivileged agent
+                would still read root-only files through this path.
+        """
+        result = self.exec(f"cat {_quote(path)}", timeout_s=60.0, user=user)
         return result.output if result.ok else None
 
-    def write_text(self, path: str, content: str) -> None:
-        """Write a text file, creating parent directories as needed."""
+    def write_text(self, path: str, content: str, user: str | None = None) -> None:
+        """Write a text file, creating parent directories as needed.
+
+        Args:
+            user: write as this account. `put_archive` extracts as root, which
+                would let an unprivileged agent create root-owned files — and,
+                through a symlink out of the working directory, create them
+                anywhere. Writing through the shell makes the kernel apply the
+                declared user's permissions instead.
+        """
+        if user:
+            payload = base64.b64encode(content.encode("utf-8")).decode("ascii")
+            result = self.exec(
+                f"printf %s {_quote(payload)} | base64 -d > {_quote(path)}",
+                timeout_s=120.0,
+                user=user,
+            )
+            if not result.ok:
+                raise SandboxError(f"could not write {path} as {user!r}: {result.output.strip()}")
+            return
         container = self._require_container()
         directory, name = posixpath.split(path)
         self.mkdirs(directory)

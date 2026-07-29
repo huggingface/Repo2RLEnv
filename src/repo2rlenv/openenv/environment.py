@@ -132,7 +132,6 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
             episode_id=episode_id or str(uuid4()),
             task_id=task.task_id,
             task_name=task.name,
-            task_path=str(task.path),
             pipeline=task.pipeline,
             image=sandbox.image,
             workdir=sandbox.paths.workdir,
@@ -213,9 +212,11 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
         del task
         if not action.command.strip():
             raise ValueError("exec requires a non-empty command")
+        # `timeout_s` arrives on the wire, so it is policy-controlled. Treat
+        # the configured value as a ceiling rather than a default.
         result = sandbox.exec(
             action.command,
-            timeout_s=action.timeout_s or self.command_timeout_s,
+            timeout_s=min(action.timeout_s or self.command_timeout_s, self.command_timeout_s),
             user=sandbox.agent_user,
             agent_visible=True,
         )
@@ -226,7 +227,7 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
     ) -> Repo2RLEnvObservation:
         del task
         target = resolve_within(sandbox.paths.workdir, action.path)
-        content = sandbox.read_text(target)
+        content = sandbox.read_text(target, user=sandbox.agent_user)
         if content is None:
             raise FileNotFoundError(f"no such file: {action.path}")
         return self._observe("read", output=content)
@@ -236,7 +237,7 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
     ) -> Repo2RLEnvObservation:
         del task
         target = resolve_within(sandbox.paths.workdir, action.path)
-        sandbox.write_text(target, action.content)
+        sandbox.write_text(target, action.content, user=sandbox.agent_user)
         return self._observe("write", output=f"wrote {len(action.content)} bytes to {action.path}")
 
     def _do_evaluate(
@@ -244,10 +245,13 @@ class Repo2RLEnvEnvironment(Environment[Repo2RLEnvAction, Repo2RLEnvObservation,
     ) -> Repo2RLEnvObservation:
         """Run the task's verifier and forward its reward. Ends the episode."""
         del action
+        # Terminate first: staging puts the verifier's files in the sandbox, so
+        # a failure anywhere below must still end the episode rather than leave
+        # /tests readable with the episode running.
+        self._state.evaluated = True
+
         result = sandbox.run_verifier(task)
         report = sandbox.reward_report()
-
-        self._state.evaluated = True
         self._state.reward = report.value
         self._state.last_exit_code = result.exit_code
 

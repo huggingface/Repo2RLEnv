@@ -92,7 +92,6 @@ class Repo2RLEnvState(State):
     Attributes:
         task_id: identifier of the running task, empty before the first reset().
         task_name: the task's qualified name.
-        task_path: task directory on the server.
         pipeline: which synthesis pipeline produced the task.
         image: the image backing the sandbox.
         workdir: working directory inside the sandbox.
@@ -107,7 +106,6 @@ class Repo2RLEnvState(State):
 
     task_id: str = Field(default="")
     task_name: str = Field(default="")
-    task_path: str = Field(default="")
     pipeline: str = Field(default="")
     image: str = Field(default="")
     workdir: str = Field(default="")
