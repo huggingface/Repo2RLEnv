@@ -157,6 +157,7 @@ def _build_instruction(pr: PullRequestSummary) -> str:
         f"Edit files in place; the verifier captures your changes via "
         f"`git diff` and scores them against an oracle patch using "
         f"SWE-RL-style diff-similarity reward."
+        "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
     )
 
 

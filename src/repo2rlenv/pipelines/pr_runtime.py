@@ -303,6 +303,8 @@ def _build_instruction(
         f"Modify the repository so that the issue described above is resolved. "
         f"The task's test suite verifies your patch by applying it on top of "
         f"the base commit `{pr.base_sha[:12]}` and running the modified tests."
+        "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
+
     )
 
 

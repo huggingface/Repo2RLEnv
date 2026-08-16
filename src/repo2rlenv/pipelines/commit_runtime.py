@@ -173,6 +173,7 @@ def build_instruction_from_commit(
         "Modify the repository so that the issue described above is resolved. "
         "The task's test suite verifies your patch by applying it on top of "
         f"the base commit `{commit.parent_sha[:12]}` and running the modified tests."
+        "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
     )
     return "\n\n".join(parts)
 
@@ -241,6 +242,7 @@ class CommitRuntimePipeline:
                     "Modify the repository so that the issue described above is resolved. "
                     "The task's test suite verifies your patch by applying it on top of "
                     f"the base commit `{commit.parent_sha[:12]}` and running the modified tests."
+                    "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
                 )
         return build_instruction_from_commit(commit, issue=issue)
 
