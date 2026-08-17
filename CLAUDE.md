@@ -32,7 +32,7 @@ src/repo2rlenv/
 │   ├── _env_setup_lang.py      # env_setup: per-language table (probe kind, package-name resolution, test-root pathspecs)
 │   ├── _env_setup_artifacts.py # env_setup: every emitted artifact (test.sh's 3 gates, provenance.json, Dockerfile, instruction, oracle solve.sh)
 │   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
-│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests)
+│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests, pr_diff, env_setup): normalize_test_cmds_for_runtime, _path_prelude_for_language, authed_clone_url, env_prelude_from_test_cmds
 │   ├── _env_guard.py           # anti-contamination: git-history scrub + egress-guard compose (git-based pipelines only)
 │   └── _poc_agent.py           # agentic PoC-test synthesis for cve_patches (LLM + shell in the vuln sandbox)
 ├── bootstrap/                  # v0.2 — LLM-driven Docker env generation

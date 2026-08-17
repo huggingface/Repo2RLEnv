@@ -5,7 +5,7 @@
 **Created:** 2026-07-22
 **Last revised:** 2026-08-16 — merged the companion design spec into this document, swept the merged text for internal contradictions, then re-verified every code claim against the working tree and fixed six design defects the sweep had missed; see [Revision history](#revision-history).
 **Target release:** v0.9.0
-**Implemented by:** `@adithya-s-k`
+**Implemented by:** _(pending)_
 **Reference dataset:** _(pending — target `AdithyaSK/repo2rlenv-env-setup`)_
 
 This RFC is self-contained: it argues *why* `env_setup` should exist **and** pins *how* it is
