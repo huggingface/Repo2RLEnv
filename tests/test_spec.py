@@ -80,6 +80,16 @@ def test_env_setup_options_target_bounds():
     EnvSetupOptions(min_target_tests=5, max_target_tests=3)
 
 
+def test_env_setup_options_recipe_attempts_floor():
+    # distill_setup_recipe's retry loop is `range(1, max_recipe_attempts + 1)`;
+    # 0 or negative would skip the loop body and never attempt a recipe at all.
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(max_recipe_attempts=0)
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(max_recipe_attempts=-1)
+    EnvSetupOptions(max_recipe_attempts=1)
+
+
 def test_oracle_timeout_covers_inner_budgets():
     opts = EnvSetupOptions()
     assert opts.oracle_timeout_sec == 0

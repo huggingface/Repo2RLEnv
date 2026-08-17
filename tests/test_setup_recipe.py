@@ -245,6 +245,40 @@ def test_env_setup_sandbox_exec_survives_timeout(monkeypatch):
     assert "timeout" in result.stderr
 
 
+class _ZeroAttemptOptions:
+    """A duck-typed `options` with `max_recipe_attempts <= 0`.
+
+    `EnvSetupOptions` itself now floors `max_recipe_attempts` at 1 (see
+    `tests/test_spec.py::test_env_setup_options_recipe_attempts_floor`), but
+    `distill_setup_recipe` takes `options` as an untyped duck — nothing in
+    its own signature requires an `EnvSetupOptions` instance — so it must
+    stay total on this input regardless of that separate floor.
+    """
+
+    max_recipe_attempts = 0
+    max_llm_tokens = 2048
+    llm_temperature = 0.2
+    recipe_verify_timeout_sec = 1800
+
+
+def test_recipe_handles_zero_max_attempts_without_crashing(monkeypatch):
+    """range(1, 0 + 1) never runs, so `history` stays empty. The terminal
+    reason derivation must degrade to recipe_unverified rather than raising
+    IndexError on `history[-1]`.
+    """
+    outcome, prompts, _ = _distill(
+        monkeypatch,
+        responses=[],
+        results=[],
+        options=_ZeroAttemptOptions(),
+    )
+    assert outcome.skip_reason == "recipe_unverified"
+    assert outcome.setup_sh is None
+    assert outcome.attempts == 0
+    assert outcome.history == []
+    assert prompts == []
+
+
 def test_recipe_captures_with_xtrace_off(monkeypatch):
     """The generation-time half of the capture-shape contract: step F must
     capture identically to gate 1, or the baked F2P ids and the graded ids

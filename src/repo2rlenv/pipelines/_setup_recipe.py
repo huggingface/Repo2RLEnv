@@ -307,7 +307,14 @@ def distill_setup_recipe(
     # that goes dirty on attempt N but ends on an unparseable attempt N+1
     # must be labelled recipe_unverified, not recipe_edits_tracked_files —
     # the actual last attempt told us nothing about tracked-file dirtiness.
-    reason = "recipe_edits_tracked_files" if history[-1].tracked_dirty else "recipe_unverified"
+    # `history` can be empty if max_recipe_attempts <= 0 (no validator floors
+    # it), in which case the loop body never runs at all — `and` short-
+    # circuits before indexing so this stays total rather than IndexError-ing.
+    reason = (
+        "recipe_edits_tracked_files"
+        if history and history[-1].tracked_dirty
+        else "recipe_unverified"
+    )
     if debug_dir is not None:
         _dump_attempts(debug_dir, history)
     return RecipeOutcome(None, "", len(history), cost, 0.0, 0.0, reason, history)

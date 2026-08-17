@@ -347,6 +347,14 @@ class EnvSetupOptions(_BaseOptions):
         return self
         # NB: max_target_tests < min_target_tests is legal and meaningful — see below.
 
+    @model_validator(mode="after")
+    def _check_recipe_attempts(self) -> EnvSetupOptions:
+        # distill_setup_recipe's retry loop is `range(1, max_recipe_attempts + 1)`;
+        # <= 0 would skip the loop body entirely and never call the LLM at all.
+        if self.max_recipe_attempts < 1:
+            raise ValueError("max_recipe_attempts must be >= 1: 0 would never attempt a recipe")
+        return self
+
     @property
     def effective_oracle_timeout_sec(self) -> int:
         if self.oracle_timeout_sec:
