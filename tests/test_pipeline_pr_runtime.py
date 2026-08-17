@@ -568,6 +568,34 @@ def test_normalize_strips_bare_2_redirect_1():
     assert normalize_test_cmds_for_runtime(["pytest 2>&1"]) == ["pytest -v"]
 
 
+def test_normalize_drops_commands_that_reduce_to_empty():
+    """A command that is nothing but shell plumbing must be DROPPED, not emitted as "".
+
+    The pipe/redirect strippers run before runner detection, so `"| head -50"`,
+    `"2>&1"`, `"&>/dev/null"` and whitespace all reduce to `""`. Callers join
+    the result with `" && "` (bootstrap/runner.py, _eval_script.py), and an
+    empty segment is a bash *syntax error* — `pytest -v && ` won't parse.
+    """
+    for degenerate in ("| head -50", "2>&1", "   ", "&>/dev/null", "> /dev/null", ""):
+        assert normalize_test_cmds_for_runtime([degenerate]) == [], degenerate
+
+    # Mixed input: the real command survives, the degenerate one vanishes.
+    assert normalize_test_cmds_for_runtime(["pytest -q", "| head -50", "2>&1"]) == ["pytest -v"]
+
+    # And the joined script is valid bash — no dangling `&&`.
+    joined = " && ".join(normalize_test_cmds_for_runtime(["pytest -q", "   "]))
+    assert joined == "pytest -v"
+    assert not joined.rstrip().endswith("&&")
+
+
+def test_normalize_empty_output_survives_targeted_and_join():
+    """Dropping everything yields [], which downstream already handles."""
+    cmds = normalize_test_cmds_for_runtime(["| head -50", "  "])
+    assert cmds == []
+    # targeted_test_cmds_for_pr must not resurrect anything.
+    assert targeted_test_cmds_for_pr(cmds, ["tests/test_a.py"]) == []
+
+
 def test_normalize_npm_test_unchanged_when_wrapper():
     """`npm test` is a wrapper — we can't safely add jest flags through it."""
     # Just verify it doesn't crash and doesn't corrupt the cmd

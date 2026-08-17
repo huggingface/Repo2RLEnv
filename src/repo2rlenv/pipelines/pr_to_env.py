@@ -10,8 +10,9 @@ anti-contamination guards. The reused machinery is imported verbatim
 from `pr_runtime.py` — no fork.
 
 **HF_ML_Bench_v0 pipeline gates** (M3 layer, currently skeleton):
-  1. Network-level egress firewall — replaces docker-compose extra_hosts
-     (currently still uses egress_guard_compose; M2 swaps this)
+  1. Network-level egress firewall — `egress_firewall_compose` +
+     `egress_firewall_dockerfile_fragment` (iptables default-deny), replacing
+     pr_runtime's extra_hosts-only `egress_guard_compose`
   2. Bootstrap smoke — validated at bootstrap time
   3. F2P collect-only match — parametrization suffix expansion
   4. Reset decision table — git checkout vs rm -f based on base_commit content
@@ -35,6 +36,7 @@ import logging
 import re
 import shutil
 import subprocess
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -58,7 +60,6 @@ from repo2rlenv.pipelines.pr_runtime import (
     _difficulty_bucket,
     _files_in_patch,
     _is_non_bug_pr,
-    _linked_issue_number,
     _runtime_aux_files,
     build_environment_dockerfile,
     build_eval_script,
@@ -435,18 +436,10 @@ class PrToEnvPipeline:
                     pass_to_pass=pass_to_pass,
                     validation_status=validation_status,
                 )
-                slug = f"{owner}__{name}-{pr_number}"
-                write_harbor_task(task, out_dir / slug)
-
-                # Oracle-gate (M3 gate #14) — currently deferred to a post-emit
-                # script. Full integration lands in M3.
-                if self.options.oracle_gate:
-                    logger.warning(
-                        "oracle-gate not yet integrated in-pipeline; run "
-                        "`plans/scripts/harbor_eval_env.sh %s` post-emit and "
-                        "drop the env if reward != 1.0.",
-                        slug,
-                    )
+                # write_harbor_task appends task.name to dest_dir, so pass the
+                # dataset root — not root/slug (that would nest one level deep).
+                slug = task.name
+                write_harbor_task(task, out_dir)
 
                 # Oracle-gate (M3 gate #14) — run `harbor run -a oracle` and drop
                 # the env unless reward == 1.0. Skip if user disabled it or the
@@ -503,9 +496,10 @@ class PrToEnvPipeline:
         finally:
             if sandbox is not None:
                 try:
-                    sandbox.stop()
+                    # DockerSandbox exposes cleanup(), not stop().
+                    sandbox.cleanup()
                 except Exception:
-                    logger.debug("sandbox stop failed", exc_info=True)
+                    logger.debug("sandbox cleanup failed", exc_info=True)
 
         return PipelineResult(
             candidates=candidates,
@@ -527,27 +521,61 @@ class PrToEnvPipeline:
         harbor = shutil.which("harbor")
         if harbor is None:
             return None
-        try:
-            proc = subprocess.run(
-                [harbor, "run", "-a", "oracle", "--task-dir", str(task_dir)],
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec,
-                check=False,
-            )
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            logger.warning("oracle-gate subprocess failed for %s: %s", task_dir.name, exc)
-            return None
-        # Harbor writes reward to reward.txt in the task's verifier dir. Fall back
-        # to parsing stdout for `reward=<float>` if not found.
-        combined = f"{proc.stdout}\n{proc.stderr}"
-        m = re.search(r"reward\s*[=:]\s*([0-9.]+)", combined)
-        if m:
+        # `harbor run` takes `-p <dataset dir>` and runs every task under it —
+        # there is no --task-dir flag. Isolate this one task in a scratch
+        # dataset so the gate grades exactly the env we just emitted.
+        with tempfile.TemporaryDirectory(prefix="r2e-oracle-gate-") as tmp:
+            scratch = Path(tmp)
+            dataset = scratch / "dataset"
+            dataset.mkdir()
+            shutil.copytree(task_dir, dataset / task_dir.name)
+            jobs = scratch / "jobs"
             try:
-                return float(m.group(1))
-            except ValueError:
+                proc = subprocess.run(
+                    [
+                        harbor,
+                        "run",
+                        "-p",
+                        str(dataset),
+                        "-a",
+                        "oracle",
+                        "--env",
+                        "docker",
+                        "-n",
+                        "1",
+                        "-y",
+                        "--quiet",
+                        "--jobs-dir",
+                        str(jobs),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec,
+                    check=False,
+                )
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                logger.warning("oracle-gate subprocess failed for %s: %s", task_dir.name, exc)
                 return None
-        return None
+            # Primary signal: the reward.txt harbor's verifier writes per run.
+            for reward_file in sorted(jobs.glob("*/*/verifier/reward.txt")):
+                try:
+                    return float(reward_file.read_text().strip())
+                except (OSError, ValueError):
+                    continue
+            # Fallback: scrape `reward=<float>` out of the CLI output.
+            m = re.search(r"reward\s*[=:]\s*([0-9.]+)", f"{proc.stdout}\n{proc.stderr}")
+            if m:
+                try:
+                    return float(m.group(1))
+                except ValueError:
+                    return None
+            logger.warning(
+                "oracle-gate produced no reward for %s (harbor exit=%d): %s",
+                task_dir.name,
+                proc.returncode,
+                (proc.stderr or proc.stdout)[-400:].strip(),
+            )
+            return None
 
     def _append_ledger(
         self,
@@ -577,15 +605,24 @@ class PrToEnvPipeline:
             fp.write(json.dumps(entry) + "\n")
 
     def _start_validation_sandbox(self):
-        """Create a sandbox container from the bootstrap image."""
+        """Spin up a DockerSandbox from the bootstrap image (shared across URLs).
+
+        Mirrors `pr_runtime._start_validation_sandbox`: `DockerSandbox.start`
+        is a classmethod that requires a `repo_dir` to `docker cp` in, but the
+        bootstrap image already carries the repo — so we hand it an empty
+        marker dir and let each PR `git checkout` its own base_commit inside
+        the container.
+        """
         from repo2rlenv.bootstrap.docker import DockerSandbox
 
-        sandbox = DockerSandbox(
-            image=self.bootstrap.image_digest or self.bootstrap.image_tag,
-            language=self.bootstrap.language,
+        marker = Path(tempfile.mkdtemp(prefix="r2e-pr-to-env-"))
+        (marker / ".keep").write_text("")  # `docker cp <src>/.` needs a non-empty dir
+        return DockerSandbox.start(
+            # Tag, not digest: a local-only bootstrap digest isn't pullable.
+            base_image=self.bootstrap.image_tag,
+            repo_dir=marker,
+            platform=self.input.bootstrap.platform,
         )
-        sandbox.start()
-        return sandbox
 
     def _build_task(
         self,
@@ -601,26 +638,17 @@ class PrToEnvPipeline:
         owner, name = self.input.repo.owner_name
         slug = f"{owner}__{name}-{pr.number}"
 
-        # Instruction (leak-free per pr_runtime._build_instruction). Linked-issue
-        # text is looked up if the PR body cites one.
-        linked_issue = _linked_issue_number(pr.body or "")
-        issue_body = None
-        if linked_issue is not None:
-            try:
-                provider = provider_for(self.input.repo)
-                issue_body = (
-                    provider.fetch_issue_body(owner, name, linked_issue, token=self._token)
-                    if hasattr(provider, "fetch_issue_body")
-                    else None
-                )
-            except Exception:
-                issue_body = None
-
-        instruction = _build_instruction(
-            pr_title=pr.title,
-            pr_body=pr.body or "",
-            linked_issue_body=issue_body,
-        )
+        # Instruction (leak-free per pr_runtime._build_instruction). The shared
+        # builder resolves the linked issue itself (via provider.fetch_issue)
+        # when the PR body cites one, then runs the v1 leak-strip + reflow.
+        provider = provider_for(self.input.repo)
+        try:
+            instruction = _build_instruction(pr, owner, name, token=self._token, provider=provider)
+        except Exception:
+            # A linked-issue lookup failure must not sink the whole task —
+            # fall back to the PR-body-only instruction.
+            logger.debug("linked-issue lookup failed for %s; using PR body", slug, exc_info=True)
+            instruction = _build_instruction(pr, token=self._token, provider=provider)
 
         # Leak-strip v2 (gate #10): remove short-SHAs and pytest node-ids that
         # sneak past the v1 patterns; soft-warn on basename/dirname hits.
@@ -634,7 +662,14 @@ class PrToEnvPipeline:
         # The v2 guard installs iptables in the image + a default-deny OUTPUT
         # policy inside the container. Closes the raw.githubusercontent.com
         # leak that opus/codex exploited on HF_ML_Bench_v0.
-        image_ref = self.bootstrap.image_digest or self.bootstrap.image_tag
+        # Digest only when the image actually lives in a registry BuildKit can
+        # pull from; otherwise the tag (a local-only digest is unresolvable at
+        # `docker build` time). Same rule as pr_runtime.
+        image_ref = (
+            self.bootstrap.image_digest
+            if self.bootstrap.pushed_to_registry
+            else self.bootstrap.image_tag
+        )
         env_dockerfile = (
             build_environment_dockerfile(
                 bootstrap_image=image_ref,
@@ -669,51 +704,61 @@ class PrToEnvPipeline:
 
         now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+        # Provenance goes into Harbor's free-form [metadata.repo2env] subtable.
+        repo2env = {
+            "pipeline": "pr_to_env",
+            "pipeline_version": "0.9.0",
+            "repo": f"{owner}/{name}",
+            "ref": pr.base_sha,
+            "reference": pr.url,
+            "source_access": self.input.repo.access,
+            "built_at": now,
+            "reward_kinds": ["test_execution", "diff_similarity"],
+            "pr_to_env": {
+                "pr_url": pr.url,
+                "source_url": pr.url,
+                "pr_merged_at": pr.merged_at,
+                "base_commit": pr.base_sha,
+                "fail_to_pass": fail_to_pass,
+                "pass_to_pass": pass_to_pass,
+                "validation_status": validation_status,
+                "bootstrap_image": image_ref,
+                "reward_mode": "graded",
+            },
+            "reward_calibration": {
+                "f2p_count": len(fail_to_pass),
+                "p2p_count": len(pass_to_pass),
+                "source_files": source_files,
+                "loc_changed": loc_changed,
+                "difficulty": difficulty,
+                "calibration": (
+                    "low_signal"
+                    if len(fail_to_pass) < self.options.min_f2p
+                    or len(pass_to_pass) < self.options.min_p2p
+                    else "ok"
+                ),
+            },
+        }
+
+        # NB: there is no `solve_cmd` field — `write_harbor_task` always emits
+        # `solution/solve.sh`, which git-applies `solution/patch.diff` inside
+        # /workspace. That is exactly the command this pipeline used to pass.
         return HarborTask(
-            name=f"{owner}/{slug}",
-            description=pr.title,
+            name=slug,
+            org=self.input.output.org,
+            description=pr.title or slug,
             category="code-modification",
             keywords=[name, "pr_to_env", "sandbox-verified"],
             difficulty=difficulty,
             instruction=instruction,
             oracle_diff=patch,
-            solve_cmd="git apply /workspace/solution/patch.diff",
-            eval_script=eval_script,
-            env_dockerfile=env_dockerfile,
-            env_compose=env_compose,
-            aux_files=aux_files,
-            provenance={
-                "pipeline": "pr_to_env",
-                "pipeline_version": "0.9.0",
-                "repo": f"{owner}/{name}",
-                "ref": pr.base_sha,
-                "reference": pr.url,
-                "source_access": self.input.repo.access,
-                "built_at": now,
-                "reward_kinds": ["test_execution", "diff_similarity"],
-                "pr_to_env": {
-                    "pr_url": pr.url,
-                    "source_url": pr.url,
-                    "pr_merged_at": pr.merged_at,
-                    "base_commit": pr.base_sha,
-                    "fail_to_pass": fail_to_pass,
-                    "pass_to_pass": pass_to_pass,
-                    "validation_status": validation_status,
-                    "bootstrap_image": image_ref,
-                    "reward_mode": "graded",
-                },
-                "reward_calibration": {
-                    "f2p_count": len(fail_to_pass),
-                    "p2p_count": len(pass_to_pass),
-                    "source_files": source_files,
-                    "loc_changed": loc_changed,
-                    "difficulty": difficulty,
-                    "calibration": (
-                        "low_signal"
-                        if len(fail_to_pass) < self.options.min_f2p
-                        or len(pass_to_pass) < self.options.min_p2p
-                        else "ok"
-                    ),
-                },
+            repo2env=repo2env,
+            environment_dockerfile=env_dockerfile,
+            test_script=eval_script,
+            aux_files={
+                **aux_files,
+                # v2 network-level egress guard (replaces pr_runtime's
+                # extra_hosts-only egress_guard_compose).
+                "environment/docker-compose.yaml": env_compose,
             },
         )

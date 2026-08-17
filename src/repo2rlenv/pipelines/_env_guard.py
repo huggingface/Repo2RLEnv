@@ -289,4 +289,3 @@ def egress_firewall_compose(
     ]
     lines += [f'      - "{h}:0.0.0.0"' for h in FIX_SOURCE_HOSTS]
     return "\n".join(lines) + "\n"
-

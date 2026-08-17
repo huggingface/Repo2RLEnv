@@ -40,6 +40,8 @@ def mock_api(monkeypatch):
             return {"title": "Issue title", "description": "issue body"}
         if "/merge_requests?" in url:
             return list_rows
+        if url.endswith("/merge_requests/107"):  # single-MR fetch
+            return {**list_rows[0], "state": "merged"}
         raise AssertionError(f"unexpected url {url}")
 
     monkeypatch.setattr(gitlab, "_request", fake_request)
@@ -64,6 +66,42 @@ def test_fetch_pr_diff_is_git_format(mock_api):
 
 def test_fetch_issue(mock_api):
     assert gitlab.fetch_issue("o", "n", 10) == ("Issue title", "issue body")
+
+
+def test_fetch_pr_single_mr(mock_api):
+    """The by-number counterpart used by pr_to_env (curated MR URLs)."""
+    pr = gitlab.fetch_pr("o", "n", 107)
+    assert isinstance(pr, PullRequestSummary)
+    assert pr.number == 107
+    assert pr.title == "Fix the thing. Closes #10"
+    assert pr.body == "body text"
+    assert pr.base_sha == "e8a8572"
+    assert pr.head_sha == "78d5a90"
+    assert pr.base_ref == "master"
+    assert pr.changed_files == ["src/foo.py", "tests/test_foo.py"]
+    assert pr.url.endswith("/merge_requests/107")
+
+
+def test_fetch_pr_raises_without_base_sha(monkeypatch):
+    """Fail closed: an MR we can't resolve a base commit for is unusable."""
+
+    def fake_request(url, token, *, accept_json=True):
+        if "/changes" in url:
+            return {"diff_refs": {}, "changes": []}
+        return {"iid": 5, "title": "t", "description": "", "web_url": "u"}
+
+    monkeypatch.setattr(gitlab, "_request", fake_request)
+    with pytest.raises(gitlab.GitLabError, match="base commit SHA"):
+        gitlab.fetch_pr("o", "n", 5)
+
+
+def test_fetch_pr_propagates_http_error(monkeypatch):
+    def boom(url, token, *, accept_json=True):
+        raise gitlab.GitLabError("GitLab API → HTTP 404")
+
+    monkeypatch.setattr(gitlab, "_request", boom)
+    with pytest.raises(gitlab.GitLabError):
+        gitlab.fetch_pr("o", "n", 9999)
 
 
 def test_project_id_url_encodes():

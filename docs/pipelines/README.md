@@ -19,12 +19,13 @@ flowchart LR
 
 ## Pipelines
 
-All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 3 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+All 7 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 4 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|
 | [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub · GitLab | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
 | [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | GitHub · GitLab | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
+| `pr_to_env` | Same task shape as `pr_runtime`, but from a curated list of PR URLs (one URL → one env, or fail closed with a reason) | GitHub · GitLab | ✅ | at bootstrap (cached) | ML repos | — | RFC 0007 (import-shape sibling of `pr_runtime`) |
 | [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
 | [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks × 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
 | [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | *pending v0.8.8* | [R2E](https://github.com/r2e-project/r2e) |
@@ -166,6 +167,7 @@ For the full design rationale + dataset card layout + pilot evidence, see [`pr_d
 |---|:-:|:-:|
 | `pr_diff` | ✅ | — |
 | `pr_runtime` | ✅ | ✅ |
+| `pr_to_env` | ✅ | ✅ |
 | `commit_runtime` | ✅ | ✅ |
 | `code_instruct` | optional | ✅ |
 | `equivalence_tests` | — | ✅ |
@@ -180,23 +182,44 @@ open egress (or a leaky container) can fetch the gold patch for the very repo it
 is asked to fix. We saw this in practice: an agent blocked from the web fell back
 to `git diff origin/main`, and when that was closed it ran `pip download
 <pkg>==<fixed>` and read the fix out of the wheel. The principle we settled on:
-**the environment enforces, the prompt never asks.** Every sandbox-verified task
-(`pr_runtime`, `commit_runtime`, `cve_patches`, and `pr_diff`'s thin env) ships
-three defenses, all baked in at generation time by `pipelines/_env_guard.py`:
+**the environment enforces, the prompt never asks.** The defenses live in
+`pipelines/_env_guard.py` and are applied **per pipeline at generation time**
+(the emitter does not add them) — the table below is the ground truth:
+
+| Pipeline | Git-history scrub | Egress guard |
+|---|:-:|:-:|
+| `pr_diff` | ✅ | — |
+| `pr_runtime` | ✅ | ✅ v1 (compose) |
+| `pr_to_env` | ✅ | ✅ v2 (in-container firewall) |
+| `commit_runtime` | ✅ | ✅ v1 (compose) |
+| `cve_patches` | ✅ | ✅ v1 (compose) |
+| `code_instruct` | — | — |
+| `equivalence_tests` | — | — |
 
 - **Git-history scrub** — after checking out `base_commit`, the env removes the
   `origin` remote and prunes every ref/commit past the base (then `gc`), so the
   fix commit and hidden tests can't be read offline via `git diff origin/main` or
   `git show origin/main:<testfile>`. `base_commit` stays reachable for the
   verifier's anti-tamper reset.
-- **Egress guard** — an `environment/docker-compose.yaml` overlay blackholes the
-  package index + code host (`pypi.org`, `files.pythonhosted.org`, `github.com`,
-  their CDNs), so `pip download` / `git fetch` / web fetches against them fail
-  while the model API and the agent's installer stay reachable. This is a
-  denylist (the realistic control at the compose layer); a default-deny egress
-  allowlist proxy or a date-pinned package mirror is the stricter follow-up.
-- **Instruction leak-strip** — synthesized/CVE instructions drop fix-pointers
-  (CVE/GHSA ids, PR/commit URLs, "fixed in vX.Y"), leaving only the symptom.
+- **Egress guard (v1, compose)** — an `environment/docker-compose.yaml` overlay
+  blackholes the package index + code host (`pypi.org`,
+  `files.pythonhosted.org`, `github.com`, their CDNs) via `extra_hosts`, so
+  `pip download` / `git fetch` / web fetches against them fail while the model
+  API and the agent's installer stay reachable. This is a DNS-level denylist:
+  bypassable by hardcoded IPs or DoH.
+- **Egress guard (v2, in-container firewall)** — `pr_to_env` instead bakes
+  `/entrypoint-egress.sh` into the image and applies a default-deny `iptables`
+  OUTPUT policy with an allowlist for the model API + agent installer. Closes
+  the raw-IP bypass in v1.
+- **Instruction leak-strip** — every history-mined pipeline (`pr_diff`,
+  `pr_runtime`, `pr_to_env`, `commit_runtime`, `cve_patches`) strips
+  fix-pointers from the instruction (CVE/GHSA ids, PR/commit URLs, short SHAs,
+  "fixed in vX.Y"), leaving only the symptom. `pr_to_env` adds a second pass
+  (`_leak_grep_v2`) for file basenames and pytest node-ids.
+
+The two LLM-synthesis pipelines (`code_instruct`, `equivalence_tests`) ship
+neither guard: they build at repo HEAD, so there is no future-commit oracle
+sitting in `.git` and no published fix for a synthesized problem to leak.
 
 These reduce the attack surface but the real guarantee is network isolation;
 for trustworthy eval numbers, run with `allow_internet=false` (offline,

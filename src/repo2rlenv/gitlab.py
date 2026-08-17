@@ -1,9 +1,9 @@
 """GitLab merge-request client — mirrors the `github.py` surface.
 
-Exposes `list_merged_prs` / `fetch_pr_diff` / `fetch_issue` with the SAME
-signatures and `PullRequestSummary` return type as `github.py`, so the
-PR-mining pipelines (`pr_diff`, `pr_runtime`) can run against gitlab.com via
-the source dispatch in `provider.py`. GitLab "merge requests" map onto our
+Exposes `list_merged_prs` / `fetch_pr` / `fetch_pr_diff` / `fetch_issue` with
+the SAME signatures and `PullRequestSummary` return type as `github.py`, so the
+PR pipelines (`pr_diff`, `pr_runtime`, `pr_to_env`) can run against gitlab.com
+via the source dispatch in `provider.py`. GitLab "merge requests" map onto our
 PR abstraction (a merged MR == a merged PR; `iid` == PR number).
 
 Pure stdlib (`urllib`) — no extra dependency, no CLI. Verified against
@@ -52,6 +52,39 @@ def _request(url: str, token: str | None, *, accept_json: bool = True):
     return json.loads(raw) if accept_json else raw
 
 
+def _summary_from_mr(row: dict, changes: dict) -> PullRequestSummary:
+    """Build a PullRequestSummary from an MR row + its `/changes` payload."""
+    refs = changes.get("diff_refs") or {}
+    return PullRequestSummary(
+        number=row["iid"],
+        title=row.get("title") or "",
+        body=row.get("description") or "",
+        state=row.get("state") or "merged",
+        merged_at=row.get("merged_at"),
+        base_ref=row.get("target_branch") or "",
+        base_sha=refs.get("base_sha") or "",
+        head_sha=refs.get("head_sha") or row.get("sha") or "",
+        is_draft=bool(row.get("draft")),
+        url=row.get("web_url") or "",
+        changed_files=[c["new_path"] for c in changes.get("changes", []) if c.get("new_path")],
+    )
+
+
+def fetch_pr(owner: str, name: str, number: int, *, token: str | None = None) -> PullRequestSummary:
+    """Return a single MR by iid (mirrors `github.fetch_pr`).
+
+    Raises `GitLabError` if the MR or its diff refs can't be resolved — the
+    caller named this MR explicitly, so failing closed beats a half-built task.
+    """
+    pid = _project_id(owner, name)
+    row = _request(f"{GITLAB_API}/projects/{pid}/merge_requests/{number}", token)
+    changes = _request(f"{GITLAB_API}/projects/{pid}/merge_requests/{number}/changes", token)
+    summary = _summary_from_mr(row, changes)
+    if not summary.base_sha:
+        raise GitLabError(f"{owner}/{name}!{number}: could not resolve base commit SHA")
+    return summary
+
+
 def list_merged_prs(
     owner: str,
     name: str,
@@ -90,23 +123,7 @@ def list_merged_prs(
             changes = _request(f"{GITLAB_API}/projects/{pid}/merge_requests/{iid}/changes", token)
         except GitLabError:
             continue
-        refs = changes.get("diff_refs") or {}
-        files = [c["new_path"] for c in changes.get("changes", []) if c.get("new_path")]
-        summaries.append(
-            PullRequestSummary(
-                number=iid,
-                title=r.get("title") or "",
-                body=r.get("description") or "",
-                state="merged",
-                merged_at=merged_at,
-                base_ref=r.get("target_branch") or "",
-                base_sha=refs.get("base_sha") or "",
-                head_sha=refs.get("head_sha") or r.get("sha") or "",
-                is_draft=bool(r.get("draft")),
-                url=r.get("web_url") or "",
-                changed_files=files,
-            )
-        )
+        summaries.append(_summary_from_mr({**r, "state": "merged"}, changes))
         if len(summaries) >= limit:
             break
     return summaries

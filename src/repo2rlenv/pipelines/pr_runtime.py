@@ -304,7 +304,6 @@ def _build_instruction(
         f"The task's test suite verifies your patch by applying it on top of "
         f"the base commit `{pr.base_sha[:12]}` and running the modified tests."
         "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
-
     )
 
 
@@ -334,11 +333,13 @@ def _is_non_bug_pr(title: str) -> bool:
 
 
 def _verifier_source() -> str:
-    """Read the standalone graded verifier's source for base64 embedding.
+    """Read the standalone graded verifier's source for emission.
 
-    Mirrors pr_diff: the verifier (`_pr_runtime_verifier.py`) runs inside
-    the task container, so we read its source at gen time and bake it into
-    `tests/test.sh` as a base64 blob.
+    The verifier (`_pr_runtime_verifier.py`) runs inside the task container,
+    so we read its source at gen time and ship it as a plain task artifact at
+    `tests/verifier.py` (see `_runtime_aux_files`), which Harbor mounts at
+    `/tests`. Unlike pr_diff, it is *not* base64-embedded in `tests/test.sh` —
+    a plain file keeps task semantics inspectable and test.sh small.
     """
     return (Path(__file__).parent / "_pr_runtime_verifier.py").read_text(encoding="utf-8")
 
@@ -634,6 +635,14 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
       jest / npm test:
         - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
         - Some configs swallow stdout via `--silent`; we strip that
+
+    Commands that normalize to the empty string are DROPPED, not emitted.
+    The pipe/redirect strippers below run before runner detection, so a
+    degenerate bootstrap-recorded entry (`"| head -50"`, `"2>&1"`, `"   "`)
+    reduces to `""`. Callers join the result with `" && "`, and an empty
+    segment is a bash syntax error rather than a no-op. The output is
+    therefore NOT index-aligned with the input; no caller relies on that
+    (every one pipes straight into `targeted_test_cmds_for_pr`).
     """
     out: list[str] = []
     for cmd in test_cmds:
@@ -649,6 +658,12 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         cleaned = re.sub(r"\s*2>&1\b", "", cleaned)
         cleaned = re.sub(r"\s*&?>\s*/dev/null\b", "", cleaned)
         cleaned = cleaned.rstrip(" |&")
+
+        # Nothing but shell plumbing (or whitespace) survived the strip — this
+        # entry was never a test invocation. Drop it; emitting "" would inject
+        # an empty segment into the downstream `" && ".join(...)`.
+        if not cleaned.strip():
+            continue
 
         # --- pytest ---
         if re.search(r"\bpytest\b", cleaned):
@@ -683,7 +698,9 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
             ):
                 cleaned = cleaned.rstrip() + " --verbose"
 
-        out.append(cleaned.strip())
+        stripped = cleaned.strip()
+        if stripped:
+            out.append(stripped)
     return out
 
 
