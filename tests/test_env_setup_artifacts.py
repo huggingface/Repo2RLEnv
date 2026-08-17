@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from repo2rlenv.bootstrap.docker import is_docker_available
 from repo2rlenv.pipelines._env_setup_artifacts import (
     provenance_js_source,
     provenance_probe_files,
@@ -35,13 +36,26 @@ from repo2rlenv.pipelines._env_setup_artifacts import (
     provenance_run_sh_source,
 )
 
-_DOCKER = shutil.which("docker") is not None
+_DOCKER = is_docker_available()
 _NODE = shutil.which("node") is not None
 
 pytestmark_docker = pytest.mark.skipif(
     not _DOCKER,
     reason="docker required to create a real /workspace mount for this assertion",
 )
+
+
+def test_docker_marker_requires_a_live_daemon():
+    """The gate must track daemon availability, not just the binary on PATH.
+
+    `shutil.which("docker")` is true on any dev box with Docker Desktop
+    installed but stopped, so these container tests errored instead of
+    skipping — and would go red in a CI runner without a daemon.
+    """
+    import tests.test_env_setup_artifacts as mod
+    from repo2rlenv.bootstrap.docker import is_docker_available
+
+    assert is_docker_available() == mod._DOCKER
 
 
 # ---------------------------------------------------------------------------
