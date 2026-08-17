@@ -3,18 +3,25 @@
 Two categories, gated differently:
 
   1. **Generation E2E** (`test_e2e_pallets_click_generates_and_oracle_resolves`)
-     — the real pipeline against `pallets/click` at HEAD: bootstrap, LLM
-     recipe distillation, the emitted Dockerfile, and an independent
-     `harbor run -a oracle`. Needs docker + `gh` (authenticated) + an LLM
-     key, and costs real money/minutes — mirrors `tests/test_e2e_public.py`'s
-     `gh` gate and `tests/test_e2e_hub_build.py`'s `harbor run -a oracle`
-     subprocess shape.
+     — the real pipeline against `pallets/click` at HEAD: a full bootstrap
+     agent loop (many LLM calls), LLM recipe distillation (more LLM calls),
+     multiple Docker image builds, and a `harbor run -a oracle`. This is NOT
+     `tests/test_e2e_public.py`'s cost class — that file's `gh`-only gate
+     covers `pr_diff`, which is text-only generation with no Docker and no
+     image builds. This test's cost class is `tests/test_e2e_hub_build.py`'s
+     ("needs docker+harbor+network" and real LLM spend), so it carries that
+     file's manual opt-in env-var gate (`R2E_E2E_ENV_SETUP=1`) IN ADDITION TO
+     the capability skips (docker/gh/harbor/LLM key) — never run by a plain
+     `pytest` invocation, opt-in only.
 
   2. **Container-only gate assertions** (the three `test_gate_half_*` /
      `test_gate_*` functions below) — exercise gate 0 / gate 1/2 / gate 1
      machinery for real inside a container, against a small SYNTHETIC repo
-     built entirely from `RUN` instructions (no external clone), so they need
-     only docker, never `gh` or an LLM key. `tests/test_env_setup_artifacts.py`
+     built entirely from `RUN` instructions (no external clone, no LLM call
+     anywhere in these three tests — they never touch `EnvSetupPipeline`,
+     bootstrap, or recipe distillation). Docker time is free and CI-
+     appropriate in a way LLM spend is not, so these three stay on the plain
+     Docker-daemon gate only — no opt-in var. `tests/test_env_setup_artifacts.py`
      already covers this same machinery locally via path-rewriting
      (`_stage_task` / `_run_test_sh`); what these add is a REAL container:
      a real git worktree, a real venv, real `git clean` — the one thing a
@@ -28,6 +35,7 @@ Docker daemon (not just the binary) is required for every test in this file
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -46,6 +54,11 @@ from repo2rlenv.pipelines.env_setup import _dry_run_gates
 pytestmark = pytest.mark.skipif(
     not is_docker_available(), reason="docker daemon required for env_setup E2E"
 )
+
+# Opt-in gate for the PAID generation E2E only (see module docstring for the
+# cost-class distinction from the three container-only tests below). Same
+# shape as tests/test_e2e_hub_build.py's R2E_E2E_HUB_BUILD.
+_ENV_SETUP_E2E_VAR = "R2E_E2E_ENV_SETUP"
 
 _BASE_IMAGE = "python:3.12-slim"
 
@@ -119,10 +132,18 @@ def _synthetic_python_dockerfile(test_body: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 2 — generation E2E (needs docker + gh + an LLM key)
+# Step 2 — generation E2E (opt-in: needs docker + gh + harbor + an LLM key,
+# and spends real LLM budget — see R2E_E2E_ENV_SETUP above)
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    os.environ.get(_ENV_SETUP_E2E_VAR) != "1",
+    reason=(
+        f"set {_ENV_SETUP_E2E_VAR}=1 to run the env_setup generate+bootstrap+oracle "
+        "smoke (needs docker+harbor+network+LLM key; spends real LLM budget)"
+    ),
+)
 @pytest.mark.skipif(not _HAS_GH, reason="gh CLI not available — skipping end-to-end tests")
 @pytest.mark.skipif(not _gh_authenticated(), reason="gh not authenticated")
 @pytest.mark.skipif(
@@ -135,8 +156,11 @@ def test_e2e_pallets_click_generates_and_oracle_resolves(tmp_path: Path) -> None
     the pipeline's own internal oracle gate silently.
 
     Slow (a real bootstrap + LLM recipe distillation + two container builds)
-    and not free (real LLM spend) — that cost, not just "no docker", is why
-    this is gated on `gh` + an LLM key rather than run unconditionally.
+    and not free (real LLM spend) — that cost is why this carries a manual
+    opt-in env-var gate (`R2E_E2E_ENV_SETUP=1`) on top of the docker/gh/LLM-
+    key/harbor capability skips, matching `tests/test_e2e_hub_build.py`'s
+    shape rather than `tests/test_e2e_public.py`'s auto-run one (that file's
+    `pr_diff` run is text-only — no Docker, no image builds).
     """
     if shutil.which("harbor") is None:
         pytest.skip("harbor CLI required for the oracle-run assertion")
