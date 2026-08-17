@@ -436,7 +436,16 @@ def build_recipe_patch(setup_sh: str) -> str:
     before diffing (so `old=""` becomes `"\\n"`), which turns a
     *creation* into a spurious *modification* — `--- a/setup.sh` against a
     path `git apply` correctly rejects when `setup.sh` does not exist yet.
+
+    Raises `ValueError` on a falsy `setup_sh`: a 0-byte `setup.sh` is never a
+    meaningful oracle, and without this guard `splitlines()` on `""` yields
+    `[]`, producing a zero-body `@@ -0,0 +1,0 @@` hunk that `git apply`
+    rejects outright as a corrupt patch. Task 10's caller only ever passes a
+    verified non-empty recipe, so this is a defensive guard against a
+    call-site bug, not a live input shape.
     """
+    if not setup_sh:
+        raise ValueError("build_recipe_patch requires a non-empty setup_sh recipe")
     lines = setup_sh.splitlines(keepends=True)
     hunk: list[str] = []
     for i, line in enumerate(lines):

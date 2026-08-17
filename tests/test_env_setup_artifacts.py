@@ -1073,6 +1073,20 @@ def test_recipe_patch_creates_setup_sh(tmp_path):
     assert (tmp_path / "setup.sh").read_text() == recipe
 
 
+def test_recipe_patch_rejects_empty_recipe():
+    """A 0-byte `setup.sh` is never a meaningful oracle: Task 10's `_build_task`
+    only calls `build_recipe_patch` with a verified non-empty recipe, so this
+    is a defensive guard against a call-site bug, not a real input shape.
+    `setup_sh.splitlines(keepends=True)` on `""` yields `[]`, which without
+    this guard emitted a zero-body `@@ -0,0 +1,0 @@` hunk that `git apply`
+    rejects outright with `corrupt patch at line 6` (exit 128).
+    """
+    from repo2rlenv.pipelines._env_setup_artifacts import build_recipe_patch
+
+    with pytest.raises(ValueError, match="non-empty"):
+        build_recipe_patch("")
+
+
 def test_recipe_patch_creates_setup_sh_without_trailing_newline(tmp_path):
     """A recipe that does not end in a newline must still round-trip exactly
     through `git apply` — the patch needs a correct `\\ No newline at end of
