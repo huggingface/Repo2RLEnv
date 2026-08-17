@@ -111,25 +111,6 @@ def probe_kind_for(lang: LanguageHint) -> str:
 # 3. package / dist_name resolution — baked at emit time
 # ---------------------------------------------------------------------------
 
-# Directories that are never themselves the target package, scanned when no
-# config file gives us a name to confirm against.
-_NON_PACKAGE_DIRS = {
-    "tests",
-    "test",
-    "docs",
-    "doc",
-    "scripts",
-    "examples",
-    "example",
-    "build",
-    "dist",
-    "venv",
-    ".venv",
-    "node_modules",
-    ".git",
-    "__pycache__",
-}
-
 
 def resolve_package_names(repo_root: Path, lang: LanguageHint) -> tuple[str | None, str | None]:
     """Resolve `(package, dist_name)` at emit time. Never re-derived at run time.
@@ -139,6 +120,13 @@ def resolve_package_names(repo_root: Path, lang: LanguageHint) -> tuple[str | No
     missing `dist_name` costs nothing on the `direct_url` probe (it falls
     through to the import check), but a missing `package` leaves the probe
     nothing to check on either rung.
+
+    Resolved from `pyproject.toml` / `setup.cfg` / `package.json` only —
+    never guessed from directory layout. RFC 0008 §6a already killed a
+    package-root heuristic of this shape: an unconfirmed guess is a
+    wrong-but-plausible `package` baked into `provenance.json`, not a safe
+    degrade. When `package` can't be resolved from config, it comes back
+    `None` and the caller ships `probe="none"`.
 
     Only Python and Node have a resolver; every other language returns
     `(None, None)` (their `probe_kind_for` is always `none`, so there is
@@ -185,21 +173,40 @@ def _confirm_python_package(repo_root: Path, candidate: str) -> str | None:
     return None
 
 
-def _scan_single_python_package(repo_root: Path) -> str | None:
-    """Best-effort fallback: exactly one plausible top-level package."""
-    for base in (repo_root / "src", repo_root):
-        if not base.is_dir():
-            continue
-        candidates = [
-            p.name
-            for p in base.iterdir()
-            if p.is_dir()
-            and (p / "__init__.py").is_file()
-            and p.name not in _NON_PACKAGE_DIRS
-            and not p.name.startswith(".")
-        ]
-        if len(candidates) == 1:
-            return candidates[0]
+def _python_package_from_build_config(repo_root: Path) -> str | None:
+    """A package name *explicitly declared* by build config, independent of
+    `dist_name` — e.g. `[tool.setuptools].packages`/`py-modules` in
+    `pyproject.toml`, or `[options].packages` in `setup.cfg`. This is a
+    config-declared fact, not a filesystem guess: only a single unambiguous
+    declared entry is trusted.
+    """
+    pyproject = repo_root / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except (tomllib.TOMLDecodeError, OSError):
+            data = {}
+        setuptools_cfg = data.get("tool", {}).get("setuptools", {})
+        for key in ("packages", "py-modules"):
+            entries = setuptools_cfg.get(key)
+            if isinstance(entries, list) and len(entries) == 1:
+                return str(entries[0])
+
+    setup_cfg = repo_root / "setup.cfg"
+    if setup_cfg.is_file():
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(setup_cfg, encoding="utf-8")
+            packages = parser.get("options", "packages", fallback=None)
+        except configparser.Error:
+            packages = None
+        if packages:
+            entries = [p.strip() for p in packages.splitlines() if p.strip()]
+            # `packages = find:` / `find_namespace:` is setuptools' own
+            # discovery directive, not a declared name — not trustworthy here.
+            if len(entries) == 1 and not entries[0].startswith("find"):
+                return entries[0]
+
     return None
 
 
@@ -210,7 +217,7 @@ def _resolve_python_names(repo_root: Path) -> tuple[str | None, str | None]:
         candidate = dist_name.lower().replace("-", "_")
         package = _confirm_python_package(repo_root, candidate)
     if package is None:
-        package = _scan_single_python_package(repo_root)
+        package = _python_package_from_build_config(repo_root)
     return package, dist_name
 
 

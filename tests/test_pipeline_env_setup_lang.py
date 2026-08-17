@@ -141,14 +141,28 @@ def test_resolve_package_names_python_pyproject_full_match(tmp_path):
     assert dist_name == "Django"
 
 
-def test_resolve_package_names_missing_dist_name_does_not_block_package(tmp_path):
-    """Asymmetry: no pyproject.toml at all, but the package folder is
-    discoverable directly — dist_name is None, package is still resolved.
-    A missing dist_name must cost nothing on the direct_url probe."""
+def test_resolve_package_names_missing_dist_name_still_resolves_package_pyproject(tmp_path):
+    """Asymmetry (RFC 0008 sec7c, lines 1214-1217): a missing dist_name must
+    not degrade package resolution. No [project].name in pyproject.toml at
+    all (dist_name is None), but [tool.setuptools].packages explicitly
+    declares the package — resolved from config, not from a directory scan."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
-    (repo_root / "widget").mkdir()
-    (repo_root / "widget" / "__init__.py").write_text("", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text(
+        '[tool.setuptools]\npackages = ["widget"]\n', encoding="utf-8"
+    )
+
+    package, dist_name = resolve_package_names(repo_root, LanguageHint.PYTHON)
+    assert package == "widget"
+    assert dist_name is None
+
+
+def test_resolve_package_names_missing_dist_name_still_resolves_package_setup_cfg(tmp_path):
+    """Same asymmetry via setup.cfg: [options].packages declared, no
+    [metadata].name at all."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "setup.cfg").write_text("[options]\npackages = widget\n", encoding="utf-8")
 
     package, dist_name = resolve_package_names(repo_root, LanguageHint.PYTHON)
     assert package == "widget"
@@ -156,20 +170,45 @@ def test_resolve_package_names_missing_dist_name_does_not_block_package(tmp_path
 
 
 def test_resolve_package_names_missing_package_ships_none(tmp_path):
-    """Asymmetry: dist_name is declared but no matching import folder exists
-    anywhere discoverable — package is None, so the probe has nothing to
-    check on either rung and must ship probe='none'."""
+    """dist_name is declared but no matching import folder or build-config
+    declaration confirms a package name — package is None (unresolved), so
+    the caller ships probe='none' rather than any guess."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     (repo_root / "pyproject.toml").write_text('[project]\nname = "Django"\n', encoding="utf-8")
-    # No django/ or src/django/ folder anywhere, and multiple ambiguous top
-    # level dirs so a bare scan can't guess either.
-    (repo_root / "docs").mkdir()
-    (repo_root / "scripts").mkdir()
+    # No django/ or src/django/ folder, and no [tool.setuptools] declaration.
 
     package, dist_name = resolve_package_names(repo_root, LanguageHint.PYTHON)
     assert package is None
     assert dist_name == "Django"
+
+
+def test_resolve_package_names_does_not_guess_from_directory_layout(tmp_path):
+    """Regression for RFC 0008 sec6a: a single plausible-looking top-level
+    directory containing __init__.py, with NO config declaring it anywhere
+    (no pyproject.toml, setup.cfg, or package.json at all), must still ship
+    unresolved rather than being silently accepted as `package`."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "widget").mkdir()
+    (repo_root / "widget" / "__init__.py").write_text("", encoding="utf-8")
+
+    package, dist_name = resolve_package_names(repo_root, LanguageHint.PYTHON)
+    assert package is None
+    assert dist_name is None
+
+
+def test_resolve_package_names_find_directive_not_trusted(tmp_path):
+    """setup.cfg's `packages = find:` (and `find_namespace:`) is setuptools'
+    own auto-discovery directive, not a declared name, and must not be
+    treated as one."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "setup.cfg").write_text("[options]\npackages = find:\n", encoding="utf-8")
+
+    package, dist_name = resolve_package_names(repo_root, LanguageHint.PYTHON)
+    assert package is None
+    assert dist_name is None
 
 
 def test_resolve_package_names_python_setup_cfg(tmp_path):
