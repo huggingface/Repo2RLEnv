@@ -32,7 +32,7 @@ src/repo2rlenv/
 │   ├── _env_setup_lang.py      # env_setup: per-language table (probe kind, package-name resolution, test-root pathspecs)
 │   ├── _env_setup_artifacts.py # env_setup: every emitted artifact (test.sh's 3 gates, provenance.json, Dockerfile, instruction, oracle solve.sh)
 │   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
-│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests, pr_diff, env_setup): normalize_test_cmds_for_runtime, _path_prelude_for_language, authed_clone_url, env_prelude_from_test_cmds
+│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests, pr_diff, pr_runtime, env_setup): normalize_test_cmds_for_runtime, _path_prelude_for_language, authed_clone_url, env_prelude_from_test_cmds
 │   ├── _env_guard.py           # anti-contamination: git-history scrub + egress-guard compose (git-based pipelines only)
 │   └── _poc_agent.py           # agentic PoC-test synthesis for cve_patches (LLM + shell in the vuln sandbox)
 ├── bootstrap/                  # v0.2 — LLM-driven Docker env generation
@@ -71,7 +71,7 @@ docs/                           # public docs (committed), three tiers:
 plans/                          # internal working docs (gitignored)
 references/                     # cloned inspiration repos (gitignored)
 envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 801 collected / 796 pass + 5 env-gated skips
+tests/                          # pytest; 927 collected / 915 pass + 12 env-gated skips
 .github/workflows/              # ci.yml (lint + matrix tests + build),
                                 # release.yml (PyPI publish on tagged release)
 CONTRIBUTING.md                 # dev setup, PR conventions, release flow
@@ -146,7 +146,7 @@ The canonical contributor reference is [`CONTRIBUTING.md`](./CONTRIBUTING.md) at
 - **No `Co-Authored-By: Claude` trailer** on commits. User explicitly rejected it; see `~/.claude/projects/.../memory/feedback_no_coauthor.md`.
 - **Commits**: terse subject + short body explaining "why". Don't reference the current task; that goes in the PR description.
 - **PRs**: title under 70 chars; description has summary + test plan + out-of-scope items. Close issues via `Closes #N` in commit body.
-- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **801 collected — 796 must pass, 5 are env-gated skips.**
+- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **927 collected — 915 must pass, 12 are env-gated skips.**
 - **Lint + format**: `uv run ruff check .` and `uv run ruff format .` before commit. CI rejects unformatted code or lint violations.
 - **Acknowledgments**: when a file draws inspiration from external work, add a header block crediting the source repo + paper + license + clarifying our license posture. See `bootstrap/__init__.py` or `reward.py` for the format.
 
