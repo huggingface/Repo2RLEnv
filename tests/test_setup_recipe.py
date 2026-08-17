@@ -193,6 +193,58 @@ def test_recipe_no_source_skips_without_calling_the_llm(monkeypatch):
     assert prompts == []
 
 
+def test_recipe_unverified_when_last_attempt_is_unparseable_after_dirty_run(monkeypatch, tmp_path):
+    """recipe_edits_tracked_files must name the TRUE fault of the last attempt.
+
+    Attempt 1 is a real, green-but-tracked-dirty run. Attempt 2 (the final
+    one) is an unparseable LLM response, which tells us nothing about
+    tracked-file dirtiness. The terminal skip_reason must be
+    recipe_unverified, not a stale recipe_edits_tracked_files carried over
+    from attempt 1.
+    """
+    outcome, prompts, _ = _distill(
+        monkeypatch,
+        responses=[
+            "```bash\nsed -i s/x/y/ setup.py\npip install -e .\n```",
+            "I could not determine how to install this project.",
+        ],
+        # attempt 1: setup.sh 0, tests 0 (green!), git diff --quiet 1 (DIRTY)
+        results=[(0, ""), (0, "a::b PASSED"), (1, " M setup.py")],
+        options=_options(max_recipe_attempts=2),
+        debug_dir=tmp_path / "dbg",
+    )
+    assert outcome.skip_reason == "recipe_unverified"
+    assert outcome.attempts == 2
+    assert len(prompts) == 2
+    assert outcome.history[0].tracked_dirty is True
+    assert outcome.history[1].tracked_dirty is False
+
+
+def test_env_setup_sandbox_exec_survives_timeout(monkeypatch):
+    """A hung `docker exec` must degrade to a failed ExecResult, not raise.
+
+    `recipe_verify_timeout_sec` defaults to 1800s and a hanging install is
+    exactly the failure the retry loop exists to catch — an uncaught
+    subprocess.TimeoutExpired would crash the whole env_setup run instead of
+    letting distill_setup_recipe record recipe_unverified.
+    """
+    import subprocess
+
+    from repo2rlenv.pipelines._setup_recipe import EnvSetupSandbox
+
+    def fake_run(args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    sandbox = EnvSetupSandbox("deadbeef", "r2e/envsetup:test")
+
+    result = sandbox.exec("sleep 9999", timeout=5)
+
+    assert result.exit_code == 124
+    assert not result.ok
+    assert "timeout" in result.stderr
+
+
 def test_recipe_captures_with_xtrace_off(monkeypatch):
     """The generation-time half of the capture-shape contract: step F must
     capture identically to gate 1, or the baked F2P ids and the graded ids

@@ -254,7 +254,6 @@ def distill_setup_recipe(
     cost = 0.0
     previous: str | None = None
     failure: str | None = None
-    last_dirty = False
 
     for attempt in range(1, options.max_recipe_attempts + 1):
         response = complete(
@@ -291,7 +290,6 @@ def distill_setup_recipe(
         diff = sandbox.exec("git -C /workspace diff --quiet HEAD --", timeout=120)
         dirty = diff.exit_code != 0
         history.append(RecipeAttempt(script, run.exit_code, log, dirty))
-        last_dirty = dirty
 
         if run.exit_code == 0 and not dirty:
             return RecipeOutcome(
@@ -305,7 +303,11 @@ def distill_setup_recipe(
             combined = (setup.truncated(2000) + "\n" + log) if setup.exit_code else log
             failure = combined[-4000:]
 
-    reason = "recipe_edits_tracked_files" if last_dirty else "recipe_unverified"
+    # Derived from the LAST recorded attempt, not a carried boolean: a run
+    # that goes dirty on attempt N but ends on an unparseable attempt N+1
+    # must be labelled recipe_unverified, not recipe_edits_tracked_files —
+    # the actual last attempt told us nothing about tracked-file dirtiness.
+    reason = "recipe_edits_tracked_files" if history[-1].tracked_dirty else "recipe_unverified"
     if debug_dir is not None:
         _dump_attempts(debug_dir, history)
     return RecipeOutcome(None, "", len(history), cost, 0.0, 0.0, reason, history)
@@ -320,6 +322,46 @@ def _dump_attempts(debug_dir: Path, history: list[RecipeAttempt]) -> None:
             f"exit_code={a.exit_code} tracked_dirty={a.tracked_dirty}\n\n{a.log}",
             encoding="utf-8",
         )
+
+
+def _run(args: list[str], *, timeout: int) -> ExecResult:
+    """`subprocess.run` that degrades a timeout to an ExecResult instead of
+    raising. Mirrors `bootstrap.docker._run`'s TimeoutExpired handling exactly
+    (exit_code=124, stderr names the timeout) — this module keeps its own
+    copy rather than importing that function, which is private to its module.
+
+    Every `EnvSetupSandbox` subprocess call goes through this (or
+    `_run_ignore` below for calls whose result was already discarded), so a
+    hung `docker exec`/`docker build`/`docker run` degrades to a failed
+    ExecResult that the retry loop in `distill_setup_recipe` can act on,
+    rather than an uncaught exception that crashes the whole `env_setup` run
+    (and, via `close()`, would also skip container/image cleanup).
+    """
+    start = time.monotonic()
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout
+        if isinstance(stdout, (bytes, bytearray)):
+            stdout = stdout.decode(errors="replace")
+        return ExecResult(
+            exit_code=124,
+            stdout=stdout or "",
+            stderr=f"[timeout after {timeout}s]",
+            duration_sec=time.monotonic() - start,
+        )
+    return ExecResult(proc.returncode, proc.stdout, proc.stderr, time.monotonic() - start)
+
+
+def _run_ignore(args: list[str], *, timeout: int) -> None:
+    """Fire-and-forget subprocess call whose result every caller already
+    discards (mkdir/cp staging, container/image teardown) — same tolerance
+    for a timeout as for any other failure: swallow it, don't raise.
+    """
+    try:
+        subprocess.run(args, capture_output=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 class EnvSetupSandbox:
@@ -346,16 +388,13 @@ class EnvSetupSandbox:
         with tempfile.TemporaryDirectory(prefix="r2e-envsetup-build-") as tmp:
             ctx = Path(tmp)
             (ctx / "Dockerfile").write_text(dockerfile, encoding="utf-8")
-            build = subprocess.run(
+            build = _run(
                 ["docker", "build", "--platform", platform, "-t", tag, str(ctx)],
-                capture_output=True,
-                text=True,
                 timeout=build_timeout,
-                check=False,
             )
-        if build.returncode != 0:
+        if build.exit_code != 0:
             raise DockerError(f"docker build failed: {build.stderr.strip()[:400]}")
-        run = subprocess.run(
+        run = _run(
             [
                 "docker",
                 "run",
@@ -368,25 +407,16 @@ class EnvSetupSandbox:
                 "sleep",
                 "infinity",
             ],
-            capture_output=True,
-            text=True,
             timeout=300,
-            check=False,
         )
-        if run.returncode != 0:
+        if run.exit_code != 0:
             raise DockerError(f"docker run failed: {run.stderr.strip()[:400]}")
         return cls(run.stdout.strip(), tag)
 
     def exec(self, script: str, *, timeout: int) -> ExecResult:
-        start = time.monotonic()
-        proc = subprocess.run(
-            ["docker", "exec", "-i", self.container_id, "bash", "-lc", script],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
+        return _run(
+            ["docker", "exec", "-i", self.container_id, "bash", "-lc", script], timeout=timeout
         )
-        return ExecResult(proc.returncode, proc.stdout, proc.stderr, time.monotonic() - start)
 
     def put_files(self, files: Mapping[str, str], dest_dir: str) -> None:
         """Copy emitted artifacts in. Used by F' to stage the task's tests/."""
@@ -395,20 +425,13 @@ class EnvSetupSandbox:
             for rel, body in files.items():
                 target = staged / Path(rel).name
                 target.write_text(body, encoding="utf-8")
-            subprocess.run(
-                ["docker", "exec", self.container_id, "mkdir", "-p", dest_dir],
-                capture_output=True,
-                timeout=60,
-                check=False,
-            )
+            _run_ignore(["docker", "exec", self.container_id, "mkdir", "-p", dest_dir], timeout=60)
             for path in staged.iterdir():
-                subprocess.run(
+                _run_ignore(
                     ["docker", "cp", str(path), f"{self.container_id}:{dest_dir}/{path.name}"],
-                    capture_output=True,
                     timeout=120,
-                    check=False,
                 )
 
     def close(self) -> None:
         for args in (["rm", "-f", self.container_id], ["image", "rm", "-f", self.tag]):
-            subprocess.run(["docker", *args], capture_output=True, timeout=120, check=False)
+            _run_ignore(["docker", *args], timeout=120)
