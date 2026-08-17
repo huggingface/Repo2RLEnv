@@ -66,10 +66,15 @@ def test_bare_single_token_still_rejected():
 
 def test_capabilities_by_source():
     gh = capabilities_for(SourceKind.GITHUB)
-    assert {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.COMMIT_API} <= gh
+    assert {
+        Capability.PULL_REQUESTS,
+        Capability.ISSUES,
+        Capability.COMMIT_API,
+        Capability.REMOTE_CLONE,
+    } <= gh
     # GitLab: MRs + issues via REST, but NOT commit_api (cve_patches is OSV/GitHub).
     assert capabilities_for(SourceKind.GITLAB) == frozenset(
-        {Capability.PULL_REQUESTS, Capability.ISSUES}
+        {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.REMOTE_CLONE}
     )
     assert capabilities_for(SourceKind.LOCAL) == frozenset()
 
@@ -80,6 +85,15 @@ def test_issues_capability_present_on_remotes_only():
     assert Capability.ISSUES in capabilities_for(SourceKind.GITHUB)
     assert Capability.ISSUES in capabilities_for(SourceKind.GITLAB)
     assert Capability.ISSUES not in capabilities_for(SourceKind.LOCAL)
+
+
+def test_remote_clone_capability_excludes_local():
+    """REMOTE_CLONE means 'a URL a `docker build` can clone from' — a local
+    checkout has no such URL, so env_setup (RFC §15) must be able to gate on
+    this without a source-kind special case."""
+    assert Capability.REMOTE_CLONE in capabilities_for(SourceKind.GITHUB)
+    assert Capability.REMOTE_CLONE in capabilities_for(SourceKind.GITLAB)
+    assert Capability.REMOTE_CLONE not in capabilities_for(SourceKind.LOCAL)
 
 
 def test_detect_source_kind():

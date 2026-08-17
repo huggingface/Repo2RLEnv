@@ -507,6 +507,23 @@ def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
 
 
+def test_normalize_and_path_prelude_still_importable_from_pr_runtime():
+    """`normalize_test_cmds_for_runtime` and `_path_prelude_for_language` now
+    live in `_eval_script.py`; `pr_runtime` re-exports both by name. This is
+    the contract `cve_patches`, `commit_runtime`, and `pr_to_env` (which all
+    import these from `pr_runtime`, not `_eval_script`) depend on."""
+    import repo2rlenv.pipelines.pr_runtime as pr_runtime_module
+    from repo2rlenv.pipelines._eval_script import (
+        _path_prelude_for_language as eval_script_prelude,
+    )
+    from repo2rlenv.pipelines._eval_script import (
+        normalize_test_cmds_for_runtime as eval_script_normalize,
+    )
+
+    assert pr_runtime_module.normalize_test_cmds_for_runtime is eval_script_normalize
+    assert pr_runtime_module._path_prelude_for_language is eval_script_prelude
+
+
 def test_normalize_go_test_gets_v_flag():
     """`go test` without -v doesn't print --- PASS lines — parser needs them."""
     assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -v ./..."]
@@ -566,6 +583,34 @@ def test_normalize_strips_dev_null_redirect():
 
 def test_normalize_strips_bare_2_redirect_1():
     assert normalize_test_cmds_for_runtime(["pytest 2>&1"]) == ["pytest -v"]
+
+
+def test_normalize_drops_commands_that_reduce_to_empty():
+    """A command that is nothing but shell plumbing must be DROPPED, not emitted as "".
+
+    The pipe/redirect strippers run before runner detection, so `"| head -50"`,
+    `"2>&1"`, `"&>/dev/null"` and whitespace all reduce to `""`. Callers join
+    the result with `" && "` (bootstrap/runner.py, _eval_script.py), and an
+    empty segment is a bash *syntax error* — `pytest -v && ` won't parse.
+    """
+    for degenerate in ("| head -50", "2>&1", "   ", "&>/dev/null", "> /dev/null", ""):
+        assert normalize_test_cmds_for_runtime([degenerate]) == [], degenerate
+
+    # Mixed input: the real command survives, the degenerate one vanishes.
+    assert normalize_test_cmds_for_runtime(["pytest -q", "| head -50", "2>&1"]) == ["pytest -v"]
+
+    # And the joined script is valid bash — no dangling `&&`.
+    joined = " && ".join(normalize_test_cmds_for_runtime(["pytest -q", "   "]))
+    assert joined == "pytest -v"
+    assert not joined.rstrip().endswith("&&")
+
+
+def test_normalize_empty_output_survives_targeted_and_join():
+    """Dropping everything yields [], which downstream already handles."""
+    cmds = normalize_test_cmds_for_runtime(["| head -50", "  "])
+    assert cmds == []
+    # targeted_test_cmds_for_pr must not resurrect anything.
+    assert targeted_test_cmds_for_pr(cmds, ["tests/test_a.py"]) == []
 
 
 def test_normalize_npm_test_unchanged_when_wrapper():

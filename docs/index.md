@@ -35,7 +35,7 @@ repo2rlenv generate \
 
     ---
 
-    Six synthesis pipelines out of the box — from PR mining to LLM-authored coding tasks — each with a graded, verifiable reward.
+    Eight synthesis pipelines out of the box — from PR mining to LLM-authored coding tasks — each with a verifiable reward.
 
     [:octicons-arrow-right-24: Browse the pipelines](pipelines/README.md)
 
@@ -63,7 +63,7 @@ Three layers — the first is ours, the other two we delegate to Harbor:
 
 | Layer | Repo2RLEnv ships | We rely on |
 |---|---|---|
-| **Generation** | `src/repo2rlenv/pipelines/` — six pipelines, gate helpers, quality audits | — |
+| **Generation** | `src/repo2rlenv/pipelines/` — eight pipelines, gate helpers, quality audits | — |
 | **Spec** | The `[metadata.repo2env]` extension to `task.toml` — provenance so a dataset can be regenerated exactly | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
 | **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's full runtime](https://github.com/harbor-framework/harbor) — 5 sandbox backends × 22 agent harnesses |
 
@@ -75,12 +75,14 @@ Repo2RLEnv is **synthesis-only** — we generate the datasets and let Harbor run
 |---|---|---|:-:|---|
 | [**pr_diff**](pipelines/pr_diff.md) | agent writes a patch matching a real PR's diff | 6-component diff-similarity + LLM judge | stable | [`repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) |
 | [**pr_runtime**](pipelines/pr_runtime.md) | SWE-bench-style: agent's patch flips F2P tests to green | graded F2P × P2P | stable | [`repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) |
+| **pr_to_env** | Same task shape as `pr_runtime`, from a curated list of PR URLs | graded F2P × P2P | experimental | — |
 | [**commit_runtime**](pipelines/commit_runtime.md) | commit-level SWE-Gym-style tasks | graded F2P × P2P | stable | [`repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) |
 | [**code_instruct**](pipelines/code_instruct.md) | LLM-authored coding task anchored to a real repo's API | binary `test_execution` | experimental | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) |
 | [**equivalence_tests**](pipelines/equivalence_tests.md) | R2E-style: agent implements a function equivalent to a frozen reference | binary `test_execution` | experimental | [`repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) |
 | [**cve_patches**](pipelines/cve_patches.md) | OSV-driven CVE → fix-commit as a task | graded F2P × P2P | experimental | [`repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) |
+| [**env_setup**](pipelines/env_setup.md) | Repo2Run/SetupBench-style: agent installs a bare repo's own test suite from scratch | graded `reward = f2p_rate` | experimental | *pending* |
 
-Four more pipelines in the RFC queue: [`pr_to_env`](rfcs/0007-pr-to-env.md) · [`env_setup`](rfcs/0008-env-setup.md) · [`test_synthesis`](rfcs/0009-test-synthesis.md) · [`issue_runtime`](rfcs/0010-issue-runtime.md).
+Two more pipelines in the RFC queue: [`test_synthesis`](rfcs/0009-test-synthesis.md) · [`issue_runtime`](rfcs/0010-issue-runtime.md).
 
 ## Consuming a dataset
 

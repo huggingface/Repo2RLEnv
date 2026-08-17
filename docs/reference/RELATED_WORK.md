@@ -27,6 +27,7 @@ evaluating code agents. This page records two things:
 | `code_instruct` | Magicoder / OSS-Instruct | *Magicoder* (Wei et al., ICML '24) — [arXiv:2312.02120](https://arxiv.org/abs/2312.02120) | [ise-uiuc/magicoder](https://github.com/ise-uiuc/magicoder) (MIT) |
 | `equivalence_tests` | R2E | *R2E* (Jain et al., ICML '24) | [r2e-project/r2e](https://github.com/r2e-project/r2e) (MIT) |
 | `refactor_synthesis` | RefactoringMiner (originally planned, dropped in v0.8) | — (recipe is original) | [tsantalis/RefactoringMiner](https://github.com/tsantalis/RefactoringMiner) (MIT) |
+| `env_setup` | Repo2Run + SetupBench + EnvBench (task shape) · PEP 610 (provenance-probe foundation) | *Repo2Run* — [arXiv:2502.13681](https://arxiv.org/abs/2502.13681); *SetupBench* — [arXiv:2507.09063](https://arxiv.org/abs/2507.09063); *EnvBench* (ICLR '25 DL4Code) — [arXiv:2503.14443](https://arxiv.org/abs/2503.14443) | [bytedance/Repo2Run](https://github.com/bytedance/Repo2Run) (Apache-2.0) · [microsoft/SetupBench](https://github.com/microsoft/SetupBench) (MIT) · [JetBrains-Research/EnvBench](https://github.com/JetBrains-Research/EnvBench) (MIT) |
 
 ### Shared components (not pipelines)
 

@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import ast
 import difflib
-import re as _re
-
-from repo2rlenv.pipelines.pr_runtime import _path_prelude_for_language
+import re
 
 
 def make_unified_diff(old: str, new: str, path: str) -> str:
@@ -45,6 +43,193 @@ def make_unified_diff(old: str, new: str, path: str) -> str:
     if not body.endswith("\n"):
         body += "\n"
     return f"diff --git a/{path} b/{path}\n{body}"
+
+
+def _path_prelude_for_language(language: str | None) -> str:
+    """Shell snippet that prepends common toolchain dirs to $PATH.
+
+    The bootstrap agent often installs language toolchains (Go, Rust,
+    Node) into well-known paths (`/usr/local/go/bin`, `~/.cargo/bin`,
+    nvm dirs) but doesn't always persist a corresponding `export PATH`
+    to a shell init file. When Harbor's verifier runs `bash test.sh` in
+    a non-interactive shell, those binaries vanish from PATH → exit 127
+    on `go test` / `cargo test` / `node` → false-negative reward 0.
+
+    The fix at emission time: prepend the known install locations for
+    the bootstrap-detected language so the verifier shell always finds
+    the runner binary. Missing dirs are no-ops; the cost is one extra
+    line in test.sh.
+
+    Moved here (from `pr_runtime.py`) so both `pr_runtime` and
+    `_eval_script`'s own `build_binary_eval_script` can use it without a
+    `pr_runtime → _eval_script → pr_runtime` import cycle. `pr_runtime`
+    re-exports this name — do not remove the export.
+    """
+    extras = {
+        "go": ["/usr/local/go/bin", "$HOME/go/bin"],
+        "rust": ["$HOME/.cargo/bin"],
+        "node": ["/usr/local/lib/node_modules/.bin", "$HOME/.nvm/versions/node/*/bin"],
+        "java": ["/usr/lib/jvm/default-java/bin"],
+    }
+    dirs = extras.get((language or "").lower(), [])
+    if not dirs:
+        return ""
+    joined = ":".join(dirs)
+    return f'export PATH="{joined}:$PATH"\n'
+
+
+def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
+    """Adapt bootstrap-recorded test commands for actual per-PR execution.
+
+    Bootstrap prefers fast/tolerant commands (e.g. `pytest --collect-only`)
+    so it can declare success without running every test. For pr_runtime,
+    we need commands that *run* tests and emit per-test pass/fail lines
+    that our parsers can read.
+
+    Transforms (per runner):
+      pytest:
+        - Drop `--collect-only` / `--co` so pytest actually runs tests
+        - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
+        - Add `-v` if no verbosity flag is present
+      go test:
+        - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
+      cargo test:
+        - Default output is already parseable; no transform needed
+      jest / npm test:
+        - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
+        - Some configs swallow stdout via `--silent`; we strip that
+
+    Commands that normalize to the empty string are DROPPED, not emitted.
+    The pipe/redirect strippers below run before runner detection, so a
+    degenerate bootstrap-recorded entry (`"| head -50"`, `"2>&1"`, `"   "`)
+    reduces to `""`. Callers join the result with `" && "`, and an empty
+    segment is a bash syntax error rather than a no-op. The output is
+    therefore NOT index-aligned with the input; no caller relies on that
+    (every one pipes straight into `targeted_test_cmds_for_pr`).
+
+    Moved here (from `pr_runtime.py`) as part of the `_eval_script.py`
+    consolidation. `pr_runtime` re-exports this name — `cve_patches`,
+    `commit_runtime`, `pr_to_env`, and `tests/test_pipeline_pr_runtime.py`
+    all import it from `pr_runtime`, not from here.
+    """
+    out: list[str] = []
+    for cmd in test_cmds:
+        cleaned = cmd
+
+        # Strip shell pipes / redirects / tail-truncators that bootstrap agents
+        # sometimes append (e.g. `pytest -q 2>&1 | head -50`) so we capture only
+        # the test runner invocation. If we keep them, `targeted_test_cmds_for_pr`
+        # appends test files AFTER the pipe → broken command.
+        # `[^|]*` swallows whatever flags follow `head`/`tail` (`-50`, `-n 100`, etc.)
+        # without crossing into another piped command.
+        cleaned = re.sub(r"\s*\|\s*(?:head|tail)\s*[^|]*$", "", cleaned)
+        cleaned = re.sub(r"\s*2>&1\b", "", cleaned)
+        cleaned = re.sub(r"\s*&?>\s*/dev/null\b", "", cleaned)
+        cleaned = cleaned.rstrip(" |&")
+
+        # Nothing but shell plumbing (or whitespace) survived the strip — this
+        # entry was never a test invocation. Drop it; emitting "" would inject
+        # an empty segment into the downstream `" && ".join(...)`.
+        if not cleaned.strip():
+            continue
+
+        # --- pytest ---
+        if re.search(r"\bpytest\b", cleaned):
+            cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
+            cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
+            # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
+            # -q and -v cancel each other in pytest 9 (verbosity counter), so -q must go.
+            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
+            if not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
+                cleaned = cleaned.rstrip() + " -v"
+
+        # --- go test ---
+        elif re.search(r"\bgo\s+test\b", cleaned):
+            if not re.search(r"\s-v\b", cleaned):
+                # Insert -v right after `go test`; positional args go after
+                cleaned = re.sub(r"\bgo\s+test\b", "go test -v", cleaned, count=1)
+
+        # --- cargo test ---
+        elif re.search(r"\bcargo\s+test\b", cleaned):
+            # `cargo test` already prints `test NAME ... ok/FAILED/ignored`
+            # by default — no transformation needed. If a user passed
+            # `-q`, the per-test lines disappear; strip it.
+            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
+
+        # --- jest / npm test / yarn test / pnpm test ---
+        elif re.search(r"\b(?:jest|mocha|vitest|npm\s+test|yarn\s+test|pnpm\s+test)\b", cleaned):
+            cleaned = re.sub(r"\s+--silent\b", "", cleaned)
+            # Add --verbose if the cmd is the runner itself (skip wrappers
+            # where flags need to go after `--`)
+            if re.search(r"\b(?:jest|mocha|vitest)\b", cleaned) and not re.search(
+                r"\s--verbose\b|\s--reporter\b", cleaned
+            ):
+                cleaned = cleaned.rstrip() + " --verbose"
+
+        stripped = cleaned.strip()
+        if stripped:
+            out.append(stripped)
+    return out
+
+
+# Leading env-setup fragment: `. <path>`, `source <path>`, or `export FOO=...`.
+_ENV_FRAGMENT_RE = re.compile(r"^(?:\.\s+\S|source\s+\S|export\s+\w+=)")
+
+
+def env_prelude_from_test_cmds(test_cmds: list[str]) -> str:
+    """Extract the leading environment-setup fragments from `test_cmds`.
+
+    Bootstrap-recorded `test_cmds` often carry a venv-activation / export
+    prefix (`. /workspace/.venv/bin/activate && pytest -v`) that the real
+    test invocation depends on. This pulls out just those leading fragments
+    — `. <path>/activate`, `source ...`, `export FOO=bar` — so they can be
+    shipped as a standalone, *sourced* file (`tests/env_prelude.sh`) rather
+    than re-interpolated into a shell string (which would break on a
+    fragment containing a `'`, e.g. `export PYTEST_ADDOPTS='-p no:randomly'`).
+
+    Each fragment has its trailing `&&`/`;` stripped. Stops at the first
+    segment in a command that ISN'T an env-setup fragment (the actual test
+    invocation) — everything after that point is irrelevant here. Returns
+    the literal string `"true"` (a shell no-op) when no fragments are found
+    across any command, so the emitted file is always safe to `source`.
+    """
+    seen: set[str] = set()
+    fragments: list[str] = []
+    for cmd in test_cmds:
+        for part in re.split(r"\s*(?:&&|;)\s*", cmd):
+            part = part.strip()
+            if not part:
+                continue
+            if not _ENV_FRAGMENT_RE.match(part):
+                break
+            if part not in seen:
+                seen.add(part)
+                fragments.append(part)
+    if not fragments:
+        return "true"
+    return "\n".join(fragments)
+
+
+# host → (build-arg-injected username, host) for authed_clone_url.
+_CLONE_HOST_CREDS: tuple[tuple[str, str], ...] = (
+    ("https://github.com/", "x-access-token"),
+    ("https://gitlab.com/", "oauth2"),
+)
+
+
+def authed_clone_url(repo_url: str, *, arg_name: str = "GITHUB_TOKEN") -> str:
+    """Build a clone URL with a build-arg token injected after the scheme.
+
+    `github.com` → `https://x-access-token:${<arg_name>}@github.com/...`
+    `gitlab.com` → `https://oauth2:${<arg_name>}@gitlab.com/...`
+
+    Returns `repo_url` unchanged if it matches neither known host (same
+    no-op fallback as the hardcoded `.replace(...)` this consolidates).
+    """
+    for prefix, username in _CLONE_HOST_CREDS:
+        if repo_url.startswith(prefix):
+            return repo_url.replace(prefix, f"https://{username}:${{{arg_name}}}@{prefix[8:]}", 1)
+    return repo_url
 
 
 def build_binary_eval_script(test_cmds: list[str], *, language: str | None = None) -> str:
@@ -88,9 +273,9 @@ def all_tests_passed(log: str) -> bool:
     lower = log.lower()
     if "error" in lower and "collected 0 items" in lower:
         return False
-    if "failed" in lower and _re.search(r"\b[1-9]\d*\s+failed\b", lower):
+    if "failed" in lower and re.search(r"\b[1-9]\d*\s+failed\b", lower):
         return False
-    return bool(_re.search(r"\b[1-9]\d*\s+passed\b", lower))
+    return bool(re.search(r"\b[1-9]\d*\s+passed\b", lower))
 
 
 # ---------------------------------------------------------------------------

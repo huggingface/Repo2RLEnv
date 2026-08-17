@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class _BaseOptions(BaseModel):
@@ -255,13 +256,131 @@ class EquivalenceTestsOptions(_BaseOptions):
     skip_validation: bool = False
 
 
+class PrToEnvOptions(_BaseOptions):
+    """Curated-URL PR → Harbor env conversion (import-shape sibling of pr_runtime).
+
+    Where `pr_runtime` mines a repo's history and applies filters, `pr_to_env`
+    consumes an explicit list of PR URLs the user hands in. Same task shape,
+    same verifier, same anti-contamination guards — different input surface.
+
+    See docs/rfcs/0007-pr-to-env.md.
+    """
+
+    # Exactly one of `url` / `urls_file` must be set. Enforced in pipeline __init__.
+    url: str | None = None  # single PR URL, e.g. https://github.com/pallets/click/pull/3434
+    urls_file: Path | None = None  # one URL per line, `#` comments allowed
+
+    # Per-URL failure handling. strict=True aborts the whole run on any URL
+    # that can't produce an env; strict=False logs the reason to skip_reasons
+    # and emits whatever succeeded.
+    strict: bool = False
+
+    # Cross-repo dep pinning (M3 gate): if True, synthesize a
+    # environment/constraints.txt from `pip index versions` at the PR's merge
+    # commit date and inject `pip install -c constraints.txt` into the Dockerfile.
+    # Rescues cross-repo API skew (e.g. peft PR needing transformers==5.4.*).
+    pin_transitive_deps: bool = True
+
+    # F2P / P2P count floors (M3 gate #10). Below these the env is flagged
+    # `calibration = "low_signal"` and — if hard=True — hard-dropped.
+    min_f2p: int = 3
+    min_p2p: int = 3
+    hard_drop_low_signal: bool = False
+
+    # Oracle-gate: after emit, run `harbor run -a oracle` and drop the env
+    # if reward != 1.0. This is THE shipping criterion for HF_ML_Bench_v0.
+    oracle_gate: bool = True
+    oracle_timeout_sec: int = 900
+
+    # Validation knobs inherited from pr_runtime (same semantics)
+    require_new_test_funcs: bool = True
+    validation_timeout_sec: int = 600
+    skip_validation: bool = False
+
+    # LLM-synthesis of instruction.md (leak-free); if False, use pr_runtime's
+    # `_build_instruction` verbatim.
+    synthesize_with_llm: bool = True
+
+
+class EnvSetupOptions(_BaseOptions):
+    """Repo2Run/SetupBench-style: agent makes a bare repo's test suite run green.
+
+    Unlike every other sandboxed pipeline, the emitted environment deliberately
+    has NO dependencies installed — the bootstrap image is used only to derive
+    the gold recipe and is then discarded.
+    """
+
+    # --- Discovery ---
+    limit: int = 20
+    refs: list[str] | None = None  # commits/tags to base tasks on; None ⇒ HEAD only
+
+    # --- Signal floors ---
+    min_target_tests: int = 5  # reject suites too small to grade meaningfully
+    max_target_tests: int = 0  # cap the F2P set; 0 ⇒ whole suite
+    max_setup_time_sec: int = 1800  # agent budget → task.toml agent.timeout_sec (§2)
+
+    # --- Oracle recipe (§5) ---
+    emit_solution: bool = True  # False ⇒ eval-only split; distillation still runs
+    max_recipe_attempts: int = 3  # TOTAL attempts, not retries-after-the-first
+    recipe_verify_timeout_sec: int = 1800
+    llm_temperature: float = 0.2  # recipes want determinism, not creativity
+    max_llm_tokens: int = 2048
+
+    # --- Guards (§7) ---
+    provenance_gate: bool = True
+    scrub_git_history: bool = False  # repo history is legitimate solve context
+
+    # --- Shipping gate ---
+    oracle_gate: bool = True  # `harbor run -a oracle` must return 1.0
+    oracle_timeout_sec: int = 0  # 0 ⇒ derive (see the invariant below)
+    oracle_build_slack_sec: int = 900  # image build + harbor overhead
+    verifier_timeout_sec: int = 1800  # → task.toml verifier.timeout_sec (§2)
+
+    @model_validator(mode="after")
+    def _check_target_bounds(self) -> EnvSetupOptions:
+        # An empty F2P list makes grade() return reward=0.0, resolved=False
+        # unconditionally (§4), so the floor is what keeps that unreachable.
+        if self.min_target_tests < 1:
+            raise ValueError("min_target_tests must be >= 1: an empty F2P set always scores 0.0")
+        if self.max_target_tests < 0:
+            raise ValueError("max_target_tests must be >= 0 (0 ⇒ whole suite)")
+        return self
+        # NB: max_target_tests < min_target_tests is legal and meaningful — see below.
+
+    @model_validator(mode="after")
+    def _check_recipe_attempts(self) -> EnvSetupOptions:
+        # distill_setup_recipe's retry loop is `range(1, max_recipe_attempts + 1)`;
+        # <= 0 would skip the loop body entirely and never call the LLM at all.
+        if self.max_recipe_attempts < 1:
+            raise ValueError("max_recipe_attempts must be >= 1: 0 would never attempt a recipe")
+        return self
+
+    @property
+    def effective_oracle_timeout_sec(self) -> int:
+        if self.oracle_timeout_sec:
+            return self.oracle_timeout_sec
+        return self.max_setup_time_sec + self.verifier_timeout_sec + self.oracle_build_slack_sec
+
+    @model_validator(mode="after")
+    def _check_oracle_timeout(self) -> EnvSetupOptions:
+        floor = self.max_setup_time_sec + self.verifier_timeout_sec + self.oracle_build_slack_sec
+        if self.oracle_timeout_sec and self.oracle_timeout_sec < floor:
+            raise ValueError(
+                f"oracle_timeout_sec={self.oracle_timeout_sec} < {floor}: a task using its full "
+                "stated budget could not pass its own oracle gate"
+            )
+        return self
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
+    "pr_to_env": PrToEnvOptions,
     "pr_diff": PRDiffOptions,
     "commit_runtime": CommitRuntimeOptions,
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
+    "env_setup": EnvSetupOptions,
 }
 
 

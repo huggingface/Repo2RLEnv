@@ -331,6 +331,42 @@ def test_eval_script_exits_zero() -> None:
     assert "exit 0" in es
 
 
+def test_dockerfile_byte_identical_for_github() -> None:
+    """authed_clone_url adoption must not change one byte of the emitted
+    Dockerfile for a github.com repo. Baseline hash captured from the
+    pre-change implementation (hardcoded `.replace("https://github.com/", ...)`)
+    with these exact inputs — a hash comparison here is the regression guard,
+    not a manual read-through."""
+    import hashlib
+
+    df = build_pr_diff_environment_dockerfile(
+        repo_url="https://github.com/o/r.git",
+        base_commit="deadbeef",
+        oracle_diff="diff --git a/x b/x\n",
+        instruction="do it",
+    )
+    assert len(df) == 27648
+    assert (
+        hashlib.sha256(df.encode("utf-8")).hexdigest()
+        == "4af983577d219760acbb6446110b175becadf526e46c15d811201f9cdfe4f212"
+    )
+
+
+def test_dockerfile_authed_clone_url_handles_gitlab() -> None:
+    """The live bug: on a gitlab.com repo_url, the old hardcoded
+    `.replace("https://github.com/", ...)` was a no-op, so the
+    `if [ -n "$GITHUB_TOKEN" ]` branch cloned the UNAUTHENTICATED gitlab.com
+    URL and a private MR-mined task failed with an error blaming the repo
+    rather than the token. `authed_clone_url` fixes this."""
+    df = build_pr_diff_environment_dockerfile(
+        repo_url="https://gitlab.com/o/r.git",
+        base_commit="deadbeef",
+        oracle_diff="diff --git a/x b/x\n",
+        instruction="do it",
+    )
+    assert "oauth2:${GITHUB_TOKEN}@gitlab.com/o/r.git" in df
+
+
 def test_dockerfile_supports_private_repo_build_arg() -> None:
     """The emitted Dockerfile clones via an optional GITHUB_TOKEN build arg
     so private repos work at consumer build time, then scrubs the remote so

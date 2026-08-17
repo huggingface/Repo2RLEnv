@@ -168,7 +168,9 @@ reward = float(open("/logs/verifier/reward.txt").read().strip())  # 1.0 or 0.0
 |---|---|:-:|---|---|
 | `pr_diff` | weighted [0,1] | ✅ | `reward` | `components` breakdown |
 | `pr_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
+| `pr_to_env` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `commit_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `cve_patches` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `code_instruct` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
 | `equivalence_tests` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
+| `env_setup` | f2p rate (p2p always empty ⇒ `p2p_rate = 1.0`) | ✅ | `reward` | `resolved` (all F2P pass) |

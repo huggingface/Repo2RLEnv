@@ -17,7 +17,7 @@ Different repos have wildly different setup needs:
 
 Hand-writing a Dockerfile per repo is unworkable when the goal is "any repo." So the **bootstrap phase** does it for you: an LLM agent reads the repo, runs shell commands inside a sandboxed container, iterates until the build + tests succeed, then commits the result as a Docker image. The image is cached locally and reused for every subsequent task generated from that repo.
 
-You only need bootstrap for pipelines that actually run code (`pr_runtime`, `commit_runtime`, `cve_patches`, `code_instruct`, `equivalence_tests`). The text-only `pr_diff` pipeline skips it entirely.
+You only need bootstrap for pipelines that actually run code (`pr_runtime`, `pr_to_env`, `commit_runtime`, `cve_patches`, `code_instruct`, `equivalence_tests`, `env_setup`). The text-only `pr_diff` pipeline skips it entirely. `env_setup` is the one exception to "bootstrap produces the image the task runs in": it runs bootstrap for the transcript, then throws the image away — see [`pipelines/env_setup.md`](../pipelines/env_setup.md).
 
 ### Supported languages
 
@@ -42,7 +42,7 @@ Some pipelines work on any language (they operate on diffs, PRs, commits); other
 
 | Pipeline | Languages |
 |---|---|
-| `pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches` | any |
+| `pr_diff`, `pr_runtime`, `pr_to_env`, `commit_runtime`, `cve_patches`, `env_setup` | any |
 | `code_instruct`, `equivalence_tests` | Python only |
 
 The CLI runs a pre-flight check: if you point a Python-only pipeline at a non-Python repo, generation aborts before bootstrap even starts so you don't burn 5+ minutes finding out. Pass `--force-language` to skip the check and proceed anyway (the pipeline will likely emit zero tasks; explicit user choice).

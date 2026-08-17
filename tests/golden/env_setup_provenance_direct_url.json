@@ -1,0 +1,7 @@
+{
+  "probe": "direct_url",
+  "base_commit": "cccccccccccccccccccccccccccccccccccccccc",
+  "language": "python",
+  "package": "pkg",
+  "dist_name": "pkg"
+}

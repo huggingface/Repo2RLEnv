@@ -152,6 +152,7 @@ nav:
       - "code_instruct (experimental)": pipelines/code_instruct.md
       - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
       - "cve_patches (experimental)": pipelines/cve_patches.md
+      - "env_setup (experimental)": pipelines/env_setup.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md
@@ -161,7 +162,7 @@ nav:
       - "0005 — equivalence_tests": rfcs/0005-equivalence-tests.md
       - "0006 — cve_patches": rfcs/0006-cve-patches.md
       - "0007 — pr_to_env (draft)": rfcs/0007-pr-to-env.md
-      - "0008 — env_setup (draft)": rfcs/0008-env-setup.md
+      - "0008 — env_setup": rfcs/0008-env-setup.md
       - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
       - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
       - Template: rfcs/TEMPLATE.md

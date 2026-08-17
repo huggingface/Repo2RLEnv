@@ -52,6 +52,10 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import GitHubError, PullRequestSummary
 from repo2rlenv.gitlab import GitLabError
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, git_history_scrub
+from repo2rlenv.pipelines._eval_script import (
+    _path_prelude_for_language,
+    normalize_test_cmds_for_runtime,
+)
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
@@ -303,6 +307,7 @@ def _build_instruction(
         f"Modify the repository so that the issue described above is resolved. "
         f"The task's test suite verifies your patch by applying it on top of "
         f"the base commit `{pr.base_sha[:12]}` and running the modified tests."
+        "Do not attempt to cheat by looking up existing solutions to this PR, including searching the web, querying GitHub, attempting to fetch newer commits, inspecting release artifacts, or otherwise looking up the existing PR solution on the internet. Work only from the local repository checkout and the issue description above."
     )
 
 
@@ -332,11 +337,13 @@ def _is_non_bug_pr(title: str) -> bool:
 
 
 def _verifier_source() -> str:
-    """Read the standalone graded verifier's source for base64 embedding.
+    """Read the standalone graded verifier's source for emission.
 
-    Mirrors pr_diff: the verifier (`_pr_runtime_verifier.py`) runs inside
-    the task container, so we read its source at gen time and bake it into
-    `tests/test.sh` as a base64 blob.
+    The verifier (`_pr_runtime_verifier.py`) runs inside the task container,
+    so we read its source at gen time and ship it as a plain task artifact at
+    `tests/verifier.py` (see `_runtime_aux_files`), which Harbor mounts at
+    `/tests`. Unlike pr_diff, it is *not* base64-embedded in `tests/test.sh` —
+    a plain file keeps task semantics inspectable and test.sh small.
     """
     return (Path(__file__).parent / "_pr_runtime_verifier.py").read_text(encoding="utf-8")
 
@@ -398,34 +405,6 @@ def build_environment_dockerfile(bootstrap_image: str, base_commit: str) -> str:
         # which an agent can read offline. Strip it down to base_commit.
         + git_history_scrub(base_commit)
     )
-
-
-def _path_prelude_for_language(language: str | None) -> str:
-    """Shell snippet that prepends common toolchain dirs to $PATH.
-
-    The bootstrap agent often installs language toolchains (Go, Rust,
-    Node) into well-known paths (`/usr/local/go/bin`, `~/.cargo/bin`,
-    nvm dirs) but doesn't always persist a corresponding `export PATH`
-    to a shell init file. When Harbor's verifier runs `bash test.sh` in
-    a non-interactive shell, those binaries vanish from PATH → exit 127
-    on `go test` / `cargo test` / `node` → false-negative reward 0.
-
-    The fix at emission time: prepend the known install locations for
-    the bootstrap-detected language so the verifier shell always finds
-    the runner binary. Missing dirs are no-ops; the cost is one extra
-    line in test.sh.
-    """
-    extras = {
-        "go": ["/usr/local/go/bin", "$HOME/go/bin"],
-        "rust": ["$HOME/.cargo/bin"],
-        "node": ["/usr/local/lib/node_modules/.bin", "$HOME/.nvm/versions/node/*/bin"],
-        "java": ["/usr/lib/jvm/default-java/bin"],
-    }
-    dirs = extras.get((language or "").lower(), [])
-    if not dirs:
-        return ""
-    joined = ":".join(dirs)
-    return f'export PATH="{joined}:$PATH"\n'
 
 
 def build_eval_script(
@@ -610,79 +589,6 @@ def _count_new_test_funcs(test_patch: str) -> int:
     if not test_patch.strip():
         return 0
     return sum(1 for line in test_patch.splitlines() if _NEW_TEST_FUNC_RE.match(line))
-
-
-def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
-    """Adapt bootstrap-recorded test commands for actual per-PR execution.
-
-    Bootstrap prefers fast/tolerant commands (e.g. `pytest --collect-only`)
-    so it can declare success without running every test. For pr_runtime,
-    we need commands that *run* tests and emit per-test pass/fail lines
-    that our parsers can read.
-
-    Transforms (per runner):
-      pytest:
-        - Drop `--collect-only` / `--co` so pytest actually runs tests
-        - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
-        - Add `-v` if no verbosity flag is present
-      go test:
-        - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
-      cargo test:
-        - Default output is already parseable; no transform needed
-      jest / npm test:
-        - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
-        - Some configs swallow stdout via `--silent`; we strip that
-    """
-    out: list[str] = []
-    for cmd in test_cmds:
-        cleaned = cmd
-
-        # Strip shell pipes / redirects / tail-truncators that bootstrap agents
-        # sometimes append (e.g. `pytest -q 2>&1 | head -50`) so we capture only
-        # the test runner invocation. If we keep them, `targeted_test_cmds_for_pr`
-        # appends test files AFTER the pipe → broken command.
-        # `[^|]*` swallows whatever flags follow `head`/`tail` (`-50`, `-n 100`, etc.)
-        # without crossing into another piped command.
-        cleaned = re.sub(r"\s*\|\s*(?:head|tail)\s*[^|]*$", "", cleaned)
-        cleaned = re.sub(r"\s*2>&1\b", "", cleaned)
-        cleaned = re.sub(r"\s*&?>\s*/dev/null\b", "", cleaned)
-        cleaned = cleaned.rstrip(" |&")
-
-        # --- pytest ---
-        if re.search(r"\bpytest\b", cleaned):
-            cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
-            cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
-            # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
-            # -q and -v cancel each other in pytest 9 (verbosity counter), so -q must go.
-            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
-            if not re.search(r"\s-v\b|\s--verbose\b|-vv\b", cleaned):
-                cleaned = cleaned.rstrip() + " -v"
-
-        # --- go test ---
-        elif re.search(r"\bgo\s+test\b", cleaned):
-            if not re.search(r"\s-v\b", cleaned):
-                # Insert -v right after `go test`; positional args go after
-                cleaned = re.sub(r"\bgo\s+test\b", "go test -v", cleaned, count=1)
-
-        # --- cargo test ---
-        elif re.search(r"\bcargo\s+test\b", cleaned):
-            # `cargo test` already prints `test NAME ... ok/FAILED/ignored`
-            # by default — no transformation needed. If a user passed
-            # `-q`, the per-test lines disappear; strip it.
-            cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
-
-        # --- jest / npm test / yarn test / pnpm test ---
-        elif re.search(r"\b(?:jest|mocha|vitest|npm\s+test|yarn\s+test|pnpm\s+test)\b", cleaned):
-            cleaned = re.sub(r"\s+--silent\b", "", cleaned)
-            # Add --verbose if the cmd is the runner itself (skip wrappers
-            # where flags need to go after `--`)
-            if re.search(r"\b(?:jest|mocha|vitest)\b", cleaned) and not re.search(
-                r"\s--verbose\b|\s--reporter\b", cleaned
-            ):
-                cleaned = cleaned.rstrip() + " --verbose"
-
-        out.append(cleaned.strip())
-    return out
 
 
 # Pytest-style file extensions we know how to target. Anything else triggers

@@ -14,11 +14,13 @@ class PipelineName(StrEnum):
     # Mined from upstream history
     PR_DIFF = "pr_diff"  # text-only PR mining (was: pr_mining_lite)
     PR_RUNTIME = "pr_runtime"  # PR mining w/ sandbox verification (was: pr_mining)
+    PR_TO_ENV = "pr_to_env"  # curated PR URLs → Harbor RL envs (import-shape sibling of pr_runtime)
     COMMIT_RUNTIME = "commit_runtime"  # commit-level mining w/ sandbox (was: commit_mining)
     CVE_PATCHES = "cve_patches"  # CVE patches as training data (was: cve_mining)
     # Synthesized by LLM
     CODE_INSTRUCT = "code_instruct"  # OSS-Instruct-style (was: oss_instruct)
     EQUIVALENCE_TESTS = "equivalence_tests"
+    ENV_SETUP = "env_setup"  # Repo2Run/SetupBench-style: agent makes a bare suite run green
 
 
 class RepoSpec(BaseModel):

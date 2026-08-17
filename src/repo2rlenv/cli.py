@@ -196,6 +196,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
                 bspec = bspec.model_copy(update={k: v})
             except Exception as exc:
                 raise SystemExit(f"--bootstrap-opt {k}={v!r}: {exc}") from exc
+        # Write the overridden spec back so the CLI flags are the single source
+        # of truth: `ensure_bootstrap()` and the pipeline (which reads
+        # `self.input.bootstrap`, e.g. `.platform`) must see the same values.
+        gen_input = gen_input.model_copy(update={"bootstrap": bspec})
         with bootstrap_view_or_plain(
             repo=gen_input.repo.url,
             ref=gen_input.repo.ref,
@@ -877,7 +881,11 @@ def main(argv: list[str] | None = None) -> int:
         "--max-spend-usd",
         type=float,
         default=5.0,
-        help="LLM budget cap across bootstrap + pipeline (default 5.0; 0 = unlimited)",
+        help=(
+            "bootstrap: LLM budget cap for the bootstrap agent loop only — "
+            "pipeline-side LLM spend is not capped by this "
+            "(default 5.0; 0 = unlimited)"
+        ),
     )
     g.add_argument(
         "--language", help="bootstrap: override auto-detect (python|node|go|rust|java|c_cpp)"

@@ -166,3 +166,65 @@ def test_reproducibility_caller_override_preserved(tmp_path: Path):
     repro = data["metadata"]["repo2env"]["reproducibility"]
     assert repro["mode"] == "registry"
     assert repro["image_ref"] == "ghcr.io/foo/bar@sha256:abc"
+
+
+def test_emitter_omits_solution_without_oracle(tmp_path: Path):
+    """env_setup ships an eval-only split with no oracle diff at all — no
+    solution/ directory should be written, and content-hashing must not
+    raise on the missing oracle_diff."""
+    task = _make_task("no-oracle-task")
+    task.oracle_diff = None
+    out = write_harbor_task(task, tmp_path)
+    assert not (out / "solution").exists()
+    # task.toml must still be written with a stable content_hash (no crash).
+    data = tomllib.loads((out / "task.toml").read_text())
+    assert data["metadata"]["repo2env"]["content_hash"].startswith("sha256:")
+
+
+def test_emitter_timeouts_are_per_task(tmp_path: Path):
+    """agent_timeout_sec / verifier_timeout_sec reach task.toml verbatim."""
+    task = _make_task("custom-timeout-task")
+    task.agent_timeout_sec = 7200.0
+    task.verifier_timeout_sec = 900.0
+    out = write_harbor_task(task, tmp_path)
+    data = tomllib.loads((out / "task.toml").read_text())
+    assert data["agent"]["timeout_sec"] == 7200.0
+    assert data["verifier"]["timeout_sec"] == 900.0
+
+
+def test_emitter_timeouts_default_to_todays_literals(tmp_path: Path):
+    """None reproduces today's hardcoded 1800.0 / 300.0 so no existing
+    pipeline changes behavior."""
+    task = _make_task("default-timeout-task")
+    out = write_harbor_task(task, tmp_path)
+    data = tomllib.loads((out / "task.toml").read_text())
+    assert data["agent"]["timeout_sec"] == 1800.0
+    assert data["verifier"]["timeout_sec"] == 300.0
+
+
+def test_solve_script_set_lands_executable(tmp_path: Path):
+    """When solve_script is set, it's written verbatim to solution/solve.sh
+    with mode 0o755 — no git-apply shim."""
+    task = _make_task("solve-script-task")
+    task.solve_script = "#!/bin/bash\nset -eux\n./setup.sh\n"
+    out = write_harbor_task(task, tmp_path)
+    solve = out / "solution" / "solve.sh"
+    assert solve.is_file()
+    assert solve.stat().st_mode & 0o111
+    assert solve.read_text() == task.solve_script
+
+
+def test_solve_script_none_reproduces_todays_shim(tmp_path: Path):
+    """solve_script=None keeps today's git-apply shim byte-for-byte."""
+    task = _make_task("no-solve-script-task")
+    assert task.solve_script is None
+    out = write_harbor_task(task, tmp_path)
+    content = (out / "solution" / "solve.sh").read_text()
+    assert content == (
+        "#!/bin/bash\n"
+        "set -euxo pipefail\n"
+        "cd /workspace\n"
+        "git config --global --add safe.directory /workspace\n"
+        'PATCH="$(dirname "$0")/patch.diff"\n'
+        'git apply --verbose --reject "$PATCH"\n'
+    )

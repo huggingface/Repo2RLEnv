@@ -15,7 +15,7 @@ A class that:
 - Emits Harbor task directories at `out_dir`
 - Returns a `PipelineResult` with candidate / emitted / skipped counters
 
-The whole thing is typically 100–300 LOC. Lite (text-only) pipelines are at the smaller end; sandbox-required ones with LLM verification are at the larger end.
+Shipped pipelines run 550–1150 LOC each (module-level helpers included). Lite (text-only) pipelines like `pr_diff` are at the smaller end; sandbox-required ones with LLM synthesis and in-container verification are at the larger end. Push anything reusable into a `pipelines/_*.py` helper module rather than growing the pipeline file.
 
 ## Prerequisites
 
@@ -78,13 +78,15 @@ See pr_diff.py for the format.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from repo2rlenv.auth import resolve_github_token
+from repo2rlenv.auth import resolve_repo_token
+from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import YourPipelineOptions
 
@@ -95,40 +97,91 @@ class YourPipeline:
     """One-line summary. Implements the `Pipeline` Protocol."""
 
     name: ClassVar[PipelineName] = PipelineName.YOUR_PIPELINE
+    # Only declare the capabilities you actually use — cmd_generate's pre-flight
+    # blocks incompatible source/pipeline combos (e.g. PR mining on a local path).
+    required_capabilities: ClassVar[frozenset[Capability]] = frozenset(
+        {Capability.PULL_REQUESTS}
+    )
+    requires_bootstrap: ClassVar[bool] = False
+    experimental: ClassVar[bool] = True  # every new pipeline starts here
+    # Optional; omit entirely (the default is None = any language) unless you
+    # parse Python AST or emit pytest verifiers:
+    # supported_languages: ClassVar[frozenset[LanguageHint] | None] = frozenset(
+    #     {LanguageHint.PYTHON}
+    # )
 
-    def __init__(self, input: GenerationInput, options: YourPipelineOptions):
+    def __init__(
+        self,
+        input: GenerationInput,
+        options: YourPipelineOptions,
+        bootstrap: BootstrapResult | None = None,
+    ):
+        # `bootstrap` is always passed by cmd_generate. It's None unless you set
+        # requires_bootstrap=True; if you did, fail loudly here rather than deep
+        # in run() — see commit_runtime.py for the canonical message.
         self.input = input
         self.options = options
+        self.bootstrap = bootstrap
+        self._progress_cb = None  # set via set_progress_callback for the live UI
+
+    # --- progress plumbing (every shipped pipeline implements this pair) ------
+
+    def set_progress_callback(self, cb) -> None:
+        """Wire a per-candidate callback so the CLI live view can update.
+
+        Callable signature: cb(name: str, outcome: "emit"|"skip"|"error", reason: str = "")
+        """
+        self._progress_cb = cb
+
+    def _emit_progress(self, name: str, outcome: str, reason: str = "") -> None:
+        if self._progress_cb is not None:
+            try:
+                self._progress_cb(name=name, outcome=outcome, reason=reason)
+            except Exception as exc:
+                logger.debug("progress callback failed: %s", exc)
+
+    # --- the run loop ---------------------------------------------------------
 
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1) Resolve auth if you need to clone/list private repos
-        token = resolve_github_token(self.input.repo, self.input.auth)
+        # 1) Resolve auth if you need to clone/list private repos.
+        #    `resolve_repo_token` dispatches on the source (github/gitlab/local);
+        #    only use `resolve_github_token` if your pipeline is GitHub-only.
+        token = resolve_repo_token(self.input.repo, self.input.auth)
         if self.input.repo.access == "private" and not token:
             raise RuntimeError(
-                "private repo specified but no GitHub token resolved. "
-                "Run `gh auth login` or set GITHUB_TOKEN."
+                "private repo specified but no token resolved. "
+                "Run `gh auth login` / set GITHUB_TOKEN (GitHub) or GITLAB_TOKEN (GitLab)."
             )
 
-        # 2) Discover candidates (the pipeline-specific logic)
-        candidates = self._discover()
+        # 2) Discover candidates inline. Discovery is one call against the host
+        #    or the local checkout — it stays in run() rather than hiding behind
+        #    a helper, so the failure mode (raise vs. skip) is visible here.
+        owner, name = self.input.repo.owner_name
+        candidates = ...  # list PRs / walk commits / query OSV / sample seeds
 
         # 3) Loop, filter, emit
         skip_reasons: dict[str, int] = {}
         emitted = 0
         for cand in candidates:
-            reason = self._should_skip(cand)
+            label = f"{owner}/{name}#{cand.id}"
+
+            reason = self._pre_filter(cand)          # cheap, metadata-only
             if reason:
                 skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                self._emit_progress(label, "skip", reason)
                 continue
-            try:
-                task = self._build_task(cand)
-                write_harbor_task(task, out_dir)
-                emitted += 1
-            except Exception as exc:
-                logger.warning("candidate %s failed: %s", cand, exc)
-                skip_reasons["build_failed"] = skip_reasons.get("build_failed", 0) + 1
+
+            # ... fetch the expensive payload (diff, file contents, LLM output),
+            # then apply the filters that need it. Wrap each fetch in try/except
+            # and record an "error" outcome — never let one candidate abort the run.
+
+            task = self._build_task(cand)
+            write_harbor_task(task, out_dir)
+            emitted += 1
+            logger.info("emitted task %s", task.name)
+            self._emit_progress(task.name, "emit")
 
         return PipelineResult(
             candidates=len(candidates),
@@ -140,12 +193,14 @@ class YourPipeline:
 
     # --- private helpers ---
 
-    def _discover(self) -> list[...]:
-        """Pipeline-specific: list PRs, walk commits, query NVD, sample seeds, etc."""
-        ...
+    def _pre_filter(self, cand) -> str | None:
+        """Return a skip reason name (or None to keep). Reasons go in the result.
 
-    def _should_skip(self, cand) -> str | None:
-        """Return a skip reason name (or None to keep). Reasons go in the result."""
+        Name your filters for what they check — the shipped set is
+        `_pre_filter` / `_structural_quality_filter` / `_lite_filter`
+        (pr_runtime), `_metadata_filter` / `_structural_filter`
+        (commit_runtime), module-level `_quality_filter` (pr_diff).
+        """
         ...
 
     def _build_task(self, cand) -> HarborTask:
@@ -159,7 +214,7 @@ class YourPipeline:
             "ref": cand.base_sha,
             "reference": cand.url,
             "source_access": self.input.repo.access,
-            "built_at": datetime.now(timezone.utc).isoformat(),
+            "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,
             self.name.value: {
                 # Pipeline-specific provenance under [metadata.repo2env.<name>]
@@ -171,16 +226,20 @@ class YourPipeline:
             org=self.input.output.org,
             description=...,
             instruction=...,
-            oracle_diff=...,
             repo2env=repo2env,
+            oracle_diff=...,  # optional — omit (None) for eval-only tasks with no solution/
         )
 ```
 
-**Key invariants** (the contract test enforces these):
+**Key invariants.** `tests/test_pipeline_contract.py` enforces the first four mechanically; the rest are conventions every shipped pipeline follows and reviewers will hold you to:
 
-- `name: ClassVar[PipelineName] = PipelineName.YOUR_PIPELINE` — typed and matches the enum value
-- `__init__(input, options)` accepts the GenerationInput + your specific Options
+- `name: ClassVar[PipelineName] = PipelineName.YOUR_PIPELINE` — typed, and equal to the key you register in `PIPELINES`
+- `requires_bootstrap: ClassVar[bool]` — declared explicitly; `cmd_generate` dispatches on it
+- `experimental: ClassVar[bool]` — `True` for anything outside the stable set (`pr_diff`, `pr_runtime`, `commit_runtime`). The contract test hard-codes that set, so promoting a pipeline to stable means editing `test_pipeline_stability_classification` in the same PR.
+- `supported_languages` — must be `frozenset({LanguageHint.PYTHON})` if your pipeline is Python-only, and must stay unset if it isn't
+- `__init__(input, options, bootstrap=None)` — the three-arg form from [`base.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py). `cmd_generate` always passes `bootstrap=` by keyword, so a two-arg `__init__` raises at dispatch.
 - `run(out_dir)` returns a `PipelineResult`
+- `set_progress_callback(cb)` + `_emit_progress(name, outcome, reason)` — duck-typed, so the CLI guards with `hasattr` and a pipeline without them merely leaves the progress bar static. Implement them anyway; all eight shipped pipelines do.
 - Per-task failures go into `skip_reasons` and **don't halt the pipeline**
 
 ### 4. Wire helpers you need
@@ -189,8 +248,9 @@ Use what already exists — don't re-invent:
 
 | Need | Module |
 |---|---|
-| GitHub PR list / diff | `repo2rlenv.github` (`list_merged_prs`, `fetch_pr_diff`) |
-| Token resolution (`gh`, env, etc.) | `repo2rlenv.auth.resolve_github_token` |
+| GitHub PR list / diff | `repo2rlenv.github` (`list_merged_prs`, `fetch_pr_diff`, `fetch_issue`, `fetch_commit_diff`) |
+| Same, but GitHub **or** GitLab | `repo2rlenv.provider.provider_for(repo)` → a module with the same function names |
+| Token resolution (`gh`, env, etc.) | `repo2rlenv.auth.resolve_repo_token` (source-dispatching; `resolve_github_token` for GitHub-only pipelines) |
 | LLM call (any provider via LiteLLM) | `repo2rlenv.llm.complete(spec, system, user, ...)` |
 | Diff-similarity reward computation | `repo2rlenv.reward.calculate_diff_similarity_reward` |
 | Writing Harbor task dirs | `repo2rlenv.emitter.harbor.write_harbor_task` |
@@ -278,16 +338,18 @@ If your pipeline draws code or algorithms from external work, add an "Acknowledg
 
 ## Mental model
 
-Think of a pipeline as a generator function over candidates, gated by filters and QA, materializing as Harbor task dirs:
+Think of a pipeline as a loop over candidates, gated by successively more expensive filters, materializing as Harbor task dirs:
 
 ```
-discover() ─▶ filter ─▶ build_task() ─▶ (optional QA) ─▶ write_harbor_task()
-              │                                         │
-              ▼                                         ▼
-        skip_reasons                               PipelineResult
+run() ── discover ─▶ cheap filter ─▶ fetch payload ─▶ expensive filter ─▶ _build_task() ─▶ write_harbor_task()
+                          │               │                 │                                    │
+                          ▼               ▼                 ▼                                    ▼
+                     skip_reasons + _emit_progress(...)                                    PipelineResult
 ```
 
-Each stage is independently testable. Keep `_discover` pure (network IO only), `_should_skip` pure (deterministic predicates), `_build_task` pure (no side effects), `write_harbor_task` is the only filesystem write.
+Discovery and the loop live in `run()` — a fat `run()` is the house style, not a smell; it keeps the raise-vs-skip decision for every stage in one readable place. Only pull something out when it's independently testable, and name it for what it checks: filters are `_pre_filter` / `_structural_quality_filter` / `_metadata_filter` / `_lite_filter` in the shipped set, never a generic `_should_skip`.
+
+Two rules hold across all eight pipelines: `_build_task` is pure (builds a `HarborTask`, no side effects), and `write_harbor_task` is the only filesystem write. Order your filters cheapest-first so you don't pay for a diff fetch or an LLM call on a candidate you'll drop on metadata alone.
 
 ## Common patterns from `pr_diff`
 

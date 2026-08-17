@@ -48,16 +48,31 @@ class HarborTask:
     org: str
     description: str
     instruction: str
-    oracle_diff: str
     repo2env: dict[str, Any]
     difficulty: str = "medium"
     category: str = "bugfix"
     keywords: list[str] = field(default_factory=list)
+    # Optional — moved into the defaulted tail (was field 5 of 12, ahead of
+    # the un-defaulted `repo2env`) so it can default to None: env_setup ships
+    # an eval-only split with no oracle diff and no solution/ directory at
+    # all. All eight construction sites pass every field by keyword, so this
+    # relocation is source-compatible. When None, write_harbor_task skips
+    # writing solution/ entirely.
+    oracle_diff: str | None = None
     # Optional — only set for sandbox-required pipelines (e.g. pr_runtime).
     # Lite tasks (pr_diff) leave these as None; Harbor falls back to its own
     # default env / test runner for those.
     environment_dockerfile: str | None = None
     test_script: str | None = None
+    # Optional — verbatim solution/solve.sh contents (mode 0o755). When None,
+    # write_harbor_task falls back to today's `git apply patch.diff` shim.
+    # env_setup's oracle is a setup recipe to *execute*, not a patch to apply.
+    solve_script: str | None = None
+    # Optional per-task overrides for Harbor's agent/verifier budgets. When
+    # None, write_harbor_task falls back to today's hardcoded literals
+    # (1800.0 / 300.0) so no existing pipeline changes behavior.
+    agent_timeout_sec: float | None = None
+    verifier_timeout_sec: float | None = None
     # Extra files written under the task dir (relative path -> content), e.g.
     # {"tests/verifier.py": ..., "tests/f2p.json": ...}. Harbor exposes tests/
     # at /tests in the container so test.sh can read them.
@@ -68,7 +83,7 @@ def _content_hash(task: HarborTask) -> str:
     h = hashlib.sha256()
     h.update(task.instruction.encode("utf-8"))
     h.update(b"\0")
-    h.update(task.oracle_diff.encode("utf-8"))
+    h.update((task.oracle_diff or "").encode("utf-8"))
     return f"sha256:{h.hexdigest()}"
 
 
@@ -129,35 +144,52 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
             "keywords": task.keywords,
             "repo2env": repo2env,
         },
-        "agent": {"timeout_sec": 1800.0},
-        "verifier": {"timeout_sec": 300.0},
+        "agent": {
+            "timeout_sec": task.agent_timeout_sec if task.agent_timeout_sec is not None else 1800.0
+        },
+        "verifier": {
+            "timeout_sec": task.verifier_timeout_sec
+            if task.verifier_timeout_sec is not None
+            else 300.0
+        },
     }
     (task_path / "task.toml").write_bytes(tomli_w.dumps(payload).encode("utf-8"))
 
     # instruction.md
     (task_path / "instruction.md").write_text(task.instruction, encoding="utf-8")
 
-    # solution/patch.diff — canonical SWE-bench-style oracle (what trainers consume)
-    sol_dir = task_path / "solution"
-    sol_dir.mkdir(exist_ok=True)
-    (sol_dir / "patch.diff").write_text(task.oracle_diff, encoding="utf-8")
+    # solution/ — only written when an oracle_diff is supplied. env_setup
+    # ships an eval-only split with no oracle at all, so there's nothing to
+    # apply and no solution/ directory should exist.
+    if task.oracle_diff is not None:
+        # solution/patch.diff — canonical SWE-bench-style oracle (what trainers consume)
+        sol_dir = task_path / "solution"
+        sol_dir.mkdir(exist_ok=True)
+        (sol_dir / "patch.diff").write_text(task.oracle_diff, encoding="utf-8")
 
-    # solution/solve.sh — Harbor's oracle agent runs this script inside the
-    # container; it should leave the working tree in the "fixed" state. We
-    # `git apply` the canonical patch.diff so we keep one oracle artifact
-    # (patch.diff) and just provide the execution shim Harbor needs.
-    (sol_dir / "solve.sh").write_text(
-        "#!/bin/bash\n"
-        "set -euxo pipefail\n"
-        "cd /workspace\n"
-        "git config --global --add safe.directory /workspace\n"
-        # Harbor uploads the whole solution/ dir into the container under
-        # /solution; the patch.diff sits next to this script.
-        'PATCH="$(dirname "$0")/patch.diff"\n'
-        'git apply --verbose --reject "$PATCH"\n',
-        encoding="utf-8",
-    )
-    (sol_dir / "solve.sh").chmod(0o755)
+        # solution/solve.sh — Harbor's oracle agent runs this script inside the
+        # container; it should leave the working tree in the "fixed" state.
+        # When `task.solve_script` is set, write it verbatim — used by
+        # pipelines whose oracle is a recipe to *execute*, not a patch to
+        # apply. Otherwise fall back to the `git apply` shim so we keep one
+        # oracle artifact (patch.diff) and just provide the execution shim
+        # Harbor needs.
+        (sol_dir / "solve.sh").write_text(
+            task.solve_script
+            if task.solve_script is not None
+            else (
+                "#!/bin/bash\n"
+                "set -euxo pipefail\n"
+                "cd /workspace\n"
+                "git config --global --add safe.directory /workspace\n"
+                # Harbor uploads the whole solution/ dir into the container under
+                # /solution; the patch.diff sits next to this script.
+                'PATCH="$(dirname "$0")/patch.diff"\n'
+                'git apply --verbose --reject "$PATCH"\n'
+            ),
+            encoding="utf-8",
+        )
+        (sol_dir / "solve.sh").chmod(0o755)
 
     # Optional environment/Dockerfile + tests/test.sh — written only for
     # sandbox-required tasks (pr_runtime, future commit_runtime, etc.).

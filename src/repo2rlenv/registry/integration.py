@@ -122,6 +122,7 @@ _PUBLIC_DOCKER_HUB_BASES: tuple[str, ...] = (
     "debian:",
     "alpine:",
     "openjdk:",
+    "eclipse-temurin:",  # bootstrap's Java base (see bootstrap/language.py)
     "ruby:",
 )
 

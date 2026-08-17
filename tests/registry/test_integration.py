@@ -17,12 +17,16 @@ from unittest import mock
 
 import pytest
 
+from repo2rlenv.bootstrap.language import base_image_for
+from repo2rlenv.bootstrap.presets import PRESETS
+from repo2rlenv.bootstrap.spec import LanguageHint
 from repo2rlenv.registry import integration as integ
 from repo2rlenv.registry.auth import (
     RegistryKind,
 )
 from repo2rlenv.registry.integration import (
     _bootstrap_image_refs,
+    _is_public_base_image,
     _list_task_dirs,
     _parse_local_tag,
     _rewrite_dockerfile_from,
@@ -460,3 +464,48 @@ class TestModeSelection:
         )
         with pytest.raises(RuntimeError, match="visibility"):
             prepare_dataset_for_push(tmp_path, hf_owner="testorg", require_registry=True)
+
+
+class TestPublicBaseAllowlist:
+    """`_is_public_base_image` must accept every base image bootstrap can emit.
+
+    The fast path at `prepare_dataset_for_push` picks ONE representative FROM
+    ref (`sorted(distinct)[0]`) for the whole dataset. If any base image our
+    own bootstrap layer produces is missing from the allowlist, a single task
+    using it can drag an entire dataset off the self-contained fast path and
+    into the inline-recipe rewrite. Table-driven so a new language preset
+    can't silently reintroduce the gap (regression: `eclipse-temurin:`).
+    """
+
+    @pytest.mark.parametrize("lang", list(LanguageHint))
+    def test_language_base_image_is_allowlisted(self, lang: LanguageHint) -> None:
+        ref = base_image_for(lang)
+        assert _is_public_base_image(ref), (
+            f"base_image_for({lang!r}) == {ref!r} is not on _PUBLIC_DOCKER_HUB_BASES"
+        )
+        # The docker.io/library/-qualified spelling must resolve identically.
+        assert _is_public_base_image(f"docker.io/library/{ref}")
+
+    @pytest.mark.parametrize("lang", list(LanguageHint))
+    def test_preset_base_image_is_allowlisted(self, lang: LanguageHint) -> None:
+        preset = PRESETS.get(lang)
+        if preset is None:
+            pytest.skip(f"no preset for {lang!r}")
+        assert _is_public_base_image(preset.base_image), (
+            f"PRESETS[{lang!r}].base_image == {preset.base_image!r} "
+            "is not on _PUBLIC_DOCKER_HUB_BASES"
+        )
+
+    def test_java_base_takes_self_contained_fast_path(self, tmp_path: Path) -> None:
+        """A Java task must not fall through to the inline-recipe path."""
+        _write_runtime_task(tmp_path, "task-1", bootstrap_ref="eclipse-temurin:21-jdk")
+        result = prepare_dataset_for_push(tmp_path, hf_owner="testorg")
+        assert result.mode == "inline_dockerfile"
+        assert result.image_visibility == "public"
+        assert result.image_remote_ref == "eclipse-temurin:21-jdk"
+        assert result.inline_recipe_source == "user_dockerfile"
+
+    def test_unknown_base_still_rejected(self) -> None:
+        assert not _is_public_base_image("my-registry.example.com/team/base:1")
+        assert not _is_public_base_image("local/r2e:abc123")
+        assert not _is_public_base_image("someuser/custom-python:3.12")

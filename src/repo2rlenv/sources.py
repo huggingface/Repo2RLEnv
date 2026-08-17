@@ -28,6 +28,10 @@ class Capability(StrEnum):
     PULL_REQUESTS = "pull_requests"  # list/fetch merged PRs (pr_diff, pr_runtime)
     ISSUES = "issues"  # fetch issue text by number
     COMMIT_API = "commit_api"  # fetch arbitrary commit diff/parent via host API (cve_patches)
+    # A URL a `docker build` can clone from (RFC 0008 §15). Local checkouts
+    # have no such URL, so this is what lets env_setup exclude them without a
+    # SourceKind special case.
+    REMOTE_CLONE = "remote_clone"
 
 
 class SourceKind(StrEnum):
@@ -40,11 +44,18 @@ class SourceKind(StrEnum):
 # Only the platform-API extras are listed here.
 _CAPABILITIES: dict[SourceKind, frozenset[Capability]] = {
     SourceKind.GITHUB: frozenset(
-        {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.COMMIT_API}
+        {
+            Capability.PULL_REQUESTS,
+            Capability.ISSUES,
+            Capability.COMMIT_API,
+            Capability.REMOTE_CLONE,
+        }
     ),
     # GitLab: merge-request + issue mining via the REST API (#62). No
     # COMMIT_API → cve_patches (OSV → github.com fix-commits) stays GitHub-only.
-    SourceKind.GITLAB: frozenset({Capability.PULL_REQUESTS, Capability.ISSUES}),
+    SourceKind.GITLAB: frozenset(
+        {Capability.PULL_REQUESTS, Capability.ISSUES, Capability.REMOTE_CLONE}
+    ),
     # A local checkout has no platform layer at all — git only.
     SourceKind.LOCAL: frozenset(),
 }

@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from repo2rlenv.pipelines import _pr_runtime_verifier
 from repo2rlenv.pipelines._pr_runtime_verifier import (
+    detect_runner,
     grade,
     main,
     parse_cargo_test,
@@ -62,6 +64,17 @@ def test_parse_jest_qualified_names():
 def test_parse_logs_dispatch_by_runner():
     assert parse_logs("go", "--- PASS: T (0s)\n") == {"T": "PASSED"}
     assert parse_logs("unknown", "anything") == {}
+
+
+def test_detect_runner_is_public_and_exported():
+    """Generation-time F2P derivation needs a public entry point (RFC §2c) —
+    `_detect_runner` alone isn't importable as part of this module's contract."""
+    assert "detect_runner" in _pr_runtime_verifier.__all__
+    assert detect_runner("python -m pytest -q") == "pytest"
+    assert detect_runner("go test ./...") == "go"
+    assert detect_runner("cargo test") == "cargo"
+    assert detect_runner("npm test") == "jest"
+    assert detect_runner("./run.sh") == "unknown"
 
 
 # --- grading -----------------------------------------------------------------

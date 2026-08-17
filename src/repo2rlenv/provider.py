@@ -1,7 +1,9 @@
 """Dispatch PR/issue data calls to the right host client by source kind.
 
 `github.py` and `gitlab.py` expose the same surface (`list_merged_prs`,
-`fetch_pr_diff`, `fetch_issue`, returning `PullRequestSummary`). Pipelines
+`fetch_pr`, `fetch_pr_diff`, `fetch_issue`, returning `PullRequestSummary`).
+`list_merged_prs` is the mining entry point; `fetch_pr` is the by-number one
+used by import-shape pipelines (`pr_to_env`). Pipelines
 call `provider_for(repo).list_merged_prs(...)` instead of importing a host
 module directly, so the same mining code works on GitHub and GitLab.
 """

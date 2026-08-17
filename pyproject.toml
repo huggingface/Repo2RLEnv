@@ -82,6 +82,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]   # assert False in tests is fine
+# Shipped gate-0 provenance probes (RFC 0008 §7b/§7c) — the RFC gives complete,
+# machine-verified source for these files and they must be used verbatim (only
+# `ruff format`'s whitespace-only reflow applied, no semantic edits), so their
+# per-file lint carve-outs stay narrow and named rather than widened elsewhere:
+# E401/I001 (single combined import line), SIM115 (open() without a context
+# manager — a one-shot script process, not a long-lived one).
+"src/repo2rlenv/pipelines/_env_setup_provenance.py" = ["E401", "I001", "SIM115"]
+"src/repo2rlenv/pipelines/_env_setup_provenance_read.py" = ["E401", "I001", "SIM115"]
 
 [dependency-groups]
 dev = [

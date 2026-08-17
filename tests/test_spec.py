@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from repo2rlenv.spec.input import GenerationInput, PipelineName, RepoSpec
 from repo2rlenv.spec.options import (
+    EnvSetupOptions,
     PRDiffOptions,
     parse_options,
 )
@@ -60,6 +61,46 @@ def test_parse_options_dispatches_correctly():
 def test_parse_options_unknown_pipeline():
     with pytest.raises(ValueError):
         parse_options("not_real", {})
+
+
+def test_env_setup_options_strict():
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(unknown=1)
+
+
+def test_env_setup_options_target_bounds():
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(min_target_tests=0)
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(max_target_tests=-1)
+    # max_target_tests=0 means "whole suite" — must not raise.
+    EnvSetupOptions(max_target_tests=0)
+    # A cap below the floor is legal: "only repos whose suite passes >= 5
+    # tests, graded on 3 of them" is a coherent, intentional configuration.
+    EnvSetupOptions(min_target_tests=5, max_target_tests=3)
+
+
+def test_env_setup_options_recipe_attempts_floor():
+    # distill_setup_recipe's retry loop is `range(1, max_recipe_attempts + 1)`;
+    # 0 or negative would skip the loop body and never attempt a recipe at all.
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(max_recipe_attempts=0)
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(max_recipe_attempts=-1)
+    EnvSetupOptions(max_recipe_attempts=1)
+
+
+def test_oracle_timeout_covers_inner_budgets():
+    opts = EnvSetupOptions()
+    assert opts.oracle_timeout_sec == 0
+    expected = opts.max_setup_time_sec + opts.verifier_timeout_sec + opts.oracle_build_slack_sec
+    assert opts.effective_oracle_timeout_sec == expected
+
+    with pytest.raises(ValidationError):
+        EnvSetupOptions(oracle_timeout_sec=expected - 1)
+
+    # Exactly covering the sum is legal.
+    EnvSetupOptions(oracle_timeout_sec=expected)
 
 
 def test_generation_input_llm_defaults_to_none():

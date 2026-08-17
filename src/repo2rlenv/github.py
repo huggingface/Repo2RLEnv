@@ -80,6 +80,52 @@ def _fetch_base_sha(owner: str, name: str, number: int, *, token: str | None = N
     return sha
 
 
+# The `--json` field set both `gh pr list` and `gh pr view` are asked for.
+# Keep them identical so `list_merged_prs` and `fetch_pr` build the same shape.
+_PR_JSON_FIELDS = "number,title,body,state,mergedAt,baseRefName,headRefOid,isDraft,url,files"
+
+
+def _summary_from_pr_json(row: dict, base_sha: str) -> PullRequestSummary:
+    """Build a PullRequestSummary from one `gh pr {list,view} --json ...` row."""
+    return PullRequestSummary(
+        number=row["number"],
+        title=row.get("title") or "",
+        body=row.get("body") or "",
+        state=row.get("state") or "",
+        merged_at=row.get("mergedAt"),
+        base_ref=row.get("baseRefName") or "",
+        base_sha=base_sha,
+        head_sha=row.get("headRefOid") or "",
+        is_draft=bool(row.get("isDraft")),
+        url=row.get("url") or "",
+        changed_files=[f["path"] for f in (row.get("files") or []) if f.get("path")],
+    )
+
+
+def fetch_pr(owner: str, name: str, number: int, *, token: str | None = None) -> PullRequestSummary:
+    """Return a single PR by number via `gh pr view`.
+
+    The by-number counterpart to `list_merged_prs`, for import-shape pipelines
+    (`pr_to_env`) that are handed curated PR URLs instead of mining history.
+    Unlike the list path — which silently drops rows it can't complete — this
+    raises `GitHubError` on any failure, because the caller asked for *this*
+    PR specifically and a silent None would become a confusing crash later.
+    """
+    raw = _run_gh(
+        ["pr", "view", str(number), "--repo", f"{owner}/{name}", "--json", _PR_JSON_FIELDS],
+        token=token,
+    )
+    try:
+        row = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise GitHubError(f"{owner}/{name}#{number}: gh returned non-JSON: {raw[:200]!r}") from exc
+    # `gh pr view` has no baseRefOid field, so the base SHA needs the REST call.
+    base_sha = _fetch_base_sha(owner, name, number, token=token)
+    if not base_sha:
+        raise GitHubError(f"{owner}/{name}#{number}: could not resolve base commit SHA")
+    return _summary_from_pr_json(row, base_sha)
+
+
 def list_merged_prs(
     owner: str,
     name: str,
@@ -104,7 +150,7 @@ def list_merged_prs(
         "--limit",
         str(min(limit * 3, 1000)),  # over-fetch to allow client-side filtering
         "--json",
-        "number,title,body,state,mergedAt,baseRefName,headRefOid,isDraft,url,files",
+        _PR_JSON_FIELDS,
     ]
     raw = _run_gh(args, token=token)
     rows = json.loads(raw)
@@ -121,22 +167,7 @@ def list_merged_prs(
         base_sha = _fetch_base_sha(owner, name, r["number"], token=token)
         if base_sha is None:
             continue
-        files = [f["path"] for f in (r.get("files") or [])]
-        summaries.append(
-            PullRequestSummary(
-                number=r["number"],
-                title=r["title"] or "",
-                body=r.get("body") or "",
-                state=r["state"],
-                merged_at=merged_at,
-                base_ref=r.get("baseRefName") or "",
-                base_sha=base_sha,
-                head_sha=r.get("headRefOid") or "",
-                is_draft=bool(r.get("isDraft")),
-                url=r["url"],
-                changed_files=files,
-            )
-        )
+        summaries.append(_summary_from_pr_json(r, base_sha))
         if len(summaries) >= limit:
             break
     return summaries
