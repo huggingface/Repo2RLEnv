@@ -199,7 +199,12 @@ def parse_jest(log: str) -> dict[str, str]:
     return out
 
 
-def _detect_runner(test_cmds: str) -> str:
+def detect_runner(test_cmds: str) -> str:
+    """Guess the test runner (pytest/go/cargo/jest) from a raw command string.
+
+    Public so generation-time F2P/P2P derivation (RFC 0008 §2c) can reuse the
+    exact same detection this in-container verifier uses at grading time.
+    """
     joined = test_cmds.lower()
     if "pytest" in joined:
         return "pytest"
@@ -210,6 +215,11 @@ def _detect_runner(test_cmds: str) -> str:
     if any(k in joined for k in ("jest", "mocha", "vitest", "npm test", "yarn test", "pnpm test")):
         return "jest"
     return "unknown"
+
+
+# Back-compat alias for the old private name — nothing internal references it
+# anymore, but keep it in case anything outside this module still imports it.
+_detect_runner = detect_runner
 
 
 def parse_logs(runner: str, log: str) -> dict[str, str]:
@@ -327,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
     log = _read_text(args.log)
     f2p = _read_json_list(args.f2p)
     p2p = _read_json_list(args.p2p)
-    runner = args.runner.strip() or _detect_runner(args.test_cmds)
+    runner = args.runner.strip() or detect_runner(args.test_cmds)
 
     status_map = parse_logs(runner, log)
 
@@ -384,6 +394,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "detect_runner",
     "grade",
     "main",
     "parse_cargo_test",
