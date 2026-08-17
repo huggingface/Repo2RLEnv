@@ -20,6 +20,7 @@ class PipelineName(StrEnum):
     # Synthesized by LLM
     CODE_INSTRUCT = "code_instruct"  # OSS-Instruct-style (was: oss_instruct)
     EQUIVALENCE_TESTS = "equivalence_tests"
+    ENV_SETUP = "env_setup"  # Repo2Run/SetupBench-style: agent makes a bare suite run green
 
 
 class RepoSpec(BaseModel):

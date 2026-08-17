@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class _BaseOptions(BaseModel):
@@ -302,6 +302,68 @@ class PrToEnvOptions(_BaseOptions):
     synthesize_with_llm: bool = True
 
 
+class EnvSetupOptions(_BaseOptions):
+    """Repo2Run/SetupBench-style: agent makes a bare repo's test suite run green.
+
+    Unlike every other sandboxed pipeline, the emitted environment deliberately
+    has NO dependencies installed — the bootstrap image is used only to derive
+    the gold recipe and is then discarded.
+    """
+
+    # --- Discovery ---
+    limit: int = 20
+    refs: list[str] | None = None  # commits/tags to base tasks on; None ⇒ HEAD only
+
+    # --- Signal floors ---
+    min_target_tests: int = 5  # reject suites too small to grade meaningfully
+    max_target_tests: int = 0  # cap the F2P set; 0 ⇒ whole suite
+    max_setup_time_sec: int = 1800  # agent budget → task.toml agent.timeout_sec (§2)
+
+    # --- Oracle recipe (§5) ---
+    emit_solution: bool = True  # False ⇒ eval-only split; distillation still runs
+    max_recipe_attempts: int = 3  # TOTAL attempts, not retries-after-the-first
+    recipe_verify_timeout_sec: int = 1800
+    llm_temperature: float = 0.2  # recipes want determinism, not creativity
+    max_llm_tokens: int = 2048
+
+    # --- Guards (§7) ---
+    provenance_gate: bool = True
+    scrub_git_history: bool = False  # repo history is legitimate solve context
+
+    # --- Shipping gate ---
+    oracle_gate: bool = True  # `harbor run -a oracle` must return 1.0
+    oracle_timeout_sec: int = 0  # 0 ⇒ derive (see the invariant below)
+    oracle_build_slack_sec: int = 900  # image build + harbor overhead
+    verifier_timeout_sec: int = 1800  # → task.toml verifier.timeout_sec (§2)
+
+    @model_validator(mode="after")
+    def _check_target_bounds(self) -> EnvSetupOptions:
+        # An empty F2P list makes grade() return reward=0.0, resolved=False
+        # unconditionally (§4), so the floor is what keeps that unreachable.
+        if self.min_target_tests < 1:
+            raise ValueError("min_target_tests must be >= 1: an empty F2P set always scores 0.0")
+        if self.max_target_tests < 0:
+            raise ValueError("max_target_tests must be >= 0 (0 ⇒ whole suite)")
+        return self
+        # NB: max_target_tests < min_target_tests is legal and meaningful — see below.
+
+    @property
+    def effective_oracle_timeout_sec(self) -> int:
+        if self.oracle_timeout_sec:
+            return self.oracle_timeout_sec
+        return self.max_setup_time_sec + self.verifier_timeout_sec + self.oracle_build_slack_sec
+
+    @model_validator(mode="after")
+    def _check_oracle_timeout(self) -> EnvSetupOptions:
+        floor = self.max_setup_time_sec + self.verifier_timeout_sec + self.oracle_build_slack_sec
+        if self.oracle_timeout_sec and self.oracle_timeout_sec < floor:
+            raise ValueError(
+                f"oracle_timeout_sec={self.oracle_timeout_sec} < {floor}: a task using its full "
+                "stated budget could not pass its own oracle gate"
+            )
+        return self
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_to_env": PrToEnvOptions,
@@ -310,6 +372,7 @@ OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
+    "env_setup": EnvSetupOptions,
 }
 
 
