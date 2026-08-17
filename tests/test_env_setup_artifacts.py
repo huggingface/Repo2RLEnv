@@ -289,6 +289,61 @@ def test_provenance_probe_python_direct_url_import_under_real_workspace(tmp_path
     assert result.returncode == 0, result.stderr
 
 
+def test_provenance_probe_python_direct_url_import_via_sys_modules(tmp_path, monkeypatch):
+    """(2) passes for import-path-under-/workspace with no dist metadata —
+    reproduced with NO Docker and NO real /workspace directory.
+
+    `from_workspace_import` (`_env_setup_provenance.py`) is a literal string
+    check on `__file__`: `p.startswith("/workspace/")`. It never touches the
+    filesystem itself — `importlib.import_module` does, but only when the
+    name is not already in `sys.modules`. Pre-registering a fake module
+    object under the target name short-circuits the import to return that
+    object directly, no real file required. `runpy.run_path` executes
+    provenance.py's top-level code (including its `sys.exit`) in-process, so
+    the module-level `importlib.import_module(cfg["package"])` call sees the
+    process's real `sys.modules`, including the entry this test just planted.
+
+    Companion to the Docker-gated
+    `test_provenance_probe_python_direct_url_import_under_real_workspace`
+    above (kept, not replaced) — that one adds container-path realism; this
+    one is the version that actually runs when Docker is down, including in
+    CI without a daemon.
+    """
+    import runpy
+    import types
+
+    probe_dir = _write_probe_dir(tmp_path)
+    cfg = {
+        "probe": "direct_url",
+        "base_commit": "x",
+        "language": "python",
+        "package": "widgetpkg_fake_ws",
+        # no dist_name -> from_workspace_dist("") is a clean False, falls to
+        # the import check, which is the thing under test.
+    }
+    cfg_path = probe_dir / "provenance.json"
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    probe_script = str(probe_dir / "provenance.py")
+
+    fake_mod = types.ModuleType("widgetpkg_fake_ws")
+    monkeypatch.setitem(sys.modules, "widgetpkg_fake_ws", fake_mod)
+    monkeypatch.setattr(sys, "argv", ["provenance.py", str(cfg_path), "direct_url"])
+
+    # Positive: __file__ under /workspace/ -> pass (exit 0).
+    fake_mod.__file__ = "/workspace/widgetpkg_fake_ws/__init__.py"
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(probe_script, run_name="__main__")
+    assert exc.value.code == 0
+
+    # Negative control: same package, __file__ NOT under /workspace/ -> fail
+    # (exit != 0). Without this, a probe that always exits 0 would trivially
+    # satisfy the assertion above for the wrong reason.
+    fake_mod.__file__ = "/tmp/not_workspace/widgetpkg_fake_ws/__init__.py"
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(probe_script, run_name="__main__")
+    assert exc.value.code != 0
+
+
 def test_provenance_probe_path_rung_ignores_dist_metadata(tmp_path):
     """With probe="path", a dist carrying direct_url.json but importing from
     site-packages FAILS, where the same input on "direct_url" PASSES. This
@@ -393,6 +448,67 @@ def test_provenance_probe_node_rejects_node_modules(tmp_path):
         ["node", "/probe/provenance.js", "/probe/provenance.json"],
     )
     assert result.returncode != 0, "resolution under /workspace/node_modules must fail"
+
+
+@pytest.mark.skipif(not _NODE, reason="node unavailable")
+def test_provenance_probe_node_rejects_node_modules_via_resolve_stub(tmp_path):
+    """A resolution under /workspace/node_modules fails — reproduced with NO
+    Docker and NO real /workspace directory.
+
+    `provenance.js`'s check (`_env_setup_provenance.js:10-11`) is a literal
+    string test on the *resolved* path: `resolved.startsWith("/workspace" +
+    path.sep)` and `resolved.split(path.sep).includes("node_modules")`. It
+    never needs a real filesystem entry at that path — only what
+    `require.resolve`/`fs.realpathSync` return. A `-r` preload script
+    monkeypatches `Module._resolveFilename` (the internal function backing
+    `require.resolve`) and `fs.realpathSync` to return a fixed path for the
+    probed package name only (falling through to the real implementation for
+    every other request — including the main script's own load — which is
+    what makes an unconditional override break: it would resolve
+    provenance.js itself to the fake path too).
+
+    Companion to the Docker-gated `test_provenance_probe_node_rejects_node_modules`
+    above (kept, not replaced) — that one adds container-path realism; this
+    one is the version that actually runs when Docker is down, including in
+    CI without a daemon.
+    """
+    probe_dir = _write_probe_dir(tmp_path)
+    cfg_path = probe_dir / "provenance.json"
+    cfg_path.write_text(json.dumps({"package": "leftpad"}), encoding="utf-8")
+
+    def _run_with_stubbed_resolution(resolved_path: str) -> subprocess.CompletedProcess:
+        preload = tmp_path / f"stub_{abs(hash(resolved_path))}.js"
+        preload.write_text(
+            "const Module = require('module');\n"
+            "const fs = require('fs');\n"
+            "const originalResolve = Module._resolveFilename;\n"
+            "Module._resolveFilename = function(request, ...rest) {\n"
+            f"  if (request === 'leftpad') return {json.dumps(resolved_path)};\n"
+            "  return originalResolve.call(this, request, ...rest);\n"
+            "};\n"
+            "const originalRealpath = fs.realpathSync;\n"
+            "fs.realpathSync = function(p, ...rest) {\n"
+            f"  if (p === {json.dumps(resolved_path)}) return p;\n"
+            "  return originalRealpath.call(this, p, ...rest);\n"
+            "};\n",
+            encoding="utf-8",
+        )
+        return subprocess.run(
+            ["node", "-r", str(preload), str(probe_dir / "provenance.js"), str(cfg_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    under_node_modules = _run_with_stubbed_resolution("/workspace/node_modules/leftpad/index.js")
+    assert under_node_modules.returncode != 0, under_node_modules.stderr
+
+    # Negative control: same package, resolved OUTSIDE node_modules -> pass
+    # (exit 0). Without this, a preload that broke resolution entirely (or a
+    # probe that always exits 1) would trivially satisfy the assertion above
+    # for the wrong reason.
+    outside_node_modules = _run_with_stubbed_resolution("/workspace/packages/leftpad/index.js")
+    assert outside_node_modules.returncode == 0, outside_node_modules.stderr
 
 
 @pytestmark_docker
