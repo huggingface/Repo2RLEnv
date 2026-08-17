@@ -72,6 +72,7 @@ import json
 from pathlib import Path
 
 from repo2rlenv.pipelines._env_setup_lang import TEST_ROOT_PATHSPECS
+from repo2rlenv.pipelines._eval_script import _path_prelude_for_language
 
 _PACKAGE_DIR = Path(__file__).parent
 
@@ -163,3 +164,104 @@ def build_test_roots_json() -> str:
     `conftest.py` survive in a repo that had none at base_commit.
     """
     return json.dumps(list(TEST_ROOT_PATHSPECS), indent=2)
+
+
+def build_env_setup_test_sh(*, language: str | None, test_cmds: list[str], runner: str) -> str:
+    """The emitted `tests/test.sh`: gate 0 -> gate 1/2 -> gate 1.
+
+    Mirrors `pr_runtime.build_eval_script`'s head, plus a `write_reward`
+    helper (seven call sites want one) and a sourced environment prelude.
+    Keeps pr_runtime's PATH prelude: env_setup needs it MORE, because here the
+    toolchain is installed by the agent under evaluation rather than baked
+    into the image, and Harbor runs `bash test.sh` non-interactively — without
+    it `go test` / `cargo test` / `node` exit 127 and the reward is a false 0.
+    """
+    path_prelude = _path_prelude_for_language(language)
+    cmds_str = " && ".join(test_cmds)
+    quoted_cmds = cmds_str.replace("'", "'\\''")
+    quoted_runner = runner.replace("'", "'\\''")
+
+    head = (
+        "#!/bin/bash\n"
+        "set -uxo pipefail\n"
+        f"{path_prelude}"  # may be empty
+        'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n'
+        "cd /workspace\n"
+        "git config --global --add safe.directory /workspace\n"
+        "mkdir -p /logs/verifier\n"
+        "\n"
+        "write_reward() {\n"
+        "  printf '%.6f\\n' \"$1\" > /logs/verifier/reward.txt\n"
+        '  printf \'{"reward":%s,"resolved":false,"parse_status":"%s"}\' '
+        '"$1" "${2:-verifier_crashed}" \\\n'
+        "    > /logs/verifier/reward-details.json\n"
+        "}\n"
+        "\n"
+        "# Both gates run under the same environment the test commands run\n"
+        "# under. Sourced, never interpolated: real bootstrap test_cmds carry\n"
+        "# quoted values, so a single ' would terminate an interpolated string.\n"
+        "# `set +u` because older venv activate scripts touch unbound PS1.\n"
+        'set +u; . "$SCRIPT_DIR/env_prelude.sh"; set -u\n'
+    )
+
+    gate0 = (
+        "\n"
+        "# --- gate 0: provenance -------------------------------------------\n"
+        "# One read of provenance.json, and it fails closed. An earlier draft\n"
+        "# read it with no `||`, so a missing python3 produced an empty\n"
+        "# substitution, fell to `*)`, and the gate silently PASSED.\n"
+        'PROV="$(python3 "$SCRIPT_DIR/provenance_read.py" "$SCRIPT_DIR/provenance.json" '
+        '2>/dev/null)" || {\n'
+        "  write_reward 0.0 provenance_unreadable; exit 0; }\n"
+        '{ read -r R2E_PROBE; read -r R2E_BASE_COMMIT; read -r R2E_LANG; } <<< "$PROV"\n'
+        '[ -n "$R2E_PROBE" ] && [ -n "$R2E_BASE_COMMIT" ] && [ -n "$R2E_LANG" ] \\\n'
+        "  || { write_reward 0.0 provenance_unreadable; exit 0; }\n"
+        "\n"
+        'case "$R2E_PROBE" in\n'
+        "  none) : ;;\n"
+        '  *)    bash "$SCRIPT_DIR/provenance_run.sh" "$R2E_LANG" "$R2E_PROBE" \\\n'
+        "          || { write_reward 0.0 package_not_from_source; exit 0; } ;;\n"
+        "esac\n"
+    )
+
+    gate_half = (
+        "\n"
+        "# --- gate 1/2: restore the graded tests ----------------------------\n"
+        "# `-- .` always matches. A computed pathspec list fails the WHOLE\n"
+        "# operation on one non-matching entry, and a bare `--` exits 0 while\n"
+        "# detaching HEAD onto that commit.\n"
+        'git -C /workspace checkout "$R2E_BASE_COMMIT" -- . '
+        "|| { write_reward 0.0 test_restore_failed; exit 0; }\n"
+        "\n"
+        "# A restore of tracked files cannot delete a file the agent ADDED.\n"
+        "mapfile -t R2E_ROOTS < <(python3 -c "
+        "'import json,sys;[print(p) for p in json.load(open(sys.argv[1]))]' \\\n"
+        '                           "$SCRIPT_DIR/test_roots.json")\n'
+        'if [ "${#R2E_ROOTS[@]}" -gt 0 ]; then\n'
+        '  git -C /workspace clean -fdq -- "${R2E_ROOTS[@]}" '
+        "|| { write_reward 0.0 test_restore_failed; exit 0; }\n"
+        "fi\n"
+    )
+
+    gate1 = (
+        "\n"
+        "# --- gate 1: the graded reward -------------------------------------\n"
+        "set +x                                          # keep xtrace out of the parsed log\n"
+        f"( {cmds_str} ) > /logs/verifier/test_output.log 2>&1\n"
+        "TEST_EXIT_CODE=$?\n"
+        "set -x\n"
+        "cat /logs/verifier/test_output.log\n"
+        "\n"
+        'python3 "$SCRIPT_DIR/verifier.py" \\\n'
+        "    --log /logs/verifier/test_output.log \\\n"
+        '    --f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" \\\n'
+        f"    --runner '{quoted_runner}' \\\n"
+        f"    --test-cmds '{quoted_cmds}' \\\n"
+        '    --exit-code "$TEST_EXIT_CODE" \\\n'
+        "    --out-dir /logs/verifier \\\n"
+        '  || { [ "$TEST_EXIT_CODE" -eq 0 ] && write_reward 1.0 verifier_crashed \\\n'
+        "                                   || write_reward 0.0 verifier_crashed; }\n"
+        "exit 0\n"
+    )
+
+    return head + gate0 + gate_half + gate1

@@ -500,3 +500,273 @@ def test_provenance_json_never_emits_null_for_missing_names():
     )
     assert cfg["package"] == ""
     assert cfg["dist_name"] == ""
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_test_sh — structure
+# ---------------------------------------------------------------------------
+
+_CMDS = [". /workspace/.venv/bin/activate && python -m pytest -v"]
+
+
+def _sh(**kw):
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_test_sh
+
+    kw.setdefault("language", "python")
+    kw.setdefault("test_cmds", _CMDS)
+    kw.setdefault("runner", "pytest")
+    return build_env_setup_test_sh(**kw)
+
+
+def test_test_sh_passes_runner_and_exit_code():
+    sh = _sh()
+    for flag in ("--runner", "--test-cmds", "--exit-code", "--out-dir"):
+        assert flag in sh, flag
+    assert "--runner 'pytest'" in sh
+
+
+def test_test_sh_disables_xtrace_around_capture():
+    """The capture subshell's stderr is redirected into the file the parser
+    reads. With xtrace on, `+ npx jest --ci` lands in the log, and the jest
+    parser pushes it onto the describe stack, prefixing every test id — which
+    then matches nothing in the baked F2P set.
+    """
+    sh = _sh()
+    capture = sh.index("> /logs/verifier/test_output.log")
+    plus_x = sh.index("set +x")
+    minus_x = sh.index("\nset -x", plus_x)
+    assert plus_x < capture < minus_x
+
+
+def test_gate_half_restores_whole_tree():
+    sh = _sh()
+    assert 'git -C /workspace checkout "$R2E_BASE_COMMIT" -- .' in sh
+    # A bare `--` with no pathspec exits 0 and DETACHES HEAD onto that commit.
+    assert 'checkout "$R2E_BASE_COMMIT" --\n' not in sh
+    # mapfile, not $(cat ...): unquoted command substitution word-splits on
+    # whitespace and a path with a space becomes two nonexistent paths.
+    assert "mapfile -t R2E_ROOTS" in sh
+    assert "$(cat " not in sh
+
+
+def test_gate0_passes_probe_and_language_as_args():
+    from repo2rlenv.pipelines._env_setup_artifacts import provenance_run_sh_source
+
+    sh = _sh()
+    assert 'provenance_run.sh" "$R2E_LANG" "$R2E_PROBE"' in sh
+    # The dispatcher must pass the provenance.json path through as an argv
+    # to the language probe — it must never parse it itself. (An earlier
+    # draft of this test asserted the literal string "provenance.json" was
+    # absent from the dispatcher; that's false against the shipped script,
+    # which passes "$SCRIPT_DIR/provenance.json" as argv to the probe. The
+    # real invariant is: the dispatcher never reads/parses provenance_read.py
+    # or does its own JSON parsing — one read of provenance.json, done by
+    # provenance_read.py, never by the dispatcher.)
+    dispatcher = provenance_run_sh_source()
+    assert "provenance_read.py" not in dispatcher
+    assert "json.load" not in dispatcher
+    assert "python3 -c" not in dispatcher
+
+
+def test_test_sh_emits_path_prelude():
+    from repo2rlenv.pipelines._eval_script import _path_prelude_for_language
+
+    for lang in ("go", "rust", "node"):
+        prelude = _path_prelude_for_language(lang)
+        assert prelude.strip(), f"no prelude for {lang}"
+        assert prelude in _sh(language=lang, runner="go")
+
+
+def test_test_sh_write_reward_defaults_to_verifier_crashed():
+    """`verifier.py` writes `fallback_exitcode` when it runs fine but cannot
+    parse the log. Reusing that string here would make "the verifier died" and
+    "the verifier degraded gracefully" indistinguishable in the artifact.
+    """
+    sh = _sh()
+    assert "${2:-verifier_crashed}" in sh
+    assert "fallback_exitcode" not in sh
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_test_sh — behavioral (executed, not grepped)
+# ---------------------------------------------------------------------------
+
+
+def _stage_task(
+    tmp_path,
+    *,
+    probe,
+    language="python",
+    package="pkg",
+    dist_name="pkg",
+    test_cmds=None,
+    runner="pytest",
+    f2p=None,
+    provenance_text=None,
+):
+    """Materialize a task's tests/ dir + a /workspace-like git repo.
+
+    Returns (workspace, tests_dir, base_commit_sha). The emitted script
+    hardcodes /workspace and /logs, so callers that need real paths run it
+    through a `sed`-style rebind — see `_run_test_sh`.
+
+    Uses `sys.executable` (not system `python3`) for the default staged
+    suite command: this dev box's system `python3` has no pytest installed,
+    which would fail the reward-1.0 assertions for a reason unrelated to the
+    gates under test. The emitted script's own gate0/verifier invocations
+    still hardcode `python3` — that part is untouched, because those must
+    run against a bare container's stdlib-only `python3`.
+    """
+    import json
+    import subprocess
+
+    from repo2rlenv.pipelines._env_setup_artifacts import (
+        build_env_setup_test_sh,
+        build_provenance_json,
+        build_test_roots_json,
+        provenance_probe_files,
+    )
+    from repo2rlenv.pipelines.pr_runtime import _verifier_source
+
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    (ws / "tests").mkdir()
+    (ws / "tests" / "test_ok.py").write_text("def test_ok():\n    assert True\n")
+    subprocess.run(["git", "init", "-q"], cwd=ws, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=ws, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"],
+        cwd=ws,
+        check=True,
+    )
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ws, capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    cmds = test_cmds or [f"{sys.executable} -m pytest -v"]
+    (tests / "test.sh").write_text(
+        build_env_setup_test_sh(language=language, test_cmds=cmds, runner=runner)
+    )
+    (tests / "env_prelude.sh").write_text("true\n")
+    (tests / "verifier.py").write_text(_verifier_source())
+    (tests / "f2p.json").write_text(
+        json.dumps(f2p if f2p is not None else ["tests/test_ok.py::test_ok"])
+    )
+    (tests / "p2p.json").write_text("[]")
+    (tests / "test_roots.json").write_text(build_test_roots_json())
+    (tests / "provenance.json").write_text(
+        provenance_text
+        if provenance_text is not None
+        else build_provenance_json(
+            probe=probe,
+            base_commit=sha,
+            language=language,
+            package=package,
+            dist_name=dist_name,
+        )
+    )
+    for name, body in provenance_probe_files().items():
+        (tests / name).write_text(body)
+    return ws, tests, sha
+
+
+def _run_test_sh(tmp_path, ws, tests):
+    """Run the emitted test.sh with /workspace and /logs rebound to tmp_path.
+
+    The emitted script hardcodes absolute container paths, so rewrite them
+    rather than asserting on a string we never execute. The rewritten
+    runnable is written INSIDE `tests` (not `tmp_path`): the script derives
+    `SCRIPT_DIR` from `$0`, and the staged provenance/verifier/f2p/p2p
+    artifacts live in `tests`, not `tmp_path` — writing the runnable one
+    level up would make `SCRIPT_DIR` resolve to a directory with none of
+    those files, and every test would exercise only the fail-closed path.
+    """
+    import json
+    import subprocess
+
+    logs = tmp_path / "logs"
+    src = (tests / "test.sh").read_text()
+    src = src.replace("/workspace", str(ws)).replace("/logs", str(logs))
+    runnable = tests / "run_test.sh"
+    runnable.write_text(src)
+    proc = subprocess.run(["bash", str(runnable)], capture_output=True, text=True, cwd=str(ws))
+    details_path = logs / "verifier" / "reward-details.json"
+    details = json.loads(details_path.read_text()) if details_path.exists() else {}
+    reward_path = logs / "verifier" / "reward.txt"
+    reward = float(reward_path.read_text().strip()) if reward_path.exists() else None
+    return proc, reward, details
+
+
+def test_gate0_fails_closed(tmp_path):
+    """Unreadable provenance.json => reward 0.0 with a distinct parse_status,
+    never a silent pass. Executed, not grepped.
+    """
+    ws, tests, _ = _stage_task(tmp_path, probe="none", provenance_text="{not json")
+    proc, reward, details = _run_test_sh(tmp_path, ws, tests)
+    assert proc.returncode == 0, proc.stderr
+    assert reward == 0.0
+    assert details["parse_status"] == "provenance_unreadable"
+
+
+def test_gate0_none_probe_is_a_noop(tmp_path):
+    ws, tests, _ = _stage_task(tmp_path, probe="none", language="go")
+    proc, reward, details = _run_test_sh(tmp_path, ws, tests)
+    assert proc.returncode == 0, proc.stderr
+    assert reward == 1.0
+    assert details["parse_status"] != "package_not_from_source"
+
+
+def test_gate_half_cleans_an_added_conftest(tmp_path):
+    """The hook must be able to change the answer, or the test measures nothing.
+
+    Bake an F2P id that does NOT exist, so the suite is genuinely red; the
+    planted conftest would force it green. Gate 1/2 removes it first.
+    """
+    ws, tests, _ = _stage_task(tmp_path, probe="none", f2p=["tests/test_ok.py::test_missing"])
+    (ws / "conftest.py").write_text("def pytest_runtest_makereport(item, call):\n    pass\n")
+    (ws / "tests" / "test_planted.py").write_text("def test_missing():\n    assert True\n")
+    proc, reward, _ = _run_test_sh(tmp_path, ws, tests)
+    assert proc.returncode == 0, proc.stderr
+    assert reward == 0.0
+    assert not (ws / "conftest.py").exists()
+    assert not (ws / "tests" / "test_planted.py").exists()
+
+
+def test_gate_half_tolerates_pathspecs_that_match_nothing(tmp_path):
+    """`git clean` exits 0 on non-matching pathspecs — the property the
+    unfiltered test_roots.json list depends on. Our staged repo has `tests/`
+    and nothing else from the list.
+    """
+    ws, tests, _ = _stage_task(tmp_path, probe="none")
+    proc, reward, details = _run_test_sh(tmp_path, ws, tests)
+    assert proc.returncode == 0, proc.stderr
+    assert details.get("parse_status") != "test_restore_failed"
+    assert reward == 1.0
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_test_sh — gate-0 golden
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("probe", ["direct_url", "path", "none"])
+def test_test_sh_gate0_golden(probe, tmp_path):
+    """Three genuinely distinct emitted shapes — which only holds because
+    provenance.py branches on the rung.
+    """
+    from repo2rlenv.pipelines._env_setup_artifacts import build_provenance_json
+
+    cfg = build_provenance_json(
+        probe=probe,
+        base_commit="c" * 40,
+        language="python",
+        package="pkg",
+        dist_name="pkg",
+    )
+    golden = Path(__file__).parent / "golden" / f"env_setup_provenance_{probe}.json"
+    if not golden.exists():
+        golden.parent.mkdir(parents=True, exist_ok=True)
+        golden.write_text(cfg)
+    assert cfg == golden.read_text()
