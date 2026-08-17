@@ -770,3 +770,90 @@ def test_test_sh_gate0_golden(probe, tmp_path):
         golden.parent.mkdir(parents=True, exist_ok=True)
         golden.write_text(cfg)
     assert cfg == golden.read_text()
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_aux_files
+# ---------------------------------------------------------------------------
+
+
+def test_aux_files_carry_every_tests_artifact():
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_aux_files
+
+    aux = build_env_setup_aux_files(
+        language="python",
+        test_cmds=["python -m pytest -v"],
+        runner="pytest",
+        probe="direct_url",
+        base_commit="d" * 40,
+        package="click",
+        dist_name="click",
+        f2p=["tests/test_a.py::test_x"],
+        p2p=[],
+    )
+    assert set(aux) == {
+        "tests/test.sh",
+        "tests/verifier.py",
+        "tests/env_prelude.sh",
+        "tests/f2p.json",
+        "tests/p2p.json",
+        "tests/provenance.json",
+        "tests/provenance_read.py",
+        "tests/provenance_run.sh",
+        "tests/test_roots.json",
+        "tests/provenance.py",
+    }
+
+
+def test_aux_files_ship_only_the_language_probe():
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_aux_files
+
+    node = build_env_setup_aux_files(
+        language="node",
+        test_cmds=["npm test"],
+        runner="jest",
+        probe="path",
+        base_commit="e" * 40,
+        package="leftpad",
+        dist_name="",
+        f2p=["a"],
+        p2p=[],
+    )
+    assert "tests/provenance.js" in node
+    assert "tests/provenance.py" not in node
+
+    go = build_env_setup_aux_files(
+        language="go",
+        test_cmds=["go test ./..."],
+        runner="go",
+        probe="none",
+        base_commit="f" * 40,
+        package=None,
+        dist_name=None,
+        f2p=["a"],
+        p2p=[],
+    )
+    assert "tests/provenance.py" not in go
+    assert "tests/provenance.js" not in go
+    # The dispatcher and the reader ship regardless — gate 0 always runs them.
+    assert "tests/provenance_read.py" in go
+    assert "tests/provenance_run.sh" in go
+
+
+def test_aux_files_env_prelude_is_the_shipped_fragment():
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_aux_files
+
+    aux = build_env_setup_aux_files(
+        language="python",
+        test_cmds=[". /workspace/.venv/bin/activate && python -m pytest -v"],
+        runner="pytest",
+        probe="none",
+        base_commit="0" * 40,
+        package=None,
+        dist_name=None,
+        f2p=["a"],
+        p2p=[],
+    )
+    prelude = aux["tests/env_prelude.sh"]
+    assert prelude.strip() == ". /workspace/.venv/bin/activate"
+    assert not prelude.rstrip().endswith("&&")

@@ -71,8 +71,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from repo2rlenv.bootstrap.spec import LanguageHint
 from repo2rlenv.pipelines._env_setup_lang import TEST_ROOT_PATHSPECS
-from repo2rlenv.pipelines._eval_script import _path_prelude_for_language
+from repo2rlenv.pipelines._eval_script import _path_prelude_for_language, env_prelude_from_test_cmds
+from repo2rlenv.pipelines.pr_runtime import _verifier_source
 
 _PACKAGE_DIR = Path(__file__).parent
 
@@ -265,3 +267,48 @@ def build_env_setup_test_sh(*, language: str | None, test_cmds: list[str], runne
     )
 
     return head + gate0 + gate_half + gate1
+
+
+def build_env_setup_aux_files(
+    *,
+    language: str,
+    test_cmds: list[str],
+    runner: str,
+    probe: str,
+    base_commit: str,
+    package: str | None,
+    dist_name: str | None,
+    f2p: list[str],
+    p2p: list[str],
+) -> dict[str, str]:
+    """Everything under the emitted task's `tests/`, keyed for `aux_files`.
+
+    Harbor mounts tests/ at /tests, which is what `SCRIPT_DIR` resolves to.
+    Only the probe for `language` ships: `provenance_run.sh`'s `*)` branch
+    exits 0 for the languages whose probe kind is `none`.
+    """
+    files: dict[str, str] = {
+        "tests/test.sh": build_env_setup_test_sh(
+            language=language, test_cmds=test_cmds, runner=runner
+        ),
+        "tests/verifier.py": _verifier_source(),
+        "tests/env_prelude.sh": env_prelude_from_test_cmds(test_cmds) + "\n",
+        "tests/f2p.json": json.dumps(f2p, indent=2),
+        "tests/p2p.json": json.dumps(p2p or [], indent=2),
+        "tests/provenance.json": build_provenance_json(
+            probe=probe,
+            base_commit=base_commit,
+            language=language,
+            package=package,
+            dist_name=dist_name,
+        ),
+        "tests/test_roots.json": build_test_roots_json(),
+    }
+    probes = provenance_probe_files()
+    files["tests/provenance_read.py"] = probes["provenance_read.py"]
+    files["tests/provenance_run.sh"] = probes["provenance_run.sh"]
+    if language == LanguageHint.PYTHON:
+        files["tests/provenance.py"] = probes["provenance.py"]
+    elif language == LanguageHint.NODE:
+        files["tests/provenance.js"] = probes["provenance.js"]
+    return files
