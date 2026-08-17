@@ -348,13 +348,23 @@ class EnvSetupPipeline:
             recipe=recipe,
             has_lockfile=has_lockfile,
         )
-        task_dir = write_harbor_task(task, out_dir)
+        # write_harbor_task materializes task_dir; _run_oracle_gate below can
+        # raise from OUTSIDE its own try/except (e.g. shutil.copytree onto a
+        # full disk) — a raise anywhere in this region must not leave an
+        # unverified task directory on disk. `out_dir / task_name` (not a
+        # `task_dir` local) is used in the handler so it's correct even if
+        # `write_harbor_task` itself raises before returning.
+        try:
+            task_dir = write_harbor_task(task, out_dir)
 
-        if self.options.emit_solution and self.options.oracle_gate:
-            gate = self._run_oracle_gate(task_dir, self.options.effective_oracle_timeout_sec)
-            if gate is not None and gate != 1.0:
-                shutil.rmtree(task_dir, ignore_errors=True)
-                return "oracle_gate_failed"
+            if self.options.emit_solution and self.options.oracle_gate:
+                gate = self._run_oracle_gate(task_dir, self.options.effective_oracle_timeout_sec)
+                if gate is not None and gate != 1.0:
+                    shutil.rmtree(task_dir, ignore_errors=True)
+                    return "oracle_gate_failed"
+        except Exception:
+            shutil.rmtree(out_dir / task_name, ignore_errors=True)
+            raise
 
         return recipe.cost_usd + bootstrap.llm_cost_estimate_usd
 

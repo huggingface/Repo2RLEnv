@@ -255,6 +255,55 @@ def test_gates_unverified_when_probe_ladder_exhausts(monkeypatch, tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_oracle_gate_raise_leaves_no_task_dir(monkeypatch, tmp_path):
+    """A raise anywhere in the write_harbor_task / _run_oracle_gate region
+    (e.g. `shutil.copytree` onto a full disk, outside `_run_oracle_gate`'s own
+    narrow `except (TimeoutExpired, OSError)`) must not leave an unverified
+    task directory on disk, and must still show up as a recorded skip rather
+    than a directory nobody accounts for.
+    """
+    from repo2rlenv.pipelines import env_setup as mod
+    from repo2rlenv.pipelines._setup_recipe import RecipeOutcome
+    from repo2rlenv.spec.options import EnvSetupOptions
+
+    monkeypatch.setattr(mod, "_sandbox_factory", lambda *a, **k: _FakeSandbox([]))
+    monkeypatch.setattr(
+        mod,
+        "distill_setup_recipe",
+        lambda **kw: RecipeOutcome(
+            "set -euo pipefail\npip install -e .\n",
+            "tests/test_a.py::test_v PASSED\ntests/test_a.py::test_w PASSED\n"
+            "tests/test_a.py::test_x PASSED\ntests/test_a.py::test_y PASSED\n"
+            "tests/test_a.py::test_z PASSED",
+            1,
+            0.02,
+            3.0,
+            9.0,
+            None,
+            [],
+        ),
+    )
+    monkeypatch.setattr(mod, "_dry_run_gates", lambda **kw: (1.0, "ok"))
+    monkeypatch.setattr(mod, "_has_lockfile", lambda sandbox: False)
+    monkeypatch.setattr(
+        mod, "_resolve_package_names_in_container", lambda sandbox, language: ("click", "click")
+    )
+
+    def _boom(self, *a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(mod.EnvSetupPipeline, "_run_oracle_gate", _boom)
+
+    pipeline = mod.EnvSetupPipeline(
+        _gen_input(), EnvSetupOptions(oracle_gate=True, emit_solution=True), _bootstrap()
+    )
+    result = pipeline.run(tmp_path)
+
+    assert result.emitted == 0
+    assert result.skip_reasons == {"build_failed": 1}
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_reward_kinds_are_spec_defined(monkeypatch, tmp_path):
     import tomllib
 
