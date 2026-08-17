@@ -6,7 +6,13 @@ removed; these helpers now back code_instruct + equivalence_tests.
 
 from __future__ import annotations
 
-from repo2rlenv.pipelines._eval_script import build_binary_eval_script, make_unified_diff
+from repo2rlenv.pipelines._eval_script import (
+    authed_clone_url,
+    build_binary_eval_script,
+    env_prelude_from_test_cmds,
+    make_unified_diff,
+    normalize_test_cmds_for_runtime,
+)
 
 # ---------------------------------------------------------------------------
 # make_unified_diff
@@ -62,3 +68,57 @@ def test_eval_script_includes_path_prelude_for_go():
 def test_eval_script_no_prelude_for_python():
     script = build_binary_eval_script(["pytest"], language="python")
     assert "/usr/local/go/bin" not in script
+
+
+# ---------------------------------------------------------------------------
+# normalize_test_cmds_for_runtime (moved from pr_runtime.py — pr_runtime
+# re-exports it; see test_pipeline_pr_runtime.py for the re-export contract)
+# ---------------------------------------------------------------------------
+
+
+def test_blank_test_cmds_dropped():
+    """Degenerate bootstrap-recorded entries that reduce to '' after the
+    pipe/redirect strippers must be dropped, not emitted as empty segments
+    (an empty segment in `" && ".join(...)` is a bash syntax error)."""
+    assert normalize_test_cmds_for_runtime(
+        ["| head -50", "2>&1", "  ", ". /workspace/.venv/bin/activate && pytest -v"]
+    ) == [". /workspace/.venv/bin/activate && pytest -v"]
+
+
+# ---------------------------------------------------------------------------
+# env_prelude_from_test_cmds (new)
+# ---------------------------------------------------------------------------
+
+
+def test_env_prelude_from_test_cmds():
+    # Leading venv-activation fragment is extracted with no trailing `&&`.
+    assert (
+        env_prelude_from_test_cmds([". /workspace/.venv/bin/activate && pytest -v"])
+        == ". /workspace/.venv/bin/activate"
+    )
+    # No env-setup fragment present at all → literal "true" (a no-op to source).
+    assert env_prelude_from_test_cmds(["pytest -v"]) == "true"
+    # A fragment containing a single quote must round-trip unmangled — the
+    # prelude is *sourced*, never interpolated into a shell string.
+    cmds = ["export PYTEST_ADDOPTS='-p no:randomly' && pytest -v"]
+    assert env_prelude_from_test_cmds(cmds) == "export PYTEST_ADDOPTS='-p no:randomly'"
+
+
+# ---------------------------------------------------------------------------
+# authed_clone_url (new)
+# ---------------------------------------------------------------------------
+
+
+def test_authed_clone_url_handles_gitlab():
+    assert (
+        authed_clone_url("https://github.com/o/r.git")
+        == "https://x-access-token:${GITHUB_TOKEN}@github.com/o/r.git"
+    )
+    assert (
+        authed_clone_url("https://gitlab.com/o/r.git")
+        == "https://oauth2:${GITHUB_TOKEN}@gitlab.com/o/r.git"
+    )
+    assert (
+        authed_clone_url("https://gitlab.com/o/r.git", arg_name="GIT_TOKEN")
+        == "https://oauth2:${GIT_TOKEN}@gitlab.com/o/r.git"
+    )
