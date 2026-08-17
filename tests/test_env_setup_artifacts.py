@@ -431,3 +431,72 @@ def test_provenance_probe_node_accepts_symlinked_workspace_import(tmp_path):
         ["node", "/probe/provenance.js", "/probe/provenance.json"],
     )
     assert result.returncode == 0, result.stderr
+
+
+# ---------------------------------------------------------------------------
+# build_test_roots_json
+# ---------------------------------------------------------------------------
+
+
+def test_build_test_roots_json_is_the_lang_table_verbatim():
+    import json
+
+    from repo2rlenv.pipelines._env_setup_artifacts import build_test_roots_json
+    from repo2rlenv.pipelines._env_setup_lang import TEST_ROOT_PATHSPECS
+
+    roots = json.loads(build_test_roots_json())
+    assert roots == list(TEST_ROOT_PATHSPECS)
+    # An exclude-only list means "everything except these" and would clean the
+    # entire untracked surface — the venv and node_modules included.
+    assert any(not p.startswith(":(exclude") for p in roots)
+
+
+# ---------------------------------------------------------------------------
+# build_provenance_json
+# ---------------------------------------------------------------------------
+
+
+def test_provenance_json_carries_the_five_keys():
+    import json
+
+    from repo2rlenv.pipelines._env_setup_artifacts import build_provenance_json
+
+    cfg = json.loads(
+        build_provenance_json(
+            probe="direct_url",
+            base_commit="a" * 40,
+            language="python",
+            package="click",
+            dist_name="click",
+        )
+    )
+    assert cfg == {
+        "probe": "direct_url",
+        "base_commit": "a" * 40,
+        "language": "python",
+        "package": "click",
+        "dist_name": "click",
+    }
+
+
+def test_provenance_json_never_emits_null_for_missing_names():
+    """`provenance.py` does `cfg.get("dist_name") or ""`, but `provenance.js`
+    passes `cfg.package` straight to `require.resolve`. A JSON null there is a
+    TypeError inside the probe, which gate 0 reads as a failed probe on a
+    correct solve. Emit "" instead.
+    """
+    import json
+
+    from repo2rlenv.pipelines._env_setup_artifacts import build_provenance_json
+
+    cfg = json.loads(
+        build_provenance_json(
+            probe="none",
+            base_commit="b" * 40,
+            language="go",
+            package=None,
+            dist_name=None,
+        )
+    )
+    assert cfg["package"] == ""
+    assert cfg["dist_name"] == ""

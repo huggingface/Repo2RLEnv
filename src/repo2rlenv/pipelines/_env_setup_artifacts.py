@@ -68,7 +68,10 @@ of the upstream licenses apply to this file; Repo2RLEnv is Apache-2.0.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+from repo2rlenv.pipelines._env_setup_lang import TEST_ROOT_PATHSPECS
 
 _PACKAGE_DIR = Path(__file__).parent
 
@@ -124,3 +127,39 @@ def provenance_probe_files() -> dict[str, str]:
         "provenance.js": provenance_js_source(),
         "provenance_run.sh": provenance_run_sh_source(),
     }
+
+
+def build_provenance_json(
+    *,
+    probe: str,
+    base_commit: str,
+    language: str,
+    package: str | None,
+    dist_name: str | None,
+) -> str:
+    """The single file gate 0 reads (via `provenance_read.py`).
+
+    `package` / `dist_name` fall back to "" rather than null: the Node probe
+    hands `cfg.package` straight to `require.resolve`, where a null is a
+    TypeError that reads as a failed probe on a correct solve.
+    """
+    return json.dumps(
+        {
+            "probe": probe,
+            "base_commit": base_commit,
+            "language": language,
+            "package": package or "",
+            "dist_name": dist_name or "",
+        },
+        indent=2,
+    )
+
+
+def build_test_roots_json() -> str:
+    """The pathspec list gate ½ passes to `git clean -fdq --`.
+
+    Emitted unfiltered: `git clean` accepts pathspecs that match nothing and
+    exits 0, and tree-filtering the list is what let an agent-added
+    `conftest.py` survive in a repo that had none at base_commit.
+    """
+    return json.dumps(list(TEST_ROOT_PATHSPECS), indent=2)
