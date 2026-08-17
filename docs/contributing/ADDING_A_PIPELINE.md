@@ -226,8 +226,8 @@ class YourPipeline:
             org=self.input.output.org,
             description=...,
             instruction=...,
-            oracle_diff=...,
             repo2env=repo2env,
+            oracle_diff=...,  # optional — omit (None) for eval-only tasks with no solution/
         )
 ```
 

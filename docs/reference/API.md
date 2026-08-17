@@ -121,13 +121,13 @@ task = HarborTask(
     org="myorg",
     description="...",
     instruction="...",
-    oracle_diff="...",
     repo2env={"pipeline": "pr_diff", ...},
+    oracle_diff="...",  # optional — None skips solution/ entirely (eval-only tasks)
 )
 path = write_harbor_task(task, dest_dir)
 ```
 
-Writes `task.toml`, `instruction.md`, `solution/patch.diff`. The `[metadata.repo2env]` subtable is auto-completed with `spec_version`, `content_hash`, and `reward_kinds`.
+Writes `task.toml`, `instruction.md`, and (when `oracle_diff` is set) `solution/patch.diff` + `solution/solve.sh`. The `[metadata.repo2env]` subtable is auto-completed with `spec_version`, `content_hash`, and `reward_kinds`. `solve_script` (verbatim `solution/solve.sh` contents), `agent_timeout_sec`, and `verifier_timeout_sec` are also optional, `None`-by-default fields — see [`HarborTask`](../../src/repo2rlenv/emitter/harbor.py) for the full field list.
 
 ## `repo2rlenv.hub`
 
