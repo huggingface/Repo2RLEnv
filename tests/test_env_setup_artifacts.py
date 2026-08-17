@@ -857,3 +857,241 @@ def test_aux_files_env_prelude_is_the_shipped_fragment():
     prelude = aux["tests/env_prelude.sh"]
     assert prelude.strip() == ". /workspace/.venv/bin/activate"
     assert not prelude.rstrip().endswith("&&")
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_dockerfile
+# ---------------------------------------------------------------------------
+
+
+def _df(**kw):
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_dockerfile
+
+    kw.setdefault("base_image", "python:3.12-slim")
+    kw.setdefault("repo_url", "https://github.com/pallets/click")
+    kw.setdefault("base_commit", "a" * 40)
+    return build_env_setup_dockerfile(**kw)
+
+
+def test_dockerfile_has_no_installs():
+    """The single mistake that silently voids the pipeline: installing the
+    repo's own dependencies here deletes the task.
+    """
+    df = _df()
+    for forbidden in (
+        "pip install",
+        "pip3 install",
+        "uv pip",
+        "npm install",
+        "npm ci",
+        "yarn install",
+        "pnpm install",
+        "cargo build",
+        "cargo fetch",
+        "go mod download",
+        "poetry install",
+        "mvn install",
+    ):
+        assert forbidden not in df, forbidden
+
+
+def test_dockerfile_installs_only_the_toolchain():
+    df = _df()
+    assert "git ca-certificates curl python3" in df
+
+
+def test_dockerfile_has_no_sentinel_or_commit():
+    """`git commit` with a clean index exits 1, and only Python would ever
+    have injected a sentinel — so the build would die for five of six
+    languages with an unexplained build_failed.
+    """
+    df = _df()
+    assert "git commit" not in df
+    assert "sentinel" not in df.lower()
+
+
+def test_dockerfile_uses_shared_authed_clone_url():
+    from repo2rlenv.pipelines._eval_script import authed_clone_url
+
+    df = _df()
+    assert "ARG GIT_TOKEN=" in df
+    assert authed_clone_url("https://github.com/pallets/click", arg_name="GIT_TOKEN") in df
+    # The remote is scrubbed back so no credential persists in a layer.
+    assert "remote set-url origin https://github.com/pallets/click" in df
+
+
+def test_dockerfile_handles_gitlab():
+    df = _df(repo_url="https://gitlab.com/group/proj")
+    assert "oauth2:${GIT_TOKEN}@gitlab.com" in df
+
+
+def test_dockerfile_pins_the_resolved_sha_and_cleans():
+    df = _df(base_commit="b" * 40)
+    assert f"git reset --hard {'b' * 40}" in df
+    assert "git clean -fdx" in df
+
+
+def test_dockerfile_scrub_is_off_by_default():
+    """The repo's CONTRIBUTING.md, ci.yml, and commit history are legitimate
+    solve context for a setup task, not a leak.
+    """
+    from repo2rlenv.pipelines._env_guard import git_history_scrub
+
+    scrub = git_history_scrub("a" * 40)
+    assert scrub not in _df()
+    assert scrub in _df(scrub_history=True)
+
+
+def test_env_setup_ships_no_egress_guard():
+    """env_setup is the only pipeline in the set with egress open, and that is
+    inherent to the task shape: pip/apt/cargo ARE the task. Neither
+    egress_guard_compose (v1) nor egress_firewall_compose (v2) is called, and
+    it is not an option — the provenance gate buys back the enforcement the
+    network guard would otherwise provide.
+
+    The module's own docstring documents this posture in prose (and
+    necessarily contains the substring "egress" to do so), so this test
+    asserts on the absence of actual egress-guard *references* instead of a
+    bare substring search.
+    """
+    import inspect
+
+    from repo2rlenv.pipelines import _env_setup_artifacts
+
+    src = inspect.getsource(_env_setup_artifacts)
+    assert "egress_guard_compose" not in src
+    assert "egress_firewall_compose" not in src
+    assert "docker-compose" not in src
+
+
+# ---------------------------------------------------------------------------
+# build_env_setup_instruction
+# ---------------------------------------------------------------------------
+
+
+def _instr(**kw):
+    from repo2rlenv.pipelines._env_setup_artifacts import build_env_setup_instruction
+
+    kw.setdefault("repo_slug", "pallets/click")
+    kw.setdefault("ref", "HEAD")
+    kw.setdefault("base_commit", "a" * 40)
+    kw.setdefault("max_setup_time_sec", 1800)
+    return build_env_setup_instruction(**kw)
+
+
+def test_instruction_states_tracked_file_contract():
+    instr = _instr()
+    assert (
+        "Your solution must not depend on modifications to files tracked in the "
+        "repository; the repository's tracked files are restored before grading."
+    ) in instr
+
+
+def test_instruction_leaks_nothing():
+    """The environment enforces, the prompt never asks. The tamper restore is
+    the one disclosed guard — it removes a class of otherwise-reasonable solve
+    from the board, so leaving it unsaid buys an unfair task, not an
+    uncontaminated one.
+    """
+    instr = _instr().lower()
+    for leak in (
+        "f2p",
+        "fail_to_pass",
+        "provenance",
+        "probe",
+        "direct_url",
+        "site-packages",
+        "pep 610",
+        "reward",
+        "setup.sh",
+        "oracle",
+        "pip",
+        "uv",
+        "npm",
+        "yarn",
+        "cargo",
+        "poetry",
+        "apt-get",
+    ):
+        assert leak not in instr, leak
+
+
+def test_instruction_does_not_tell_the_agent_to_edit_the_dockerfile():
+    """Harbor builds environment/Dockerfile ONCE, then runs the agent and
+    tests/test.sh inside that same container. It never rebuilds an
+    agent-edited Dockerfile.
+    """
+    instr = _instr().lower()
+    assert "dockerfile" not in instr
+    assert "rebuild" not in instr
+
+
+def test_instruction_names_the_repo_ref_workdir_and_budget():
+    instr = _instr(repo_slug="pallets/click", max_setup_time_sec=1800)
+    assert "pallets/click" in instr
+    assert "a" * 40 in instr
+    assert "/workspace" in instr
+    assert "30 minutes" in instr
+
+
+# ---------------------------------------------------------------------------
+# ORACLE_SOLVE_SCRIPT / build_recipe_patch
+# ---------------------------------------------------------------------------
+
+
+def test_oracle_solve_script_runs_the_recipe_not_just_applies_it():
+    """Unlike every other pipeline, applying the gold patch alone scores 0 —
+    the recipe is an artifact to RUN, not an edit to apply.
+    """
+    from repo2rlenv.pipelines._env_setup_artifacts import ORACLE_SOLVE_SCRIPT
+
+    assert ORACLE_SOLVE_SCRIPT.startswith("#!/bin/bash\n")
+    assert "git apply --verbose --reject" in ORACLE_SOLVE_SCRIPT
+    assert "bash /workspace/setup.sh" in ORACLE_SOLVE_SCRIPT
+    assert '"$(dirname "$0")/patch.diff"' in ORACLE_SOLVE_SCRIPT
+
+
+def test_recipe_patch_creates_setup_sh(tmp_path):
+    """The diff must apply cleanly with `git apply` in a repo that has no
+    setup.sh — i.e. it is a file-creation diff, not a modification.
+    """
+    import subprocess
+
+    from repo2rlenv.pipelines._env_setup_artifacts import build_recipe_patch
+
+    recipe = "#!/bin/bash\nset -euo pipefail\npython -m pip install -e .\n"
+    patch = build_recipe_patch(recipe)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "patch.diff").write_text(patch)
+    proc = subprocess.run(
+        ["git", "apply", "--verbose", str(tmp_path / "patch.diff")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (tmp_path / "setup.sh").read_text() == recipe
+
+
+def test_recipe_patch_creates_setup_sh_without_trailing_newline(tmp_path):
+    """A recipe that does not end in a newline must still round-trip exactly
+    through `git apply` — the patch needs a correct `\\ No newline at end of
+    file` marker.
+    """
+    import subprocess
+
+    from repo2rlenv.pipelines._env_setup_artifacts import build_recipe_patch
+
+    recipe = "#!/bin/bash\nset -euo pipefail\npython -m pip install -e ."
+    assert not recipe.endswith("\n")
+    patch = build_recipe_patch(recipe)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "patch.diff").write_text(patch)
+    proc = subprocess.run(
+        ["git", "apply", "--verbose", str(tmp_path / "patch.diff")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (tmp_path / "setup.sh").read_text() == recipe
