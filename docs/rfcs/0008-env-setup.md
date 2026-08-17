@@ -1,11 +1,11 @@
 # RFC 0008: `env_setup`
 
-**Status:** draft
+**Status:** implemented (experimental)
 **Author:** `@adithya-s-k`
 **Created:** 2026-07-22
 **Last revised:** 2026-08-16 — merged the companion design spec into this document, swept the merged text for internal contradictions, then re-verified every code claim against the working tree and fixed six design defects the sweep had missed; see [Revision history](#revision-history).
 **Target release:** v0.9.0
-**Implemented by:** _(pending)_
+**Implemented by:** `@adithya-s-k`
 **Reference dataset:** _(pending — target `AdithyaSK/repo2rlenv-env-setup`)_
 
 This RFC is self-contained: it argues *why* `env_setup` should exist **and** pins *how* it is
@@ -1803,15 +1803,13 @@ meant the two disagreed in eleven places that the delta table never listed, and 
 
 ## Implementation
 
-*Filled in when the RFC status flips to `implemented`.*
-
 | | |
 |---|---|
 | **Initial PR** | _(pending)_ |
 | **Shipping release** | _(pending — target v0.9.0)_ |
-| **Source file** | [`src/repo2rlenv/pipelines/env_setup.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/env_setup.py) *(pending)* |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `EnvSetupOptions` *(pending)* |
-| **Doc page** | [`docs/pipelines/env_setup.md`](../pipelines/env_setup.md) *(pending)* |
+| **Source file** | [`src/repo2rlenv/pipelines/env_setup.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/env_setup.py) |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `EnvSetupOptions` |
+| **Doc page** | [`docs/pipelines/env_setup.md`](../pipelines/env_setup.md) |
 | **Findings / release notes** | _(pending)_ |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-env-setup`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-env-setup) *(pending)* |
 | **Follow-up PRs** | _(pending)_ |

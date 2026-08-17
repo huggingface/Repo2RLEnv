@@ -209,7 +209,13 @@ Lite pipelines never use this field. When set on a `harbor`-provider sandbox, we
 | `diff_similarity` | Similarity between the predicted and oracle unified diffs (float ∈ [0,1]). `pr_diff` scores this with a 6-component verifier (format / size / file-targeting / region-overlap / changes-only similarity / LLM-judge) written to `/logs/verifier/reward.txt`; the simpler stdlib `SequenceMatcher` path is available for `emit_harbor_env=False` tasks. | `solution/patch.diff` |
 | `test_execution` | Shell verifier writes a float to `/logs/verifier/reward.txt` | `tests/test.sh` |
 
+`test_execution`'s float may be **graded** (a continuous fraction, e.g. `pr_runtime`'s `f2p_rate × p2p_rate` or `env_setup`'s `f2p_rate`) or **binary** (`code_instruct` / `equivalence_tests` map the suite's exit code straight to `1.0`/`0.0`) — the kind itself doesn't say which; see `reward_granularity` below.
+
 A task may emit both. The lite pipeline emits only `diff_similarity`; full sandbox-required pipelines emit `test_execution` (and may also emit `diff_similarity` if they capture the oracle as a diff).
+
+### `reward_granularity`
+
+`[metadata.repo2env.<pipeline>].reward_granularity` records the property `reward_kinds` itself never encodes: whether the `test_execution` float this task emits is `"graded"` (partial credit — half the target tests passing scores 0.5) or `"binary"` (only `0.0`/`1.0` are reachable). It is a per-pipeline subtable field, not a top-level `[metadata.repo2env]` key, and not every pipeline writes it — check the per-pipeline doc page for whether it's present. `env_setup` is the first pipeline to write it (always `"graded"`, since P2P is always empty and `f2p_rate` is the whole reward).
 
 The diff-similarity reward function is implemented at [`src/repo2rlenv/reward.py:calculate_diff_similarity_reward`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/reward.py) — pure stdlib (`difflib.SequenceMatcher`), Apache-2.0, no SWE-RL CC-BY-NC code vendored.
 

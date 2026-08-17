@@ -19,7 +19,7 @@ flowchart LR
 
 ## Pipelines
 
-All 7 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 4 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+All 8 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 5 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|
@@ -30,6 +30,7 @@ All 7 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runti
 | [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks × 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
 | [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | *pending v0.8.8* | [R2E](https://github.com/r2e-project/r2e) |
 | [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
+| [`env_setup`](./env_setup.md) | Bare repo → agent installs its own test suite from scratch; graded `reward = f2p_rate` | GitHub · GitLab | ✅ | at bootstrap (transcript only) + recipe distillation (1–3 calls) | Sometimes | *pending* (`AdithyaSK/repo2rlenv-env-setup`) | Repo2Run / SetupBench / EnvBench |
 
 - **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
@@ -50,10 +51,12 @@ yield band below.
 |---|:-:|---|---|
 | `pr_diff` | **80–95%** | almost every merged PR qualifies (text-only, no execution gate) | `min_loc_changed`, `max_files_per_pr`, `skip_drafts` |
 | `pr_runtime` | **15–40%** | does a PR ship a *new* test that flips fail→pass, and does the suite run green in the container? | `require_fail_to_pass`, `require_new_test_funcs`, `lite_filter`, `min_problem_statement_words` |
+| `pr_to_env` | **task-shaped, not corpus-shaped** — one URL → one env or a named skip reason; there is no candidate pool to sample from | does the curated PR pass the same F2P validation `pr_runtime` runs | `require_fail_to_pass` (same validation knobs as `pr_runtime`) |
 | `commit_runtime` | **10–35%** | same F2P gate as `pr_runtime`, on commits — **~0% on squash/merge-PR repos** (use `pr_runtime` there) | `skip_merge_commits`, `require_new_test_funcs`, `min_message_words`, `synthesize_with_llm` |
 | `code_instruct` | **60–90%** (v0.8.6 gates + retries; empirically 75.8% across 5 Python libs on the reference dataset) | fraction of seed snippets where the LLM's test passes all quality gates AND fails-without / passes-with the oracle | `max_attempts_per_seed` (default 3), LLM quality, `seed_min/max_loc` |
 | `equivalence_tests` | **~50% of pure candidates** (v0.8.7 gates + retries; the purity filter is the real gate — framework-heavy repos yield 0–2 pure candidates, utility-heavy repos yield 10s) | fraction of extracted pure functions where the LLM writes a test that fails-with-stub / passes-with-oracle | `max_attempts_per_function` (default 3), `min/max_loc`, LLM quality, repo shape (utility vs framework) |
 | `cve_patches` | **5–25%** | does the CVE fix have a verifiable test (shipped *or* agent-synthesized) **and** does the repo's suite collect in a slim container? | `synthesize_poc_test`, `poc_agent`, `require_fail_to_pass`, `min_severity` |
+| `env_setup` | **high** — discovery isn't the bottleneck; any repo where `bootstrap/` produces a working image is a candidate | does the distilled recipe verify green within `max_recipe_attempts`, and does the suite clear `min_target_tests` | `min_target_tests`, `max_recipe_attempts`, repo health (CPU-only, no exotic system deps) |
 
 **The single biggest lever for every execution-gated pipeline (`*_runtime`,
 `cve_patches`, the synthesis pipelines) is repo health** — if the suite doesn't
@@ -172,8 +175,9 @@ For the full design rationale + dataset card layout + pilot evidence, see [`pr_d
 | `code_instruct` | optional | ✅ |
 | `equivalence_tests` | — | ✅ |
 | `cve_patches` | ✅ | ✅ |
+| `env_setup` | — | ✅ |
 
-`diff_similarity` works without a sandbox; `test_execution` requires one.
+`diff_similarity` works without a sandbox; `test_execution` requires one. `env_setup` emits no `diff_similarity`: the oracle is a shell script to execute, not a source-code diff to compare against.
 
 ## Contamination defenses
 
@@ -195,6 +199,7 @@ to `git diff origin/main`, and when that was closed it ran `pip download
 | `cve_patches` | ✅ | ✅ v1 (compose) |
 | `code_instruct` | — | — |
 | `equivalence_tests` | — | — |
+| `env_setup` | off by default² | **open, not an option**³ |
 
 - **Git-history scrub** — after checking out `base_commit`, the env removes the
   `origin` remote and prunes every ref/commit past the base (then `gc`), so the
@@ -220,6 +225,28 @@ to `git diff origin/main`, and when that was closed it ran `pip download
 The two LLM-synthesis pipelines (`code_instruct`, `equivalence_tests`) ship
 neither guard: they build at repo HEAD, so there is no future-commit oracle
 sitting in `.git` and no published fix for a synthesized problem to leak.
+
+`env_setup` is a deliberate exception to the table above, not a gap in it:
+
+- ² **Git-history scrub, off by default** (`scrub_git_history=False`) — for a
+  setup task, the repo's own `CONTRIBUTING.md`, `.github/workflows/ci.yml`, and
+  commit history are legitimate solve context, not a leak. The option exists
+  for parity with the rest of the set but doesn't default on.
+- ³ **Egress guard, open and not an option** — `pip` / `apt` / `cargo` installs
+  from a live index **are** the task; blocking them would make the task
+  unsolvable, not safer. Neither the v1 compose guard nor the v2 in-container
+  firewall is called, and there is no option to enable one. In its place,
+  `env_setup` ships a **provenance gate** (`tests/provenance.py` / `.js`): PEP
+  610 `direct_url.json` metadata (or, for Node, an import-path check excluding
+  `node_modules`) proves the tested package actually came from `/workspace`
+  rather than a package-index substitute — the one shortcut open egress
+  otherwise buys an agent for free. `env_setup` also discloses one guard in its
+  `instruction.md` that every other pipeline leaves unstated: `tests/test.sh`
+  restores the repo's tracked files to `base_commit` before grading, and the
+  agent is told so in one sentence, because that restore removes a class of
+  otherwise-reasonable solve from the board rather than merely hiding the
+  reward shape. See [`env_setup.md`](./env_setup.md#anti-contamination-posture)
+  for the full rationale.
 
 These reduce the attack surface but the real guarantee is network isolation;
 for trustworthy eval numbers, run with `allow_internet=false` (offline,

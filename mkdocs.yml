@@ -152,6 +152,7 @@ nav:
       - "code_instruct (experimental)": pipelines/code_instruct.md
       - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
       - "cve_patches (experimental)": pipelines/cve_patches.md
+      - "env_setup (experimental)": pipelines/env_setup.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

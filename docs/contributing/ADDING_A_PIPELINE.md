@@ -239,7 +239,7 @@ class YourPipeline:
 - `supported_languages` — must be `frozenset({LanguageHint.PYTHON})` if your pipeline is Python-only, and must stay unset if it isn't
 - `__init__(input, options, bootstrap=None)` — the three-arg form from [`base.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py). `cmd_generate` always passes `bootstrap=` by keyword, so a two-arg `__init__` raises at dispatch.
 - `run(out_dir)` returns a `PipelineResult`
-- `set_progress_callback(cb)` + `_emit_progress(name, outcome, reason)` — duck-typed, so the CLI guards with `hasattr` and a pipeline without them merely leaves the progress bar static. Implement them anyway; all seven shipped pipelines do.
+- `set_progress_callback(cb)` + `_emit_progress(name, outcome, reason)` — duck-typed, so the CLI guards with `hasattr` and a pipeline without them merely leaves the progress bar static. Implement them anyway; all eight shipped pipelines do.
 - Per-task failures go into `skip_reasons` and **don't halt the pipeline**
 
 ### 4. Wire helpers you need
@@ -349,7 +349,7 @@ run() ── discover ─▶ cheap filter ─▶ fetch payload ─▶ expensive 
 
 Discovery and the loop live in `run()` — a fat `run()` is the house style, not a smell; it keeps the raise-vs-skip decision for every stage in one readable place. Only pull something out when it's independently testable, and name it for what it checks: filters are `_pre_filter` / `_structural_quality_filter` / `_metadata_filter` / `_lite_filter` in the shipped set, never a generic `_should_skip`.
 
-Two rules hold across all seven pipelines: `_build_task` is pure (builds a `HarborTask`, no side effects), and `write_harbor_task` is the only filesystem write. Order your filters cheapest-first so you don't pay for a diff fetch or an LLM call on a candidate you'll drop on metadata alone.
+Two rules hold across all eight pipelines: `_build_task` is pure (builds a `HarborTask`, no side effects), and `write_harbor_task` is the only filesystem write. Order your filters cheapest-first so you don't pay for a diff fetch or an LLM call on a candidate you'll drop on metadata alone.
 
 ## Common patterns from `pr_diff`
 

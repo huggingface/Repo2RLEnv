@@ -67,14 +67,25 @@ Source-aware resolution lives in [`auth.py:resolve_repo_token`](https://github.c
 
 ## Private repos at task **build** time
 
-Generation only needs the token to fetch PR metadata + diffs via `gh` (resolved above). But a runnable `pr_diff` task also clones the repo *inside its Docker image* at build time. For **private** source repos, the consumer building that image supplies the token as a Docker build arg:
+Generation only needs the token to fetch PR metadata + diffs via `gh` (resolved above). But two pipelines also clone the repo themselves *inside their Docker image* at build time, rather than starting `FROM` an already-cloned bootstrap image: `pr_diff` (no bootstrap at all — the env is built fresh at generation time) and `env_setup` (the bootstrap image is deliberately thrown away, so the emitted `environment/Dockerfile` clones the bare repo itself). The `_runtime` family (`pr_runtime`, `pr_to_env`, `commit_runtime`, `cve_patches` via `pr_runtime.build_environment_dockerfile`) is different: their `environment/Dockerfile` is `FROM <bootstrap_image>` — the clone already happened at bootstrap time, host-side, using the token-resolution chain above, and got baked into the committed image; the only build-time git operation is a `git fetch`/`reset` to the task's `base_commit` against the `origin` remote the bootstrap step already configured, which needs no new build arg.
+
+For the two pipelines that *do* clone at build time, private source repos need the consumer building the image to supply a token as a Docker build arg:
 
 ```bash
 harbor run -p ./datasets/<private-dataset> -a oracle --env docker \
-  --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
+  --build-arg GITHUB_TOKEN=$GITHUB_TOKEN      # or GIT_TOKEN for env_setup — see below
 ```
 
-The emitted Dockerfile declares `ARG GITHUB_TOKEN=` (empty default). When set, the clone goes through an `x-access-token:<token>@github.com/...` URL; the remote is reset to the clean URL immediately after, so the token never persists in `git config` inside the image and is never baked into a layer. **Public** repos need no build arg — the clone falls back to the anonymous URL.
+The emitted Dockerfile declares an `ARG` (empty default) that is injected into the clone URL right after the scheme, then the remote is reset to the clean URL immediately after cloning — so the token never persists in `git config` inside the image and is never baked into a layer. **Public** repos need no build arg at all; the clone falls back to the anonymous URL.
+
+The build-arg **name** and the credential **shape** both depend on the pipeline and the host:
+
+| Pipeline | Build-arg name | github.com | gitlab.com |
+|---|---|---|---|
+| `pr_diff` | `GITHUB_TOKEN` (fixed, for backward compatibility — its emitted Dockerfile predates GitLab support and stays byte-identical for github.com) | `https://x-access-token:${GITHUB_TOKEN}@github.com/...` | `https://oauth2:${GITHUB_TOKEN}@gitlab.com/...` |
+| `env_setup` | `GIT_TOKEN` (source-neutral — it isn't a GitHub-only pipeline) | `https://x-access-token:${GIT_TOKEN}@github.com/...` | `https://oauth2:${GIT_TOKEN}@gitlab.com/...` |
+
+Both forms are built by the same shared helper, `authed_clone_url(repo_url, arg_name=...)` in `pipelines/_eval_script.py` — it recognizes `github.com` (`x-access-token:` username) and `gitlab.com` (`oauth2:` username) and injects whichever build-arg name its caller passes; a URL matching neither host is returned unchanged. `pr_diff` originally hardcoded a GitHub-only `str.replace`, which silently cloned GitLab MR-mined repos *unauthenticated* on the private-repo path — `authed_clone_url` is what fixed that without changing `pr_diff`'s GitHub behavior.
 
 The same generation-time token also packages bootstrap-built images for `_runtime` pipelines (cloned host-side and `docker cp`'d in — never embedded). See [`reference/BOOTSTRAP.md`](./BOOTSTRAP.md).
 

@@ -92,7 +92,7 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
-A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **three are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
+A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **five are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
 
 ### Stable
 
@@ -111,9 +111,11 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 
 > These run normally but emit a warning first — pin a release if you depend on them. Each links to its own page; the gist:
 
+- **`pr_to_env`** — same task shape as `pr_runtime`, but from a curated list of PR URLs instead of mining (RFC 0007).
 - **[`cve_patches`](./docs/pipelines/cve_patches.md)** — security tasks from public CVEs, mapped to their fix commits.
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
 - **[`equivalence_tests`](./docs/pipelines/equivalence_tests.md)** — the agent reimplements a real function; generated tests check it matches the original.
+- **[`env_setup`](./docs/pipelines/env_setup.md)** — Repo2Run/SetupBench-style: the agent makes a bare, un-bootstrapped repo's own test suite install and run green from nothing (RFC 0008).
 
 ### At a glance
 
@@ -121,10 +123,12 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 |---|:-:|:-:|---|:-:|---|---|
 | `pr_diff` | stable | GitHub · GitLab | `diff_similarity` | thin | at verify — judges the solution | any |
 | `pr_runtime` | stable | GitHub · GitLab | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
+| `pr_to_env` | experimental | GitHub · GitLab | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `commit_runtime` | stable | GitHub · GitLab · local | `test_execution` + `diff_similarity` | ✅ | at env build + per-task instruction synthesis | Py · Go · Node · Rust |
 | `cve_patches` | experimental | GitHub | `test_execution` + `diff_similarity` | ✅ | at env build — one-time, cached | Py · Go · Node · Rust |
 | `code_instruct` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 | `equivalence_tests` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
+| `env_setup` | experimental | GitHub · GitLab | `test_execution` (graded, no diff fallback) | ✅ | at env build (transcript only) + recipe distillation | any (polyglot) |
 
 **What the columns mean**
 - **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
@@ -182,7 +186,7 @@ Fastest jumps:
 
 - 🚀 [Quickstart](https://huggingface.github.io/Repo2RLEnv/quickstart/) — install → generate → push, in 10 min
 - 📦 [Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/) — one page per pipeline (status, oracle shape, options, yield)
-- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — design docs for every pipeline (10 total, 6 implemented + 4 draft)
+- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — design docs for every pipeline (10 total, 7 implemented + 3 draft)
 - 📚 [Reference](https://huggingface.github.io/Repo2RLEnv/reference/API/) — API, SPEC, AUTH, ENV, BOOTSTRAP, AGENTS, REWARD_SCHEMA, RELATED_WORK
 - 🛠 [Adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/) — cookbook
 - 🔭 [Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore any Harbor dataset pushed to the Hub
