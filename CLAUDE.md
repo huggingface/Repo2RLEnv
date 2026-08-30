@@ -1,14 +1,31 @@
 # CLAUDE.md — project memory for Repo2RLEnv
 
-This file is auto-loaded by Claude Code in this repo. Keep it tight; longer prose belongs in `docs/`.
+Auto-loaded by Claude Code for anyone working in this repo. It is **committed and
+shared**, so it holds only what is true for any clone: architecture, invariants,
+and the mistakes that are easy to make here.
+
+It is not a changelog and not a contributor guide. Those live elsewhere:
+
+| You want | Read |
+|---|---|
+| Dev setup, PR/commit conventions, code style, releases | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Install → first dataset → push | [`docs/quickstart.md`](./docs/quickstart.md) |
+| What each pipeline does, its yield and options | [`docs/pipelines/README.md`](./docs/pipelines/README.md) |
+| Why a pipeline exists in its shape | [`docs/rfcs/`](./docs/rfcs/README.md) |
+| Version history | [`docs/release_notes/HISTORY.md`](./docs/release_notes/HISTORY.md) |
+
+If anything here conflicts with the code, **trust the code** and fix this file.
 
 ## What this is
 
-**Repo2RLEnv** (`repo2rlenv` on PyPI) turns any GitHub repository into a verifiable RL training/eval dataset. End-to-end: **synthesis → standardize → train + eval**, focus on training. We emit datasets in the [Harbor](https://github.com/harbor-framework/harbor) task format so they drop straight into Harbor's runtime ecosystem (Local Docker / Modal / Daytona / E2B / Runloop + 22 agent harnesses).
+**Repo2RLEnv** (`repo2rlenv` on PyPI) turns a repository into a verifiable RL
+training/eval dataset. End-to-end: **synthesis → standardize → train + eval**,
+focused on training. Datasets are emitted in the
+[Harbor](https://github.com/harbor-framework/harbor) task format so they drop
+straight into Harbor's runtime ecosystem (Local Docker / Modal / Daytona / E2B /
+Runloop + 22 agent harnesses).
 
-GitHub: https://github.com/huggingface/Repo2RLEnv · PyPI: `repo2rlenv` · License: Apache-2.0.
-
-## Architecture
+GitHub: https://github.com/huggingface/Repo2RLEnv · PyPI: `repo2rlenv` · Apache-2.0.
 
 Three layers, only the first is ours:
 
@@ -18,63 +35,59 @@ Three layers, only the first is ours:
 | **Spec** (uniform output format) | `[metadata.repo2env]` extension to Harbor's `task.toml` | Harbor's task spec |
 | **Consumption** (sandboxes / agents / runtime) | HF Hub publish bridge; planned TRL trainer bridge | Harbor's full stack |
 
-## Where things live
+## Invariants
 
-```
-src/repo2rlenv/
-├── spec/                       # Pydantic input + output models (the contract)
-├── pipelines/
-│   ├── base.py                 # Pipeline Protocol + PipelineResult
-│   ├── pr_diff.py              # SHIPPED — PR-diff mining; text-only gen, Docker-runnable env (6-component verifier)
-│   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (pure stdlib, base64-baked)
-│   ├── _eval_script.py         # shared verifier-script + diff helpers (code_instruct, equivalence_tests)
-│   ├── _env_guard.py           # anti-contamination: git-history scrub + egress-guard compose (all runtime pipelines)
-│   └── _poc_agent.py           # agentic PoC-test synthesis for cve_patches (LLM + shell in the vuln sandbox)
-├── bootstrap/                  # v0.2 — LLM-driven Docker env generation
-│   ├── runner.py               # ensure_bootstrap() orchestrator
-│   ├── agent.py                # ReAct loop
-│   ├── docker.py               # DockerSandbox primitives
-│   ├── language.py             # auto-detect Python/JS/Go/Rust/...
-│   └── cache.py                # filesystem cache under ./envs/ (keyed on opts)
-├── ui/                         # Unified Rich UI module (every CLI uses this)
-│   ├── console.py              # singleton R2EConsole + install_logging()
-│   ├── theme.py                # one place for colors + glyphs
-│   ├── primitives.py           # success_panel, error_panel, kv_panel, ...
-│   ├── live.py                 # live_view() context manager
-│   └── views/
-│       ├── bootstrap.py        # BootstrapView (split-panel live display)
-│       └── generation.py       # GenerationView (progress bar + stats)
-├── emitter/harbor.py           # Task → Harbor task.toml directory writer
-├── hub.py                      # push to HF Hub + Harbor-compatible registry.json
-├── reward.py                   # SWE-RL-style diff-similarity reward (stdlib only)
-├── llm.py                      # LiteLLM wrapper + LiteLLM completion_cost tracking
-├── github.py                   # `gh` CLI wrapper for PR list + diff fetch
-├── auth.py                     # gh CLI → env var token resolution
-├── config.py                   # YAML/TOML config loader
-└── cli.py                      # argparse entry points
+Break these and the build, the CI, or the science breaks:
 
-docs/                           # public docs (committed), three tiers:
-├── README.md                   #   index
-├── quickstart.md               #   install → first dataset → push, 10 min
-├── reference/                  #   stable contracts + module-level API
-│   └── SPEC.md · API.md · AUTH.md · BOOTSTRAP.md · AGENTS.md
-├── pipelines/                  #   one page per synthesis pipeline
-│   └── README.md · pr_diff.md · pr_runtime.md · ...
-└── contributing/
-    └── ADDING_A_PIPELINE.md    #   cookbook for shipping a new pipeline
+1. **Never `print()` in library or CLI code.** Everything goes through
+   `repo2rlenv.ui.console` — see [UI conventions](#ui-conventions).
+2. **Never hand-edit `pyproject.toml`'s `dependencies`.** Use `uv add <pkg>` /
+   `uv add --dev <pkg>`, or it desyncs from `uv.lock`.
+3. **Run `uv run pytest tests/test_pipeline_contract.py` after touching
+   `pipelines/`.** It fails for any registered pipeline that breaks the Protocol.
+4. **Anti-contamination is enforced by the environment, never requested in the
+   prompt.** Every emitted task goes through `pipelines/_env_guard.py`. Don't add
+   "please don't look up the fix" to an instruction — scrub the history and cut
+   the egress instead.
+5. **New pipeline ⇒ RFC first.** Any new `PipelineName` entry needs a
+   `docs/rfcs/NNNN-*.md` before the implementation PR.
+6. **New docs page ⇒ add it to `mkdocs.yml`'s `nav:`**, or it won't ship on the site.
+7. **`from __future__ import annotations` at the top of every module.**
+8. **Version bumps never ride along in a feature PR** — they happen on `main`
+   after merge, as their own commit.
+9. **Don't commit generated artifacts.** Datasets go to the HF Hub; local run
+   output stays gitignored.
 
-plans/                          # internal working docs (gitignored)
-references/                     # cloned inspiration repos (gitignored)
-envs/, envs-*/, .r2e_cache/     # local artifacts (gitignored)
-tests/                          # pytest; 620/620 pass as of v0.8.2.post3
-.github/workflows/              # ci.yml (lint + matrix tests + build),
-                                # release.yml (PyPI publish on tagged release)
-CONTRIBUTING.md                 # dev setup, PR conventions, release flow
-```
+## Pipelines
 
-## Pipeline contract
+Registry: `pipelines/__init__.py:PIPELINES`. Names: `spec/input.py:PipelineName`.
+Per-pipeline detail (yield, sources, options, reference datasets):
+[`docs/pipelines/README.md`](./docs/pipelines/README.md).
 
-Every synthesis pipeline implements `repo2rlenv.pipelines.base.Pipeline`:
+| Pipeline | Shape | Status | RFC |
+|---|---|---|---|
+| `pr_diff` | text-only generation; thin Docker env for the 6-component diff-similarity reward | stable | 0001 |
+| `pr_runtime` | mines PRs, verifies an F2P/P2P oracle in the bootstrap sandbox | stable | 0002 |
+| `commit_runtime` | same, at commit level (bypasses PR-review filters) | stable | 0003 |
+| `code_instruct` | LLM authors a problem + verifier anchored to real repo source | experimental | 0004 |
+| `equivalence_tests` | extract a pure function; LLM writes tests against a `reference_<name>` oracle | experimental | 0005 |
+| `cve_patches` | OSV CVE → fix commit → task; reuses the `pr_runtime` verifier | experimental | 0006 |
+
+RFCs **0007 `pr_to_env` / 0008 `env_setup` / 0009 `test_synthesis` /
+0010 `issue_runtime`** are drafted but not built.
+
+Names follow `{source}_{shape}`:
+
+- `_diff` — no sandbox at *generation* time. (`pr_diff` still emits a Docker env so
+  its reward runs under `harbor`; "no sandbox" refers to generation, not consumption.)
+- `_runtime` — runs inside the bootstrap sandbox to verify the oracle.
+- `_patches` / `_instruct` / `_tests` — the artifact type, for synthesized pipelines.
+- `_to_env` — import-shape: the caller supplies candidates, the pipeline doesn't
+  mine them. Proposed in RFC 0007; no shipped pipeline uses it yet.
+
+`_bugs` and `_synthesis` were retired with `mutation_bugs` / `refactor_synthesis`.
+
+### The contract
 
 ```python
 class Pipeline(Protocol):
@@ -83,13 +96,87 @@ class Pipeline(Protocol):
     def run(self, out_dir: Path) -> PipelineResult: ...
 ```
 
-The conformance test (`tests/test_pipeline_contract.py`) fails for any registered pipeline that doesn't conform. **Always run** `uv run pytest tests/test_pipeline_contract.py` after touching anything in `pipelines/`.
+Walkthrough for adding one:
+[`docs/contributing/ADDING_A_PIPELINE.md`](./docs/contributing/ADDING_A_PIPELINE.md).
 
-Adding a new pipeline: see [`docs/pipelines/ADDING_A_PIPELINE.md`](./docs/pipelines/ADDING_A_PIPELINE.md).
+## Repo map
 
-## UI conventions (use the shared module, not raw prints)
+```
+src/repo2rlenv/
+├── cli.py                      # argparse; subcommands: generate validate push pull bootstrap
+├── spec/
+│   ├── input.py                # GenerationInput, RepoSpec, PipelineName, LLMSpec, OutputSpec
+│   └── options.py              # per-pipeline options models (PRDiffOptions, …)
+│                               # NB: the OUTPUT model is emitter/harbor.py:HarborTask
+├── pipelines/                  # `_`-prefixed files are SHARED MACHINERY, not pipelines
+│   ├── base.py                 # Pipeline Protocol + PipelineResult
+│   ├── pr_diff.py · pr_runtime.py · commit_runtime.py
+│   ├── code_instruct.py · equivalence_tests.py · cve_patches.py
+│   ├── pr_runtime_validate.py  # shared PR validation harness (pr_runtime, cve_patches)
+│   ├── _env_guard.py           # anti-contamination: git-history scrub + egress guard (EVERY task)
+│   ├── _eval_script.py         # verifier-script + diff helpers (make_unified_diff, all_tests_passed)
+│   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (stdlib, base64-baked)
+│   ├── _pr_runtime_verifier.py # in-container graded F2P/P2P reward
+│   ├── _oss_instruct.py        # code_instruct synthesis + its 4 quality gates
+│   ├── _function_extractor.py  # equivalence_tests: purity/self-containment filter, AST rename
+│   └── _poc_agent.py           # cve_patches: LLM+shell PoC-test synthesis in the vuln sandbox
+├── bootstrap/                  # LLM-driven Docker env generation
+│   ├── runner.py               # ensure_bootstrap() orchestrator
+│   ├── agent.py                # ReAct loop (enforces max_llm_spend_usd)
+│   ├── docker.py               # DockerSandbox primitives
+│   ├── language.py             # auto-detect Python/JS/Go/Rust/...
+│   ├── cache.py                # content-addressed cache, keyed on bootstrap opts
+│   └── spec.py                 # BootstrapSpec / BootstrapResult
+├── registry/                   # bootstrap-image distribution
+│   ├── push.py · auth.py · naming.py · probe.py · visibility.py · integration.py
+│   └── ecr.py · gar.py         # AWS ECR + Google AR, beyond GHCR / Docker Hub
+├── log_parsers/                # test output → F2P/P2P sets
+│   └── pytest_parser.py · go_parser.py · cargo_parser.py · jest_parser.py
+├── ui/                         # Rich UI — every CLI surface goes through here
+│   ├── console.py              # singleton R2EConsole + install_logging()
+│   ├── theme.py · primitives.py · live.py
+│   └── views/{bootstrap,generation}.py
+├── emitter/harbor.py           # Task → Harbor task.toml directory writer
+├── sources.py · provider.py    # source kinds + Capability gating; provider dispatch
+├── github.py · gitlab.py · git_local.py · osv.py    # the four input backends
+├── hub.py                      # HF Hub push/pull + Harbor-compatible registry.json
+├── auth.py                     # token resolution (repo / LLM / registry / Hub)
+├── llm.py                      # LiteLLM wrapper + completion_cost tracking
+├── reward.py                   # SWE-RL-style diff-similarity reward (stdlib only)
+└── config.py                   # YAML/TOML config loader
 
-**Never use `print()`** in CLI code. Always:
+tests/                  # unit tests mirror the module they cover; e2e in test_e2e_*.py
+docs/                   # mkdocs site — nav lives in mkdocs.yml
+├── index.md            #   site home (there is no docs/README.md)
+├── quickstart.md
+├── pipelines/          #   README.md + one page per pipeline
+├── rfcs/               #   0001–0010 + TEMPLATE.md + process README
+├── reference/          #   SPEC · API · AUTH · BOOTSTRAP · AGENTS · ENV
+│                       #   · REWARD_SCHEMA · REGISTRY_AUTH · RELATED_WORK
+├── contributing/ADDING_A_PIPELINE.md
+└── release_notes/      #   HISTORY.md + per-release deep dives
+.github/workflows/      # ci.yml (lint + 3.12/3.13/3.14 matrix + build) · release.yml
+```
+
+## Local artifacts (all gitignored)
+
+The tool writes everything under **`./workspace/`** by default; `--out` and
+`R2E_CACHE_DIR` override it. Nothing there is committed, and it's all
+regenerable — but at very different cost:
+
+- **`workspace/bootstrap/`** — per-repo Docker env cache, content-addressed on the
+  bootstrap options. Each entry costs real LLM spend (~$3–8/repo) to rebuild.
+  Delete this last. Override with `R2E_CACHE_DIR`.
+- **Dataset stagings** — cheap; the canonical copies live on the HF Hub and come
+  back with `repo2rlenv pull`.
+- **`harbor run` output, fetched diffs, agent transcripts** — free or cheap to re-fetch.
+
+`plans/` and `references/` are also gitignored: internal working notes and shallow
+clones of the inspiration repos (SWE-bench, SWE-smith, R2E-Gym, Magicoder, …). They
+are per-developer and won't exist in a fresh clone — don't write code that assumes
+either is present.
+
+## UI conventions
 
 ```python
 from repo2rlenv.ui import console
@@ -102,7 +189,7 @@ console.kv({"reward": 0.98, ...}, title="...")    # panel with key/value table
 with console.section("Pushing to Hub"): ... # bracketed rule
 ```
 
-For long-running tasks with a redrawing display, build a view in `src/repo2rlenv/ui/views/`. Pattern:
+For long-running work with a redrawing display, add a view under `ui/views/`:
 
 ```python
 with BootstrapView(...) as view:
@@ -113,131 +200,143 @@ with BootstrapView(...) as view:
     view.set_outcome(success=True, ...)
 ```
 
-Logging is routed through `RichHandler` via `install_logging()` (called from `cli.py:main()`). Noisy library loggers (litellm/httpx/anthropic/openai) are auto-suppressed to WARNING while a Live is active.
+Logging routes through `RichHandler` via `install_logging()` (called from
+`cli.py:main()`). Noisy loggers (litellm / httpx / anthropic / openai) are
+auto-suppressed to WARNING while a Live is active.
 
-## Input sources + auth resolution
+## Input sources + auth
 
-`--repo` accepts a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://` — canonicalized to `file://<abspath>`). `RepoSpec.source_kind` classifies it; `sources.py` defines `Capability` (pull_requests / issues / commit_api) per source and each pipeline's `required_capabilities`. `cmd_generate` gates incompatible combos up front (e.g. `pr_diff` on a local repo → blocked with a clear error). Git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on any source; `pr_diff`/`pr_runtime` mine PRs/MRs so they run on GitHub **or** GitLab (gitlab.com MRs via `gitlab.py` REST client, dispatched by `provider.py`); `cve_patches` is GitHub-only (OSV + GitHub commit API). GitLab MR mining shipped in #62.
+`--repo` accepts a GitHub `owner/name`, a `gitlab.com` URL, or a local path
+(`/abs`, `./rel`, `~`, `file://` — canonicalized to `file://<abspath>`).
+`RepoSpec.source_kind` classifies it; `sources.py` defines a `Capability`
+(pull_requests / issues / commit_api) per source and per pipeline's
+`required_capabilities`. `cmd_generate` gates incompatible combinations up front —
+e.g. `pr_diff` against a local path is refused with a clear error.
 
-`auth.resolve_repo_token()` dispatches by source: local → None (no `gh` shell-out); gitlab → `repo.auth_token_env` then `$GITLAB_TOKEN`; github → `auth.resolve_github_token()`, which checks in order:
-1. `repo.auth_token_env` env var (if explicitly set in config)
-2. `gh auth token` (default — works for any user who's `gh auth login`'d)
+- Any source: `commit_runtime`, `code_instruct`, `equivalence_tests`
+- GitHub **or** GitLab: `pr_diff`, `pr_runtime` (gitlab.com MRs via
+  `gitlab.py`, dispatched by `provider.py`)
+- GitHub only: `cve_patches` (needs OSV + the GitHub commit API)
+
+`auth.resolve_repo_token()` dispatches by source: local → `None` (no `gh`
+shell-out); gitlab → `repo.auth_token_env` then `$GITLAB_TOKEN`; github →
+`resolve_github_token()`, which tries in order:
+
+1. `repo.auth_token_env` env var (if set in config)
+2. `gh auth token` (default — works for anyone who has run `gh auth login`)
 3. `$GITHUB_TOKEN`
-4. None (anonymous; fails for private repos)
+4. `None` (anonymous; fails on private repos)
 
-HF Hub auth is the `huggingface_hub` library's auto-resolution (`~/.cache/huggingface/token` or `$HF_TOKEN`). LLM keys via provider-default env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...) — see `auth.resolve_llm_api_key()`.
+HF Hub auth uses `huggingface_hub`'s own resolution
+(`~/.cache/huggingface/token` or `$HF_TOKEN`). LLM keys come from provider-default
+env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) via `auth.resolve_llm_api_key()`.
 
-Registry push creds (for `_runtime` image distribution) resolve from explicit env vars first: GHCR reads `GHCR_TOKEN`/`GITHUB_TOKEN` (needs `gh auth refresh -h github.com -s write:packages` one-time); Docker Hub reads `DOCKER_USERNAME`+`DOCKER_TOKEN` (PAT — preferred over the credstore's pull-only OAuth token), and pushes under the Docker Hub *user's* namespace. Multi-repo datasets push one image per repo + rewrite each task to its own digest. See `docs/reference/REGISTRY_AUTH.md`.
+Registry push credentials resolve from explicit env vars first: GHCR reads
+`GHCR_TOKEN` / `GITHUB_TOKEN` (needs a one-time
+`gh auth refresh -h github.com -s write:packages`); Docker Hub reads
+`DOCKER_USERNAME` + `DOCKER_TOKEN` (a PAT — the credstore's OAuth token is
+pull-only) and pushes under the Docker Hub *user's* namespace. ECR and Google AR
+have their own modules. Multi-repo datasets push one image per repo and rewrite
+each task to its own digest. Details: `docs/reference/REGISTRY_AUTH.md`; full env
+var list: `docs/reference/ENV.md`.
 
 ## Cost tracking
 
-`llm.complete()` returns `LLMResponse.cost_usd` via `litellm.completion_cost(response)` — uses LiteLLM's built-in model_cost map. Accumulated in `AgentOutcome.total_cost_estimate_usd` and `BootstrapResult.llm_cost_estimate_usd`. `BootstrapSpec.max_llm_spend_usd` is enforced inside the agent loop (`agent.py:run_agent_loop`): when running `total_cost ≥ max_spend_usd`, the loop short-circuits with `success=False, reason="cost budget exceeded: ..."`. The runner logs the configured budget at startup.
+`llm.complete()` returns `LLMResponse.cost_usd` via
+`litellm.completion_cost(response)`, accumulated into
+`AgentOutcome.total_cost_estimate_usd` and `BootstrapResult.llm_cost_estimate_usd`.
+`BootstrapSpec.max_llm_spend_usd` is enforced inside `agent.py:run_agent_loop` —
+at `total_cost ≥ max_spend_usd` the loop short-circuits with
+`success=False, reason="cost budget exceeded: ..."`. The runner logs the budget at
+startup.
 
-## Conventions for changes
+Any change that adds LLM calls should thread cost through these fields rather than
+introducing a parallel counter.
 
-The canonical contributor reference is [`CONTRIBUTING.md`](./CONTRIBUTING.md) at the repo root — read it before non-trivial changes. The high-leverage bits:
+## Tests
 
-- **`uv add <pkg>`** for dependencies. Never hand-edit `pyproject.toml`'s `dependencies` array.
-- **No `Co-Authored-By: Claude` trailer** on commits. User explicitly rejected it; see `~/.claude/projects/.../memory/feedback_no_coauthor.md`.
-- **Commits**: terse subject + short body explaining "why". Don't reference the current task; that goes in the PR description.
-- **PRs**: title under 70 chars; description has summary + test plan + out-of-scope items. Close issues via `Closes #N` in commit body.
-- **Tests**: every code change should keep the suite green. `uv run pytest -q` is the canonical command. **620/620 must pass.**
-- **Lint + format**: `uv run ruff check .` and `uv run ruff format .` before commit. CI rejects unformatted code or lint violations.
-- **Acknowledgments**: when a file draws inspiration from external work, add a header block crediting the source repo + paper + license + clarifying our license posture. See `bootstrap/__init__.py` or `reward.py` for the format.
+`uv run pytest -q` is the canonical command; CI runs it on Python 3.12 / 3.13 / 3.14.
+Conventions (fixtures over mocks, specific exception types, where files live) are in
+[`CONTRIBUTING.md`](./CONTRIBUTING.md#tests). Two things worth knowing before you
+debug a red run:
 
-## CI / CD (GitHub Actions)
+- **Some tests are opt-in and skip by default** — they need live network or
+  credentials, and are gated behind env vars (`R2E_LIVE_PROBE_GHCR`,
+  `R2E_E2E_HUB_BUILD`, `R2E_LIVE_GITLAB`). Skips here are expected.
+- **`tests/test_e2e_public.py::test_e2e_public_trl` is flaky by construction.** It
+  hits the live GitHub API and asserts that ≥1 task is emitted from the two most
+  recent PRs on `huggingface/trl`, so it fails with
+  `skip_reasons={'diff_too_small': N}` whenever those PRs happen to be small. That
+  is not a regression — don't chase it.
 
-Two workflows under `.github/workflows/`:
+## Design decisions
 
-- **`ci.yml`** — runs on every push to `main` + every PR. Three jobs: `lint` (ruff check + format check), `test` matrix over Python **3.12 / 3.13 / 3.14**, and `build` (uv build sdist + wheel + smoke install). All three must pass for a merge.
-- **`release.yml`** — fires on GitHub Release `published` events. Re-runs the full test matrix on the tag, builds, publishes to PyPI via `PYPI_API_TOKEN` repo secret, attaches sdist + wheel to the Release page. Manual re-runs via `workflow_dispatch -f tag=vX.Y.Z` if a publish step fails.
+1. **No bind mounts for the bootstrap container** — the repo is `docker cp`'d in so
+   `docker commit` captures it. Bind mounts are runtime overlays and aren't included
+   in committed images. `bootstrap/docker.py:DockerSandbox.start`.
+2. **Lenient smoke gate** — pytest exit codes 0, 1 and 5 all mean "env works"
+   (1 = tests ran and failed; 5 = nothing collected). Only 2+ is a real env problem.
+   `bootstrap/runner.py`.
+3. **Test commands are joined with `&&`** — `test_cmds` runs as a single bash
+   invocation so `export PATH=…` carries into the next command. Don't loop
+   `sandbox.exec()` over the list.
+4. **`registry_url` uses Harbor's legacy format** — we publish a `registry.json`
+   that `harbor download --registry-url <url>` consumes directly, so no Harbor
+   patches are needed.
+5. **No `repo2rlenv run`, no parallel sandbox runtime** — running full tasks is
+   `harbor run`'s job. This project is synthesis-only.
+6. **Multi-repo datasets work in both push modes** — `inline` bakes each task's own
+   bootstrap recipe from the verified `rebuild_cmds` (NOT the agent transcript);
+   `registry` pushes each distinct image and rewrites each task to its digest.
+   `push` clean-syncs `tasks/**` (a deleted task disappears from the Hub) and
+   auto-writes `manifest.json`. Runtime pipelines ship
+   `tests/{verifier.py,f2p.json,p2p.json}` as plain files — Harbor mounts `tests/`
+   at `/tests`, so no base64 in `test.sh`.
+7. **The environment enforces, the prompt never asks** — `_env_guard.py` scrubs git
+   history back to `base_commit` and blackholes PyPI/GitHub egress for every emitted
+   task, because a sandbox-verified task is otherwise gameable by fetching the
+   published fix. Background: `docs/release_notes/HISTORY.md`.
 
-Cutting a release (full flow):
+## External dependencies
 
-1. Bump `version` in `pyproject.toml`. `__version__` reads from `importlib.metadata` so no other code change needed.
-2. Commit + push to `main`. CI confirms tests green.
-3. `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. `gh release create vX.Y.Z --generate-notes` (or web UI)
-5. `release.yml` auto-publishes to PyPI and attaches artifacts to the Release.
+- **Harbor** (`uv tool install harbor`) — runs the generated tasks. We deliberately
+  don't ship a parallel runtime.
+- **Docker** — required for `bootstrap` and every `_runtime` pipeline. `pr_diff`
+  *generates* without it, though its emitted task *runs* in Docker (thin
+  `python:3.12-slim`); set `emit_harbor_env=False` for pure text output.
+- **LiteLLM** — the single client across providers (Anthropic / OpenAI / HF Router /
+  Bedrock / Ollama / vLLM).
+- **Rich** — every CLI surface; foundation of `ui/`.
+- **huggingface_hub** — dataset publish/pull.
+- **`gh` CLI** — clone + PR listing; the least-friction GitHub auth path.
 
-`PYPI_API_TOKEN` lives in repo secrets ONLY. Don't paste it into chat, `.env`, or any committed file. The `pypi` GitHub environment is in place but currently has no protection rules — adding a deployment approval rule there is a one-click upgrade if we ever want a manual gate before publish.
-
-## Cheatsheet — common tasks
+## Common commands
 
 ```bash
-# Run a full bootstrap with the live UI (interactive terminal only)
-./demo_bootstrap.sh
-
-# Full end-to-end demo: bootstrap → generate → validate → harbor (oracle + opencode×2)
-./demo_e2e.sh                                # default: pallets/click
-REPO=pocketbase/pocketbase ./demo_e2e.sh     # different repo
-
 # Generate a sandbox-verified dataset (auto-triggers bootstrap if needed)
 uv run repo2rlenv generate \
   --repo <owner>/<repo> --pipeline pr_runtime \
   --pipeline-opt limit=10 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out ./datasets/<dataset-name>
+  --out ./workspace/datasets/<name>
 
-# Validate a dataset (fast structural check, no LLM, no Docker)
-uv run repo2rlenv validate ./datasets/<dataset-name>
+# Validate a dataset (fast structural check — no LLM, no Docker)
+uv run repo2rlenv validate ./workspace/datasets/<name>
 
-# Publish to HF Hub (bare name auto-resolves owner via whoami)
-uv run repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
+# Publish / retrieve (a bare name resolves its owner via whoami)
+uv run repo2rlenv push ./workspace/datasets/<name> <org>/<name>
+uv run repo2rlenv pull <org>/<name>
 
-# Pull a published dataset back
-uv run repo2rlenv pull <your-org>/<dataset-name>
+# Everything CI runs
+uv run pytest -q && uv run ruff check . && uv run ruff format --check .
 
-# Run all tests + lint + format check (everything CI runs)
-uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
-
-# Add a dep
+# Dependencies
 uv add <pkg>            # runtime
 uv add --dev <pkg>      # dev only
 ```
 
-## Key external dependencies
+## Status
 
-- **Harbor** (`uv tool install harbor`) — runs our generated tasks. We don't ship a parallel runtime.
-- **Docker** — required for the `bootstrap` phase and any `_runtime` pipeline. `pr_diff` *generates* without Docker, but its emitted task *runs* in Docker (thin `python:3.12-slim` env); set `emit_harbor_env=False` for pure-text output that needs no Docker at all.
-- **LiteLLM** — single client across all LLM providers (Anthropic / OpenAI / HF Router / Bedrock / Ollama / vLLM).
-- **Rich** — every CLI surface; foundation of `src/repo2rlenv/ui/`.
-- **huggingface_hub** — dataset publish/pull; auto-resolves token from `~/.cache/huggingface/token`.
-- **`gh` CLI** — clone + PR listing. The path of least friction for GitHub auth.
-
-## Notable design decisions
-
-1. **No bind mounts for the bootstrap container** — we `docker cp` the repo files into the container so `docker commit` captures them. Bind mounts are runtime overlays and aren't included in committed images. See `bootstrap/docker.py:DockerSandbox.start`.
-2. **Lenient smoke gate** — pytest exit codes 0, 1, and 5 are all "env works" (1 = tests failed but ran; 5 = no tests collected). Only 2+ flags a real env problem. See `bootstrap/runner.py`.
-3. **Test commands joined with `&&`** — `test_cmds` is a list run as one bash invocation so `export PATH=...` carries over to the next command. Don't iterate the list with `sandbox.exec(each)`.
-4. **registry_url uses Harbor's legacy format** — we publish a `registry.json` to HF Hub that `harbor download --registry-url <hf-url>` can consume directly. No Harbor patches needed.
-5. **No `repo2rlenv run` / no parallel sandbox runtime** — for full tasks, users run `harbor run`. We're synthesis-only.
-6. **Multi-repo datasets are supported in both push modes** — `inline` bakes each task's own bootstrap recipe (built from the verified `rebuild_cmds`, NOT the agent transcript); `registry` pushes each distinct image and rewrites each task to its own digest. `push` clean-syncs `tasks/**` (a removed task disappears from the Hub) and auto-writes `manifest.json`. `pr_runtime` ships `tests/{verifier.py,f2p.json,p2p.json}` as plain files (Harbor mounts `tests/` at `/tests`) — no base64 in `test.sh`.
-
-## Status (May 2026)
-
-- **v0.1.0** shipped on PyPI: `pr_diff` (originally `pr_mining_lite`) + HF Hub publish + diff-similarity reward
-- **v0.2** merged into main: bootstrap phase, Rich UI module, cost tracking, content-addressed cache keyed on bootstrap options
-- **v0.3.0** shipped on PyPI: `pr_runtime` (sandbox-verified PR mining) + auto-trigger bootstrap from `generate` + structural quality filters + targeted test invocation + CI/CD (ruff + matrix tests + release workflow)
-- **v0.4.0** shipped on PyPI: polyglot log parsers (Go / Cargo / Jest) + Harbor end-to-end compliance fixes (task.name format, solve.sh shim, /logs/verifier/reward.txt, PATH prelude for non-Python toolchains, defensive git install)
-- **v0.5.0** shipped on PyPI: `pr_stream` (continuous PR mining with watermark state — removed in v0.8.3 as scope-creep; pr_runtime handles the same niche on its own) + `commit_runtime` (commit-level mining, SWE-GEN style). Both Harbor-verified.
-- **v0.6.0** shipped on PyPI: first LLM-synthesized pipelines — `mutation_bugs` (procedural AST bug injection inspired by SWE-smith) + `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired by Magicoder). Both Harbor-verified on `pallets/click` (Mean reward 1.000).
-- **v0.7.0** shipped on PyPI: `equivalence_tests` (R2E-style function-level synthesis — extract real function, LLM writes equivalence test against `reference_<name>` oracle, gold patch fills the candidate) + `cve_patches` (OSV-driven CVE→fix-commit pipeline, reuses pr_runtime validation harness). Both Harbor-verified.
-- **v0.8.0** shipped on PyPI: `refactor_synthesis` (Python-native rename-refactor mining — drops the v1.0-planned JVM RefactoringMiner dep; commit-message regex + diff verification + multi-criteria structural+behavioral verifier). Harbor-verified on `pallets/click` (Mean reward 1.000).
-- **v0.9 (in progress)**: **removed `mutation_bugs` + `refactor_synthesis`** (pipeline audit — both binary-reward, Python-only, lowest signal value: synthetic AST bugs are unrealistic; renames are a near-no-op RL target). **6 pipelines now active.** Shared helpers (`make_unified_diff`, `build_binary_eval_script`) moved from `mutation_bugs.py` to `pipelines/_eval_script.py`. Planned next: env-setup pipeline (Repo2Run/SetupBench-style, agent makes a bare repo's tests run green), `test_synthesis` (SWE-Flow-style TDD), graded rewards for the binary synthesis pipelines, LLM-judged QA gate, iterative refinement loop for `equivalence_tests`.
-- **v0.8.4 shipped on PyPI**: input-source abstraction (GitHub/GitLab/local, capability-gated) + GitLab MR mining for `pr_diff`/`pr_runtime` + **`commit_runtime` promoted to stable** (3 stable now: `pr_diff`, `pr_runtime`, `commit_runtime`). commit_runtime gained LLM-synthesized leak-free instructions (`synthesize_with_llm` default on) + `max_pass_to_pass` cap; audit went 33%→100% clean, Opus solves the sampled tasks (4/4 genuine). Reference dataset `…commit-runtime-test` (100 envs).
-- **anti-contamination pass (merged, PR #69)**: sandbox-verified tasks were gameable — an agent could fetch the published fix (and hidden tests) for the repo it was asked to fix. Now baked into the emitter for every task via `pipelines/_env_guard.py`: **git-history scrub** (strip the repo to `base_commit`: remove `origin`, prune future refs/commits, gc) + **egress guard** (`environment/docker-compose.yaml` blackholing PyPI+GitHub hosts so `pip download`/`git fetch`/web-fetch fail; model API + agent install stay up). Also: `cve_patches` now ships a **graded F2P/P2P verifier** (was binary whole-suite — scored the gold patch 0.0 on unrelated suite failures), a **leak-stripped instruction**, and **agentic PoC-test synthesis** (`_poc_agent.py`: an LLM with shell access in the vulnerable sandbox writes a regression test for no-test CVEs). `bootstrap` re-bootstraps when a cache hit points at an evicted image. Reference dataset `…-cve-patches` (19 verified envs); `cve_patches` stays **experimental**. Full write-up: `plans/reward_hacking_writeups.md`. The principle: the environment enforces, the prompt never asks.
-- **v0.8.6 shipped on PyPI**: `code_instruct` self-improvement pass — the v0.6 prompt explicitly *forbade* using repo APIs, producing generic Codeforces-lite tasks (baseline audit: mean repo-anchoring 1.4/5, zero of 20 imported the target package). Reoriented around genuine repo anchoring with four post-synthesis gates in `_oss_instruct.py` (`check_repo_anchoring`, `check_symbol_collision`, `check_test_strength`, `task_fingerprints`) + `max_attempts_per_seed` retries default 1→3. Post-fix audit: RA=4.95, TR=4.95, zero scores ≤ 2. Multi-agent validation (claude-code + Sonnet 4.6, codex + GPT-5.3-Codex, openhands-sdk + Qwen3.6-35B via HF Router) surfaced a second bug: all three models correctly implemented the requested logic but wrote to natural filenames (`ranged_float.py`, `fetcher.py`), failing pytest `from task_module import ...` collection with `ModuleNotFoundError`. Fix: append a `task_module.py` delivery-contract paragraph to the emitted `instruction.md`. Solve rate 40% → 80% at fixed dataset size. **Reference dataset `…-code-instruct` (100 envs across 5 Python repos)** now the first published dataset for this pipeline. `code_instruct` stays **experimental** pending graded reward + polyglot support.
-- **v0.8.7 shipped on PyPI**: `equivalence_tests` self-improvement pass — the v0.7 pipeline had a full-source-in-instruction leak AND a 97% Stage-B failure rate on click (root cause: extracted functions referenced repo-internal types like `Argument`/`FC` that don't exist in the standalone `task_module.py`, so import crashed before pytest reached the LLM's assertions). Landed: leak-free instruction (`signature_only_source`), annotation-strip at bake time (`strip_annotations`), scope-aware purity + self-containment filter in the extractor (`_references_only_safe_names`), `is_module_importable` pre-flight, recursion-safe rename (`rename_function_ast`), feedback-driven retry (`max_attempts_per_function` default 1→3, was documented but not wired), test-strength gate (`check_equivalence_test_strength`), task dedup (`_equivalence_fingerprint`), sharper prompt, `.debug_skips` dumps, and `all_tests_passed` moved to shared `_eval_script.py`. **Reference dataset target deferred to v0.8.8** — the 5-repo click/flask/requests/attrs/starlette survey yielded only ~8 pure candidates combined (framework-heavy repos are structurally weak fits for equivalence testing); the v0.8.7 release is pipeline-hardening only, and the dataset ships once we survey utility-heavy libs (packaging, itsdangerous, markupsafe, dateutil, etc.). `equivalence_tests` stays **experimental**.
-- No new pipelines planned in `docs/pipelines/` beyond the above — see [`docs/pipelines/README.md`](./docs/pipelines/README.md) for the full table
-
-### Naming convention (post-rename)
-
-Pipelines follow `{source}_{shape}`:
-- `_diff` — text-only generation, no sandbox at gen time (e.g. `pr_diff`). NB: `pr_diff` still emits a thin Docker env so the diff-similarity reward runs under `harbor` — "no sandbox" refers to generation, not consumption.
-- `_runtime` — runs inside the bootstrap sandbox to verify the oracle (e.g. `pr_runtime`, `commit_runtime`)
-- `_patches` / `_instruct` / `_tests` — name of the artifact type for synthesized pipelines (the `_bugs` and `_synthesis` shapes were retired with `mutation_bugs` / `refactor_synthesis` in v0.9)
-
-If anything in this file conflicts with the actual code, **trust the code** and fix this file.
+Version is whatever `pyproject.toml` says (`__version__` reads package metadata).
+6 pipelines registered — 3 stable, 3 experimental; see the table above and
+[`docs/release_notes/HISTORY.md`](./docs/release_notes/HISTORY.md) for how it got here.

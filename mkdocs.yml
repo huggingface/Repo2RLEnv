@@ -178,4 +178,5 @@ nav:
   - Contributing:
       - Adding a pipeline: contributing/ADDING_A_PIPELINE.md
   - Release notes:
+      - Version history: release_notes/HISTORY.md
       - v0.8.2.post3: release_notes/v0.8.2.post3.md
