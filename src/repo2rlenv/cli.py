@@ -3,6 +3,7 @@
 Subcommands:
   generate    Run a synthesis pipeline against a repo (emits to local dir)
   validate    Validate a generated dataset directory (fast structural check)
+  export      Wrap a dataset in a deployable environment package (OpenEnv)
   bootstrap   Build a working Docker image via an LLM agent loop
   push        Push a local dataset directory to HF Hub
   pull        Pull a Repo2RLEnv dataset from HF Hub to a local directory
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from repo2rlenv import __version__
+from repo2rlenv.emitter.openenv import DEFAULT_BASE_IMAGE, DEFAULT_PORT
 from repo2rlenv.ui import console, install_logging
 
 logger = logging.getLogger("repo2rlenv")
@@ -310,6 +312,59 @@ def cmd_generate(args: argparse.Namespace) -> int:
             )
 
     return 0 if result.emitted > 0 else 1
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    """Wrap an emitted dataset in a deployable environment package."""
+    from repo2rlenv.emitter.openenv import EmitError, write_openenv_env
+
+    dataset_dir = Path(args.dataset).expanduser().resolve()
+    if not dataset_dir.is_dir():
+        console.error(f"no such dataset directory: {dataset_dir}")
+        return 1
+
+    out_dir = (
+        Path(args.out).expanduser().resolve()
+        if args.out
+        else dataset_dir.parent / f"{dataset_dir.name}-openenv"
+    )
+
+    with console.section(f"Exporting {dataset_dir} as {args.format}"):
+        try:
+            package = write_openenv_env(
+                dataset_dir,
+                out_dir,
+                name=args.name,
+                description=args.description,
+                requirement=args.requirement,
+                base_image=args.base_image,
+                port=args.port,
+            )
+        except EmitError as exc:
+            console.error(str(exc))
+            return 1
+
+        console.kv(
+            {
+                "env_name": package.name,
+                "out_dir": str(package.path),
+                "tasks": package.task_count,
+                "runnable": package.runnable_task_count,
+            },
+            title="OpenEnv environment",
+        )
+        if package.runnable_task_count < package.task_count:
+            console.warn(
+                f"{package.task_count - package.runnable_task_count} task(s) carry no image or "
+                "verifier — text-only tasks are scored against solution/patch.diff, not executed"
+            )
+        console.dim(f"  docker build -t {package.name} {package.path}")
+        console.dim(
+            f"  docker run --rm -p {args.port}:{args.port} "
+            f"-v /var/run/docker.sock:/var/run/docker.sock {package.name}"
+        )
+    console.success(f"exported {package.task_count} task(s) to {package.path}")
+    return 0
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -913,6 +968,46 @@ def main(argv: list[str] | None = None) -> int:
     v = sub.add_parser("validate", help="Validate task.toml files in a dataset")
     v.add_argument("path", help="dataset or task directory")
     v.set_defaults(func=cmd_validate)
+
+    # export
+    e = sub.add_parser(
+        "export",
+        help="Wrap a generated dataset in a deployable environment package",
+        description=(
+            "Emit a runnable environment around an existing dataset. The tasks are copied "
+            "unchanged — this adds a serving layer, it does not convert the data."
+        ),
+    )
+    e.add_argument("dataset", help="dataset directory (output of `generate`)")
+    e.add_argument(
+        "--format",
+        choices=["openenv"],
+        default="openenv",
+        help="environment format to emit (default: openenv)",
+    )
+    e.add_argument(
+        "--out",
+        help="output directory (default: <dataset>-openenv next to the dataset)",
+    )
+    e.add_argument("--name", help="environment name (default: the dataset directory name)")
+    e.add_argument("--description", help="one-line description for the manifest and Space card")
+    e.add_argument(
+        "--requirement",
+        help=(
+            "repo2rlenv requirement the image installs "
+            "(default: repo2rlenv[openenv]>=<installed version>). Use this to pin a release, "
+            "a git ref, or a local wheel."
+        ),
+    )
+    e.add_argument(
+        "--base-image",
+        default=DEFAULT_BASE_IMAGE,
+        help=f"base image for the server (default: {DEFAULT_BASE_IMAGE})",
+    )
+    e.add_argument(
+        "--port", type=int, default=DEFAULT_PORT, help=f"server port (default: {DEFAULT_PORT})"
+    )
+    e.set_defaults(func=cmd_export)
 
     # push
     p = sub.add_parser("push", help="Push a local dataset directory to HF Hub")
