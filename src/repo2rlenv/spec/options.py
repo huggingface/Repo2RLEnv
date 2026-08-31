@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -255,8 +256,55 @@ class EquivalenceTestsOptions(_BaseOptions):
     skip_validation: bool = False
 
 
+class PrToEnvOptions(_BaseOptions):
+    """Curated-URL PR → Harbor env conversion (import-shape sibling of pr_runtime).
+
+    Where `pr_runtime` mines a repo's history and applies filters, `pr_to_env`
+    consumes an explicit list of PR URLs the user hands in. Same task shape,
+    same verifier, same anti-contamination guards — different input surface.
+
+    See docs/rfcs/0007-pr-to-env.md.
+    """
+
+    # Exactly one of `url` / `urls_file` must be set. Enforced in pipeline __init__.
+    url: str | None = None  # single PR URL, e.g. https://github.com/pallets/click/pull/3434
+    urls_file: Path | None = None  # one URL per line, `#` comments allowed
+
+    # Per-URL failure handling. strict=True aborts the whole run on any URL
+    # that can't produce an env; strict=False logs the reason to skip_reasons
+    # and emits whatever succeeded.
+    strict: bool = False
+
+    # Cross-repo dep pinning (M3 gate): if True, synthesize a
+    # environment/constraints.txt from `pip index versions` at the PR's merge
+    # commit date and inject `pip install -c constraints.txt` into the Dockerfile.
+    # Rescues cross-repo API skew (e.g. peft PR needing transformers==5.4.*).
+    pin_transitive_deps: bool = True
+
+    # F2P / P2P count floors (M3 gate #10). Below these the env is flagged
+    # `calibration = "low_signal"` and — if hard=True — hard-dropped.
+    min_f2p: int = 3
+    min_p2p: int = 3
+    hard_drop_low_signal: bool = False
+
+    # Oracle-gate: after emit, run `harbor run -a oracle` and drop the env
+    # if reward != 1.0. This is THE shipping criterion for HF_ML_Bench_v0.
+    oracle_gate: bool = True
+    oracle_timeout_sec: int = 900
+
+    # Validation knobs inherited from pr_runtime (same semantics)
+    require_new_test_funcs: bool = True
+    validation_timeout_sec: int = 600
+    skip_validation: bool = False
+
+    # LLM-synthesis of instruction.md (leak-free); if False, use pr_runtime's
+    # `_build_instruction` verbatim.
+    synthesize_with_llm: bool = True
+
+
 OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
     "pr_runtime": PRRuntimeOptions,
+    "pr_to_env": PrToEnvOptions,
     "pr_diff": PRDiffOptions,
     "commit_runtime": CommitRuntimeOptions,
     "code_instruct": CodeInstructOptions,

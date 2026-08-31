@@ -7,10 +7,12 @@ from repo2rlenv.pipelines.cve_patches import CVEPatchesPipeline
 from repo2rlenv.pipelines.equivalence_tests import EquivalenceTestsPipeline
 from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
 from repo2rlenv.pipelines.pr_runtime import PRRuntimePipeline
+from repo2rlenv.pipelines.pr_to_env import PrToEnvPipeline
 
 PIPELINES: dict[str, type[Pipeline]] = {
     "pr_diff": PRDiffPipeline,
     "pr_runtime": PRRuntimePipeline,
+    "pr_to_env": PrToEnvPipeline,
     "commit_runtime": CommitRuntimePipeline,
     "code_instruct": CodeInstructPipeline,
     "equivalence_tests": EquivalenceTestsPipeline,
@@ -27,4 +29,5 @@ __all__ = [
     "PRRuntimePipeline",
     "Pipeline",
     "PipelineResult",
+    "PrToEnvPipeline",
 ]
