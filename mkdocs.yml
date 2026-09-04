@@ -152,6 +152,7 @@ nav:
       - "code_instruct (experimental)": pipelines/code_instruct.md
       - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
       - "cve_patches (experimental)": pipelines/cve_patches.md
+      - "dynamic curation (experimental)": pipelines/dynamic_curation.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md
@@ -164,6 +165,7 @@ nav:
       - "0008 — env_setup (draft)": rfcs/0008-env-setup.md
       - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
       - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
+      - "0011 — dynamic curation": rfcs/0011-dynamic-curation.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

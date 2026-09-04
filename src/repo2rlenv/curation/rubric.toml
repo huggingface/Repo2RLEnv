@@ -1,0 +1,39 @@
+[[criteria]]
+name = "task_specification"
+description = "Clear, sufficient, natural task specification without answer leakage"
+guidance = "Require a coherent practitioner request with all behavior needed for grading. Reject hidden requirements, PR/commit lookup clues, prescriptive implementation recipes and gratuitous verbosity. Necessary public interfaces and tolerances should be explicit."
+
+[[criteria]]
+name = "realism"
+description = "Useful work grounded in a real repository"
+guidance = "Require a meaningful engineering outcome. Reject trivial edits, arbitrary puzzles, cosmetic rewrites, and artificial difficulty from missing information."
+
+[[criteria]]
+name = "test_coverage"
+description = "Behavioral verification covers the entire contract"
+guidance = "Trace every promised outcome to a behavioral test. Include boundaries, regressions and combinations. Reject source-string assertions, constant outputs, untested requirements and constraints that exclude valid alternative implementations."
+
+[[criteria]]
+name = "verifier_integrity"
+description = "The reward resists shortcuts and tampering"
+guidance = "Inspect immutable grading files, submission boundaries and offline isolation. Tests and gold solutions must be absent from the solver image. Require empirical baseline, mutation and adversarial evidence before a runtime claim. A valid check-result reward is not evidence the task passed this criterion."
+
+[[criteria]]
+name = "solvability"
+description = "A valid solution follows from the visible task"
+guidance = "The oracle must implement the actual task without privileged assumptions. Repeated successful execution is required for a runtime claim; a plausible script alone is insufficient."
+
+[[criteria]]
+name = "reproducibility"
+description = "The environment is self-contained and deterministic"
+guidance = "Require immutable source, pinned language dependencies, local fixtures and fixed seeds. Test dependencies MUST be installed at build time because runtime egress is blocked. Reject live service dependencies and unsubstantiated hardware assumptions."
+
+[[criteria]]
+name = "intrinsic_difficulty"
+description = "Difficulty comes from substantive reasoning"
+guidance = "Do not equate model failure with quality. Reject difficulty caused by broken setup, ambiguous semantics, severe time limits or arbitrary formatting."
+
+[[criteria]]
+name = "trace_quality"
+description = "Claims are backed by observed agent behavior"
+guidance = "Inspect actual solver and adversary traces when supplied. Missing traces are missing evidence, never proof of success. Distinguish reasoning failures from task, grading and infrastructure failures."

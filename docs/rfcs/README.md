@@ -55,6 +55,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0008 | `env_setup` | draft | [0008-env-setup.md](./0008-env-setup.md) | — |
 | 0009 | `test_synthesis` | draft | [0009-test-synthesis.md](./0009-test-synthesis.md) | — |
 | 0010 | `issue_runtime` | draft | [0010-issue-runtime.md](./0010-issue-runtime.md) | — |
+| 0011 | `dynamic_curation` | experimental implementation | [0011-dynamic-curation.md](./0011-dynamic-curation.md) | Pending campaign validation |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 
