@@ -282,6 +282,14 @@ def test_cli_validate_accepts_current_harbor_schema(tmp_path):
     assert main(["validate", str(tmp_path)]) == 0
 
 
+def test_runtime_names_leave_room_for_provider_suffixes():
+    from repo2rlenv.curation.evaluate import trial_name
+
+    a = trial_name("mutation-" + "long_behavior_" * 10)
+    assert len(a + "__verifier__single") < 64
+    assert a != trial_name("mutation-" + "long_behavior_" * 10)
+
+
 def test_resolve_pr_uses_merge_base(monkeypatch):
     def api(path):
         if "/compare/" in path:

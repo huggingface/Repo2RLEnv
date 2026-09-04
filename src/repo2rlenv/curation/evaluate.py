@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from pathlib import Path
+from uuid import uuid4
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget
@@ -19,6 +21,13 @@ mkdir -p /workspace/tests
 printf '#!/bin/sh\necho 1 > /logs/verifier/reward.txt\n' > /workspace/tests/test.sh
 true
 """
+
+
+def trial_name(label: str) -> str:
+    # Harbor appends environment/verifier suffixes; Modal caps the full name at
+    # 63 characters. Keep the evidence label intact, shorten only runtime IDs.
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "-", label)[:24]
+    return f"{safe}-{uuid4().hex[:12]}"
 
 
 async def trial(
@@ -62,18 +71,18 @@ async def trial(
         if mutation:
             agent["kwargs"]["oracle_dir"] = str((task / "solution").resolve())
     agent["override_timeout_sec"] = config.trial_timeout_sec
-    trial_name = f"{label}-{time.time_ns()}"
+    name = trial_name(label)
     cfg = TrialConfig.model_validate(
         {
             "task": {"path": str(task.resolve())},
-            "trial_name": trial_name,
+            "trial_name": name,
             "trials_dir": str(output.resolve()),
             "agent": agent,
             "environment": {"type": "modal", "delete": True},
         }
     )
     evidence = TrialEvidence(
-        label=label, task_digest=digest_task(task), path=str(output / trial_name), model=model
+        label=label, task_digest=digest_task(task), path=str(output / name), model=model
     )
     try:
         runtime = await Trial.create(cfg)
