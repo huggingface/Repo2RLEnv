@@ -63,6 +63,20 @@ def cmd_curate(args: argparse.Namespace) -> int:
             title="Curation plan",
         )
         return 0
+    import importlib.util
+
+    missing = [
+        name
+        for name in ("harbor", "modal", "langgraph", "dockerfile_parse")
+        if importlib.util.find_spec(name) is None
+    ]
+    if missing:
+        console.error(
+            "Curation dependencies missing: "
+            + ", ".join(missing)
+            + ". Install with `uv sync --extra curation` or `pip install 'repo2rlenv[curation]'`."
+        )
+        return 2
     from repo2rlenv.curation.campaign import campaign
 
     result = asyncio.run(campaign(seeds, args.out, config, retry_rejected=args.retry_rejected))
