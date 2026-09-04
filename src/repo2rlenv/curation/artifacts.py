@@ -175,7 +175,7 @@ def finalize(path: Path, source: dict) -> Contract:
                 (path / "tests/test_contract.py").read_text(),
             ):
                 raise ValueError(f"Coverage map references absent test: {test}")
-    for mutation in contract.mutations:
+    for mutation in [*contract.mutations, *contract.equivalents]:
         if not re.fullmatch(r"[a-z0-9_-]{1,50}", mutation.name):
             raise ValueError("Mutation name must be a safe identifier")
     recipe = (

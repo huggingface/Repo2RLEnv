@@ -101,6 +101,7 @@ def good_trials():
         "tamper": 0,
         "mutation-boundary": 0,
         "mutation-constant": 0,
+        "equivalent-alternative": 1,
         "adversary": 0,
         "solver-0-0": 0,
         "solver-1-0": 1,
@@ -118,7 +119,7 @@ def good_trials():
 
 
 def test_admission_requires_complete_current_evidence(good_trials, good_review):
-    args = (good_review, CampaignConfig(), "digest", ["boundary", "constant"])
+    args = (good_review, CampaignConfig(), "digest", ["boundary", "constant"], ["alternative"])
     assert acceptance(good_trials, *args) == []
     for i in range(len(good_trials)):
         assert acceptance(good_trials[:i] + good_trials[i + 1 :], *args)
@@ -133,7 +134,12 @@ def test_infrastructure_failure_is_not_difficulty(good_trials, good_review):
     solver = next(t for t in good_trials if t.label == "solver-0-0")
     solver.error = "provider timed out"
     assert acceptance(
-        good_trials, good_review, CampaignConfig(), "digest", ["boundary", "constant"]
+        good_trials,
+        good_review,
+        CampaignConfig(),
+        "digest",
+        ["boundary", "constant"],
+        ["alternative"],
     )
 
 
@@ -141,8 +147,21 @@ def test_reward_hack_cannot_be_offset_by_high_score(good_trials, good_review):
     next(t for t in good_trials if t.label == "adversary").reward = 1
     assert good_review.score == 100
     assert acceptance(
-        good_trials, good_review, CampaignConfig(), "digest", ["boundary", "constant"]
+        good_trials,
+        good_review,
+        CampaignConfig(),
+        "digest",
+        ["boundary", "constant"],
+        ["alternative"],
     )
+
+
+def test_valid_alternative_must_pass_and_cannot_be_omitted(good_trials, good_review):
+    args = (good_review, CampaignConfig(), "digest", ["boundary", "constant"])
+    assert acceptance(good_trials, *args, [])
+    alternative = next(t for t in good_trials if t.label == "equivalent-alternative")
+    alternative.reward = 0
+    assert acceptance(good_trials, *args, ["alternative"])
 
 
 def test_incomplete_and_nan_reviews_rejected(good_review):
@@ -199,6 +218,7 @@ def test_duplicate_solver_and_trial_evidence_rejected(good_trials, good_review):
         CampaignConfig(),
         "digest",
         ["boundary", "constant"],
+        ["alternative"],
     )
 
 
@@ -254,6 +274,9 @@ def test_finalize_owns_separate_grader_and_digest(tmp_path, monkeypatch):
                     {"name": "a", "rationale": "partial", "script": "true"},
                     {"name": "b", "rationale": "boundary", "script": "true"},
                 ],
+                "equivalents": [
+                    {"name": "alternative", "rationale": "equivalent", "script": "true"}
+                ],
                 "min_tests": 3,
             }
         ),
@@ -290,6 +313,49 @@ def test_runtime_names_leave_room_for_provider_suffixes():
     assert a != trial_name("mutation-" + "long_behavior_" * 10)
 
 
+def test_oracle_script_and_artifact_failures_are_infrastructure(tmp_path):
+    from repo2rlenv.curation.evaluate import evidence_summary, inspect_execution
+
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent/exit-code.txt").write_text("127")
+    (tmp_path / "agent/oracle.txt").write_text("git: command not found")
+    assert "127" in inspect_execution(tmp_path)
+    evidence = TrialEvidence(label="oracle-0", task_digest="d", path=str(tmp_path), reward=0)
+    assert "git: command not found" in evidence_summary([evidence])
+    (tmp_path / "agent/exit-code.txt").unlink()
+    (tmp_path / "artifacts").mkdir()
+    (tmp_path / "artifacts/manifest.json").write_text(
+        json.dumps([{"source": "/workspace/src/pkg", "status": "failed"}])
+    )
+    assert "Submission export failed" in inspect_execution(tmp_path)
+
+
+def test_campaign_directory_cannot_have_two_controllers(tmp_path):
+    from repo2rlenv.curation.campaign import campaign_lock
+
+    with campaign_lock(tmp_path):
+        with pytest.raises(RuntimeError, match="already running"):
+            with campaign_lock(tmp_path):
+                pytest.fail("Second controller acquired the lock")
+    with campaign_lock(tmp_path):
+        pass
+
+
+def test_publication_freezes_bytes_and_excludes_solver_exports(tmp_path):
+    from repo2rlenv.curation.publish import evidence_snapshot
+
+    (tmp_path / "manifest.json").write_text('{"accepted": []}')
+    (tmp_path / "artifacts").mkdir()
+    (tmp_path / "artifacts/untrusted.txt").write_text("not evidence")
+    (tmp_path / ".env").write_text("SECRET=example")
+    with evidence_snapshot(tmp_path) as snapshot:
+        (tmp_path / "manifest.json").write_text("changed after snapshot")
+        assert (snapshot / "manifest.json").read_text() == '{"accepted": []}'
+        assert not (snapshot / "artifacts").exists()
+        assert not (snapshot / ".env").exists()
+        assert not (snapshot / ".run.lock").exists()
+
+
 def test_resolve_pr_uses_merge_base(monkeypatch):
     def api(path):
         if "/compare/" in path:
@@ -311,7 +377,8 @@ def test_resolve_pr_uses_merge_base(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_langgraph_executes_tools_then_finishes(tmp_path, monkeypatch):
+@pytest.mark.parametrize("max_turns", [1, 3])
+async def test_langgraph_executes_tools_then_finishes(tmp_path, monkeypatch, max_turns):
     pytest.importorskip("langgraph")
     from types import SimpleNamespace
 
@@ -358,11 +425,13 @@ async def test_langgraph_executes_tools_then_finishes(tmp_path, monkeypatch):
         tools=[SHELL_TOOL],
         handlers={"shell": shell},
         trace=tmp_path / "trace.jsonl",
-        max_turns=3,
+        max_turns=max_turns,
     )
     assert seen == ["pwd"]
-    assert state["turns"] == 2
-    assert state["messages"][-1]["content"] == "Complete"
+    assert state["turns"] == min(max_turns, 2)
+    assert state["messages"][-1]["content"] == (
+        "Complete" if max_turns > 1 else "/remote/workspace"
+    )
     assert any(
         json.loads(line).get("kind") == "tool"
         for line in (tmp_path / "trace.jsonl").read_text().splitlines()

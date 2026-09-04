@@ -33,19 +33,17 @@ async def review(
     catalog = "\n".join(f"{p.relative_to(root)} ({p.stat().st_size} bytes)" for p in files)
     allowed = {p.resolve() for p in files}
 
-    async def read_evidence(path: str, offset: int = 0, limit: int = 20000) -> str:
+    async def read_evidence(path: str, offset: int = 0, limit: int = 12000) -> str:
         target = (root / path).resolve()
         if target not in allowed:
             raise ValueError("Path is not a listed evidence file")
         text = target.read_text(errors="replace")
-        offset, limit = max(0, offset), min(max(1, limit), 24000)
-        return json.dumps(
-            {
-                "path": path,
-                "offset": offset,
-                "total_chars": len(text),
-                "content": text[offset : offset + limit],
-            }
+        offset, limit = max(0, offset), min(max(1, limit), 22000)
+        # Plain text avoids JSON escaping expanding pages past the agent tool
+        # limit, which previously removed evidence from the middle of a page.
+        return (
+            f"{path}: characters {offset}:{min(offset + limit, len(text))} "
+            f"of {len(text)}\n" + text[offset : offset + limit]
         )
 
     tool = {

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -35,10 +35,20 @@ class Contract(StrictModel):
     source_paths: list[str] = Field(min_length=1)
     requirements: list[Requirement] = Field(min_length=2)
     mutations: list[Mutation] = Field(min_length=2)
+    equivalents: list[Mutation] = Field(min_length=1)
     min_tests: int = Field(ge=3)
     reward_mode: Literal["deterministic", "judge"] = "deterministic"
     judge_justification: str | None = None
     judge_reward: JudgeRewardSpec | None = None
+
+    @model_validator(mode="after")
+    def unique_controls(self) -> Contract:
+        for controls in (self.mutations, self.equivalents):
+            if len({c.name for c in controls}) != len(controls):
+                raise ValueError("Control names must be unique")
+            if any(not c.script.strip() or not c.rationale.strip() for c in controls):
+                raise ValueError("Controls need executable scripts and rationales")
+        return self
 
     @field_validator("source_paths")
     @classmethod
@@ -164,6 +174,7 @@ def acceptance(
     config: CampaignConfig,
     digest: str,
     mutation_names: list[str],
+    equivalent_names: list[str],
 ) -> list[str]:
     """Return all rejection reasons. Missing evidence never implicitly passes."""
     reasons = []
@@ -173,6 +184,9 @@ def acceptance(
     expected = {f"oracle-{i}": 1 for i in range(config.oracle_repeats)}
     expected.update({"baseline": 0, "tamper": 0})
     expected.update({f"mutation-{n}": 0 for n in mutation_names})
+    expected.update({f"equivalent-{n}": 1 for n in equivalent_names})
+    if not equivalent_names:
+        reasons.append("No alternative valid implementation was tested")
     for label, reward in expected.items():
         t = by_label.get(label)
         if t is None or not t.valid or t.reward != reward or t.task_digest != digest:

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import fcntl
+import hashlib
 import json
 import logging
 import shutil
 import time
+from contextlib import contextmanager
+from importlib.metadata import version
 from pathlib import Path
 
 from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
@@ -170,10 +174,23 @@ async def curate_one(
                         mutation=True,
                     )
                 )
+            for equivalent in contract.equivalents:
+                trials.append(
+                    await trial(
+                        task,
+                        folder / "trials",
+                        f"equivalent-{equivalent.name}",
+                        config=config,
+                        budget=budget,
+                        script=equivalent.script,
+                        mutation=True,
+                    )
+                )
             bad = [
                 t
                 for t in trials
-                if not t.valid or t.reward != (1 if t.label.startswith("oracle") else 0)
+                if not t.valid
+                or t.reward != (1 if t.label.startswith(("oracle", "equivalent-")) else 0)
             ]
             if bad:
                 feedback = "Repair validation; these controls failed:\n" + evidence_summary(bad)
@@ -216,7 +233,12 @@ async def curate_one(
             logger.info("%s: independent specification and trajectory review", source["id"])
             result = await review(task, folder, trials, model=config.judge_model, budget=budget)
             reasons = acceptance(
-                trials, result, config, digest, [m.name for m in contract.mutations]
+                trials,
+                result,
+                config,
+                digest,
+                [m.name for m in contract.mutations],
+                [e.name for e in contract.equivalents],
             )
             verdict = {
                 "id": source["id"],
@@ -252,7 +274,28 @@ async def curate_one(
             budget.settle(reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True)
 
 
+@contextmanager
+def campaign_lock(out: Path):
+    out.mkdir(parents=True, exist_ok=True)
+    with (out / ".run.lock").open("a+") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError(f"A campaign is already running in {out}") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 async def campaign(
+    seeds: list[str], out: Path, config: CampaignConfig, *, retry_rejected: bool = False
+) -> dict:
+    with campaign_lock(out.resolve()):
+        return await _campaign(seeds, out, config, retry_rejected=retry_rejected)
+
+
+async def _campaign(
     seeds: list[str], out: Path, config: CampaignConfig, *, retry_rejected: bool = False
 ) -> dict:
     out = out.resolve()
@@ -284,6 +327,19 @@ async def campaign(
         manifest.setdefault("previous_attempts", []).extend(manifest["rejected"])
         manifest["rejected"] = []
     manifest["status"] = "running"
+    manifest["seeds"] = list(dict.fromkeys([*manifest.get("seeds", []), *seeds]))
+    manifest["in_progress"] = []
+    h = hashlib.sha256()
+    for p in sorted(Path(__file__).parent.glob("*.py")):
+        h.update(p.name.encode() + b"\0" + p.read_bytes())
+    manifest["runtime"] = {
+        "harness_digest": h.hexdigest(),
+        "versions": {
+            name: version(name)
+            for name in ("repo2rlenv", "harbor", "modal", "langgraph", "litellm")
+        },
+    }
+    save(manifest_path, manifest)
     completed = {v["source"] for v in manifest["accepted"] + manifest["rejected"]}
 
     async def process(url: str):
@@ -298,6 +354,8 @@ async def campaign(
             scope=f"{url}:{time.time_ns()}",
             scope_limit=config.max_candidate_usd,
         )
+        manifest["in_progress"].append(url)
+        save(manifest_path, manifest)
         logger.info(
             "Curating %s; accepted %s/%s; charged/reserved $%.2f",
             url,
@@ -328,6 +386,7 @@ async def campaign(
                 "reasons": [type(exc).__name__ + ": " + str(exc)],
             }
         result["charged_or_reserved_usd"] = scoped.spent
+        manifest["in_progress"].remove(url)
         manifest["accepted" if result["status"] == "accepted" else "rejected"].append(result)
         manifest["charged_or_reserved_usd"] = budget.spent
         save(manifest_path, manifest)

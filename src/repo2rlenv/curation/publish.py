@@ -2,13 +2,48 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from repo2rlenv.curation.artifacts import digest_task
 
 
+@contextmanager
+def evidence_snapshot(root: Path):
+    """Freeze files before hashing/uploading; reject concurrent campaign writers."""
+    from repo2rlenv.curation.campaign import campaign_lock
+
+    with TemporaryDirectory(prefix="r2e-evidence-") as temporary:
+        snapshot = Path(temporary)
+        with campaign_lock(root):
+            for p in sorted(root.rglob("*")):
+                relative = p.relative_to(root)
+                if any(
+                    part in {"artifacts", ".git", ".venv", "__pycache__"} for part in relative.parts
+                ):
+                    continue
+                if p.is_symlink():
+                    raise ValueError(f"Cannot publish linked artifact: {relative}")
+                if (
+                    p.is_file()
+                    and not p.name.startswith(".env")
+                    and p.suffix not in {".lock", ".tmp"}
+                ):
+                    target = snapshot / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(p, target)
+        yield snapshot
+
+
 def publish_evidence(root: Path, bucket: str) -> str:
     """Append a content-addressed evidence snapshot to a private HF bucket."""
+    with evidence_snapshot(root.resolve()) as snapshot:
+        return _publish_snapshot(snapshot, bucket)
+
+
+def _publish_snapshot(root: Path, bucket: str) -> str:
     from huggingface_hub import HfApi
 
     root = root.resolve()

@@ -95,16 +95,14 @@ async def run_agent(
         return {**state, "messages": messages}
 
     def route(state: State) -> str:
-        return (
-            "act" if state["messages"][-1].get("tool_calls") and state["turns"] < max_turns else END
-        )
+        return "act" if state["messages"][-1].get("tool_calls") else END
 
     graph = StateGraph(State)
     graph.add_node("think", think)
     graph.add_node("act", act)
     graph.add_edge(START, "think")
     graph.add_conditional_edges("think", route)
-    graph.add_edge("act", "think")
+    graph.add_conditional_edges("act", lambda state: "think" if state["turns"] < max_turns else END)
     initial: State = {
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         "turns": 0,

@@ -24,6 +24,9 @@ Required output:
   Extract into /workspace; install needed dependencies with explicit pinned versions
   and pytest==8.4.2. Install repo editable with --no-deps --no-build-isolation after
   installing build dependencies. Ensure /usr/local/bin/python imports editable code.
+  Install git, curl and ca-certificates in the image when used by the recipe or oracle;
+  the author sandbox having git does not imply the task image has it. Verify source
+  really lands at /workspace/src/... (tar --strip-components=1), not a nested checkout.
   Use CPU torch wheels from https://download.pytorch.org/whl/cpu when needed. Prefer
   tiny locally constructed model/config fixtures over downloaded weights. Install all
   runtime/test dependencies at image BUILD time: both solver and grader have NO network.
@@ -45,11 +48,16 @@ Required output:
   module requires it. Don't write test.sh: the harness owns the isolated reward wrapper.
 * contract.json: {title, rationale, source_paths:[relative directories/files holding
   submitted code, e.g. 'src/accelerate'], requirements:[{id,behavior,tests:[function_name]}],
-  mutations:[{name:lowercase_identifier,rationale,script:bash}], min_tests:integer,
+  mutations:[{name:lowercase_identifier,rationale,script:bash}],
+  equivalents:[{name:lowercase_identifier,rationale,script:bash}], min_tests:integer,
   reward_mode:'deterministic'}. At least 2 requirements, 3 tests, 2 meaningful mutations.
   Mutations start from the GOLD SOLUTION and intentionally break distinct behaviors.
   They must execute successfully, then fail verification. Use plausible partial fixes
   or wrong edge-case handling, not syntax errors or deleting the whole solution.
+  Include at least one equivalent control: start from GOLD and change its implementation
+  while preserving every promised behavior. It must execute and still earn full reward.
+  Use a different valid algorithm or representation, not comments or a no-op. Explain
+  why it is equivalent. This catches tests tied to the reference implementation.
   A requirement-to-test map must cover ALL instruction promises. source_paths are the
   only directories/files transferred into a FRESH grader; tell the solver where code
   belongs. Dependencies, repo tests and grading scripts are never submitted.
@@ -73,7 +81,9 @@ not pass. Do not reward verbosity, model failure, or resemblance to a reference 
 task_specification: clear, sufficient, human-readable outcomes; no solution leakage.
 realism: useful, coherent engineering work; not rote patch application or a toy rewrite.
 test_coverage: map EVERY instruction requirement to observed executable tests; probe
-edge cases, regressions and alternative correct solutions. min_tests is not coverage.
+edge cases, regressions and alternative correct solutions. Inspect the equivalent
+control script: a no-op or cosmetic-only edit is insufficient fairness evidence.
+min_tests is not coverage.
 verifier_integrity: negative controls/mutations/adversary, clean grader, no answer access.
 solvability: oracle succeeds repeatedly AND solution follows from the visible contract.
 reproducibility: pinned, offline, deterministic, no undeclared hardware/services.

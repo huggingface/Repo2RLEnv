@@ -43,6 +43,8 @@ A score cannot override failed mandatory gates:
 1. Validate Harbor configuration, submission paths and requirement-to-test mapping.
 2. Baseline earns zero; oracle earns one on at least three fresh trials by default.
 3. Tampering and at least two author-supplied behavioral mutations earn zero.
+   At least one meaningful alternative valid implementation earns one. This
+   positive control tests whether the verifier accepts solutions beyond the PR.
 4. Sonnet and Opus complete real Harbor trials; infrastructure errors reject the run.
 5. A dedicated adversarial solver attempts to earn reward without implementing the task.
 6. An independent reviewer reads task files and trajectories and returns eight
@@ -101,7 +103,8 @@ Unknown model pricing fails closed. Provider invoices remain the billing authori
 
 `publish_evidence()` can archive a campaign to a private Hugging Face bucket under
 a content-addressed prefix, with SHA-256 checksums and no solver filesystem exports.
-It rejects admitted tasks changed since their review. No secret is passed into an
+It freezes files before hashing and uploading, refuses an active campaign, and
+rejects admitted tasks changed since their review. No secret is passed into an
 author or solver sandbox. Publishing public benchmark tasks should include the
 review evidence and accurately report the number admitted, model versions,
 attempt counts, failures and unresolved limitations.

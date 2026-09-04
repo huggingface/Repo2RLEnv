@@ -28,6 +28,26 @@ reviewed contract, repeated oracle success, an unsolved baseline, rejected negat
 controls, and completed Sonnet and Opus trials. Infrastructure errors never count
 as model failures. No acceptance threshold is relaxed to meet a numerical target.
 
+```mermaid
+flowchart TD
+    PR[PR evidence and base repository] --> Author[Author explores remote sandbox]
+    Author --> Fit{Substantive offline task?}
+    Fit -->|No| Defer[Record deferral evidence]
+    Fit -->|Yes| Spec[Instruction, behavior tests, oracle, contract]
+    Spec --> Controls[Baseline, repeated oracle, broken and equivalent variants]
+    Controls -->|Failed| Repair[Return execution evidence to author]
+    Repair --> Author
+    Controls -->|Passed| Solve[Sonnet and Opus rollouts plus adversarial attempt]
+    Solve --> Judge[Independent specification and trajectory review]
+    Judge -->|Repairable defect| Repair
+    Judge -->|All gates pass| Admit[Versioned Harbor task and human review queue]
+```
+
+Positive controls change the gold implementation while preserving the promised
+behavior. They must pass, while meaningful incorrect variants must fail. This
+addresses a recurring defect in the previous pipeline: verifiers enforcing one
+reference implementation, formatting choice, or unstated internal detail.
+
 ## Isolation
 
 Builds may download pinned dependencies and immutable source revisions. Solver and

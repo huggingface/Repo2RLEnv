@@ -97,6 +97,9 @@ async def trial(
             evidence.reward = rewards.get("reward")
         if result.agent_result:
             evidence.cost_usd = result.agent_result.cost_usd or 0
+        execution_error = inspect_execution(Path(evidence.path))
+        if execution_error:
+            evidence.error = execution_error
     except Exception as exc:
         evidence.error = f"{type(exc).__name__}: {exc}"
     finally:
@@ -106,6 +109,23 @@ async def trial(
         budget.settle(reservation, estimate, estimated=True)
     (output / f"{label}.json").write_text(evidence.model_dump_json(indent=2))
     return evidence
+
+
+def inspect_execution(folder: Path) -> str | None:
+    """Harbor's best-effort exports and oracle exit codes need explicit gates."""
+    exit_code = folder / "agent/exit-code.txt"
+    if exit_code.exists() and exit_code.read_text().strip() != "0":
+        return "Oracle execution failed with exit code " + exit_code.read_text().strip()
+    manifest = folder / "artifacts/manifest.json"
+    if manifest.exists():
+        failed = [
+            item["source"]
+            for item in json.loads(manifest.read_text())
+            if item.get("status") != "ok" and item.get("source", "").startswith("/workspace/")
+        ]
+        if failed:
+            return "Submission export failed: " + ", ".join(failed)
+    return None
 
 
 async def preflight(
@@ -130,7 +150,17 @@ def evidence_summary(trials: list[TrialEvidence]) -> str:
             str(p.relative_to(folder)): p.read_text(errors="replace")[-14000:]
             for p in folder.rglob("*")
             if p.is_file()
-            and p.name in {"pytest-output.txt", "details.json", "test-stdout.txt", "exception.txt"}
+            and p.name
+            in {
+                "pytest-output.txt",
+                "details.json",
+                "test-stdout.txt",
+                "exception.txt",
+                "oracle.txt",
+                "exit-code.txt",
+                "control.json",
+                "manifest.json",
+            }
         }
         summaries.append(item)
     return json.dumps(summaries, indent=2)
