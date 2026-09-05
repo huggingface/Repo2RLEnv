@@ -209,7 +209,7 @@ async def test_cached_new_policy_pass_missing_worksheet_fails_without_paid_retry
     await review(s)
     path = record_path(s)
     record = json.loads(path.read_text())
-    assert record["identity"]["policy_version"] == 9
+    assert record["identity"]["policy_version"] == 10
     record["review"].pop("authority_checks")
     path.write_text(json.dumps(record))
     with pytest.raises(verifier.VerifierReviewError, match="Cached verifier review unavailable"):
@@ -468,3 +468,79 @@ def test_reference_errors_are_batched_across_rows_and_evidence():
     assert "candidate hit lines: [2]" in message
     assert "authority_checks[1] [compiled] under source is compiled" in message
     assert "candidate hit lines: []" in message
+
+
+@pytest.mark.parametrize("line", [None, 3])
+def test_supplementary_fixture_quote_does_not_need_to_be_an_assertion(line):
+    material = texts()
+    material["tests/test_contract.py"] = (
+        "def test_compiled():\n    explicit = ['left']\n    cached = ['right']\n"
+        "    actual = probe(explicit, cached)\n    assert actual == ['left']\n"
+    )
+    row = check()
+    row["evidence"][1].update(line=None)
+    row["evidence"].append(
+        {"path": "tests/test_contract.py", "quote": "cached = ['right']", "line": line}
+    )
+    result = report([row])
+    _check_authority_inventory(result, material)
+    assert result.authority_checks[0].evidence[-1].line == 3
+    assert result.authority_checks[0].evidence[1].line == 5
+
+
+@pytest.mark.parametrize(
+    "decoration,test_signature",
+    [
+        ("@pytest.fixture(name='validated')", "validated"),
+        ("@pytest.fixture(autouse=True)", ""),
+        ("@fixture(name='validated')", "validated"),
+    ],
+)
+def test_module_fixture_alias_and_autouse_assertions_are_mapped(decoration, test_signature):
+    material = texts()
+    material["tests/test_contract.py"] = (
+        "import pytest\nfrom pytest import fixture\n" + decoration + "\n"
+        "def verify():\n    actual = probe()\n    assert actual == ['left']\n\n"
+        f"def test_compiled({test_signature}):\n    pass\n"
+    )
+    row = check()
+    row["evidence"][1]["line"] = None
+    result = report([row])
+    _check_authority_inventory(result, material)
+    assert result.authority_checks[0].evidence[1].line == 6
+
+
+def test_autouse_fixture_follows_its_explicit_fixture_dependencies():
+    material = texts()
+    material["tests/test_contract.py"] = (
+        "import pytest\n@pytest.fixture(name='validated')\ndef verify():\n"
+        "    assert actual == ['left']\n\n@pytest.fixture(autouse=True)\n"
+        "def activate(validated):\n    pass\n\ndef test_compiled():\n    pass\n"
+    )
+    row = check()
+    row["evidence"][1]["line"] = None
+    _check_authority_inventory(report([row]), material)
+
+
+@pytest.mark.parametrize(
+    "decoration", ["@pytest.fixture(name='validated')", "@pytest.fixture(autouse=True)"]
+)
+def test_fixture_in_unrelated_module_cannot_ground_mapped_test(decoration):
+    material = texts()
+    material["tests/test_contract.py"] = "def test_compiled():\n    pass\n"
+    material["tests/unrelated.py"] = (
+        "import pytest\n" + decoration + "\ndef verify():\n    assert actual == ['left']\n"
+    )
+    row = check()
+    row["evidence"][1].update(path="tests/unrelated.py", line=None)
+    with pytest.raises(ValueError, match="reachable"):
+        _check_authority_inventory(report([row]), material)
+
+
+def test_supplementary_quote_alone_cannot_replace_mapped_check():
+    material = texts()
+    material["tests/test_contract.py"] = "def test_compiled():\n    cached = ['right']\n"
+    row = check()
+    row["evidence"][1].update(quote="cached = ['right']", line=None)
+    with pytest.raises(ValueError, match="must cite an assertion or call"):
+        _check_authority_inventory(report([row]), material)

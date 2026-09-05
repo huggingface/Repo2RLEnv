@@ -24,7 +24,7 @@ MAX_TOOL_RESPONSE_CHARS = 24_000
 MAX_REVIEW_COST = 4
 MAX_REVIEW_TURNS = 10
 MAX_REVIEW_OUTPUT_TOKENS = 32_000
-POLICY_VERSION = 9
+POLICY_VERSION = 10
 RECONSIDER_PASS = """Before finalizing this tentative pass, reconsider each item you called optional
 against the solver-visible instruction and the actual assertions you read. If the item identifies
 a concrete wrong implementation that passes, or a permitted implementation that fails, it is a
@@ -68,7 +68,10 @@ permitted equivalent designs where relevant to this task. In particular:
   with raw source quotes and file paths. Omit line to let the host resolve matching text:
   repeated public-contract quotes use the first occurrence; distinguished test quotes use
   an occurrence linked to the single named test/helper. Supply an exact one-based line only
-  when needed. distinguishing_test is exactly one mapped test function, never joined names. Trace fixtures through helpers
+  when needed. distinguishing_test is exactly one mapped test function, never joined names.
+  At least one citation must identify a mapped assertion/call; additional exact fixture
+  declarations may support the input explanation without themselves being assertions.
+  Trace fixtures through helpers
   and run_probe. For dynamically resolved helpers, cite both the mapped test callsite and
   the helper assertion and explain the linkage; host reference checks are not semantic proof.
   Cite the instruction or contract supporting the public condition as well. For gap, explain
@@ -201,6 +204,29 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
         first, _, tail = name.partition(".")
         return imports[path].get(first, first) + ("." + tail if tail else "")
 
+    fixtures, autouse = {}, {}
+    for path, names in definitions.items():
+        fixtures[path], autouse[path] = {}, []
+        for name, function in names.items():
+            if "." in name:
+                continue  # Class fixture scope is not module autouse scope.
+            for decorator in function.decorator_list:
+                call = decorator if isinstance(decorator, ast.Call) else None
+                target = call.func if call else decorator
+                if expanded(path, dotted(target)) != "pytest.fixture":
+                    continue
+                options = {item.arg: item.value for item in call.keywords} if call else {}
+                alias = options.get("name")
+                fixture_name = (
+                    alias.value
+                    if isinstance(alias, ast.Constant) and isinstance(alias.value, str)
+                    else name
+                )
+                fixtures[path][fixture_name] = name
+                automatic = options.get("autouse")
+                if isinstance(automatic, ast.Constant) and automatic.value is True:
+                    autouse[path].append(name)
+
     def resolve(path, name, context=""):
         if name.startswith("self.") and "." in context:
             name = context.rpartition(".")[0] + name[len("self") :]
@@ -215,6 +241,11 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
             if function in definitions.get(candidate, {}):
                 return candidate, function
         return None
+
+    def resolve_fixture(path, name):
+        if name in fixtures[path]:
+            return path, fixtures[path][name]
+        return resolve(path, name)
 
     def body_nodes(function):
         pending = list(function.body)
@@ -237,6 +268,8 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
         if name.rsplit(".", 1)[-1] == test
     ]
     found = bool(pending)
+    # Pytest activates module autouse fixtures before each collected test.
+    pending.extend((path, name) for path in {path for path, _ in pending} for name in autouse[path])
     checks, seen = {}, set()
     while pending:
         key = pending.pop()
@@ -257,7 +290,7 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
                     if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
                 )
         for fixture in fixture_names:
-            target = resolve(path, fixture)
+            target = resolve_fixture(path, fixture)
             if target:
                 pending.append(target)
         for node in body_nodes(function):
@@ -302,6 +335,7 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
         if not any(e.path in {"instruction.md", "contract.json"} for e in row.evidence):
             row_errors.append("Input authority condition needs a public-contract citation")
         assertion_cited = False
+        supplementary_notes = []
         assertions, test_found = (
             _authority_reference_lines(texts, row.distinguishing_test)
             if row.distinguishing_test
@@ -342,10 +376,15 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
                         line for line in hit_lines if set(range(line, line + count)) & eligible
                     ]
                     if not linked:
-                        raise ValueError(
-                            f"Input authority quote has no occurrence reachable from {row.distinguishing_test} in {evidence.path}; {candidates}; eligible lines: {sorted(eligible)[:20]}"
-                        )
-                    evidence.line = linked[0]
+                        detail = f"Input authority quote has no occurrence reachable from {row.distinguishing_test} in {evidence.path}; {candidates}; eligible lines: {sorted(eligible)[:20]}"
+                        if len(hit_lines) != 1:
+                            raise ValueError(detail)
+                        # A row may also cite exact fixture declarations or other
+                        # supporting source. They need not themselves be checks.
+                        evidence.line = hit_lines[0]
+                        supplementary_notes.append(detail)
+                    else:
+                        evidence.line = linked[0]
                 else:
                     if len(hit_lines) != 1:
                         raise ValueError(
@@ -370,6 +409,7 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
             row_errors.append(
                 "Distinguished input authority check must cite an assertion or call reachable from its mapped test or explicitly resolved helper/fixture"
             )
+            row_errors.extend(supplementary_notes)
         if row_errors:
             errors.append(label + ": " + "; ".join(row_errors))
     if errors:

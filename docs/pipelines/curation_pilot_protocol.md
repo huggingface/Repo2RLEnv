@@ -235,7 +235,7 @@ must not rewrite the old allowance or count a repeated source as fresh-source yi
 ### Input authority evidence in verifier review
 
 Verifier policy 8 introduced a structured worksheet covering every public contract
-requirement; current policy 9 retains that requirement. For applicable input interactions, it identifies the authoritative
+requirement; current policy 10 retains that requirement. For applicable input interactions, it identifies the authoritative
 input, a competing input/default/configuration, the relevant public condition,
 a fixture where those inputs differ, the independently expected observation,
 a conditional shortcut, and the mapped test that distinguishes it. Requirements
@@ -263,3 +263,12 @@ It cost $1.441381 and left the task unchanged. Its nine model responses included
 three citation/test-reference corrections; policy 9 addresses that avoidable
 formatting work without changing the detected semantic standard. This is static
 review evidence, not an executed exploit or a task admission.
+
+Policy 10 also accepts supplementary exact fixture quotes without requiring a
+line number or treating each quote as an assertion. A distinguished row still
+needs at least one assertion or call mapped to its test. Literal pytest fixture
+aliases and same-module autouse fixtures, including their explicit dependencies,
+are resolved; unrelated module fixtures cannot supply that evidence. These changes
+remove reproduced reference-validation false rejections. They do not establish
+that an assertion ran or proves the promised behavior. The live v25 conversion
+retains its frozen policy 9 runtime.
