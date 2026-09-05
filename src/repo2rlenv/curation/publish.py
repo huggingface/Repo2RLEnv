@@ -71,6 +71,8 @@ def _validate_admissions(root: Path, *, origin_root: Path | None = None) -> None
     if campaign.exists() == comparison.exists():
         raise ValueError("Evidence requires exactly one campaign or comparison manifest")
     manifest = json.loads((comparison if comparison.exists() else campaign).read_text())
+    if not isinstance(manifest, dict):
+        raise ValueError("Evidence manifest must be a JSON object")
     config_path = root / "config.json"
     config = CampaignConfig.model_validate(
         json.loads(config_path.read_text()) if config_path.exists() else manifest.get("config", {})
@@ -80,11 +82,40 @@ def _validate_admissions(root: Path, *, origin_root: Path | None = None) -> None
         != config.acceptance_policy
     ):
         raise ValueError("Evidence configuration acceptance policy mismatch")
-    accepted = (
-        [row for row in manifest["rows"] if row["status"] == "accepted"]
-        if comparison.exists()
-        else manifest["accepted"]
-    )
+    protocol_path = root / "protocol.json"
+    if comparison.exists():
+        if "accepted" in manifest or protocol_path.exists():
+            raise ValueError("Ambiguous comparison/pilot evidence manifest")
+        rows = manifest.get("rows")
+    elif "rows" in manifest:
+        if (
+            "accepted" in manifest
+            or not protocol_path.is_file()
+            or protocol_path.is_symlink()
+            or not config_path.is_file()
+            or config_path.is_symlink()
+        ):
+            raise ValueError("Pilot rows require an unambiguous protocol and configuration")
+        protocol = json.loads(protocol_path.read_text())
+        if not isinstance(protocol, dict) or not isinstance(protocol.get("config"), dict):
+            raise ValueError("Pilot protocol requires its frozen configuration")
+        if CampaignConfig.model_validate(protocol["config"]) != config:
+            raise ValueError("Pilot protocol configuration mismatch")
+        if "config" in manifest and CampaignConfig.model_validate(manifest["config"]) != config:
+            raise ValueError("Pilot manifest configuration mismatch")
+        rows = manifest["rows"]
+    else:
+        if protocol_path.exists() or "accepted" not in manifest:
+            raise ValueError("Ambiguous campaign/pilot evidence manifest")
+        rows = manifest["accepted"]
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Evidence admission rows must be a list of objects")
+    if "rows" in manifest:
+        if any(not isinstance(row.get("status"), str) for row in rows):
+            raise ValueError("Evidence admission rows require a status")
+        accepted = [row for row in rows if row["status"] == "accepted"]
+    else:
+        accepted = rows
     seen = set()
     for row in accepted:
         identity = row["id"]

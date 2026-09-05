@@ -10,6 +10,7 @@ import pytest
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.campaign import ADMISSION_VERSION
+from repo2rlenv.curation.models import CRITERIA, CampaignConfig, Review, review_scores
 from repo2rlenv.curation.publish import evidence_snapshot, publish_evidence
 
 
@@ -185,3 +186,166 @@ def test_comparison_rejects_invalid_runtime_and_ambiguous_manifests(tmp_path, ap
     with pytest.raises(ValueError, match="exactly one"):
         publish_evidence(tmp_path, "owner/private-evidence")
     assert not api.created
+
+
+def populate_pilot(root: Path, *, accepted=True, absolute_review=True):
+    config = CampaignConfig(
+        acceptance_policy="validity",
+        submission_policy="conversion",
+        max_candidate_drafts=3,
+        require_verification_plan=True,
+        specification_review=True,
+        verifier_review=True,
+    )
+    manifest = {"rows": [], "human_review": "pending"}
+    if accepted:
+        _, prior = populate(root, comparison=False)
+        row = prior["accepted"][0]
+        review = Review.model_validate(
+            {
+                "criteria": {
+                    name: {
+                        "score": 0 if name == "intrinsic_difficulty" else 4,
+                        "outcome": "fail" if name == "intrinsic_difficulty" else "pass",
+                        "explanation": "Recorded evidence supports this result.",
+                        "evidence": ["task/tests/test_contract.py"],
+                    }
+                    for name in CRITERIA
+                },
+                "blockers": [],
+                "failure_attribution": {},
+                "reward_hacks": [],
+                "suggested_repairs": [],
+                "adversary_assessment": "attempted_hack",
+            }
+        )
+        review_path = Path("candidates/example/run/revision-0/review.json")
+        write(root / review_path, review.model_dump())
+        row.update(review_scores(review, config))
+        row["review_path"] = str(root / review_path if absolute_review else review_path)
+        manifest["rows"].append(row)
+    write(root / "manifest.json", manifest)
+    write(root / "config.json", config.model_dump())
+    write(root / "protocol.json", {"id": "test-pilot", "config": config.model_dump()})
+    return manifest
+
+
+def test_private_publication_supports_pilot_with_no_admissions(tmp_path, api):
+    manifest = populate_pilot(tmp_path, accepted=False)
+    manifest["rows"].append({"id": "failed-example", "status": "repair_limit"})
+    write(tmp_path / "manifest.json", manifest)
+
+    url = publish_evidence(tmp_path, "owner/private-evidence")
+
+    prefix = url.rsplit("/", 1)[1]
+    uploaded = dict(api.uploads)
+    assert json.loads(uploaded[f"{prefix}/manifest.json"])["rows"] == manifest["rows"]
+    assert f"{prefix}/protocol.json" in uploaded
+    assert f"{prefix}/config.json" in uploaded
+    assert api.created == [("owner/private-evidence", True, True)]
+
+
+@pytest.mark.parametrize("absolute_review", [False, True])
+def test_pilot_validity_admission_keeps_campaign_paths_and_score_receipt(
+    tmp_path, api, absolute_review
+):
+    manifest = populate_pilot(tmp_path, absolute_review=absolute_review)
+
+    url = publish_evidence(tmp_path, "owner/private-evidence")
+
+    prefix = url.rsplit("/", 1)[1]
+    uploaded = dict(api.uploads)
+    assert f"{prefix}/tasks/example-project-1/contract.json" in uploaded
+    assert f"{prefix}/candidates/example/run/revision-0/review.json" in uploaded
+    row = json.loads(uploaded[f"{prefix}/manifest.json"])["rows"][0]
+    assert row == manifest["rows"][0]
+    assert row["score"] == row["validity_score"] == 100
+    assert row["legacy_score"] == 90
+    assert row["intrinsic_difficulty_score"] == 0
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["digest", "missing_task", "version", "score_receipt", "missing_review", "row_policy"],
+)
+def test_pilot_publication_preserves_admission_checks(tmp_path, api, damage):
+    manifest = populate_pilot(tmp_path)
+    row = manifest["rows"][0]
+    if damage == "digest":
+        write(tmp_path / "tasks/example-project-1/contract.json", "changed")
+    elif damage == "missing_task":
+        shutil.rmtree(tmp_path / "tasks/example-project-1")
+    elif damage == "version":
+        row["admission_version"] -= 1
+    elif damage == "score_receipt":
+        row["validity_score"] = 99
+    elif damage == "missing_review":
+        Path(row["review_path"]).unlink()
+    elif damage == "row_policy":
+        row["acceptance_policy"] = "legacy"
+    write(tmp_path / "manifest.json", manifest)
+
+    with pytest.raises(ValueError, match="Accepted"):
+        publish_evidence(tmp_path, "owner/private-evidence")
+
+    assert not api.created
+    assert not api.uploads
+
+
+@pytest.mark.parametrize("field", ["acceptance_policy", "submission_policy", "acceptance_score"])
+def test_pilot_publication_rejects_protocol_configuration_drift(tmp_path, api, field):
+    populate_pilot(tmp_path, accepted=False)
+    protocol = json.loads((tmp_path / "protocol.json").read_text())
+    protocol["config"][field] = 80 if field == "acceptance_score" else "legacy"
+    write(tmp_path / "protocol.json", protocol)
+
+    with pytest.raises(ValueError, match="Pilot protocol configuration mismatch"):
+        publish_evidence(tmp_path, "owner/private-evidence")
+
+    assert not api.created
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "missing_protocol",
+        "missing_config",
+        "both_row_keys",
+        "campaign_with_protocol",
+        "comparison_with_protocol",
+        "protocol_without_config",
+        "manifest_config_drift",
+        "nonlist_rows",
+        "row_without_status",
+    ],
+)
+def test_pilot_publication_rejects_ambiguous_or_incomplete_metadata(tmp_path, api, damage):
+    manifest = populate_pilot(tmp_path, accepted=False)
+    if damage == "missing_protocol":
+        (tmp_path / "protocol.json").unlink()
+    elif damage == "missing_config":
+        (tmp_path / "config.json").unlink()
+    elif damage == "both_row_keys":
+        manifest["accepted"] = []
+    elif damage == "campaign_with_protocol":
+        manifest = {"accepted": []}
+    elif damage == "comparison_with_protocol":
+        (tmp_path / "manifest.json").rename(tmp_path / "comparison.json")
+    elif damage == "protocol_without_config":
+        write(tmp_path / "protocol.json", {"id": "test-pilot"})
+    elif damage == "manifest_config_drift":
+        config = json.loads((tmp_path / "config.json").read_text())
+        config["submission_policy"] = "legacy"
+        manifest["config"] = config
+    elif damage == "nonlist_rows":
+        manifest["rows"] = {}
+    elif damage == "row_without_status":
+        manifest["rows"] = [{"id": "unknown"}]
+    if damage != "comparison_with_protocol":
+        write(tmp_path / "manifest.json", manifest)
+
+    with pytest.raises(ValueError):
+        publish_evidence(tmp_path, "owner/private-evidence")
+
+    assert not api.created
+    assert not api.uploads
