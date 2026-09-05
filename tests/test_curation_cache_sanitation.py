@@ -27,6 +27,11 @@ def cache(task: Path, name: str = "tests/__pycache__/test_contract.cpython-312.p
     [
         ("__pycache__/helper.cpython-312.pyc", "helper.py"),
         ("__pycache__/helper.cpython-312.opt-1.pyc", "helper.py"),
+        ("__pycache__/helper-pytest-plugin.cpython-312.pyc", "helper-pytest-plugin.py"),
+        ("__pycache__/helper.cpython-312-pytest-8.4.2.pyc", "helper.py"),
+        ("__pycache__/helper.cpython-313-pytest-9.0.3.pyc", "helper.py"),
+        ("__pycache__/helper.cpython-314-pytest-8.4.2.pyo", "helper.py"),
+        ("__pycache__/test.dotted.cpython-312-pytest-8.4.2.pyc", "test.dotted.py"),
         ("helper.pyc", "helper.py"),
         ("helper.pyo", "helper.py"),
     ],
@@ -38,7 +43,7 @@ def test_source_backed_cache_manifest_and_idempotence(tmp_path, folder, relative
     original = bytecode.read_bytes()
     manifest = sanitize_generated_python_caches(task)
 
-    assert manifest["policy_version"] == 1
+    assert manifest["policy_version"] == 2
     assert manifest["removed_files"] == [
         {
             "path": f"{folder}/{relative}",
@@ -55,7 +60,7 @@ def test_source_backed_cache_manifest_and_idempotence(tmp_path, folder, relative
     assert source_path.read_bytes() == b"VALUE = 13\n"
     digest = digest_task(task)
     assert sanitize_generated_python_caches(task) == {
-        "policy_version": 1,
+        "policy_version": 2,
         "removed_files": [],
         "removed_directories": [],
     }
@@ -186,3 +191,77 @@ def test_sanitation_resolves_snapshot_cache_error_but_preserves_binary_fixture_e
     assert binary.read_bytes() == b"\xff\x00fixture"
     with pytest.raises(VerifierInputError, match=r"non-UTF-8 evidence: tests/fixture\.bin"):
         _snapshot(task)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test_contract.cpython-312-pytest-invalid.pyc",
+        "test_contract.cpython-312-pytest-8.4.pyc",
+        "test_contract.cpython-312-pytest-8.4.2.extra.pyc",
+        "test_contract.cpython-312-pytest-8.4.2.opt-1.pyc",
+        "test_contract.cpython-312-pytest-8.4.2rc1.pyc",
+        "test_contract.cpython-xyz-pytest-8.4.2.pyc",
+        "test_contract.unknown-312-pytest-8.4.2.pyc",
+    ],
+)
+def test_malformed_pytest_rewrite_tag_fails_even_with_backing_source(tmp_path, name):
+    task = tmp_path / "task"
+    write(task / "tests/test_contract.py")
+    valid = cache(task)
+    malformed = cache(task, "tests/__pycache__/" + name)
+    with pytest.raises(ValueError, match="Invalid generated Python cache"):
+        sanitize_generated_python_caches(task)
+    assert valid.is_file() and malformed.is_file()
+
+
+@pytest.mark.parametrize(
+    "unsafe", ["orphan", "symlink-cache", "symlink-source", "hardlink-cache", "hardlink-source"]
+)
+def test_pytest_rewritten_cache_requires_unlinked_regular_source_and_bytecode(tmp_path, unsafe):
+    task = tmp_path / "task"
+    write(task / "tests/test_contract.py")
+    valid = cache(task)
+    source = task / "solution/helper.py"
+    rewritten = task / "solution/__pycache__/helper.cpython-312-pytest-8.4.2.pyc"
+    write(rewritten, b"generated pytest cache")
+    if unsafe != "orphan":
+        write(source)
+        target = source if unsafe.endswith("source") else rewritten
+        external = write(tmp_path / "outside", target.read_bytes())
+        target.unlink()
+        if unsafe.startswith("symlink"):
+            target.symlink_to(external)
+        else:
+            os.link(external, target)
+    with pytest.raises(ValueError, match=r"Linked or non-regular|no regular source"):
+        sanitize_generated_python_caches(task)
+    assert valid.exists() and rewritten.exists()
+    if unsafe != "orphan":
+        assert external.is_file()
+
+
+def test_real_pytest_rewritten_cache_is_removed_without_loading_bytecode(tmp_path):
+    """Generate the actual installed pytest format, without invoking a target repo."""
+    import importlib.util
+    import marshal
+    import struct
+
+    from _pytest.assertion.rewrite import PYC_TAIL
+
+    task = tmp_path / "task"
+    source = write(task / "tests/test_contract.py", b"def test_behavior():\n    assert 1 == 1\n")
+    # Construct a genuine pyc header and code object using pytest's actual suffix.
+    # The sanitizer never unmarshals or executes it.
+    rewritten = task / "tests/__pycache__" / (source.stem + PYC_TAIL)
+    code = compile(source.read_bytes(), str(source), "exec")
+    content = (
+        importlib.util.MAGIC_NUMBER
+        + struct.pack("<III", 0, int(source.stat().st_mtime), source.stat().st_size)
+        + marshal.dumps(code)
+    )
+    write(rewritten, content)
+    manifest = sanitize_generated_python_caches(task)
+    assert manifest["removed_files"][0]["source"] == "tests/test_contract.py"
+    assert manifest["removed_files"][0]["sha256"] == hashlib.sha256(content).hexdigest()
+    assert not rewritten.exists() and source.exists()

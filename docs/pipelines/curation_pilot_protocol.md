@@ -206,3 +206,13 @@ feedback, with further shell exploration unavailable. A shortened evidence
 excerpt is marked explicitly, and full observations remain in the run directory.
 `design-phases.json` records phase allocations, transitions, outcomes and costs. A saved design remains a structural milestone only:
 independent review and executable evidence must still establish task validity.
+
+
+The subsequent full conversion reached a complete semantic submission after an
+additional mechanical issue: pytest's assertion-rewritten cache names include a
+dotted pytest version, which the original importlib-based parser rejected. The
+future sanitizer recognizes source-backed CPython cache names carrying released
+pytest versions (for example `test_contract.cpython-312-pytest-8.4.2.pyc`). It still
+rejects malformed names, orphan bytecode and links before deleting any files. Its
+sanitation receipt uses policy version 2. The running frozen runtime was not
+modified; its author removed the cache autonomously within the mechanical allowance.

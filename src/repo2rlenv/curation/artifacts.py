@@ -255,10 +255,22 @@ def sanitize_generated_python_caches(path: Path) -> dict:
         if relative.parts[0] not in {"tests", "solution"} or file.suffix not in {".pyc", ".pyo"}:
             continue
         if file.parent.name == "__pycache__":
-            try:
-                source = Path(importlib.util.source_from_cache(str(file.with_suffix(".pyc"))))
-            except ValueError as exc:
-                raise ValueError(f"Invalid generated Python cache path: {relative}") from exc
+            if re.search(r"\.[^.]*-pytest-", file.name):
+                # Pytest assertion rewriting adds its dotted release version to
+                # the CPython cache tag; importlib only understands PEP 3147 tags.
+                # Do not treat an arbitrary dotted suffix as removable bytecode.
+                rewritten = re.fullmatch(
+                    r"(?P<stem>[^/\\]+)\.cpython-[0-9]+-pytest-[0-9]+\.[0-9]+\.[0-9]+\.py[co]",
+                    file.name,
+                )
+                if rewritten is None:
+                    raise ValueError(f"Invalid generated Python cache path: {relative}")
+                source = file.parent.parent / (rewritten["stem"] + ".py")
+            else:
+                try:
+                    source = Path(importlib.util.source_from_cache(str(file.with_suffix(".pyc"))))
+                except ValueError as exc:
+                    raise ValueError(f"Invalid generated Python cache path: {relative}") from exc
         else:
             source = file.with_suffix(".py")
         if source not in files:
@@ -294,7 +306,7 @@ def sanitize_generated_python_caches(path: Path) -> dict:
             directory.rmdir()
             removed_directories.append(relative.as_posix())
     return {
-        "policy_version": 1,
+        "policy_version": 2,
         "removed_files": removed,
         "removed_directories": sorted(removed_directories),
     }
