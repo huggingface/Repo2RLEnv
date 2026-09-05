@@ -30,9 +30,15 @@ TestStatus = Literal["PASSED", "FAILED", "SKIPPED", "ERROR"]
 _STATUSES = ("PASSED", "FAILED", "SKIPPED", "ERROR")
 
 # Verbose progress format: `tests/foo.py::test_x PASSED  [12%]` or `... FAILED`
-# Test names contain alphanumerics, _, /, ., ::, [, ], -, +
-# We require AT LEAST ONE non-whitespace token followed by whitespace + STATUS.
-_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
+# Anchor the status to pytest's trailing reason/progress fields, so spaces and
+# status words inside a parameter ID remain part of the name.
+_VERBOSE_RE = re.compile(
+    r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
+    r"(?:\s+\(.*\))?(?:\s+\[\s*\d+%\])?$"
+)
+# Consume a bracketed parameter suffix before looking for the diagnostic dash.
+# Lazy matching keeps brackets in the diagnostic from becoming part of the ID.
+_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
 
 
 def parse_pytest(log: str) -> dict[str, TestStatus]:
@@ -41,8 +47,8 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
     Notes:
       - Last-write-wins. A test that appears in both progress AND summary
         ends up as whichever appeared last (typically summary, which is fine).
-      - SKIPPED lines like `SKIPPED [1] tests/foo.py:42` have the [N] count
-        prefix stripped so the test name is the third token, not '[1]'.
+      - SKIPPED lines like `SKIPPED [1] tests/foo.py:42` record the file
+        location rather than the count prefix or skip reason.
       - Lines like `FAILED tests/foo.py::test_x - AssertionError: ...`
         get the dash chunk stripped to keep the test name clean.
       - Returns an empty dict for empty/malformed input. Caller decides what
@@ -57,28 +63,22 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
             continue
 
         # --- format (2): summary lines (STATUS first) ---
-        # Has to be checked BEFORE the verbose regex because a summary line
-        # like "PASSED tests/foo.py::test_a" would also match the verbose
-        # pattern (with name="PASSED" — wrong).
+        # Handle the leading status separately from the full node ID.
         leading_status: TestStatus | None = None
         for st in _STATUSES:
             if line.startswith(st + " ") or line == st:
                 leading_status = st  # type: ignore[assignment]
                 break
         if leading_status is not None:
-            work = line
-            if leading_status == "FAILED" and " - " in work:
-                work = work.split(" - ", 1)[0]
-            tokens = work.split()
-            if len(tokens) < 2:
-                continue
-            test_name = tokens[1]
-            # SKIPPED [N] file:line  → the [N] is a count, real name is tokens[2]
-            if test_name.startswith("[") and test_name.endswith("]"):
-                if len(tokens) < 3:
+            work = line[len(leading_status) :].strip()
+            if leading_status == "SKIPPED" and re.match(r"^\[\d+\](?:\s|$)", work):
+                # Folded skips report a file location, not a parametrized ID.
+                tokens = work.split(maxsplit=2)
+                if len(tokens) < 2:
                     continue
-                test_name = tokens[2]
-            out[test_name] = leading_status
+                out[tokens[1]] = leading_status
+            elif m := _SUMMARY_NAME_RE.match(work):
+                out[m.group("name")] = leading_status
             continue
 
         # --- format (1): verbose progress (NAME first, STATUS after) ---
