@@ -12,7 +12,7 @@ import pytest
 
 from repo2rlenv.curation.agent import IncompleteModelResponse
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
-from repo2rlenv.curation.models import VerifierReview
+from repo2rlenv.curation.models import VerifierPreflightReview, VerifierReview
 
 verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
 
@@ -24,7 +24,28 @@ def write(path: Path, text: str | bytes) -> Path:
 
 
 def feedback(*, passed=True):
-    return VerifierReview(
+    return VerifierPreflightReview(
+        authority_checks=[
+            {
+                "requirement_id": "sum",
+                "authoritative_input": None,
+                "competing_input": None,
+                "public_condition": "Summation and differentiation of the provided input",
+                "discordant_fixture": None,
+                "expected_observation": None,
+                "conditional_shortcut": None,
+                "distinguishing_test": None,
+                "result": "not_applicable",
+                "reason": "This requirement concerns one input sum and differentiation, with no competing authority or source precedence.",
+                "evidence": [
+                    {
+                        "path": "instruction.md",
+                        "line": 1,
+                        "quote": "The update must be differentiable and return the input sum.",
+                    }
+                ],
+            }
+        ],
         score=4 if passed else 2,
         blockers=[] if passed else ["tests/test_contract.py does not observe the gradient"],
         repairs=[] if passed else ["Observe a nondegenerate loss gradient in the protected test"],
@@ -67,7 +88,7 @@ async def read_all(kwargs, *, skip=None):
 def setup(tmp_path, monkeypatch):
     task, root = tmp_path / "task", tmp_path / "candidate"
     write(task / "instruction.md", "The update must be differentiable and return the input sum.")
-    write(task / "contract.json", '{"requirements": [{"tests": ["test_sum"]}]}')
+    write(task / "contract.json", '{"requirements": [{"id": "sum", "tests": ["test_sum"]}]}')
     write(task / "tests/test_contract.py", "def test_sum():\n    assert 1 + 1 == 2\n")
     write(task / "tests/helpers/data.py", "DATA = [1, 2, 3]\n")
     write(task / "tests/fixture.json", '{"value": 3}')
@@ -115,7 +136,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
-    assert record["identity"]["policy_version"] == 7
+    assert record["identity"]["policy_version"] == 8
     assert record["identity"]["inference"]["max_tokens"] == 32_000
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
@@ -275,7 +296,7 @@ async def test_read_progress_tracks_unicode_gaps_overlaps_and_completion(setup):
         assert "Read progress: 10/10 files complete. All evidence read" in page
         assert "missing=" not in page
         assert validate(feedback(passed=False).model_dump_json()) is None
-        assert validate("not JSON") is None
+        assert "input-authority worksheet" in validate("not JSON")
         return state(feedback(passed=False))
 
     s.agent.side_effect = judge
@@ -306,11 +327,13 @@ async def test_incomplete_final_diagnostic_names_exact_unread_range(setup):
 @pytest.mark.asyncio
 async def test_progress_at_file_limit_never_truncates_recorded_evidence(setup, monkeypatch):
     s = setup
-    names = [f"tests/{index:02d}-" + "x" * 180 + ".py" for index in range(63)]
+    names = [f"tests/{index:02d}-" + "x" * 180 + ".py" for index in range(61)]
     # Long headers must reduce the actual recorded page size, not cause agent truncation.
     long_name = "tests/" + "nested/" * 2100 + "data.py"
     texts = dict.fromkeys(names, "abc")
     texts[long_name] = "β" * 25_000
+    texts["instruction.md"] = (s.task / "instruction.md").read_text()
+    texts["contract.json"] = (s.task / "contract.json").read_text()
     monkeypatch.setattr(verifier, "_snapshot", lambda task: texts)
 
     async def judge(**kwargs):
@@ -326,7 +349,7 @@ async def test_progress_at_file_limit_never_truncates_recorded_evidence(setup, m
         assert "additional missing ranges omitted" in progress
         assert len(progress) <= verifier.MAX_PROGRESS_CHARS
         await read_all(kwargs)
-        assert kwargs["validate_final"]("{}") is None
+        assert "input-authority worksheet" in kwargs["validate_final"]("{}")
         return state()
 
     s.agent.side_effect = judge
@@ -581,7 +604,10 @@ def test_required_repairs_prevent_passing_despite_high_score(score):
 def test_optional_improvements_do_not_block_complete_verifier():
     result = feedback().model_copy(update={"optional_improvements": ["Improve test names"]})
     assert result.passed
-    assert VerifierReview.model_validate_json(result.model_dump_json()) == result
+    assert (
+        VerifierReview.model_validate_json(result.model_dump_json()).model_dump()
+        == result.model_dump()
+    )
 
 
 def test_empty_optional_improvement_is_invalid():

@@ -98,6 +98,15 @@ Required output:
   Isolate independently configurable paths; an active weight path can hide broken
   bias-only initialization. Use the public input dtypes in probes. A projection operand
   observer must accept both multiplication orientations when both satisfy the contract.
+  Preflight requires an input-authority worksheet for every contract requirement. When
+  one public input takes precedence over configuration, defaults, cached or secondary
+  inputs, make them disagree in a fixture under each materially different public
+  condition. Derive the expected observation independently and identify the protected
+  assertion rejecting a shortcut that substitutes the competing input only in that
+  condition. A plain-path test cannot establish an alternate-path promise. Use grounded
+  not-applicable reasoning when no authority interaction exists; do not invent precedence
+  or enumerate arbitrary Cartesian products. Missing observations return as author repair
+  feedback under the existing verifier standard.
   Choose inputs that distinguish plausible wrong implementations: for weighted means,
   use nonuniform nonzero weights and total weight below one; for energy thresholds,
   choose boundaries where raw and squared singular values select different ranks.

@@ -216,3 +216,39 @@ pytest versions (for example `test_contract.cpython-312-pytest-8.4.2.pyc`). It s
 rejects malformed names, orphan bytecode and links before deleting any files. Its
 sanitation receipt uses policy version 2. The running frozen runtime was not
 modified; its author removed the cache autonomously within the mechanical allowance.
+
+
+The full synthesis diagnostic subsequently ended at its three-submission ceiling
+for $4.061153, with no admitted task or isolated Harbor/solver trial. Independent
+review caused real automatic improvements: fixed key/shape anchors, observed raw
+compile prefixes, a consistent collection boundary, and same-depth leaf-collision
+coverage. Its final rejection identified a deeper dotted-path shortcut. A separate
+audit found that compiled fixtures still gave the configuration and checkpoint the
+same target selection, leaving conditional checkpoint bypass indistinguishable.
+Neither result establishes that the PR cannot become a useful environment.
+
+Further experiments must preserve those outcomes and costs. A new experiment may
+explicitly allocate more repair attempts within a declared monetary ceiling; it
+must not rewrite the old allowance or count a repeated source as fresh-source yield.
+
+
+### Input authority evidence in verifier review
+
+Verifier policy 8 requires a structured worksheet covering every public contract
+requirement. For applicable input interactions, it identifies the authoritative
+input, a competing input/default/configuration, the relevant public condition,
+a fixture where those inputs differ, the independently expected observation,
+a conditional shortcut, and the mapped test that distinguishes it. Requirements
+without such an interaction receive a grounded `not_applicable` explanation.
+Only materially promised conditions belong in this inventory; it does not require
+an arbitrary Cartesian product of all options.
+
+Each row cites exact frozen source text and the public contract. The host resolves
+unique quotes to line numbers and validates requirement/test references and cited
+test or helper locations. This checks evidence references, not semantic truth:
+the judge must still determine whether the actual assertion distinguishes the
+shortcut. A declared gap becomes required author feedback and cannot receive a
+passing score. Existing records remain readable, but a previous-policy cache is
+not reused as a current worksheet review. No reward function or overall validity
+threshold changes. Improved live detection must be measured separately from
+schema and reference validation.

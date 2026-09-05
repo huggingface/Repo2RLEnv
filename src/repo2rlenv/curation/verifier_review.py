@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -9,7 +10,7 @@ from pathlib import Path
 from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
 from repo2rlenv.curation.budget import Budget
 from repo2rlenv.curation.inference import inference_settings
-from repo2rlenv.curation.models import VerifierReview
+from repo2rlenv.curation.models import VerifierPreflightReview, VerifierReview
 from repo2rlenv.curation.specification_review import _coverage_complete, _save
 
 MAX_INPUT_BYTES = 128_000
@@ -23,7 +24,7 @@ MAX_TOOL_RESPONSE_CHARS = 24_000
 MAX_REVIEW_COST = 4
 MAX_REVIEW_TURNS = 10
 MAX_REVIEW_OUTPUT_TOKENS = 32_000
-POLICY_VERSION = 7
+POLICY_VERSION = 8
 RECONSIDER_PASS = """Before finalizing this tentative pass, reconsider each item you called optional
 against the solver-visible instruction and the actual assertions you read. If the item identifies
 a concrete wrong implementation that passes, or a permitted implementation that fails, it is a
@@ -56,6 +57,23 @@ assertion distinguishes each one, or why none does. Prioritize consequential cas
 checklist. Check constant/zero outputs, ignored inputs or options, wrong numerical formulas,
 incorrect factor/token shapes, detached gradients, masking/state/lifecycle omissions, and
 permitted equivalent designs where relevant to this task. In particular:
+- Complete authority_checks for EVERY contract requirement ID, using multiple rows only for
+  materially different public conditions. Identify the authoritative input and a competing
+  input/default/cache/configuration that a shortcut could substitute. Specify a concrete
+  fixture where they disagree, the independent expected observation, and a plausible shortcut
+  that ignores authority only under that condition. An unwrapped/disabled/plain-path test
+  does not distinguish a shortcut restricted to a wrapped/enabled/alternate path. Identical
+  competing inputs do not establish authority, even if names, prefixes or shapes are checked.
+  For distinguished, name the exact mapped protected test and quote its actual assertion
+  with raw source quotes and file paths; omit line to let the host locate a unique quote,
+  or supply its exact one-based line when a quote repeats. Trace fixtures through helpers
+  and run_probe. For dynamically resolved helpers, cite both the mapped test callsite and
+  the helper assertion and explain the linkage; host reference checks are not semantic proof.
+  Cite the instruction or contract supporting the public condition as well. For gap, explain
+  the missing observation and provide the conflicting fixture as a required repair. When a
+  requirement has no input-authority interaction, use not_applicable with a grounded reason
+  and a quoted public-contract citation. Do not invent precedence or test arbitrary Cartesian
+  products of options. Public semantic coverage, not private implementation layout, is required.
 - Shape-only full-model checks cannot establish numerical model behavior. Comparing two paths
   through the same submitted math is not an independent oracle. Reading submitted parameters
   can test arithmetic relationships, but all-zero or identical fixture values may hide mistakes.
@@ -113,7 +131,8 @@ never move a supported contract violation there to preserve a passing score.
 This is an early repair preflight, never admission. The independent trajectory review, real
 oracle/baseline/mutation/equivalent/solver/adversary trials and execution gates still follow.
 Return one complete JSON object matching the schema, without markdown. Keep at most 8 items
-per list and at most 90 words per item; group related findings without dropping supported blockers.
+per narrative list and at most 90 words per narrative item. The authority worksheet may have
+up to 64 rows to cover requirement IDs and material conditions; keep each field concise.
 """
 
 
@@ -123,6 +142,201 @@ class VerifierReviewError(RuntimeError):
 
 class VerifierInputError(VerifierReviewError):
     """An author can repair the task files before another review is attempted."""
+
+
+def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, bool]:
+    """Conservative module-local links; unresolved calls remain a judge responsibility."""
+    from pathlib import PurePosixPath
+
+    definitions, imports = {}, {}
+    for path, text in texts.items():
+        if not path.startswith("tests/") or not path.endswith(".py"):
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        definitions[path] = {
+            node.name: node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                definitions[path].update(
+                    {
+                        node.name + "." + method.name: method
+                        for method in node.body
+                        if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    }
+                )
+        aliases = {}
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    aliases[alias.asname or alias.name.split(".")[0]] = alias.name
+            elif isinstance(node, ast.ImportFrom):
+                prefix = node.module or ""
+                if node.level:
+                    parent = PurePosixPath(path).parent
+                    for _ in range(node.level - 1):
+                        parent = parent.parent
+                    prefix = ".".join((*parent.parts, prefix)).strip(".")
+                for alias in node.names:
+                    if alias.name != "*":
+                        aliases[alias.asname or alias.name] = prefix + "." + alias.name
+        imports[path] = aliases
+
+    def dotted(node):
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            base = dotted(node.value)
+            return base + "." + node.attr if base else ""
+        return ""
+
+    def expanded(path, name):
+        first, _, tail = name.partition(".")
+        return imports[path].get(first, first) + ("." + tail if tail else "")
+
+    def resolve(path, name, context=""):
+        if name.startswith("self.") and "." in context:
+            name = context.rpartition(".")[0] + name[len("self") :]
+        if name in definitions[path]:
+            return path, name
+        qualified = expanded(path, name)
+        module, _, function = qualified.rpartition(".")
+        for candidate in (
+            module.replace(".", "/") + ".py",
+            "tests/" + module.replace(".", "/") + ".py",
+        ):
+            if function in definitions.get(candidate, {}):
+                return candidate, function
+        return None
+
+    def body_nodes(function):
+        pending = list(function.body)
+        while pending:
+            node = pending.pop()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            yield node
+            pending.extend(ast.iter_child_nodes(node))
+
+    def add(table, path, node):
+        table.setdefault(path, set()).update(
+            range(node.lineno, (node.end_lineno or node.lineno) + 1)
+        )
+
+    pending = [
+        (path, name)
+        for path, names in definitions.items()
+        for name in names
+        if name.rsplit(".", 1)[-1] == test
+    ]
+    found = bool(pending)
+    checks, seen = {}, set()
+    while pending:
+        key = pending.pop()
+        if key in seen:
+            continue
+        seen.add(key)
+        path, name = key
+        function = definitions[path][name]
+        fixture_names = [arg.arg for arg in function.args.args]
+        for decorator in function.decorator_list:
+            if (
+                isinstance(decorator, ast.Call)
+                and expanded(path, dotted(decorator.func)) == "pytest.mark.usefixtures"
+            ):
+                fixture_names.extend(
+                    arg.value
+                    for arg in decorator.args
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                )
+        for fixture in fixture_names:
+            target = resolve(path, fixture)
+            if target:
+                pending.append(target)
+        for node in body_nodes(function):
+            if isinstance(node, (ast.Assert, ast.Call)):
+                add(checks, path, node)
+            if isinstance(node, ast.Call):
+                target = resolve(path, dotted(node.func), name)
+                if target:
+                    pending.append(target)
+    return checks, found
+
+
+def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str, str]) -> None:
+    """Validate references, not semantic truth; the judge must trace fixture behavior."""
+    rows = json.loads(texts["contract.json"])["requirements"]
+    if (
+        not isinstance(rows, list)
+        or not rows
+        or any(
+            not isinstance(row, dict)
+            or not isinstance(row.get("id"), str)
+            or not row["id"].strip()
+            or not isinstance(row.get("tests"), list)
+            or not row["tests"]
+            or any(not isinstance(test, str) or not test.strip() for test in row["tests"])
+            for row in rows
+        )
+    ):
+        raise ValueError("Input authority inventory needs requirement IDs and mapped test names")
+    requirements = {row["id"]: set(row["tests"]) for row in rows}
+    if len(requirements) != len(rows):
+        raise ValueError("Input authority inventory requires unique requirement IDs")
+    actual = {row.requirement_id for row in review.authority_checks}
+    if actual != set(requirements):
+        raise ValueError(
+            f"Input authority inventory must cover every requirement: expected {sorted(requirements)}, received {sorted(actual)}"
+        )
+    for row in review.authority_checks:
+        if not any(e.path in {"instruction.md", "contract.json"} for e in row.evidence):
+            raise ValueError("Input authority condition needs a public-contract citation")
+        assertion_cited = False
+        assertions, test_found = (
+            _authority_reference_lines(texts, row.distinguishing_test)
+            if row.distinguishing_test
+            else ({}, False)
+        )
+        for evidence in row.evidence:
+            if evidence.path not in texts or not evidence.quote.strip():
+                raise ValueError(
+                    "Input authority citation needs a listed file and exact nonempty quote"
+                )
+            text = texts[evidence.path]
+            if evidence.line is None:
+                offset = text.find(evidence.quote)
+                if offset < 0 or text.find(evidence.quote, offset + 1) >= 0:
+                    raise ValueError(
+                        f"Input authority quote must uniquely identify source in {evidence.path}; provide a longer quote or exact line"
+                    )
+                evidence.line = text.count("\n", 0, offset) + 1
+            lines = text.splitlines()
+            count = evidence.quote.count("\n") + 1
+            excerpt = "\n".join(lines[evidence.line - 1 : evidence.line - 1 + count])
+            if evidence.line > len(lines) or evidence.quote not in excerpt:
+                raise ValueError(
+                    f"Input authority quote does not match {evidence.path}:{evidence.line}"
+                )
+            assertion_cited |= bool(
+                set(range(evidence.line, evidence.line + count))
+                & assertions.get(evidence.path, set())
+            )
+        if row.distinguishing_test is not None and (
+            row.distinguishing_test not in requirements[row.requirement_id] or not test_found
+        ):
+            raise ValueError(f"Input authority test must exist and map to {row.requirement_id}")
+        # Calls include numerical/custom assertions and dynamic helper callsites.
+        # Referencing such a statement is not proof of semantic discrimination;
+        # the reviewer must trace the fixture and explain the expected observation.
+        if row.result == "distinguished" and not assertion_cited:
+            raise ValueError(
+                "Distinguished input authority check must cite an assertion or call reachable from its mapped test or explicitly resolved helper/fixture"
+            )
 
 
 def _directory(path: Path) -> None:
@@ -286,13 +500,16 @@ def _read_progress(texts: dict[str, str], reads: dict[str, list[list[int]]]) -> 
     return "\n".join(lines)
 
 
-def _check_reconsideration(record: dict, state: dict, review: VerifierReview) -> None:
+def _check_reconsideration(
+    record: dict, state: dict, review: VerifierReview, texts: dict[str, str]
+) -> None:
     preliminary = record.get("preliminary_review")
     if preliminary is None:
         if review.passed and review.optional_improvements:
             raise ValueError("tentative pass with optional findings was not reconsidered")
         return
-    initial = VerifierReview.model_validate(preliminary)
+    initial = VerifierPreflightReview.model_validate(preliminary)
+    _check_authority_inventory(initial, texts)
     if not initial.passed or not initial.optional_improvements:
         raise ValueError("invalid preliminary reconsideration evidence")
     messages = state["messages"]
@@ -300,12 +517,11 @@ def _check_reconsideration(record: dict, state: dict, review: VerifierReview) ->
         if messages[index] != {"role": "user", "content": RECONSIDER_PASS}:
             continue
         previous = messages[index - 1]
-        if (
-            previous.get("role") == "assistant"
-            and not previous.get("tool_calls")
-            and VerifierReview.model_validate_json(previous.get("content") or "") == initial
-        ):
-            return
+        if previous.get("role") == "assistant" and not previous.get("tool_calls"):
+            prior = VerifierPreflightReview.model_validate_json(previous.get("content") or "")
+            _check_authority_inventory(prior, texts)
+            if prior == initial:
+                return
     raise ValueError("missing bounded reconsideration conversation")
 
 
@@ -324,19 +540,18 @@ def _cached(folder: Path, identity: dict, texts: dict[str, str]) -> VerifierRevi
         saved = json.loads((folder / "input.json").read_text())
         if saved != {"identity": identity, "texts": texts}:
             raise ValueError("cached frozen inputs do not match")
-        review = VerifierReview.model_validate(record["review"])
+        review = VerifierPreflightReview.model_validate(record["review"])
+        _check_authority_inventory(review, texts)
         state = json.loads((folder / "state.json").read_text())
         last = state["messages"][-1]
-        if (
-            last.get("role") != "assistant"
-            or last.get("tool_calls")
-            or VerifierReview.model_validate_json(last.get("content") or "") != review
-        ):
+        final_review = VerifierPreflightReview.model_validate_json(last.get("content") or "")
+        _check_authority_inventory(final_review, texts)
+        if last.get("role") != "assistant" or last.get("tool_calls") or final_review != review:
             raise ValueError("cached final state does not match the review")
         events = [json.loads(line) for line in (folder / "trace.jsonl").read_text().splitlines()]
         if events[-1] != {"kind": "verifier_review_finished", "status": "completed"}:
             raise ValueError("cached trace is incomplete")
-        _check_reconsideration(record, state, review)
+        _check_reconsideration(record, state, review, texts)
         return review
     except (OSError, KeyError, IndexError, TypeError, ValueError) as exc:
         raise VerifierReviewError(f"Cached verifier review unavailable: {exc}") from exc
@@ -361,7 +576,7 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
         raise
 
     tool = _read_tool(texts)
-    schema = VerifierReview.model_json_schema()
+    schema = VerifierPreflightReview.model_json_schema()
     identity = {
         "policy_version": POLICY_VERSION,
         "policy_sha256": hashlib.sha256(
@@ -424,16 +639,23 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
     def validate_final(content: str) -> str | None:
         if not _complete(texts, reads):
             return _read_progress(texts, reads)
-        if "preliminary_review" not in record:
-            try:
-                proposed = VerifierReview.model_validate_json(content)
-            except ValueError:
-                return None  # Malformed final JSON still fails closed below.
-            if proposed.passed and proposed.optional_improvements:
-                record["preliminary_review"] = proposed.model_dump()
-                _save(result_path, record)
-                event("verifier_reconsideration_requested", review=proposed.model_dump())
-                return RECONSIDER_PASS
+        try:
+            proposed = VerifierPreflightReview.model_validate_json(content)
+            _check_authority_inventory(proposed, texts)
+        except (ValueError, KeyError, TypeError) as exc:
+            return (
+                "Complete or correct the required input-authority worksheet and its exact references: "
+                + str(exc)[:3000]
+            )
+        if (
+            "preliminary_review" not in record
+            and proposed.passed
+            and proposed.optional_improvements
+        ):
+            record["preliminary_review"] = proposed.model_dump()
+            _save(result_path, record)
+            event("verifier_reconsideration_requested", review=proposed.model_dump())
+            return RECONSIDER_PASS
         return None
 
     prompt = (
@@ -470,8 +692,9 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
             )
         if _snapshot(task) != texts:
             raise ValueError("verifier evidence changed during the review")
-        result = VerifierReview.model_validate_json(last.get("content") or "")
-        _check_reconsideration(record, state, result)
+        result = VerifierPreflightReview.model_validate_json(last.get("content") or "")
+        _check_authority_inventory(result, texts)
+        _check_reconsideration(record, state, result, texts)
         record.update(status="completed", review=result.model_dump())
         return result
     except BaseException as exc:

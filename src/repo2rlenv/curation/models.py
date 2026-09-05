@@ -121,10 +121,64 @@ class SpecificationReview(StrictModel):
         return self.score >= 3 and not self.blockers
 
 
+class AuthorityEvidence(StrictModel):
+    path: str
+    line: int | None = Field(
+        default=None,
+        ge=1,
+        strict=True,
+        description="Optional exact one-based line; omit when quote occurs uniquely in the file",
+    )
+    quote: str = Field(
+        min_length=1,
+        description="Exact raw source text, not a paraphrase; use a longer quote when ambiguous",
+    )
+
+
+class InputAuthorityCheck(StrictModel):
+    requirement_id: str
+    authoritative_input: str | None
+    competing_input: str | None
+    public_condition: str = Field(min_length=10)
+    discordant_fixture: str | None
+    expected_observation: str | None
+    conditional_shortcut: str | None
+    distinguishing_test: str | None
+    result: Literal["distinguished", "gap", "not_applicable"]
+    reason: str = Field(min_length=30)
+    evidence: list[AuthorityEvidence] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def concrete_challenge(self) -> InputAuthorityCheck:
+        if (
+            not self.requirement_id.strip()
+            or not self.public_condition.strip()
+            or not self.reason.strip()
+        ):
+            raise ValueError("Input authority checks require identifiers and grounded explanations")
+        if self.result != "not_applicable":
+            for name in (
+                "authoritative_input",
+                "competing_input",
+                "discordant_fixture",
+                "expected_observation",
+                "conditional_shortcut",
+            ):
+                value = getattr(self, name)
+                if value is None or not value.strip():
+                    raise ValueError(f"Applicable input authority check requires {name}")
+        if self.result == "distinguished" and not (self.distinguishing_test or "").strip():
+            raise ValueError("Distinguished input authority check needs a protected test")
+        return self
+
+
 class VerifierReview(SpecificationReview):
     """A high score cannot override an outstanding verifier repair request."""
 
     repairs: list[str] = Field(description="Required corrections; any entry prevents passing.")
+    # Retained historical records remain readable. The current preflight uses
+    # VerifierPreflightReview below, where the worksheet is mandatory.
+    authority_checks: list[InputAuthorityCheck] | None = None
     optional_improvements: list[str] = Field(
         default_factory=list,
         description=(
@@ -141,7 +195,43 @@ class VerifierReview(SpecificationReview):
 
     @property
     def passed(self) -> bool:
-        return super().passed and not self.repairs
+        return (
+            super().passed
+            and not self.repairs
+            and not any(check.result == "gap" for check in self.authority_checks or [])
+        )
+
+
+class VerifierPreflightReview(VerifierReview):
+    authority_checks: list[InputAuthorityCheck] = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="before")
+    @classmethod
+    def authority_gaps_are_required_repairs(cls, value):
+        if not isinstance(value, dict):
+            return value
+        checks = [
+            InputAuthorityCheck.model_validate(row) for row in value.get("authority_checks") or []
+        ]
+        gaps = [row for row in checks if row.result == "gap"]
+        if not gaps:
+            return value
+        value = dict(value)
+        if not isinstance(value.get("repairs"), list):
+            return value  # Preserve ordinary schema errors instead of coercing them.
+        repairs = list(value["repairs"])
+        for row in gaps:
+            repair = (
+                f"Input authority gap [{row.requirement_id}] under {row.public_condition}: "
+                f"{row.reason} Add a distinguishing observation for {row.discordant_fixture}; "
+                f"expected {row.expected_observation}. Shortcut to reject: {row.conditional_shortcut}."
+            )
+            if repair not in repairs:
+                repairs.append(repair)
+        value["repairs"] = repairs
+        if type(value.get("score")) is int:
+            value["score"] = min(value["score"], 2)
+        return value
 
 
 class Review(StrictModel):
