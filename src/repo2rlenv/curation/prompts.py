@@ -60,7 +60,9 @@ Required output:
   print ONE JSON value. Put imports/computation in code_string; put ALL assertions
   and expected results in the protected pytest function, outside that string.
   For example, code_string can import a target function, call it on payload, and
-  print(json.dumps(result)); the test then asserts observed == expected. Batch many
+  print(json.dumps(result)); the test then asserts observed == expected.
+  The return value is already JSON-decoded: consume that object directly, rather
+  than applying json.loads again to an observed dict or list. Batch many
   related inputs into one probe to avoid repeatedly importing torch. Workers cannot
   read /tests or change the pytest process/reward file. Each probe defaults to 60s,
   accepts timeout= up to 120s, and supports at most 1MB JSON input/output. All tensors
@@ -90,14 +92,22 @@ Required output:
   recreating a freshly initialized model must not satisfy a save/load requirement.
   For lifecycle operations, observe the newly requested state as well as preservation
   of the old state. Test promised remote metadata behavior with offline service stubs.
+  When object reuse is promised, keep external references and check object identity;
+  equal identifiers/counters alone also accept copies. When another configuration
+  attribute must stay untouched, initialize it to a distinct nonempty sentinel.
   Choose inputs that distinguish plausible wrong implementations: for weighted means,
   use nonuniform nonzero weights and total weight below one; for energy thresholds,
   choose boundaries where raw and squared singular values select different ranks.
   Observe every promised output, including shapes, metadata, dtype and gradients where
   relevant. Converting a loss to float alone cannot verify that it remains differentiable.
+  Test promised no_grad behavior with trainable inputs or parameters: outputs from
+  non-trainable inputs cannot distinguish an implementation that wrongly enables grad.
   For memory/chunking promises, measure deterministic allocation or projection-shape
   observables on small CPU inputs, not wall-clock speed. An equivalent control must
   preserve resource behavior as well as numeric outputs when both are required.
+  Small individual chunks do not establish a bound on total retained activations;
+  ordinary autograd may retain every chunk. Distinguish storage aliasing and permitted
+  bookkeeping from vocabulary activations, and compare at more than one problem size.
   No inspecting source strings as a substitute for behavioral testing. The original
   repo conftest/plugins are disabled. Only the worker imports the editable repository.
   Don't write test.sh or probe.py: the harness owns the isolated reward wrapper.

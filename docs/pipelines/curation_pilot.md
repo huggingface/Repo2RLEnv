@@ -81,6 +81,14 @@ were concrete false-rejection hypotheses from code inspection, not demonstrated
 reward exploits. They triggered separate repairs and additional positive controls.
 Each repaired task still needs full validation on its new digest.
 
+**Measure the promised behavior, not a proxy that cannot distinguish it.** A
+`no_grad` check needs trainable inputs or parameters; otherwise forced gradient
+enabling is invisible. Pool reuse needs object-identity observations, since copies
+can preserve counters. Small chunk widths do not bound total retained activation
+storage. A remote diagnostic also found that legitimate checkpoint RNG snapshots
+accounted for an apparent activation-budget failure exactly; the repair retains
+the activation limit and excludes only tracked, unchanged RNG bookkeeping.
+
 **Protect assertions from submitted imports.** A demonstrated pytest monkeypatch
 shortcut initially earned reward. After separating the protected pytest process
 from the unprivileged interpreter importing the submission, that same shortcut
