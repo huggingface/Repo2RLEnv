@@ -16,6 +16,7 @@ from repo2rlenv.curation.campaign import (
     CandidateDeferred,
     campaign_lock,
     curate_one,
+    latest_checkpoint,
     save,
 )
 from repo2rlenv.curation.external_agent import runtime_path
@@ -393,7 +394,7 @@ async def compare(
             if key in completed:
                 return
             parent = out / "candidates" / runtime / source["id"]
-            previous = sorted(parent.glob("**/task/contract.json"), key=lambda p: p.stat().st_mtime)
+            seed_task = latest_checkpoint(parent)
             root = parent / str(time.time_ns())
             budget = scoped_budget(source["url"], runtime)
             started = time.monotonic()
@@ -406,7 +407,7 @@ async def compare(
                     root,
                     config.model_copy(update={"author_runtime": runtime}),
                     budget,
-                    seed_task=previous[-1].parent if previous else None,
+                    seed_task=seed_task,
                 )
             except CandidateDeferred as exc:
                 result = {"status": "deferred", "reasons": [str(exc)]}

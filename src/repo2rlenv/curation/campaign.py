@@ -87,6 +87,64 @@ def _regular_tree(path: Path) -> None:
             raise ValueError(f"Non-regular evidence entry: {entry}")
 
 
+def latest_checkpoint(parent: Path) -> Path | None:
+    """Select the latest task in the newest usable timestamp-named attempt.
+
+    Resumed tasks preserve file mtimes, so those timestamps must never order
+    separate attempts. Only direct revision and validation-draft checkpoints
+    count; retained review archives and nested task copies are not candidates.
+    """
+    if parent.is_symlink() or not parent.is_dir():
+        return None
+    attempts = sorted(
+        (
+            path
+            for path in parent.iterdir()
+            if path.name.isascii()
+            and path.name.isdecimal()
+            and not path.is_symlink()
+            and path.is_dir()
+        ),
+        key=lambda path: (int(path.name), path.name),
+        reverse=True,
+    )
+    for attempt in attempts:
+        folders = [
+            (path, 1)
+            for path in attempt.glob("revision-*")
+            if path.name.removeprefix("revision-").isascii()
+            and path.name.removeprefix("revision-").isdecimal()
+        ]
+        drafts = attempt / "drafts"
+        if not drafts.is_symlink() and drafts.is_dir():
+            folders.extend((path, 0) for path in drafts.iterdir())
+        checkpoints = []
+        for folder, is_revision in folders:
+            task = folder / "task"
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            try:
+                if not (task / "contract.json").is_file():
+                    continue
+                _regular_tree(task)
+                # An author may change implementation files without changing
+                # the contract. Avoid checkpoint-directory mtimes, which also
+                # change when later trial or review evidence is persisted.
+                modified = max(
+                    path.stat().st_mtime_ns for path in task.rglob("*") if path.is_file()
+                )
+            except (OSError, ValueError):
+                continue
+            number = folder.name.removeprefix("revision-") if is_revision else folder.name
+            ordinal = int(number) if number.isascii() and number.isdecimal() else -1
+            # A tied revision retains evaluation evidence for the same export;
+            # numeric ordinals make revision-10/drafts/10 sort after 2.
+            checkpoints.append((modified, is_revision, ordinal, folder.name, task))
+        if checkpoints:
+            return max(checkpoints)[-1]
+    return None
+
+
 def _evidence_record(
     digest: str,
     trials: list[TrialEvidence],
@@ -768,8 +826,7 @@ async def _campaign(
         try:
             source = await asyncio.to_thread(resolve_pr, url)
             parent = out / "candidates" / source["id"]
-            previous = sorted(parent.glob("**/task/contract.json"), key=lambda p: p.stat().st_mtime)
-            seed_task = previous[-1].parent if previous else None
+            seed_task = latest_checkpoint(parent)
             candidate_dir = parent / str(time.time_ns())
             result = await curate_one(source, candidate_dir, config, scoped, seed_task)
             if result["status"] == "accepted":

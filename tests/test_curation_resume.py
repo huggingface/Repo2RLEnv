@@ -29,6 +29,112 @@ def write(path: Path, content: str) -> None:
     path.write_text(content)
 
 
+def checkpoint(path: Path, modified: int = 100) -> Path:
+    write(path / "contract.json", "{}")
+    os.utime(path / "contract.json", ns=(modified, modified))
+    return path
+
+
+@pytest.mark.parametrize("older_modified", [100, 999])
+def test_checkpoint_chooses_newest_attempt_before_preserved_file_mtimes(tmp_path, older_modified):
+    older = checkpoint(tmp_path / "9/revision-0/task")
+    newer = tmp_path / "10/revision-0/task"
+    shutil.copytree(older, newer)
+    os.utime(older / "contract.json", ns=(older_modified, older_modified))
+    assert campaign.latest_checkpoint(tmp_path) == newer
+
+
+def test_checkpoint_ignores_review_archives_and_nested_snapshots(tmp_path):
+    expected = checkpoint(tmp_path / "10/revision-1/task")
+    for path in (
+        "10/prior-review/task",
+        "10/prior-review/revision-99/task",
+        "10/snapshots/revision-99/task",
+        "10/drafts/2/snapshot/task",
+        "11/prior-review/revision-99/task",
+        "11/revision-1/nested/task",
+    ):
+        checkpoint(tmp_path / path, modified=999)
+    assert campaign.latest_checkpoint(tmp_path) == expected
+
+
+@pytest.mark.parametrize("latest", ["drafts/2", "revision-1"])
+def test_checkpoint_uses_latest_task_edits_not_later_review_evidence(tmp_path, latest):
+    draft = checkpoint(tmp_path / "10/drafts/2/task")
+    revision = checkpoint(tmp_path / "10/revision-1/task")
+    expected = tmp_path / "10" / latest / "task"
+    write(expected / "solution/solve.sh", "echo latest")
+    os.utime(expected / "solution/solve.sh", ns=(200, 200))
+    other = revision if expected == draft else draft
+    write(other.parent / "review.json", "{}")
+    os.utime(other.parent / "review.json", ns=(999, 999))
+    os.utime(other.parent, ns=(999, 999))
+    assert campaign.latest_checkpoint(tmp_path) == expected
+
+
+def test_checkpoint_ties_prefer_revision_then_numeric_ordinal(tmp_path):
+    checkpoint(tmp_path / "10/drafts/100/task")
+    checkpoint(tmp_path / "10/revision-2/task")
+    expected = checkpoint(tmp_path / "10/revision-10/task")
+    assert campaign.latest_checkpoint(tmp_path) == expected
+    shutil.rmtree(tmp_path / "10/revision-10")
+    shutil.rmtree(tmp_path / "10/revision-2")
+    checkpoint(tmp_path / "10/drafts/9/task")
+    assert campaign.latest_checkpoint(tmp_path) == tmp_path / "10/drafts/100/task"
+
+
+@pytest.mark.parametrize("incomplete", ["empty", "no_contract"])
+def test_checkpoint_falls_back_when_newest_attempt_has_no_task(tmp_path, incomplete):
+    expected = checkpoint(tmp_path / "10/revision-0/task")
+    (tmp_path / "11").mkdir()
+    if incomplete == "no_contract":
+        write(tmp_path / "11/revision-0/task/instruction.md", "unfinished export")
+    assert campaign.latest_checkpoint(tmp_path) == expected
+    shutil.rmtree(tmp_path / "10")
+    assert campaign.latest_checkpoint(tmp_path) is None
+
+
+@pytest.mark.parametrize("linked", ["attempt", "drafts", "checkpoint", "task", "contract", "file"])
+def test_checkpoint_rejects_symlinked_paths_and_contents(tmp_path, linked):
+    parent = tmp_path / "candidates"
+    expected = checkpoint(parent / "10/revision-0/task")
+    task = checkpoint(parent / "11/drafts/1/task", modified=999)
+    path = {
+        "attempt": parent / "11",
+        "drafts": parent / "11/drafts",
+        "checkpoint": task.parent,
+        "task": task,
+        "contract": task / "contract.json",
+        "file": task / "instruction.md",
+    }[linked]
+    if linked == "file":
+        write(path, "symlinked task content")
+    outside = tmp_path / "outside"
+    path.rename(outside)
+    path.symlink_to(outside, target_is_directory=outside.is_dir())
+    assert campaign.latest_checkpoint(parent) == expected
+    alias = tmp_path / "alias"
+    alias.symlink_to(parent, target_is_directory=True)
+    assert campaign.latest_checkpoint(alias) is None
+
+
+@pytest.mark.asyncio
+async def test_campaign_passes_newest_attempt_checkpoint_to_author(tmp_path, monkeypatch):
+    source = {"id": "example-project-1", "url": "https://github.com/example/project/pull/1"}
+    parent = tmp_path / "candidates" / source["id"]
+    older = checkpoint(parent / "9/revision-0/task")
+    newer = parent / "10/revision-0/task"
+    shutil.copytree(older, newer)
+    checkpoint(parent / "10/prior-review/task", modified=999)
+    (parent / "11").mkdir()
+    author = AsyncMock(return_value={"source": source["url"], "status": "rejected", "reasons": []})
+    monkeypatch.setattr(campaign, "curate_one", author)
+    monkeypatch.setattr(campaign, "resolve_pr", lambda _: source)
+    monkeypatch.setattr(campaign, "version", lambda _: "test")
+    await campaign.campaign([source["url"]], tmp_path, CampaignConfig(target=1))
+    assert author.await_args.args[-1] == newer
+
+
 def good_review() -> Review:
     return Review.model_validate(
         {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -114,6 +115,25 @@ def harness(tmp_path, monkeypatch):
         },
     )
     return out, config, calls, resolutions, controls
+
+
+@pytest.mark.asyncio
+async def test_comparison_passes_newest_attempt_checkpoint_to_each_author(harness):
+    out, config, calls, _, _ = harness
+    expected = {}
+    for runtime in comparison.RUNTIMES:
+        parent = out / "candidates" / runtime / SOURCE["id"]
+        older = parent / "9/revision-0/task"
+        write(older / "contract.json", {"source": "same copied task"})
+        os.utime(older / "contract.json", ns=(100, 100))
+        newer = parent / "10/revision-0/task"
+        shutil.copytree(older, newer)
+        write(parent / "10/prior-review/task/contract.json", {"archived": True})
+        (parent / "11").mkdir()
+        expected[runtime] = newer
+    await comparison.compare([URL], out, config)
+    assert len(calls) == 3
+    assert {call["runtime"]: call["seed"] for call in calls} == expected
 
 
 @pytest.mark.asyncio
