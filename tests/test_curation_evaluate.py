@@ -142,6 +142,7 @@ async def test_build_log_retrieval_is_bounded_and_failure_is_recorded(
 async def test_trial_preserves_primary_build_error_and_delivers_build_tail(
     tmp_path, monkeypatch, secondary
 ):
+    pytest.importorskip("harbor")
     from harbor.trial.trial import Trial
 
     task = tmp_path / "task"
@@ -208,6 +209,7 @@ async def test_trial_preserves_primary_build_error_and_delivers_build_tail(
 
 @pytest.mark.asyncio
 async def test_thrown_build_error_survives_log_persistence_failure(tmp_path, monkeypatch):
+    pytest.importorskip("harbor")
     from harbor.trial.trial import Trial
 
     class ImageBuildError(Exception):
