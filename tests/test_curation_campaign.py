@@ -58,7 +58,9 @@ async def test_terminal_failure_preserves_review_or_execution_evidence(
         )
 
     async def review(*args, **kwargs):
-        return SimpleNamespace(score=72.5, model_dump_json=lambda: "{}")
+        return SimpleNamespace(
+            score=72.5, adversary_assessment="attempted_hack", model_dump_json=lambda: "{}"
+        )
 
     monkeypatch.setattr(campaign, "AuthorSandbox", Sandbox)
     monkeypatch.setattr(campaign, "run_agent", noop)

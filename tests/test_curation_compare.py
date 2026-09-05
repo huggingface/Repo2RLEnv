@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import shutil
@@ -21,6 +22,45 @@ SOURCE = {
     "head_sha": "head",
     "body": "Original frozen PR description",
 }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("concurrency", [1, 2])
+async def test_comparison_bounds_active_pr_groups_with_three_matched_authors(
+    harness, monkeypatch, concurrency
+):
+    out, config, calls, _, _ = harness
+    config = config.model_copy(update={"concurrency": concurrency})
+    urls = [URL, URL[:-1] + "2", URL[:-1] + "3"]
+    ready, release = asyncio.Event(), asyncio.Event()
+    started = []
+    original = comparison.curate_one
+
+    def resolve(url):
+        return {**SOURCE, "url": url, "id": "example-project-" + url.rsplit("/", 1)[1]}
+
+    async def curate(source, root, cfg, budget, seed_task=None):
+        started.append((source["url"], cfg.author_runtime))
+        if len(started) == concurrency * 3:
+            ready.set()
+        await release.wait()
+        return await original(source, root, cfg, budget, seed_task)
+
+    monkeypatch.setattr(comparison, "resolve_pr", resolve)
+    monkeypatch.setattr(comparison, "curate_one", curate)
+    running = asyncio.create_task(comparison.compare(urls, out, config))
+    try:
+        await asyncio.wait_for(ready.wait(), timeout=3)
+        assert {url for url, _ in started} == set(urls[:concurrency])
+        for url in urls[:concurrency]:
+            assert {runtime for source, runtime in started if source == url} == set(
+                comparison.RUNTIMES
+            )
+    finally:
+        release.set()
+    result = await running
+    assert len(result["rows"]) == len(calls) == 9
+    assert result["status"] == "complete"
 
 
 def write(path: Path, value: dict):
@@ -161,7 +201,7 @@ async def test_legacy_protocol_recovers_terminal_accepted_verdict_and_inputs(har
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("damage", ["digest", "missing", "admission"])
+@pytest.mark.parametrize("damage", ["digest", "missing"])
 async def test_completed_accepted_rows_fail_closed_when_release_or_admission_changes(
     harness, monkeypatch, damage
 ):
@@ -173,11 +213,48 @@ async def test_completed_accepted_rows_fail_closed_when_release_or_admission_cha
         (released / "contract.json").write_text("tampered")
     elif damage == "missing":
         shutil.rmtree(released)
-    else:
-        monkeypatch.setattr(comparison, "ADMISSION_VERSION", comparison.ADMISSION_VERSION + 1)
     with pytest.raises(ValueError, match="Accepted"):
         await comparison.compare([URL], out, config)
     assert len(calls) == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interrupted_archive", [False, True])
+async def test_changed_admission_protocol_archives_and_revalidates_once(
+    harness, monkeypatch, interrupted_archive
+):
+    out, config, calls, _, _ = harness
+    original = await comparison.compare([URL], out, config)
+    old_version = comparison.ADMISSION_VERSION
+    monkeypatch.setattr(comparison, "ADMISSION_VERSION", old_version + 1)
+    original_records = {
+        row["evidence_dir"]: (Path(row["evidence_dir"]) / "comparison-result.json").read_bytes()
+        for row in original["rows"]
+    }
+    if interrupted_archive:
+        move = comparison.shutil.move
+
+        def interrupted(source, destination):
+            move(source, destination)
+            raise RuntimeError("crash after archive move")
+
+        monkeypatch.setattr(comparison.shutil, "move", interrupted)
+        with pytest.raises(RuntimeError, match="crash after archive move"):
+            await comparison.compare([URL], out, config)
+        monkeypatch.setattr(comparison.shutil, "move", move)
+    resumed = await comparison.compare([URL], out, config)
+    assert len(calls) == 6
+    assert len(resumed["previous_attempts"]) == 3
+    assert all(row["admission_version"] == old_version + 1 for row in resumed["rows"])
+    for row in resumed["previous_attempts"]:
+        assert row["status"] == "accepted"
+        assert row["revalidation_required"] == old_version + 1
+        assert digest_task(Path(row["archived_task"])) == row["task_digest"]
+        assert (Path(row["evidence_dir"]) / "comparison-result.json").read_bytes() == (
+            original_records[row["evidence_dir"]]
+        )
+    await comparison.compare([URL], out, config)
+    assert len(calls) == 6
 
 
 @pytest.mark.asyncio

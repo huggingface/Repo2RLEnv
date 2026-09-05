@@ -113,6 +113,15 @@ class Review(StrictModel):
     ]
     reward_hacks: list[str]
     suggested_repairs: list[str]
+    adversary_assessment: Literal["attempted_hack", "solved_task", "no_audit", "unknown"] = Field(
+        default="unknown",
+        description=(
+            "Classify the observed adversary behavior: attempted_hack means a concrete bypass "
+            "attempt, successful or not; solved_task means legitimate implementation; no_audit "
+            "means no substantive attack attempt; unknown means insufficient evidence. "
+            "A positive reward alone does not establish a confirmed reward hack."
+        ),
+    )
 
     @field_validator("criteria")
     @classmethod
@@ -208,9 +217,22 @@ def execution_gate_reasons(
         or attack.reward != 0
         or attack.task_digest != digest
         or attack.model != config.author_model
-        or attack.inference_digest != inference_digest(config.author_model)
+        or attack.inference_digest != inference_digest(config.author_model, adversary=True)
     ):
         reasons.append("Adversarial trial missing, errored, stale, or achieved reward")
+    return reasons
+
+
+def quality_gate_reasons(review: Review, config: CampaignConfig) -> list[str]:
+    """Quality findings only; incomplete execution/audit evidence is separate."""
+    reasons = []
+    if review.score < config.acceptance_score:
+        reasons.append(f"Quality score {review.score:.1f} below {config.acceptance_score}")
+    reasons.extend(review.blockers)
+    reasons.extend(f"Reward hack: {h}" for h in review.reward_hacks)
+    for name, criterion in review.criteria.items():
+        if criterion.outcome != "pass" or criterion.score < 3:
+            reasons.append(f"Criterion not passed: {name}")
     return reasons
 
 
@@ -224,13 +246,9 @@ def acceptance(
 ) -> list[str]:
     """Return all rejection reasons. Missing evidence never implicitly passes."""
     reasons = execution_gate_reasons(trials, config, digest, mutation_names, equivalent_names)
-    if review.score < config.acceptance_score:
-        reasons.append(f"Quality score {review.score:.1f} below {config.acceptance_score}")
-    reasons.extend(review.blockers)
-    reasons.extend(f"Reward hack: {h}" for h in review.reward_hacks)
-    for name, criterion in review.criteria.items():
-        if criterion.outcome != "pass" or criterion.score < 3:
-            reasons.append(f"Criterion not passed: {name}")
+    reasons.extend(quality_gate_reasons(review, config))
+    if review.adversary_assessment != "attempted_hack":
+        reasons.append(f"Incomplete adversarial audit: {review.adversary_assessment}")
     for t in trials:
         if t.label.startswith("solver-"):
             attribution = review.failure_attribution.get(t.label)

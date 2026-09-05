@@ -103,7 +103,7 @@ async def trial(
         task_digest=digest_task(task),
         path=str(output / name),
         model=model,
-        inference_digest=inference_digest(model) if model else None,
+        inference_digest=inference_digest(model, adversary=adversary) if model else None,
     )
     try:
         runtime = await Trial.create(cfg)

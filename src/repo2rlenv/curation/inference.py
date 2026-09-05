@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 
+from repo2rlenv.curation.audit import audit_policy
+
 MAX_OUTPUT_TOKENS = 16000
 MODEL_TIMEOUT_SEC = 300
 
@@ -25,7 +27,8 @@ def inference_settings(model: str) -> dict:
     return {"model": model, "max_tokens": MAX_OUTPUT_TOKENS, **anthropic_options(model)}
 
 
-def inference_digest(model: str) -> str:
-    return hashlib.sha256(
-        json.dumps(inference_settings(model), sort_keys=True).encode()
-    ).hexdigest()
+def inference_digest(model: str, *, adversary: bool = False) -> str:
+    settings = inference_settings(model)
+    if adversary:
+        settings["audit_policy"] = audit_policy()
+    return hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()

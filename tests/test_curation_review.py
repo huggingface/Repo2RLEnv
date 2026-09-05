@@ -67,6 +67,7 @@ def good_review():
             "failure_attribution": {},
             "reward_hacks": [],
             "suggested_repairs": [],
+            "adversary_assessment": "attempted_hack",
         }
     )
 

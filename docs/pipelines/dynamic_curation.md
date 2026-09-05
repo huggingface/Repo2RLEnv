@@ -59,6 +59,9 @@ unscored and failed candidates alongside admissions; missing scores never become
 zero scores. `comparison.json` holds the machine-readable results and
 `comparison.md` the summary. Re-running the identical command skips completed cells
 and preserves interrupted attempts and their spending.
+`concurrency` bounds active PR groups (two by default), each with three authors;
+all groups share the same atomic budget. Updated admission rules archive older
+admissions and require revalidation while preserving their original evidence.
 Use `--retry-rejected` to retry comparison cells with execution or infrastructure
 failures after a repair; earlier
 outcomes remain in attempt history and the same per-cell budget still applies.
@@ -79,6 +82,10 @@ that ceiling with visible responses. Empty or truncated responses are execution
 failures, never completed zero-reward rollouts. Model settings are recorded in
 traces and bound to solver/adversary evidence; changing the policy reruns those
 trials while retaining compatible deterministic checks.
+The adversarial audit uses a separate, versioned prompt: the coding instruction is
+quoted as material under review. The independent judge must inspect whether the
+agent attempted an audit or simply solved the task. A positive reward alone is
+not evidence of a hack, and missing audit evidence cannot support admission.
 
 The first supported external-provider protocol is Anthropic. Other providers
 remain supported by the LangGraph adapter through LiteLLM; additional external

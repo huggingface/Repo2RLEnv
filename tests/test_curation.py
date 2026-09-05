@@ -15,6 +15,7 @@ from repo2rlenv.curation.models import (
     Review,
     TrialEvidence,
     acceptance,
+    quality_gate_reasons,
 )
 from repo2rlenv.curation.sources import parse_seeds, resolve_pr
 
@@ -87,6 +88,7 @@ def good_review():
             "failure_attribution": {"solver-0-0": "reasoning", "solver-1-0": "solved"},
             "reward_hacks": [],
             "suggested_repairs": [],
+            "adversary_assessment": "attempted_hack",
         }
     )
 
@@ -119,7 +121,7 @@ def good_trials():
             else (cfg.author_model if k == "adversary" else None),
             inference_digest=inference_digest(cfg.solver_models[int(k.split("-")[1])])
             if k.startswith("solver")
-            else (inference_digest(cfg.author_model) if k == "adversary" else None),
+            else (inference_digest(cfg.author_model, adversary=True) if k == "adversary" else None),
         )
         for k, v in labels.items()
     ]
@@ -150,10 +152,12 @@ def test_infrastructure_failure_is_not_difficulty(good_trials, good_review):
     )
 
 
-def test_reward_hack_cannot_be_offset_by_high_score(good_trials, good_review):
+def test_positive_adversary_reward_is_unresolved_not_automatically_a_confirmed_hack(
+    good_trials, good_review
+):
     next(t for t in good_trials if t.label == "adversary").reward = 1
     assert good_review.score == 100
-    assert acceptance(
+    reasons = acceptance(
         good_trials,
         good_review,
         CampaignConfig(),
@@ -161,6 +165,49 @@ def test_reward_hack_cannot_be_offset_by_high_score(good_trials, good_review):
         ["boundary", "constant"],
         ["alternative"],
     )
+    assert reasons
+    assert not any(reason.startswith("Reward hack:") for reason in reasons)
+
+
+@pytest.mark.parametrize("assessment", ["solved_task", "no_audit", "unknown"])
+def test_incomplete_adversarial_audit_is_separate_from_quality(
+    good_trials, good_review, assessment
+):
+    good_review.adversary_assessment = assessment
+    config = CampaignConfig()
+    reasons = acceptance(
+        good_trials, good_review, config, "digest", ["boundary", "constant"], ["alternative"]
+    )
+    assert reasons == [f"Incomplete adversarial audit: {assessment}"]
+    assert quality_gate_reasons(good_review, config) == []
+
+
+def test_legacy_review_and_solver_policy_do_not_establish_a_current_audit(good_trials, good_review):
+    data = good_review.model_dump()
+    del data["adversary_assessment"]
+    legacy = Review.model_validate(data)
+    assert legacy.adversary_assessment == "unknown"
+    config = CampaignConfig()
+    attack = next(t for t in good_trials if t.label == "adversary")
+    attack.inference_digest = inference_digest(config.author_model)
+    reasons = acceptance(
+        good_trials, legacy, config, "digest", ["boundary", "constant"], ["alternative"]
+    )
+    assert any("Adversarial trial" in reason for reason in reasons)
+    assert "Incomplete adversarial audit: unknown" in reasons
+
+
+def test_quality_gate_retains_real_defects_even_with_incomplete_audit(good_review):
+    good_review.adversary_assessment = "no_audit"
+    good_review.criteria["verifier_integrity"].score = 0
+    good_review.criteria["verifier_integrity"].outcome = "fail"
+    good_review.blockers = ["Observed verifier defect"]
+    good_review.reward_hacks = ["A prior observed bypass passed without implementing behavior"]
+    reasons = quality_gate_reasons(good_review, CampaignConfig())
+    assert "Observed verifier defect" in reasons
+    assert "Criterion not passed: verifier_integrity" in reasons
+    assert any(reason.startswith("Reward hack:") for reason in reasons)
+    assert not any("Incomplete adversarial audit" in reason for reason in reasons)
 
 
 def test_valid_alternative_must_pass_and_cannot_be_omitted(good_trials, good_review):

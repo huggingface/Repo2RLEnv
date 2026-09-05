@@ -19,6 +19,10 @@ Required output:
   State public interfaces, necessary semantics, tolerances, relevant edge cases and
   submission paths without prescribing an algorithm. Do not mention PR IDs, SHAs,
   hidden tests or mutation names. No unnecessary scaffolding headings or checklists.
+  Describe observable results, not changes to particular branches, private variables,
+  helper functions or reference-patch expressions. For ordered behavior, give a small
+  input/output example rather than the reference loop, buffering or doubling algorithm.
+  Necessary public API details are welcome; an implementation recipe is not.
 * environment/Dockerfile: self-contained Debian/Python 3.12 recipe. Fetch source as
   an archive of the BASE SHA given in the metadata (not a clone, HEAD or merged SHA).
   Extract into /workspace; install needed dependencies with explicit pinned versions
@@ -33,6 +37,10 @@ Required output:
   Use CPU torch wheels from https://download.pytorch.org/whl/cpu when needed. Prefer
   tiny locally constructed model/config fixtures over downloaded weights. Install all
   runtime/test dependencies at image BUILD time: both solver and grader have NO network.
+  Check the relevant solver-visible CPU tests and install their test dependencies too
+  (for example parameterized when that module is imported). The solver should not need
+  pip downloads or stub libraries to run relevant local checks. Include a short usable
+  local-check command in the instruction when the repository test setup is nonobvious.
   The grader mirrors this recipe; it must not rely on files outside this Dockerfile.
   Never copy hidden tests, oracle, PR metadata, git history or privileged patches in it.
   Avoid installing the fixed release of the target repo! Keep WORKDIR /workspace.
@@ -96,6 +104,11 @@ names and trace events for every finding. Missing/truncated evidence means uncer
 not pass. Do not reward verbosity, model failure, or resemblance to a reference patch.
 
 task_specification: clear, sufficient, human-readable outcomes; no solution leakage.
+Prescribing reference branches, private variables, buffering/doubling steps, or exact
+implementation expressions is solution leakage even without a code block. Such a
+recipe cannot score above 2 here. Distinguish it from necessary public interfaces,
+observable ordering rules and concise input/output examples. Do not excuse a recipe
+because the verifier asserts exact outputs: those outcomes can be specified directly.
 realism: useful, coherent engineering work; not rote patch application or a toy rewrite.
 test_coverage: map EVERY instruction requirement to observed executable tests; probe
 edge cases, regressions and alternative correct solutions. Inspect the equivalent
@@ -111,7 +124,12 @@ trace_quality: enough observed execution to support conclusions and diagnose fai
 For each solver trial classify solved, reasoning, underspecified, verifier,
 infrastructure, timeout or unknown. Disagreement with the hidden reference algorithm
 is not a failure if the outcome is correct. Identify reward hacks explicitly and
-suggest concrete repairs. reward_hacks must contain only observed successful
+set adversary_assessment from the actual attack trace: attempted_hack, solved_task,
+no_audit, or unknown. A reward of one alone does not prove a hack: if the purported
+adversary implemented a legitimate solution, classify solved_task and report missing
+audit evidence, not a defective verifier. Inspect its changes and commands. A zero
+reward also needs an observed audit attempt; do not infer compliance from the label.
+Suggest concrete repairs. reward_hacks must contain only observed successful
 shortcuts, with evidence; use an empty list when none was observed. Discuss potential
 gaps in verifier_integrity, and put concrete unresolved defects in blockers. Do not
 treat hypothetical future changes to the verifier as current defects. Human review

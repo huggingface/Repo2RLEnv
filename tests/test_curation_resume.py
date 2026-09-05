@@ -45,6 +45,7 @@ def good_review() -> Review:
             "failure_attribution": {"solver-0-0": "reasoning", "solver-1-0": "solved"},
             "reward_hacks": [],
             "suggested_repairs": [],
+            "adversary_assessment": "attempted_hack",
         }
     )
 
@@ -125,7 +126,9 @@ def retained(tmp_path, monkeypatch):
             task_digest=digest,
             path=str(folder),
             model=model,
-            inference_digest=inference_digest(model) if model else None,
+            inference_digest=inference_digest(model, adversary=label == "adversary")
+            if model
+            else None,
         )
         write(
             folder / "result.json", json.dumps({"verifier_result": {"rewards": {"reward": reward}}})
@@ -307,7 +310,9 @@ def allow_reruns(r) -> None:
             task_digest=r.digest,
             path=str(folder),
             model=model,
-            inference_digest=inference_digest(model) if model else None,
+            inference_digest=inference_digest(model, adversary=label == "adversary")
+            if model
+            else None,
             reward=reward,
         )
         campaign.save(output / f"{label}.json", result.model_dump())
@@ -391,13 +396,53 @@ async def test_only_missing_execution_gate_is_run_without_author(retained, label
         ("pytest-tamper", "reward", 1),
         ("mutation-empty", "reward", 1),
         ("equivalent-alternative", "reward", 0),
-        ("adversary", "reward", 1),
     ],
 )
 async def test_failed_behavior_gate_requires_author_repair(retained, label, field, value):
     r = retained
     next(t for t in r.metadata["trials"] if t["label"] == label)[field] = value
     campaign.save(r.previous / "evidence.json", r.metadata)
+    await assert_author_fallback(r)
+
+
+@pytest.mark.asyncio
+async def test_positive_adversary_reward_is_reviewed_before_attribution(retained):
+    r = retained
+    next(t for t in r.metadata["trials"] if t["label"] == "adversary")["reward"] = 1
+    campaign.save(r.previous / "evidence.json", r.metadata)
+    result = good_review()
+    result.adversary_assessment = "solved_task"
+    r.judge.return_value = {"messages": [{"content": result.model_dump_json()}]}
+    verdict = await campaign.curate_one(r.source, r.root, r.config, r.budget, r.task)
+    assert verdict["status"] == "execution_failure"
+    assert not result.reward_hacks
+    assert verdict["execution_errors"][0]["error"] == ("Incomplete adversarial audit: solved_task")
+    r.judge.assert_awaited_once()
+    r.sandbox.assert_not_called()
+    r.trial.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_incomplete_audit_retries_only_audit_when_quality_is_valid(retained):
+    r = retained
+    review = good_review()
+    review.adversary_assessment = "solved_task"
+    write(r.previous / "review.json", review.model_dump_json())
+    for trial in r.metadata["trials"]:
+        if trial["label"] == "adversary":
+            trial["error"] = "Incomplete adversarial audit: solved_task"
+            trial["reward"] = 1
+    campaign.save(r.previous / "evidence.json", r.metadata)
+    await assert_validation_resume(r, ["adversary"])
+
+
+@pytest.mark.asyncio
+async def test_incomplete_audit_with_quality_defect_requires_author_repair(retained):
+    r = retained
+    review = good_review()
+    review.adversary_assessment = "solved_task"
+    review.blockers = ["The instruction reveals the reference implementation algorithm."]
+    write(r.previous / "review.json", review.model_dump_json())
     await assert_author_fallback(r)
 
 

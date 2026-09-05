@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import shutil
 import time
 from importlib.metadata import version
 from pathlib import Path
@@ -75,8 +76,10 @@ def _attempt_key(row: dict) -> tuple[str, str, str]:
     return row["source"], row["runtime"], row["evidence_dir"]
 
 
-def _check_accepted(row: dict, out: Path, source: dict, *, released: bool) -> Path:
-    if row.get("admission_version") != ADMISSION_VERSION:
+def _check_accepted(
+    row: dict, out: Path, source: dict, *, released: bool, allow_stale: bool = False
+) -> Path:
+    if row.get("admission_version") != ADMISSION_VERSION and not allow_stale:
         raise ValueError(
             f"Accepted cell needs admission revalidation: {row['source']} {row['runtime']}"
         )
@@ -86,6 +89,31 @@ def _check_accepted(row: dict, out: Path, source: dict, *, released: bool) -> Pa
     if not path.is_dir() or path.is_symlink() or digest_task(path) != row.get("task_digest"):
         raise ValueError(f"Accepted task missing or changed: {path}")
     return path
+
+
+def _archive_stale_admission(row: dict, out: Path, source: dict) -> Path:
+    task = _check_accepted(row, out, source, released=False, allow_stale=True)
+    released = out / "tasks" / row["runtime"] / source["id"]
+    archived = (
+        out
+        / "superseded"
+        / row["runtime"]
+        / f"{source['id']}-admission-{row.get('admission_version', 'legacy')}-{row['task_digest']}"
+    )
+    if released.exists():
+        _check_accepted(row, out, source, released=True, allow_stale=True)
+        if archived.exists():
+            raise ValueError("Both superseded and released task exist; inspect before resuming")
+        archived.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(released, archived)
+    elif archived.exists():
+        # Recover an interruption after the atomic move but before report save.
+        if archived.is_symlink() or digest_task(archived) != row["task_digest"]:
+            raise ValueError("Superseded task changed")
+    else:
+        # Completion may have been recorded before the original release.
+        release_task(task, archived)
+    return archived
 
 
 def _freeze_existing_sources(out: Path, protocol: dict) -> None:
@@ -297,10 +325,12 @@ async def compare(
                 "charged_or_reserved_usd": scoped_budget(key[0], runtime).spent,
                 "recovered_from": "accepted_verdict",
             }
+            if _attempt_key(row) in archived_attempts:
+                continue
             _check_row(row, seeds)
             rows[key] = row
 
-        for row in rows.values():
+        for key, row in list(rows.items()):
             source = protocol["sources"].get(row["source"])
             if source is None:
                 raise ValueError(f"Cannot recover frozen source metadata: {row['source']}")
@@ -308,6 +338,19 @@ async def compare(
             if row.get("source_digest", expected_source_hash) != expected_source_hash:
                 raise ValueError(f"Completed cell used different source metadata: {row['source']}")
             if row["status"] == "accepted":
+                if row.get("admission_version") != ADMISSION_VERSION:
+                    archived = _archive_stale_admission(row, out, source)
+                    previous_attempts.append(
+                        {
+                            **row,
+                            "archived_at": time.time(),
+                            "archived_task": str(archived),
+                            "revalidation_required": ADMISSION_VERSION,
+                        }
+                    )
+                    archived_attempts.add(_attempt_key(row))
+                    del rows[key]
+                    continue
                 if row in manifest["rows"]:
                     _check_accepted(row, out, source, released=True)
                 else:
@@ -402,7 +445,7 @@ async def compare(
             manifest["in_progress"].remove({"source": source["url"], "runtime": runtime})
             write_report(out, manifest)
 
-        for index, url in enumerate(seeds):
+        async def source_group(index: int, url: str) -> None:
             source = protocol["sources"].get(url)
             if source is None:
                 source = await asyncio.to_thread(resolve_pr, url)
@@ -417,6 +460,18 @@ async def compare(
             async with asyncio.TaskGroup() as group:
                 for runtime in order:
                     group.create_task(cell(source, runtime))
+
+        # Bound active PR groups while preserving all three matched authors
+        # within each group. Their write-ahead reservations share one budget.
+        slots = asyncio.Semaphore(config.concurrency)
+
+        async def bounded_source(index: int, url: str) -> None:
+            async with slots:
+                await source_group(index, url)
+
+        async with asyncio.TaskGroup() as group:
+            for index, url in enumerate(seeds):
+                group.create_task(bounded_source(index, url))
         manifest["status"] = "complete"
         manifest["charged_or_reserved_usd"] = global_budget.spent
         write_report(out, manifest)

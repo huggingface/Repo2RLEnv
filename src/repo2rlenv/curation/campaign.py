@@ -33,13 +33,14 @@ from repo2rlenv.curation.models import (
     TrialEvidence,
     acceptance,
     execution_gate_reasons,
+    quality_gate_reasons,
 )
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
 
 logger = logging.getLogger(__name__)
-ADMISSION_VERSION = 4
+ADMISSION_VERSION = 5
 
 
 class CandidateDeferred(RuntimeError):
@@ -122,7 +123,9 @@ def _trial_plan(contract: Contract, config: CampaignConfig) -> list[tuple[str, i
         for i, model in enumerate(config.solver_models)
         for k in range(config.solver_attempts)
     )
-    plan.append(("adversary", 0, {"model": config.author_model, "adversary": True}))
+    # The independent review must distinguish an exploit from a mislabeled
+    # legitimate solution. Reward alone cannot establish audit compliance.
+    plan.append(("adversary", None, {"model": config.author_model, "adversary": True}))
     return plan
 
 
@@ -143,11 +146,22 @@ def _prepare_pending_review(
             return None
         if prior_review.exists():
             try:
-                Review.model_validate_json(prior_review.read_text())
+                prior_result = Review.model_validate_json(prior_review.read_text())
             except ValueError:
                 pass  # An interrupted or malformed response has no valid verdict.
             else:
-                return None  # A valid quality rejection must not be rerolled.
+                metadata = previous / "evidence.json"
+                current = (
+                    metadata.exists()
+                    and json.loads(metadata.read_text()).get("admission_version")
+                    == ADMISSION_VERSION
+                )
+                if (
+                    not current
+                    or prior_result.adversary_assessment == "attempted_hack"
+                    or quality_gate_reasons(prior_result, config)
+                ):
+                    return None  # A valid quality rejection must not be rerolled.
         _regular_tree(previous)
         digest = digest_task(seed_task)
         evidence_path = previous / "evidence.json"
@@ -157,7 +171,7 @@ def _prepare_pending_review(
             if not isinstance(evidence, dict) or evidence["task_digest"] != digest:
                 return None
             # Legacy v3 omitted this field; the current wrapper still must match.
-            if evidence.get("admission_version") not in (None, 3, ADMISSION_VERSION):
+            if evidence.get("admission_version") not in (None, 3, 4, ADMISSION_VERSION):
                 return None
             candidates = [TrialEvidence.model_validate(t) for t in evidence["trials"]]
             if len({t.label for t in candidates}) != len(candidates):
@@ -224,7 +238,9 @@ def _prepare_pending_review(
                     else:
                         saved.error = saved.error or "Retained trial directory missing or empty"
                     model = kwargs.get("model")
-                    policy_changed = model and saved.inference_digest != inference_digest(model)
+                    policy_changed = model and saved.inference_digest != inference_digest(
+                        model, adversary=kwargs.get("adversary", False)
+                    )
                     if not saved.valid or saved.model != model or policy_changed:
                         discarded.append(
                             {
@@ -265,6 +281,7 @@ def _prepare_pending_review(
                     model: inference_digest(model)
                     for model in {*config.solver_models, config.author_model}
                 },
+                "audit_inference_digest": inference_digest(config.author_model, adversary=True),
             }
             save(
                 retained / "provenance.json",
@@ -297,6 +314,12 @@ async def _review_revision(
     save(folder / "evidence.json", _evidence_record(digest, trials, resumed_from, recovery))
     logger.info("%s: independent specification and trajectory review", source["id"])
     result = await review(task, folder, trials, model=config.judge_model, budget=budget)
+    if result.adversary_assessment != "attempted_hack":
+        for attempt in trials:
+            if attempt.label == "adversary":
+                attempt.error = "Incomplete adversarial audit: " + result.adversary_assessment
+                save(folder / "trials/adversary.json", attempt.model_dump())
+        save(folder / "evidence.json", _evidence_record(digest, trials, resumed_from, recovery))
     reasons = acceptance(
         trials,
         result,
@@ -384,7 +407,7 @@ async def _resume_validation(
         [m.name for m in contract.mutations],
         [e.name for e in contract.equivalents],
     )
-    if reasons:
+    if reasons and not all(reason.startswith("Adversarial trial") for reason in reasons):
         raise ValueError(
             "Recovered validation did not satisfy admission gates: " + "; ".join(reasons)
         )
@@ -612,6 +635,8 @@ async def curate_one(
             )
             execution_errors = verdict["execution_errors"]
             last_verdict = verdict
+            if result.adversary_assessment != "attempted_hack":
+                return verdict
             if not verdict["reasons"]:
                 return verdict
             feedback = (
