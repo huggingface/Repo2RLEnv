@@ -45,6 +45,10 @@ async def test_planning_is_a_required_predecessor_to_implementation(tmp_path, mo
 
     async def planner(**kwargs):
         events.append("plan")
+        if events.count("plan") == 2:
+            assert list(kwargs["handlers"]) == ["submit_design"]
+            assert kwargs["max_turns"] == 8
+            assert kwargs["trace"].name == "design-synthesis.jsonl"
         assert not (root / "submitted-drafts.json").exists()
         if submit:
             await kwargs["handlers"]["submit_design"](
@@ -100,5 +104,9 @@ async def test_planning_is_a_required_predecessor_to_implementation(tmp_path, mo
     assert events == (
         ["start", "prepare", "plan", "write_plan", "implement", "export", "stop"]
         if submit
-        else ["start", "prepare", "plan", "stop"]
+        else ["start", "prepare", "plan", "plan", "stop"]
     )
+    receipt = json.loads((root / "design-phases.json").read_text())
+    assert receipt["synthesis_attempted"] is (not submit)
+    assert receipt["outcome"] == ("accepted" if submit else "failed")
+    assert receipt["total_turn_cap"] == 20

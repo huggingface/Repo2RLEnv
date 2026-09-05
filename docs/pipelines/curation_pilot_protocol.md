@@ -187,3 +187,22 @@ control arrays contain names rather than rationale. Validation errors list expec
 and received references. Historical verification-plan parsing is unchanged; invalid
 old planning caches fail closed rather than being silently rewritten. The frozen
 recovery runtime remains unchanged; these corrections apply to subsequent runs.
+
+
+### Planning noncompletion diagnostic
+
+A subsequent PEFT #2962 diagnostic on the identifier-schema fix used all 20
+planning turns for remote exploration and never called `submit_design`. It cost
+$0.319434, produced no task, and reached neither semantic review nor solver trials.
+It therefore did not exercise the repaired identifier handoff. Together with the
+stopped recovery cohort's $4.110665, these attempts remain in the original ledger;
+they are repeated-source diagnostics, not additional fresh-source yield.
+
+Planning now reserves eight of its twenty model turns for synthesis. Exploration
+is capped at $1.20 of the existing $2 allowance; synthesis receives only the
+remaining shared-ledger allowance, including any outstanding reservations. Early
+acceptance skips synthesis. Synthesis receives retained observations and schema
+feedback, with further shell exploration unavailable. A shortened evidence
+excerpt is marked explicitly, and full observations remain in the run directory.
+`design-phases.json` records phase allocations, transitions, outcomes and costs. A saved design remains a structural milestone only:
+independent review and executable evidence must still establish task validity.

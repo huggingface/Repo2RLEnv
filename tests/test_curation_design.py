@@ -45,7 +45,7 @@ async def test_schema_failure_then_acceptance_persists_before_build(tmp_path, mo
         captured.update(kwargs)
         assert kwargs["budget"] is budget
         assert kwargs["runtime"] == runtime
-        assert kwargs["max_turns"] == 20 and kwargs["max_cost"] == 2
+        assert kwargs["max_turns"] == 12 and kwargs["max_cost"] == 1.2
         schema = kwargs["tools"][1]["function"]["parameters"]
         assert schema["properties"]["task_request"]["minLength"] == 50
         assert schema["additionalProperties"] is False
