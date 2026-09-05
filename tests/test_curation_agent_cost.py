@@ -4,13 +4,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from repo2rlenv.curation import harbor_agent
 from repo2rlenv.curation.agent import IncompleteModelResponse
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["solve", "adversary"])
 async def test_incomplete_harbor_agent_preserves_cost_and_still_fails(tmp_path, monkeypatch, mode):
+    pytest.importorskip("harbor")
+    from repo2rlenv.curation import harbor_agent
+
     state = {"messages": [{"role": "assistant", "content": None}], "turns": 2, "cost": 0.43}
 
     async def incomplete(**kwargs):

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from repo2rlenv.curation import audit, evaluate, harbor_agent
+from repo2rlenv.curation import audit, evaluate
 from repo2rlenv.curation.budget import Budget
 from repo2rlenv.curation.inference import inference_digest
 from repo2rlenv.curation.models import CampaignConfig
@@ -44,6 +44,9 @@ def test_audit_digest_is_versioned_without_changing_solver_digest(monkeypatch, p
 async def test_offline_agent_dispatches_explicit_audit_request_only_for_adversary(
     tmp_path, monkeypatch, mode
 ):
+    pytest.importorskip("harbor")
+    from repo2rlenv.curation import harbor_agent
+
     observed = {}
 
     async def run(**kwargs):
@@ -72,6 +75,7 @@ async def test_offline_agent_dispatches_explicit_audit_request_only_for_adversar
 @pytest.mark.asyncio
 @pytest.mark.parametrize("adversary", [False, True])
 async def test_trial_records_mode_specific_inference_digest(tmp_path, monkeypatch, adversary):
+    pytest.importorskip("harbor")
     from harbor.trial.trial import Trial
 
     task = tmp_path / "task"
