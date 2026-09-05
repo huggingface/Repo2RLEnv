@@ -131,7 +131,10 @@ async def test_campaign_passes_newest_attempt_checkpoint_to_author(tmp_path, mon
     monkeypatch.setattr(campaign, "curate_one", author)
     monkeypatch.setattr(campaign, "resolve_pr", lambda _: source)
     monkeypatch.setattr(campaign, "version", lambda _: "test")
-    await campaign.campaign([source["url"]], tmp_path, CampaignConfig(target=1))
+    config = CampaignConfig(target=1)
+    campaign.save(tmp_path / "config.json", config.model_dump())
+    campaign.save(tmp_path / "budget.json", {"entries": {}})
+    await campaign.campaign([source["url"]], tmp_path, config)
     assert author.await_args.args[-1] == newer
 
 

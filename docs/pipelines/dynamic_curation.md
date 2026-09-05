@@ -35,6 +35,9 @@ retries rejections while retaining prior evidence and costs. Configuration chang
 require a separate campaign directory. An interrupted candidate restarts in a fresh
 sandbox; previous reservations remain charged until reconciled. The CLI exits 2
 when it ends short of the requested target, including budget exhaustion.
+The candidate's budget scope is persisted before work and survives both interruption
+and rejected retries. A single legacy timestamped scope can be adopted; ambiguous
+historical scopes stop recovery rather than resetting the spending cap.
 
 ## Compare authoring runtimes
 
@@ -228,6 +231,11 @@ successful checks and rerunning missing or invalid trials. A pending review can
 resume without repeating authoring or cloud validation; a valid quality rejection
 requires task repair. Structured-review formatting gets at most one budgeted
 finalization call that preserves the evidence and findings already collected.
+Early preflight findings also reach the resumed author when no execution trials
+were created. If an accepted verdict was saved before a crash but its manifest row
+was not, recovery checks the original configuration, source, digest, score and all
+admission evidence before completing the release. Conflicting or missing evidence
+cannot trigger another author/judge attempt or overwrite an existing release.
 
 `publish_evidence()` can archive a campaign or runtime comparison to a private
 Hugging Face bucket under a content-addressed prefix, with SHA-256 checksums.

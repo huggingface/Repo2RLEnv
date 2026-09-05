@@ -760,6 +760,252 @@ async def curate_one(
             budget.settle(reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True)
 
 
+class RecoveryError(ValueError):
+    """Retained evidence conflicts; stop before authoring or admission."""
+
+
+def _candidate_budget(
+    root: Path, manifest: dict, url: str, budget: Budget, config: CampaignConfig
+) -> Budget:
+    """Persist one scope before work; recover a single legacy timestamped scope."""
+    scopes = manifest.setdefault("budget_scopes", {})
+    known = {scopes[url]} if url in scopes else set()
+    known.update(
+        row["budget_scope"]
+        for row in manifest["accepted"]
+        + manifest["rejected"]
+        + manifest.get("previous_attempts", [])
+        if row.get("source") == url and row.get("budget_scope")
+    )
+    stable = f"candidate:{url}"
+    legacy_prefix = url + ":"
+    if budget.path.exists():
+        entries = json.loads(budget.path.read_text())["entries"].values()
+        known.update(
+            entry["scope"]
+            for entry in entries
+            if entry.get("scope") == stable
+            or (
+                isinstance(entry.get("scope"), str)
+                and entry["scope"].startswith(legacy_prefix)
+                and entry["scope"][len(legacy_prefix) :].isascii()
+                and entry["scope"][len(legacy_prefix) :].isdecimal()
+            )
+        )
+    if len(known) > 1:
+        raise RecoveryError(f"Multiple candidate budget scopes require reconciliation: {url}")
+    scope = next(iter(known), stable)
+    if not isinstance(scope, str) or not (
+        scope == stable
+        or (
+            scope.startswith(legacy_prefix)
+            and scope[len(legacy_prefix) :].isascii()
+            and scope[len(legacy_prefix) :].isdecimal()
+        )
+    ):
+        raise RecoveryError(f"Invalid candidate budget scope: {url}")
+    scopes[url] = scope
+    save(root / "manifest.json", manifest)
+    return Budget(budget.path, budget.limit, scope=scope, scope_limit=config.max_candidate_usd)
+
+
+def _recovery_regular(path: Path, *, directory: bool = False) -> None:
+    if path.resolve() != path or not path.exists():
+        raise RecoveryError(f"Missing or linked recovery evidence: {path}")
+    mode = path.stat().st_mode
+    if not (stat.S_ISDIR(mode) if directory else stat.S_ISREG(mode)):
+        raise RecoveryError(f"Non-regular recovery evidence: {path}")
+
+
+def _accepted_identity(row: dict) -> str:
+    identity = row.get("id")
+    if (
+        not isinstance(identity, str)
+        or identity in {"", ".", ".."}
+        or Path(identity).name != identity
+    ):
+        raise RecoveryError("Invalid accepted task identity")
+    return identity
+
+
+def _validate_accepted(root: Path, row: dict, config: CampaignConfig) -> Path:
+    """Recompute all admission gates from the exact retained revision, without calls."""
+    _recovery_regular(root / "config.json")
+    if CampaignConfig.model_validate_json((root / "config.json").read_text()) != config:
+        raise RecoveryError("Accepted recovery configuration mismatch")
+    identity = _accepted_identity(row)
+    if row.get("status") != "accepted" or row.get("admission_version") != ADMISSION_VERSION:
+        raise RecoveryError("Accepted recovery needs current admission version")
+    task = Path(row["task_path"])
+    try:
+        relative = task.relative_to(root / "candidates" / identity)
+    except ValueError as exc:
+        raise RecoveryError("Accepted task is outside its candidate") from exc
+    if (
+        len(relative.parts) != 3
+        or not relative.parts[0].isascii()
+        or not relative.parts[0].isdecimal()
+        or relative.parts[2] != "task"
+        or not relative.parts[1].startswith("revision-")
+        or not relative.parts[1].removeprefix("revision-").isascii()
+        or not relative.parts[1].removeprefix("revision-").isdecimal()
+    ):
+        raise RecoveryError("Accepted task is not a retained revision")
+    _recovery_regular(task, directory=True)
+    for entry in task.rglob("*"):
+        _recovery_regular(entry, directory=entry.is_dir())
+    digest = digest_task(task)
+    if digest != row.get("task_digest"):
+        raise RecoveryError("Accepted task digest mismatch")
+    folder = task.parent
+    source_path = folder.parent / "source.json"
+    evidence_path, review_path = folder / "evidence.json", folder / "review.json"
+    verdict_path = folder.parent / "verdict.json"
+    for path in (source_path, evidence_path, review_path, verdict_path, task / "contract.json"):
+        _recovery_regular(path)
+    durable = json.loads(verdict_path.read_text())
+    if any(
+        row.get(key) != durable.get(key)
+        for key in (
+            "id",
+            "source",
+            "status",
+            "task_digest",
+            "task_path",
+            "review_path",
+            "score",
+            "admission_version",
+        )
+    ):
+        raise RecoveryError("Accepted result and durable verdict disagree")
+    source = json.loads(source_path.read_text())
+    if source.get("id") != identity or source.get("url") != row.get("source"):
+        raise RecoveryError("Accepted source identity mismatch")
+    if row.get("review_path") != str(review_path):
+        raise RecoveryError("Accepted review path mismatch")
+    evidence = json.loads(evidence_path.read_text())
+    if (
+        evidence.get("task_digest") != digest
+        or evidence.get("admission_version") != ADMISSION_VERSION
+    ):
+        raise RecoveryError("Accepted execution evidence digest or admission mismatch")
+    trials = [TrialEvidence.model_validate(t) for t in evidence["trials"]]
+    if any(trial.task_digest != digest for trial in trials):
+        raise RecoveryError("Accepted trial evidence digest mismatch")
+    result = Review.model_validate_json(review_path.read_text())
+    contract = Contract.model_validate_json((task / "contract.json").read_text())
+    reasons = acceptance(
+        trials,
+        result,
+        config,
+        digest,
+        [m.name for m in contract.mutations],
+        [e.name for e in contract.equivalents],
+    )
+    if (
+        row.get("score") != result.score
+        or row.get("reasons") != []
+        or row.get("execution_errors", [])
+    ):
+        raise RecoveryError("Accepted verdict score or outcome mismatch")
+    if reasons:
+        raise RecoveryError("Accepted evidence fails admission: " + "; ".join(reasons))
+    return task
+
+
+def _reconcile_accepted(root: Path, manifest: dict, config: CampaignConfig, budget: Budget) -> None:
+    """Recover verdict/release -> manifest interruptions before scheduling any work."""
+    retained = {}
+    recorded_old = {
+        (row.get("source"), row.get("id"), row.get("task_digest"), row.get("admission_version"))
+        for row in manifest["accepted"] + manifest.get("previous_attempts", [])
+        if row.get("admission_version") != ADMISSION_VERSION
+        and row.get("status") in {"accepted", "needs_revalidation"}
+    }
+    for path in sorted((root / "candidates").glob("*/*/verdict.json")):
+        _recovery_regular(path)
+        row = json.loads(path.read_text())
+        if row.get("status") != "accepted":
+            continue
+        if row.get("admission_version") != ADMISSION_VERSION:
+            key = (
+                row.get("source"),
+                row.get("id"),
+                row.get("task_digest"),
+                row.get("admission_version"),
+            )
+            if key not in recorded_old:
+                raise RecoveryError("Orphan accepted verdict needs explicit admission revalidation")
+            continue
+        task = _validate_accepted(root, row, config)
+        if task.parent.parent / "verdict.json" != path:
+            raise RecoveryError("Accepted verdict references a different attempt")
+        url = row["source"]
+        if url not in manifest["seeds"] or url in retained:
+            raise RecoveryError(f"Unknown or duplicate accepted source: {url}")
+        retained[url] = (row, task, path)
+    if any(row.get("status") != "accepted" for row in manifest["accepted"]):
+        raise RecoveryError("Accepted manifest contains a non-accepted result")
+    for row in manifest["accepted"]:
+        _accepted_identity(row)
+        if row.get("source") not in manifest["seeds"]:
+            raise RecoveryError("Accepted manifest source is outside recorded seeds")
+    completed = {}
+    for row in manifest["accepted"] + manifest["rejected"]:
+        url = row["source"]
+        if url in completed:
+            raise RecoveryError(f"Duplicate completed source: {url}")
+        completed[url] = row
+        if row["status"] == "accepted" and row.get("admission_version") == ADMISSION_VERSION:
+            _validate_accepted(root, row, config)
+            if url not in retained:
+                raise RecoveryError(f"Accepted manifest has no durable verdict: {url}")
+    for url, (row, _task, _) in retained.items():
+        existing = completed.get(url)
+        if existing is not None and any(
+            existing.get(key) != row.get(key)
+            for key in (
+                "status",
+                "id",
+                "task_digest",
+                "task_path",
+                "review_path",
+                "score",
+                "admission_version",
+            )
+        ):
+            raise RecoveryError(f"Manifest and durable accepted verdict disagree: {url}")
+        destination = root / "tasks" / row["id"]
+        if destination.exists() or destination.is_symlink():
+            _recovery_regular(destination, directory=True)
+            _regular_tree(destination)
+            if digest_task(destination) != row["task_digest"]:
+                raise RecoveryError(f"Released accepted task digest mismatch: {url}")
+    accepted_ids = {row["id"] for row, _, _ in retained.values()}
+    accepted_ids.update(
+        row["id"]
+        for row in manifest["accepted"]
+        if row.get("admission_version") != ADMISSION_VERSION
+    )
+    for path in (root / "tasks").glob("*"):
+        if path.name.startswith(".release-"):
+            continue  # An interrupted atomic copy was never a released task.
+        if path.name not in accepted_ids:
+            raise RecoveryError(f"Released task has no accepted durable evidence: {path}")
+    # Validate the whole retained set first; failures cannot trigger regeneration.
+    for url, (row, task, path) in retained.items():
+        scoped = _candidate_budget(root, manifest, url, budget, config)
+        release_task(task, root / "tasks" / row["id"])
+        if url not in completed:
+            row = {**row, "recovered_verdict": str(path)}
+            manifest["accepted"].append(row)
+        else:
+            row = completed[url]
+        row.update(budget_scope=scoped.scope, charged_or_reserved_usd=scoped.spent)
+        manifest["charged_or_reserved_usd"] = budget.spent
+        save(root / "manifest.json", manifest)
+
+
 @contextmanager
 def campaign_lock(out: Path):
     out.mkdir(parents=True, exist_ok=True)
@@ -787,6 +1033,13 @@ async def _campaign(
     out = out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     config_path = out / "config.json"
+    retained = any((out / name).exists() for name in ("manifest.json", "candidates", "tasks"))
+    if retained and (not config_path.is_file() or not (out / "budget.json").is_file()):
+        raise RecoveryError(
+            "Retained campaign requires its original configuration and budget ledger"
+        )
+    if config_path.exists():
+        _recovery_regular(config_path)
     if (
         config_path.exists()
         and CampaignConfig.model_validate_json(config_path.read_text()) != config
@@ -796,7 +1049,12 @@ async def _campaign(
         )
     save(config_path, config.model_dump())
     budget = Budget(out / "budget.json", config.budget_usd)
+    if budget.path.exists():
+        _recovery_regular(budget.path)
+    initial_spend = budget.spent  # Create the empty ledger before the first durable manifest.
     manifest_path = out / "manifest.json"
+    if manifest_path.exists():
+        _recovery_regular(manifest_path)
     manifest = (
         json.loads(manifest_path.read_text())
         if manifest_path.exists()
@@ -809,12 +1067,21 @@ async def _campaign(
             "seeds": seeds,
         }
     )
+    manifest.setdefault("charged_or_reserved_usd", initial_spend)
+    manifest["seeds"] = list(dict.fromkeys([*manifest.get("seeds", []), *seeds]))
+    # Resolve all known scopes before migration or workers can create new charges.
+    # This also rejects ambiguous historical spend for completed/retried sources.
+    for url in manifest["seeds"]:
+        _candidate_budget(out, manifest, url, budget, config)
+    _reconcile_accepted(out, manifest, config, budget)
     if retry_rejected:
         manifest.setdefault("previous_attempts", []).extend(manifest["rejected"])
         manifest["rejected"] = []
     current_admissions = []
     for admitted in manifest["accepted"]:
         task = out / "tasks" / admitted["id"]
+        _recovery_regular(task, directory=True)
+        _regular_tree(task)
         if digest_task(task) != admitted["task_digest"]:
             raise ValueError(f"Released task changed: {admitted['id']}")
         if admitted.get("admission_version") == ADMISSION_VERSION:
@@ -849,12 +1116,7 @@ async def _campaign(
         if url in completed:
             return
         start = budget.spent
-        scoped = Budget(
-            budget.path,
-            config.budget_usd,
-            scope=f"{url}:{time.time_ns()}",
-            scope_limit=config.max_candidate_usd,
-        )
+        scoped = _candidate_budget(out, manifest, url, budget, config)
         manifest["in_progress"].append(url)
         save(manifest_path, manifest)
         logger.info(
@@ -871,7 +1133,10 @@ async def _campaign(
             candidate_dir = parent / str(time.time_ns())
             result = await curate_one(source, candidate_dir, config, scoped, seed_task)
             if result["status"] == "accepted":
-                release_task(Path(result["task_path"]), out / "tasks" / source["id"])
+                if result.get("id") != source["id"] or result.get("source") != url:
+                    raise RecoveryError("Accepted verdict does not match the current source")
+                task = _validate_accepted(out, result, config)
+                release_task(task, out / "tasks" / source["id"])
         except CandidateDeferred as exc:
             result = {"source": url, "status": "rejected", "reasons": ["Deferred: " + str(exc)]}
         except BudgetExceeded as exc:
@@ -885,7 +1150,7 @@ async def _campaign(
                 "status": "rejected",
                 "reasons": [type(exc).__name__ + ": " + str(exc)],
             }
-        result["charged_or_reserved_usd"] = scoped.spent
+        result.update(budget_scope=scoped.scope, charged_or_reserved_usd=scoped.spent)
         manifest["in_progress"].remove(url)
         manifest["accepted" if result["status"] == "accepted" else "rejected"].append(result)
         manifest["charged_or_reserved_usd"] = budget.spent
