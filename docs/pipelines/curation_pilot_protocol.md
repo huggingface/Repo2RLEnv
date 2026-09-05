@@ -272,3 +272,20 @@ are resolved; unrelated module fixtures cannot supply that evidence. These chang
 remove reproduced reference-validation false rejections. They do not establish
 that an assertion ran or proves the promised behavior. The live v25 conversion
 retains its frozen policy 9 runtime.
+
+### Isolated independent audits
+
+The v25 PEFT diagnostic ended after two semantic submissions at $3.781021
+because an independent audit imported a live probe and created Python bytecode
+during reviewer reconsideration. All original files and the added cache are
+preserved. This is audit-induced contamination, not a generator-quality outcome.
+
+Use `isolated_audit_copy(source, new_audit_root, expected_digest=...)` from
+`repo2rlenv.curation.audit_copy` for independent inspection. It verifies an exact
+source digest, copies into a disjoint directory, and records source/copy file
+inventories before and after the audit in `provenance.json`. Unexpected bytecode
+or other changes fail the integrity check and remain available as evidence.
+Never import a live task. For stdlib-only inspection subprocesses use Python
+`-I -B` with `audit_subprocess_env()` and inspect the copy as data. This workflow
+detects changes; it is not an OS sandbox or permission to execute task code.
+Task execution and image builds still belong in remote environments.
