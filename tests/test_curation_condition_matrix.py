@@ -246,6 +246,62 @@ def test_unrelated_protected_assertion_does_not_prove_mapped_case():
         check(record, texts)
 
 
+def test_same_name_roots_cannot_split_fixture_and_expected_observation():
+    record, texts = example()
+    case = record["condition_matrices"][0]["cases"][0]
+    assertion = case["expected_evidence"][0]["quote"]
+    texts["tests/test_contract.py"] = texts["tests/test_contract.py"].replace(
+        "    " + assertion + "\n", "", 1
+    )
+    texts["tests/test_other.py"] = f"def {case['test']}():\n    {assertion}\n"
+    case["expected_evidence"] = [cite(assertion, "tests/test_other.py")]
+    with pytest.raises(ValueError, match="share one reachable protected-test root"):
+        check(record, texts)
+
+
+def test_same_name_roots_allow_a_coherent_later_root_without_pinning_quotes():
+    record, texts = example()
+    case = record["condition_matrices"][0]["cases"][0]
+    fixture = case["fixture_evidence"][0]["quote"]
+    assertion = case["expected_evidence"][0]["quote"]
+    # Same module, distinct class roots: repeated fixture text needs fresh
+    # omitted-line resolution after the first root lacks an expected assertion.
+    texts["tests/test_contract.py"] = texts["tests/test_contract.py"].replace(
+        f"def {case['test']}():\n    {fixture}\n    {assertion}\n",
+        f"class TestFirst:\n    def {case['test']}(self):\n        {fixture}\n\n"
+        f"class TestSecond:\n    def {case['test']}(self):\n        {fixture}\n        {assertion}\n",
+        1,
+    )
+    result = check(record, texts)
+    assert result.passed
+    resolved = result.condition_matrices[0].cases[0]
+    lines = texts["tests/test_contract.py"].splitlines()
+    assert resolved.fixture_evidence[0].line == lines.index("        " + fixture, 4) + 1
+    assert check(result.model_dump(), texts) == result
+
+
+def test_paired_evidence_can_use_separate_helpers_reachable_from_same_root():
+    record, texts = example()
+    case = record["condition_matrices"][0]["cases"][0]
+    fixture = case["fixture_evidence"][0]["quote"]
+    assertion = case["expected_evidence"][0]["quote"]
+    texts["tests/test_contract.py"] = (
+        "from .inputs import make_actual\nfrom .checks import check_actual\n"
+        + texts["tests/test_contract.py"].replace(
+            f"    {fixture}\n    {assertion}\n",
+            "    check_actual(make_actual())\n",
+            1,
+        )
+    )
+    input_line = fixture.replace("actual = ", "return ", 1)
+    texts["tests/inputs.py"] = f"def make_actual():\n    {input_line}\n"
+    texts["tests/checks.py"] = f"def check_actual(actual):\n    {assertion}\n"
+    texts["tests/test_other.py"] = f"def {case['test']}():\n    pass\n"
+    case["fixture_evidence"] = [cite(input_line, "tests/inputs.py")]
+    case["expected_evidence"] = [cite(assertion, "tests/checks.py")]
+    assert check(record, texts).passed
+
+
 def test_fixture_citation_must_link_to_test_or_parameter_grid():
     record, texts = example()
     texts["tests/test_contract.py"] += "\nUNUSED = ('compiled', 'compiled', 'interior')\n"
@@ -303,6 +359,37 @@ def test_protected_exception_expectation_is_an_assertion():
         + 1
     )
     assert found and line in lines["tests/test_contract.py"]
+
+
+@pytest.mark.parametrize(
+    "module, assertion", [("numpy.testing", "assert_equal"), ("torch.testing", "assert_close")]
+)
+def test_known_testing_assertion_aliases_keep_reference_linkage(module, assertion):
+    texts = {
+        "tests/test_numeric.py": f"from {module} import {assertion} as equal\ndef test_numeric():\n    equal(actual, expected)\n"
+    }
+    lines, found = verifier._authority_reference_lines(texts, "test_numeric", assertions_only=True)
+    assert found and 3 in lines["tests/test_numeric.py"]
+
+
+@pytest.mark.parametrize("module", ["numpy.testing", "untrusted_checks"])
+def test_joint_expected_assertion_alias_requires_supported_testing_namespace(module):
+    record, texts = example()
+    lines = [f"from {module} import assert_equal as equal"]
+    for case in record["condition_matrices"][0]["cases"]:
+        fixture = case["fixture_evidence"][0]["quote"]
+        assertion = (
+            case["expected_evidence"][0]["quote"].replace("assert actual == ", "equal(actual, ")
+            + ")"
+        )
+        lines.extend([f"def {case['test']}():", f"    {fixture}", f"    {assertion}", ""])
+        case["expected_evidence"] = [cite(assertion, "tests/test_contract.py", line=len(lines) - 1)]
+    texts["tests/test_contract.py"] = "\n".join(lines)
+    if module == "numpy.testing":
+        assert check(record, texts).passed
+    else:
+        with pytest.raises(ValueError, match="protected assertion reachable"):
+            check(record, texts)
 
 
 def test_inapplicable_case_requires_public_exclusion_and_still_occupies_its_tuple():

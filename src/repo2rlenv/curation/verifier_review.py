@@ -179,7 +179,13 @@ class VerifierInputError(VerifierReviewError):
 
 
 def _authority_reference_lines(
-    texts: dict[str, str], test: str, *, assertions_only: bool = False, include_inputs: bool = False
+    texts: dict[str, str],
+    test: str,
+    *,
+    assertions_only: bool = False,
+    include_inputs: bool = False,
+    root: tuple[str, str] | None = None,
+    roots_out: list[tuple[str, str]] | None = None,
 ) -> tuple[dict, bool]:
     """Conservative module-local links; unresolved calls remain a judge responsibility."""
     from pathlib import PurePosixPath
@@ -298,6 +304,10 @@ def _authority_reference_lines(
         for name in names
         if name.rsplit(".", 1)[-1] == test
     ]
+    if roots_out is not None:
+        roots_out.extend(pending)
+    if root is not None:
+        pending = [candidate for candidate in pending if candidate == root]
     found = bool(pending)
     # Pytest activates module autouse fixtures before each collected test.
     pending.extend((path, name) for path in {path for path, _ in pending} for name in autouse[path])
@@ -335,6 +345,13 @@ def _authority_reference_lines(
                     and (
                         not assertions_only
                         or dotted(node.func).rpartition(".")[2].startswith("assert")
+                        or (
+                            expanded(path, dotted(node.func)).rpartition(".")[0]
+                            in {"numpy.testing", "torch.testing"}
+                            and expanded(path, dotted(node.func))
+                            .rpartition(".")[2]
+                            .startswith("assert")
+                        )
                         or expanded(path, dotted(node.func))
                         in {"pytest.raises", "pytest.warns", "pytest.deprecated_call"}
                     )
@@ -533,31 +550,53 @@ def _check_condition_inventory(review: VerifierPreflightReviewV11, texts: dict[s
                     # Proposed fixtures need not exist; they must not be called coverage.
                     continue
                 if case.test not in references:
-                    inputs, found = _authority_reference_lines(
-                        texts, case.test, include_inputs=True
-                    )
-                    assertions, _ = _authority_reference_lines(
-                        texts, case.test, assertions_only=True
-                    )
-                    references[case.test] = inputs, assertions, found
-                inputs, assertions, found = references[case.test]
-                if not found or not any(
+                    roots = []
+                    _authority_reference_lines(texts, case.test, roots_out=roots)
+                    references[case.test] = [
+                        (
+                            root,
+                            _authority_reference_lines(
+                                texts, case.test, include_inputs=True, root=root
+                            )[0],
+                            _authority_reference_lines(
+                                texts, case.test, assertions_only=True, root=root
+                            )[0],
+                        )
+                        for root in roots
+                    ]
+                candidates = references[case.test]
+                if not candidates or not any(
                     case.test in requirements[name] for name in matrix.requirement_ids
                 ):
                     raise ValueError(
                         "Covered joint case test must exist and map to a declared requirement"
                     )
-                if not _condition_citations(
-                    case.fixture_evidence, texts, public=False, reachable=inputs
-                ):
+                failures = []
+                for root, inputs, assertions in candidates:
+                    # Resolve omitted lines independently for each candidate root.
+                    # Failed candidates must not pin otherwise ambiguous quotes.
+                    fixture = [item.model_copy(deep=True) for item in case.fixture_evidence]
+                    expected = [item.model_copy(deep=True) for item in case.expected_evidence]
+                    try:
+                        if not _condition_citations(fixture, texts, public=False, reachable=inputs):
+                            raise ValueError(
+                                "Joint fixture inputs need a citation reachable from the mapped test, helper or parameter grid"
+                            )
+                        if not _condition_citations(
+                            expected, texts, public=False, reachable=assertions
+                        ):
+                            raise ValueError(
+                                "Joint expected observation needs a protected assertion reachable from the mapped test; worker strings and GOLD mutations do not qualify"
+                            )
+                    except ValueError as exc:
+                        failures.append(f"{root[0]}::{root[1]}: {exc}")
+                    else:
+                        case.fixture_evidence, case.expected_evidence = fixture, expected
+                        break
+                else:
                     raise ValueError(
-                        "Joint fixture inputs need a citation reachable from the mapped test, helper or parameter grid"
-                    )
-                if not _condition_citations(
-                    case.expected_evidence, texts, public=False, reachable=assertions
-                ):
-                    raise ValueError(
-                        "Joint expected observation needs a protected assertion reachable from the mapped test; worker strings and GOLD mutations do not qualify"
+                        "Joint fixture and expected evidence must share one reachable protected-test root; "
+                        + "; ".join(failures[:3])
                     )
             except ValueError as exc:
                 errors.append(label + ": " + str(exc))
