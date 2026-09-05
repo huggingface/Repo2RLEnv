@@ -100,6 +100,10 @@ preflight now reads complete fixtures, observation code, assertions, reference
 solution and controls. It asks which assertion rejects specific incorrect
 implementations and whether a permitted implementation would fail. A concrete
 uncovered contract violation or hidden requirement must block this preflight.
+When a tentative pass includes optional findings, the same reviewer must reconsider
+their classification once within its original turn and cost limits. The preliminary
+and final verdicts remain recorded; optional polish can still pass. This addresses
+observed misclassification without treating reconsideration as independent evidence.
 Static findings guide repairs; actual execution and the separate trajectory
 review remain mandatory.
 

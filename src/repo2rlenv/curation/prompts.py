@@ -95,6 +95,9 @@ Required output:
   When object reuse is promised, keep external references and check object identity;
   equal identifiers/counters alone also accept copies. When another configuration
   attribute must stay untouched, initialize it to a distinct nonempty sentinel.
+  Isolate independently configurable paths; an active weight path can hide broken
+  bias-only initialization. Use the public input dtypes in probes. A projection operand
+  observer must accept both multiplication orientations when both satisfy the contract.
   Choose inputs that distinguish plausible wrong implementations: for weighted means,
   use nonuniform nonzero weights and total weight below one; for energy thresholds,
   choose boundaries where raw and squared singular values select different ranks.

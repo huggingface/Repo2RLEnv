@@ -115,7 +115,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
-    assert record["identity"]["policy_version"] == 5
+    assert record["identity"]["policy_version"] == 6
     assert record["identity"]["inference"]["max_tokens"] == 32_000
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
@@ -147,6 +147,61 @@ async def test_output_limit_is_recorded_and_separates_review_cache(setup, monkey
     assert all(record["identity"]["limits"]["turns"] == 10 for record in records)
     await review(s)
     assert s.agent.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("material", [False, True])
+async def test_optional_findings_get_one_bounded_reconsideration_without_forced_verdict(setup, material):
+    s = setup
+    initial = feedback().model_copy(update={
+        "optional_improvements": ["A bias-only configuration could still initialize to zero."]
+    })
+    final = feedback(passed=False) if material else initial
+
+    async def judge(**kwargs):
+        await read_all(kwargs)
+        validate = kwargs["validate_final"]
+        assert validate(initial.model_dump_json()) == verifier.RECONSIDER_PASS
+        # The final result can remain a pass, and cannot trigger an unbounded loop.
+        assert validate(final.model_dump_json()) is None
+        assert kwargs["max_turns"] == 10 and kwargs["max_cost"] == 4
+        result = state(final)
+        result["messages"][:0] = [
+            {"role": "assistant", "content": initial.model_dump_json()},
+            {"role": "user", "content": verifier.RECONSIDER_PASS},
+        ]
+        return result
+
+    s.agent.side_effect = judge
+    assert (await review(s)).passed is (not material)
+    assert (await review(s)).passed is (not material)
+    s.agent.assert_awaited_once()
+    record = json.loads(record_path(s).read_text())
+    assert record["preliminary_review"] == initial.model_dump()
+    # Reusing a passing score cannot hide a lost or fabricated reconsideration turn.
+    path = record_path(s).with_name("state.json")
+    saved = json.loads(path.read_text())
+    saved["messages"] = saved["messages"][-1:]
+    path.write_text(json.dumps(saved))
+    with pytest.raises(verifier.VerifierReviewError, match="reconsideration conversation"):
+        await review(s)
+    s.agent.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_optional_pass_cannot_skip_reconsideration_callback(setup):
+    s = setup
+
+    async def judge(**kwargs):
+        await read_all(kwargs)
+        return state(feedback().model_copy(update={"optional_improvements": ["Check dtype scope"]}))
+
+    s.agent.side_effect = judge
+    with pytest.raises(verifier.VerifierReviewError, match="not reconsidered"):
+        await review(s)
+    with pytest.raises(verifier.VerifierReviewError, match="Cached verifier review unavailable"):
+        await review(s)
+    s.agent.assert_awaited_once()
 
 
 @pytest.mark.asyncio
