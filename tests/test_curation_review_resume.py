@@ -475,6 +475,7 @@ def response(message):
 async def test_agent_retains_prior_cost_and_turn_number_without_replaying_tools(
     tmp_path, monkeypatch
 ):
+    pytest.importorskip("langgraph")
     state = retained_state()
     before = deepcopy(state)
     budget = Budget(tmp_path / "ledger.json", 8, scope="same", scope_limit=8)
@@ -514,6 +515,7 @@ async def test_agent_retains_prior_cost_and_turn_number_without_replaying_tools(
 async def test_agent_last_remaining_turn_cannot_restart_sixteen_turn_allowance(
     tmp_path, monkeypatch
 ):
+    pytest.importorskip("langgraph")
     budget = Budget(tmp_path / "ledger.json", 8)
     message = {
         "role": "assistant",
@@ -554,6 +556,7 @@ async def test_agent_last_remaining_turn_cannot_restart_sixteen_turn_allowance(
 async def test_agent_continuation_cannot_reset_exhausted_cost_or_use_native_runtime(
     tmp_path, monkeypatch
 ):
+    pytest.importorskip("langgraph")
     complete = AsyncMock()
     monkeypatch.setattr(agent, "completion", complete)
     arguments = dict(
