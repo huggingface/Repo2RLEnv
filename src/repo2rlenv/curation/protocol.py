@@ -14,6 +14,30 @@ class DraftLimitExceeded(RuntimeError):
     pass
 
 
+class MechanicalLimitExceeded(DraftLimitExceeded):
+    """Construction input corrections exhausted; no source suitability judgment."""
+
+
+class MechanicalTracker:
+    """Every failed input attempt counts, including identical invalid exports."""
+
+    def __init__(self, path: Path, limit: int):
+        self.path, self.limit = path, limit
+        self.rows = json.loads(path.read_text()) if path.exists() else []
+
+    def fail(self, task: Path, reason: str) -> None:
+        if len(self.rows) >= self.limit:
+            raise MechanicalLimitExceeded("Mechanical submission allowance exhausted")
+        self.rows.append({"task": str(task), "reason": reason})
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.rows, indent=2))
+        tmp.replace(self.path)
+        if len(self.rows) >= self.limit:
+            raise MechanicalLimitExceeded(
+                "Mechanical submission allowance exhausted; final cause retained"
+            )
+
+
 class DraftTracker:
     """Count distinct submitted tasks, including structurally invalid drafts."""
 
@@ -91,4 +115,20 @@ must be independent of submitted implementation outputs. This plan is reviewed
 alongside the actual assertions; prose alone does not establish correctness.
 Preserve the substantive PR scope established by screening. Do not shrink the task
 to obtain a pass. Defer with evidence if it cannot be verified honestly on CPU.
+"""
+
+
+CONVERSION_AUTHOR = """
+This run uses the conversion policy. Mechanical input corrections have a separate
+bounded allowance from structurally complete semantic submissions. The host records
+both and all cost still counts. Generated Python bytecode backed by source is removed
+from exported tests/solution; other binary review inputs must be corrected explicitly.
+Required plan metadata is prepared from the accepted design. Never invent tests or
+controls merely to satisfy its schema. Preserve every meaningful screened behavior.
+Each distinct complete task sent to static review consumes a semantic submission,
+including rejected specifications, verifier gaps and execution failures. Identical
+complete content reuses that submission. Follow the numeric limits in the prompt;
+a final failed submission terminates the run. Packaging errors do not prove that
+the PR is unsuitable. Defer only with concrete evidence of the unsupported behavior,
+resource or dependency. Difficulty is reported separately from correctness.
 """

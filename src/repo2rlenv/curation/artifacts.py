@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.util
 import json
+import os
 import re
 import shlex
 import shutil
+import stat
 import tempfile
 from functools import lru_cache
 from pathlib import Path
@@ -217,6 +220,84 @@ def digest_task(path: Path) -> str:
         if p.is_file():
             digest.update(p.relative_to(path).as_posix().encode() + b"\0" + p.read_bytes() + b"\0")
     return digest.hexdigest()
+
+
+def sanitize_generated_python_caches(path: Path) -> dict:
+    """Remove source-backed bytecode from a newly exported, exclusively owned task.
+
+    Under tests/solution, .pyc/.pyo are reserved for generated Python bytecode.
+    Every removal requires its regular .py source; orphan bytecode is rejected.
+    Other files, including source or fixtures inside __pycache__, are preserved.
+    Validate the entire tree before any deletion. Store the returned audit manifest
+    outside the task, before computing the canonical submission digest.
+    """
+    path = path.absolute()
+    if not stat.S_ISDIR(path.lstat().st_mode):
+        raise ValueError(f"Task root is not a regular directory: {path}")
+    pending = [path]
+    directories = []
+    files = {}
+    while pending:
+        directory = pending.pop()
+        for child in sorted(directory.iterdir()):
+            info = child.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                directories.append(child)
+                pending.append(child)
+            elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                files[child] = info
+            else:
+                raise ValueError(f"Linked or non-regular task entry: {child}")
+
+    removed = []
+    for file in sorted(files):
+        relative = file.relative_to(path)
+        if relative.parts[0] not in {"tests", "solution"} or file.suffix not in {".pyc", ".pyo"}:
+            continue
+        if file.parent.name == "__pycache__":
+            try:
+                source = Path(importlib.util.source_from_cache(str(file.with_suffix(".pyc"))))
+            except ValueError as exc:
+                raise ValueError(f"Invalid generated Python cache path: {relative}") from exc
+        else:
+            source = file.with_suffix(".py")
+        if source not in files:
+            raise ValueError(f"Python bytecode has no regular source: {relative}")
+        descriptor = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if before != files[file]:
+                raise ValueError(f"Task entry changed during cache sanitation: {relative}")
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            after = os.fstat(stream.fileno())
+        if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+            raise ValueError(f"Task entry changed during cache sanitation: {relative}")
+        removed.append(
+            {
+                "path": relative.as_posix(),
+                "source": source.relative_to(path).as_posix(),
+                "sha256": digest,
+                "size_bytes": before.st_size,
+            }
+        )
+
+    for item in removed:
+        (path / item["path"]).unlink()
+    removed_directories = []
+    for directory in sorted(directories, key=lambda p: (-len(p.parts), p.as_posix())):
+        relative = directory.relative_to(path)
+        if (
+            relative.parts[0] in {"tests", "solution"}
+            and "__pycache__" in relative.parts[1:]
+            and not any(directory.iterdir())
+        ):
+            directory.rmdir()
+            removed_directories.append(relative.as_posix())
+    return {
+        "policy_version": 1,
+        "removed_files": removed,
+        "removed_directories": sorted(removed_directories),
+    }
 
 
 def finalize(path: Path, source: dict) -> Contract:

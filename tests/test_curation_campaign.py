@@ -6,7 +6,7 @@ import pytest
 
 from repo2rlenv.curation import campaign
 from repo2rlenv.curation.budget import Budget
-from repo2rlenv.curation.models import CampaignConfig, TrialEvidence
+from repo2rlenv.curation.models import CRITERIA, CampaignConfig, Review, TrialEvidence
 
 
 @pytest.mark.asyncio
@@ -58,8 +58,21 @@ async def test_terminal_failure_preserves_review_or_execution_evidence(
         )
 
     async def review(*args, **kwargs):
-        return SimpleNamespace(
-            score=72.5, adversary_assessment="attempted_hack", model_dump_json=lambda: "{}"
+        return Review(
+            criteria={
+                name: {
+                    "score": 2 if name == "realism" else 3,
+                    "outcome": "pass",
+                    "explanation": "Retained evidence supporting this review criterion.",
+                    "evidence": ["instruction.md"],
+                }
+                for name in CRITERIA
+            },
+            blockers=[],
+            reward_hacks=[],
+            suggested_repairs=[],
+            failure_attribution={},
+            adversary_assessment="attempted_hack",
         )
 
     monkeypatch.setattr(campaign, "AuthorSandbox", Sandbox)

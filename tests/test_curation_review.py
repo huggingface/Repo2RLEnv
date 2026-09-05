@@ -73,6 +73,29 @@ def good_review():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("policy", ["legacy", "validity"])
+async def test_reviewer_receives_explicit_admission_policy(evidence, monkeypatch, policy):
+    root, task, trials = evidence
+
+    async def judge(**kwargs):
+        assert f"Admission policy: {policy}." in kwargs["system"]
+        if policy == "validity":
+            assert "it is descriptive only" in kwargs["system"]
+            assert "excludes intrinsic_difficulty" in kwargs["system"]
+        return {"messages": [{"content": good_review().model_dump_json()}]}
+
+    monkeypatch.setattr(review_module, "run_agent", judge)
+    await review_module.review(
+        task,
+        root,
+        trials,
+        model="mock",
+        budget=Budget(root / "budget.json", 1),
+        acceptance_policy=policy,
+    )
+
+
+@pytest.mark.asyncio
 async def test_reviewer_reads_patches_changed_exports_and_full_trace_pages(evidence, monkeypatch):
     root, task, trials = evidence
     write(task / "solution/solve.sh", "git apply /solution/patch.diff\n")

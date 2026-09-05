@@ -197,6 +197,9 @@ solvability: oracle succeeds repeatedly AND solution follows from the visible co
 reproducibility: pinned, offline, deterministic, no undeclared hardware/services.
 intrinsic_difficulty: meaningful reasoning; failures must not be caused by missing
 dependencies, ambiguity, arbitrary formatting, resource starvation or an invalid grader.
+Rate intrinsic difficulty separately: 0=trivial, 1=routine, 2=moderate, 3=challenging,
+4=exceptional reasoning. A low difficulty score does not mean the environment is
+invalid. Successful solver traces do not by themselves lower validity criteria.
 trace_quality: enough observed execution to support conclusions and diagnose failures.
 
 Populate failure_attribution only for solver-* trials, classifying each as solved,
@@ -216,3 +219,22 @@ gaps in verifier_integrity, and put concrete unresolved defects in blockers. Do 
 treat hypothetical future changes to the verifier as current defects. Human review
 is still needed for a public benchmark claim.
 """
+
+JUDGE_ACCEPTANCE_POLICIES = {
+    "legacy": (
+        "Admission policy: legacy. The host retains the historical eight-criterion "
+        "weighted score and per-criterion gates, including intrinsic_difficulty. "
+        "Report each criterion honestly; the host computes admission."
+    ),
+    "validity": (
+        "Admission policy: validity. The host normalizes the seven validity criteria "
+        "to 0–100 and excludes intrinsic_difficulty from both the admission score and "
+        "per-criterion gates. Still report intrinsic_difficulty with its evidence and "
+        "an honest score/outcome: it is descriptive only. Do not add a blocker or "
+        "required repair solely because a task is easy, or demand changes merely to "
+        "make it harder. Do not transfer a low difficulty assessment to other criteria. "
+        "Every concrete specification, realism, coverage, integrity, solvability, "
+        "reproducibility or trace defect remains subject to the existing gates. "
+        "Observed reward hacks and all concrete unresolved blockers still reject."
+    ),
+}

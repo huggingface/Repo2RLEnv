@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -87,6 +87,10 @@ CRITERIA = {
     "intrinsic_difficulty": 10,
     "trace_quality": 5,
 }
+VALIDITY_CRITERIA = {
+    name: weight for name, weight in CRITERIA.items() if name != "intrinsic_difficulty"
+}
+AcceptancePolicy = Literal["legacy", "validity"]
 
 
 class Criterion(StrictModel):
@@ -181,7 +185,23 @@ class Review(StrictModel):
 
     @property
     def score(self) -> float:
+        """Historical eight-criterion score; never reinterpret retained reviews."""
         return sum(CRITERIA[k] * v.score / 4 for k, v in self.criteria.items())
+
+    @property
+    def validity_score(self) -> float:
+        """Normalize the seven validity criteria to the same 0–100 scale."""
+        weighted = sum(
+            weight * self.criteria[name].score for name, weight in VALIDITY_CRITERIA.items()
+        )
+        return 100 * weighted / (4 * sum(VALIDITY_CRITERIA.values()))
+
+    def admission_score(self, policy: AcceptancePolicy) -> float:
+        if policy == "legacy":
+            return self.score
+        if policy == "validity":
+            return self.validity_score
+        raise ValueError(f"Unknown acceptance policy: {policy}")
 
 
 class TrialEvidence(StrictModel):
@@ -217,6 +237,9 @@ class CampaignConfig(StrictModel):
     max_revisions: int = Field(default=3, ge=1, le=8)
     max_candidate_drafts: int | None = Field(default=None, ge=1, le=8)
     require_verification_plan: bool = False
+    acceptance_policy: Literal["legacy", "validity"] = "legacy"
+    submission_policy: Literal["legacy", "conversion"] = "legacy"
+    max_mechanical_submissions: int = Field(default=6, ge=1, le=20)
     oracle_repeats: int = Field(default=3, ge=2, le=20)
     solver_attempts: int = Field(default=1, ge=1, le=10)
     acceptance_score: float = Field(default=85, ge=0, le=100)
@@ -225,6 +248,19 @@ class CampaignConfig(StrictModel):
     author_timeout_sec: int = Field(default=3600, ge=60, le=7200)
     cloud_trial_allowance_usd: float = Field(default=1.0, ge=0.5)
     author_cloud_allowance_usd: float = Field(default=1.5, ge=1)
+
+    @model_validator(mode="after")
+    def bounded_conversion(self) -> CampaignConfig:
+        if self.submission_policy == "conversion" and (
+            self.max_candidate_drafts is None
+            or not self.require_verification_plan
+            or not self.specification_review
+            or not self.verifier_review
+        ):
+            raise ValueError(
+                "Conversion policy requires a finite semantic draft limit, a design and both static reviews"
+            )
+        return self
 
     @field_validator("solver_models")
     @classmethod
@@ -276,14 +312,50 @@ def execution_gate_reasons(
     return reasons
 
 
+def review_scores(review: Review, config: CampaignConfig) -> dict[str, str | float]:
+    """Explicit result metadata: active admission score and both comparable scales."""
+    return {
+        "score": review.admission_score(config.acceptance_policy),
+        "legacy_score": review.score,
+        "validity_score": review.validity_score,
+        "intrinsic_difficulty_score": review.criteria["intrinsic_difficulty"].score,
+        "acceptance_policy": config.acceptance_policy,
+    }
+
+
+def validate_review_scores(row: dict[str, Any], review: Review, config: CampaignConfig) -> None:
+    """Validate a persisted score receipt without reclassifying legacy records."""
+    if row.get("acceptance_policy", "legacy") != config.acceptance_policy:
+        raise ValueError("Accepted result acceptance policy mismatch")
+    for name, expected in review_scores(review, config).items():
+        if name == "acceptance_policy":
+            continue
+        # Old legacy records carried only score. New auxiliary scores, when
+        # present, must agree; validity admissions require the complete receipt.
+        if name != "score" and config.acceptance_policy == "legacy" and name not in row:
+            continue
+        value = row.get(name)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (float, int))
+            or not math.isfinite(value)
+            or value != expected
+        ):
+            raise ValueError(f"Accepted result {name} mismatch")
+
+
 def quality_gate_reasons(review: Review, config: CampaignConfig) -> list[str]:
     """Quality findings only; incomplete execution/audit evidence is separate."""
     reasons = []
-    if review.score < config.acceptance_score:
-        reasons.append(f"Quality score {review.score:.1f} below {config.acceptance_score}")
+    score = review.admission_score(config.acceptance_policy)
+    if score < config.acceptance_score:
+        label = "Quality" if config.acceptance_policy == "legacy" else "Validity"
+        reasons.append(f"{label} score {score:.1f} below {config.acceptance_score}")
     reasons.extend(review.blockers)
     reasons.extend(f"Reward hack: {h}" for h in review.reward_hacks)
     for name, criterion in review.criteria.items():
+        if config.acceptance_policy == "validity" and name == "intrinsic_difficulty":
+            continue
         if criterion.outcome != "pass" or criterion.score < 3:
             reasons.append(f"Criterion not passed: {name}")
     return reasons

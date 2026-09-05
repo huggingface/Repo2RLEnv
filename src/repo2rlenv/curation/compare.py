@@ -21,7 +21,7 @@ from repo2rlenv.curation.campaign import (
 )
 from repo2rlenv.curation.external_agent import runtime_path
 from repo2rlenv.curation.inference import inference_settings
-from repo2rlenv.curation.models import CampaignConfig
+from repo2rlenv.curation.models import CampaignConfig, Review, validate_review_scores
 from repo2rlenv.curation.sources import resolve_pr
 
 RUNTIMES = ("langgraph", "pi", "opencode")
@@ -78,7 +78,13 @@ def _attempt_key(row: dict) -> tuple[str, str, str]:
 
 
 def _check_accepted(
-    row: dict, out: Path, source: dict, *, released: bool, allow_stale: bool = False
+    row: dict,
+    out: Path,
+    source: dict,
+    *,
+    released: bool,
+    allow_stale: bool = False,
+    config: CampaignConfig | None = None,
 ) -> Path:
     if row.get("admission_version") != ADMISSION_VERSION and not allow_stale:
         raise ValueError(
@@ -89,6 +95,23 @@ def _check_accepted(
     path = out / "tasks" / row["runtime"] / source["id"] if released else Path(row["task_path"])
     if not path.is_dir() or path.is_symlink() or digest_task(path) != row.get("task_digest"):
         raise ValueError(f"Accepted task missing or changed: {path}")
+    if not allow_stale:
+        config = config or CampaignConfig()
+        if row.get("acceptance_policy", "legacy") != config.acceptance_policy:
+            raise ValueError("Accepted cell acceptance policy mismatch")
+        if config.acceptance_policy == "validity" or any(
+            name in row for name in ("legacy_score", "validity_score", "intrinsic_difficulty_score")
+        ):
+            review_path = Path(row.get("review_path", ""))
+            candidate = out / "candidates" / row["runtime"] / source["id"]
+            if (
+                not review_path.is_file()
+                or review_path.is_symlink()
+                or not review_path.resolve().is_relative_to(candidate.resolve())
+                or review_path != Path(row["task_path"]).parent / "review.json"
+            ):
+                raise ValueError("Accepted cell score receipt requires its retained review")
+            validate_review_scores(row, Review.model_validate_json(review_path.read_text()), config)
     return path
 
 
@@ -353,13 +376,13 @@ async def compare(
                     del rows[key]
                     continue
                 if row in manifest["rows"]:
-                    _check_accepted(row, out, source, released=True)
+                    _check_accepted(row, out, source, released=True, config=config)
                 else:
-                    task = _check_accepted(row, out, source, released=False)
+                    task = _check_accepted(row, out, source, released=False, config=config)
                     if row.get("recovered_from") == "accepted_verdict":
                         save(Path(row["evidence_dir"]) / "comparison-result.json", row)
                     release_task(task, out / "tasks" / row["runtime"] / source["id"])
-                    _check_accepted(row, out, source, released=True)
+                    _check_accepted(row, out, source, released=True, config=config)
 
         if retry_failures:
             for key, row in list(rows.items()):
@@ -437,11 +460,11 @@ async def compare(
             root.mkdir(parents=True, exist_ok=True)
             _check_row(result, seeds)
             if result["status"] == "accepted":
-                _check_accepted(result, out, source, released=False)
+                _check_accepted(result, out, source, released=False, config=config)
             save(root / "comparison-result.json", result)
             if result["status"] == "accepted":
                 release_task(Path(result["task_path"]), out / "tasks" / runtime / source["id"])
-                _check_accepted(result, out, source, released=True)
+                _check_accepted(result, out, source, released=True, config=config)
             manifest["rows"].append(result)
             manifest["in_progress"].remove({"source": source["url"], "runtime": runtime})
             write_report(out, manifest)

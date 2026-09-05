@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.campaign import ADMISSION_VERSION
+from repo2rlenv.curation.models import CampaignConfig, Review, validate_review_scores
 
 
 def _excluded(relative: Path, *, directory: bool) -> bool:
@@ -64,12 +65,21 @@ def _evidence_files(root: Path):
             yield path, relative.as_posix()
 
 
-def _validate_admissions(root: Path) -> None:
+def _validate_admissions(root: Path, *, origin_root: Path | None = None) -> None:
     campaign = root / "manifest.json"
     comparison = root / "comparison.json"
     if campaign.exists() == comparison.exists():
         raise ValueError("Evidence requires exactly one campaign or comparison manifest")
     manifest = json.loads((comparison if comparison.exists() else campaign).read_text())
+    config_path = root / "config.json"
+    config = CampaignConfig.model_validate(
+        json.loads(config_path.read_text()) if config_path.exists() else manifest.get("config", {})
+    )
+    if "config" in manifest and (
+        CampaignConfig.model_validate(manifest["config"]).acceptance_policy
+        != config.acceptance_policy
+    ):
+        raise ValueError("Evidence configuration acceptance policy mismatch")
     accepted = (
         [row for row in manifest["rows"] if row["status"] == "accepted"]
         if comparison.exists()
@@ -86,6 +96,8 @@ def _validate_admissions(root: Path) -> None:
             raise ValueError("Invalid accepted task identity")
         if row.get("admission_version") != ADMISSION_VERSION:
             raise ValueError(f"Accepted task needs admission revalidation: {identity}")
+        if row.get("acceptance_policy", "legacy") != config.acceptance_policy:
+            raise ValueError(f"Accepted task acceptance policy mismatch: {identity}")
         parent = root / "tasks"
         if comparison.exists():
             if row.get("runtime") not in {"langgraph", "pi", "opencode"}:
@@ -102,6 +114,33 @@ def _validate_admissions(root: Path) -> None:
             or digest_task(task) != row.get("task_digest")
         ):
             raise ValueError(f"Accepted task missing or changed after review: {identity}")
+        if config.acceptance_policy == "validity" or any(
+            name in row for name in ("legacy_score", "validity_score", "intrinsic_difficulty_score")
+        ):
+            review_path = Path(row.get("review_path", ""))
+            try:
+                relative = (
+                    review_path.relative_to(origin_root or root)
+                    if review_path.is_absolute()
+                    else review_path
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "Accepted score receipt review is outside the evidence root"
+                ) from exc
+            retained_review = root / relative
+            if (
+                ".." in relative.parts
+                or not relative.parts
+                or relative.parts[0] != "candidates"
+                or not retained_review.is_file()
+                or retained_review.is_symlink()
+                or not retained_review.resolve().is_relative_to(root.resolve())
+            ):
+                raise ValueError("Accepted score receipt requires its retained review")
+            validate_review_scores(
+                row, Review.model_validate_json(retained_review.read_text()), config
+            )
 
 
 @contextmanager
@@ -122,15 +161,16 @@ def evidence_snapshot(root: Path):
 
 def publish_evidence(root: Path, bucket: str) -> str:
     """Append a content-addressed evidence snapshot to a private HF bucket."""
-    with evidence_snapshot(root.resolve()) as snapshot:
-        return _publish_snapshot(snapshot, bucket)
+    root = root.resolve()
+    with evidence_snapshot(root) as snapshot:
+        return _publish_snapshot(snapshot, bucket, origin_root=root)
 
 
-def _publish_snapshot(root: Path, bucket: str) -> str:
+def _publish_snapshot(root: Path, bucket: str, *, origin_root: Path | None = None) -> str:
     from huggingface_hub import HfApi
 
     root = root.resolve()
-    _validate_admissions(root)
+    _validate_admissions(root, origin_root=origin_root)
     # Full exports stay private to the local run. review-submissions.json holds
     # exactly the bounded changed text inspected by the independent reviewer.
     files = list(_evidence_files(root))

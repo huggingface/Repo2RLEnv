@@ -10,8 +10,8 @@ from pathlib import Path
 from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
 from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
 from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS
-from repo2rlenv.curation.models import Review, TrialEvidence
-from repo2rlenv.curation.prompts import JUDGE
+from repo2rlenv.curation.models import AcceptancePolicy, Review, TrialEvidence
+from repo2rlenv.curation.prompts import JUDGE, JUDGE_ACCEPTANCE_POLICIES
 
 TEXT_SUFFIXES = {
     ".md",
@@ -435,8 +435,16 @@ async def finalize_review(
 
 
 async def review(
-    task: Path, root: Path, trials: list[TrialEvidence], *, model: str, budget: Budget
+    task: Path,
+    root: Path,
+    trials: list[TrialEvidence],
+    *,
+    model: str,
+    budget: Budget,
+    acceptance_policy: AcceptancePolicy = "legacy",
 ) -> Review:
+    if acceptance_policy not in JUDGE_ACCEPTANCE_POLICIES:
+        raise ValueError(f"Unknown acceptance policy: {acceptance_policy}")
     root = root.resolve()
     task = task.resolve()
     skipped = []
@@ -560,7 +568,7 @@ async def review(
     try:
         state = await run_agent(
             model=model,
-            system=JUDGE,
+            system=JUDGE + "\n" + JUDGE_ACCEPTANCE_POLICIES[acceptance_policy],
             prompt=prompt,
             budget=budget,
             tools=[tool],

@@ -111,3 +111,63 @@ from the reviewer would be unsafe. Before any new paid batch, define and test a
 canonical export policy and replay the retained failure cases without model calls.
 A subsequent fresh pilot must have its own frozen sources and cumulative budget;
 this failed pilot must stay in the denominator of any aggregate report.
+
+## Conversion policy: validity and construction are separate
+
+New experiments can opt in to `submission_policy="conversion"` and
+`acceptance_policy="validity"`. Existing configurations default to `legacy`; no
+retained task is silently reclassified. The conversion pilot preserves the five
+fixed sources and $40 total/$8 per-source ceilings, with four author rounds, three
+complete semantic submissions (initial plus two revisions), and six failed
+mechanical input attempts. Every attempt still consumes its normal model/cloud
+budget. A stopped run is not evidence that its PR cannot become a useful task.
+
+Mechanical validation happens before a semantic submission is counted or a reviewer
+is called. The host restores a missing verification plan from the accepted design,
+without inventing requirements or controls; incompatible mappings still fail. It
+removes only generated `.pyc`/`.pyo` under `tests` and `solution` with a corresponding
+regular Python source, recording paths and hashes outside the task before hashing
+its canonical contents. Orphan bytecode, linked files and nonregular entries fail.
+Other fixtures and source are retained, including files inside a cache directory.
+Arbitrary binary review evidence is not silently hidden. Repeated identical invalid
+inputs consume mechanical attempts, so this path cannot bypass bounded retries.
+
+A complete task counts against the semantic allowance before static quality review.
+Coverage defects, ambiguous instructions and failed execution controls continue to
+block acceptance and consume that allowance. Every final failure retains its cause.
+Counters are separate in `mechanical-submissions.json`, `submitted-drafts.json` and
+`construction-accounting.json`. They measure construction behavior, not inherent PR
+suitability. A deferral remains an author claim requiring independent assessment.
+
+Under validity admission, intrinsic difficulty is descriptive. The seven remaining
+rubric criteria are normalized to 100 for the configured acceptance threshold;
+all their individual gates, blockers, reward-hack findings, repeated references,
+wrong-solution controls, valid alternatives and solver-attribution checks remain.
+Results record the active policy, validity score, historical eight-criterion score
+and difficulty score. Recovery and publication verify that receipt against the
+original policy. An easy task can pass; an incorrect or unfair task cannot pass
+merely by being easy. Neither a clean export nor a valid design is task admission.
+
+To use the conversion profile, include these fields in a new frozen protocol's
+`config` alongside the pinned sources, models and unchanged pilot budget fields:
+
+```json
+{
+  "submission_policy": "conversion",
+  "acceptance_policy": "validity",
+  "max_candidate_drafts": 3,
+  "max_mechanical_submissions": 6,
+  "max_revisions": 4,
+  "require_verification_plan": true,
+  "specification_review": true,
+  "verifier_review": true
+}
+```
+
+A no-model replay on a copy of the retained TRL #6150 export removed its single
+source-backed cache file and produced exactly the digest of the previously blocked
+cache-cleaned export. The evidence reader can now read it; its substantive
+correctness is still unvalidated. Automated tests cover distinct mechanical and
+semantic allowances, missing-plan restoration, invalid mappings and policy-bound
+admission. The first pilot remains 0/5; this policy has not yet established improved
+live conversion yield.

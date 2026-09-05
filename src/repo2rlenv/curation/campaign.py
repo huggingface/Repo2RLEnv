@@ -14,7 +14,12 @@ from importlib.metadata import version
 from pathlib import Path
 
 from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
-from repo2rlenv.curation.artifacts import digest_task, finalize, release_task
+from repo2rlenv.curation.artifacts import (
+    digest_task,
+    finalize,
+    release_task,
+    sanitize_generated_python_caches,
+)
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.cloud import AuthorSandbox
 from repo2rlenv.curation.design import plan_candidate_design
@@ -35,18 +40,25 @@ from repo2rlenv.curation.models import (
     acceptance,
     execution_gate_reasons,
     quality_gate_reasons,
+    review_scores,
+    validate_review_scores,
 )
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.protocol import (
+    CONVERSION_AUTHOR,
     PILOT_AUTHOR,
     DraftLimitExceeded,
     DraftTracker,
+    MechanicalLimitExceeded,
+    MechanicalTracker,
     check_verification_plan,
 )
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
 from repo2rlenv.curation.specification_review import SpecificationInputError, review_specification
+from repo2rlenv.curation.specification_review import _snapshot as specification_snapshot
 from repo2rlenv.curation.verifier_review import VerifierInputError, review_verifier
+from repo2rlenv.curation.verifier_review import _snapshot as verifier_snapshot
 
 logger = logging.getLogger(__name__)
 ADMISSION_VERSION = 5
@@ -380,7 +392,14 @@ async def _review_revision(
     task = folder / "task"
     save(folder / "evidence.json", _evidence_record(digest, trials, resumed_from, recovery))
     logger.info("%s: independent specification and trajectory review", source["id"])
-    result = await review(task, folder, trials, model=config.judge_model, budget=budget)
+    result = await review(
+        task,
+        folder,
+        trials,
+        model=config.judge_model,
+        budget=budget,
+        acceptance_policy=config.acceptance_policy,
+    )
     if result.adversary_assessment != "attempted_hack":
         for attempt in trials:
             if attempt.label == "adversary":
@@ -404,7 +423,7 @@ async def _review_revision(
         if not reasons
         else ("execution_failure" if execution_errors else "rejected"),
         "execution_errors": execution_errors,
-        "score": result.score,
+        **review_scores(result, config),
         "reasons": reasons,
         "task_path": str(task),
         "human_review": "pending",
@@ -499,6 +518,17 @@ async def curate_one(
     save(root / "source.json", source)
     drafts = DraftTracker(root / "submitted-drafts.json", config.max_candidate_drafts)
     initial_design = None
+    conversion = config.submission_policy == "conversion"
+    mechanics = MechanicalTracker(
+        root / "mechanical-submissions.json", config.max_mechanical_submissions
+    )
+    if conversion and seed_task is not None:
+        raise RecoveryError(
+            "Conversion policy requires a fresh candidate; do not reset legacy repair allowances"
+        )
+
+    def structural_feedback(message: str) -> str:
+        return message if conversion else repair_feedback(message)
 
     def repair_feedback(message: str) -> str:
         if drafts.limit is not None and len(drafts.rows) >= drafts.limit:
@@ -509,23 +539,44 @@ async def curate_one(
         return message
 
     def submit(task: Path) -> Contract:
-        if initial_design is not None:
-            save(
-                task / "authoring-context.json",
-                {
-                    "source": {key: source.get(key) for key in ("url", "base_sha", "head_sha")},
-                    "screening_observations": source.get("screening_observations", []),
-                    "initial_design": initial_design.model_dump(),
-                },
-            )
         try:
+            if conversion:
+                sanitation = sanitize_generated_python_caches(task)
+                save(task.parent / "sanitation.json", sanitation)
+                plan_path = task / "verification-plan.json"
+                if initial_design is not None and not plan_path.exists():
+                    save(plan_path, initial_design.verification_plan.model_dump())
+                    save(
+                        task.parent / "metadata-repairs.json",
+                        {"restored": ["verification-plan.json"], "from": str(root / "design.json")},
+                    )
+            if initial_design is not None:
+                save(
+                    task / "authoring-context.json",
+                    {
+                        "source": {key: source.get(key) for key in ("url", "base_sha", "head_sha")},
+                        "screening_observations": source.get("screening_observations", []),
+                        "initial_design": initial_design.model_dump(),
+                    },
+                )
             contract = finalize(task, source)
-        except ValueError:
+            if not conversion:
+                drafts.observe(digest_task(task), task)
+            if config.require_verification_plan:
+                check_verification_plan(task, contract)
+            if conversion:
+                # Input completeness is a cheap host check before semantic allowance
+                # or paid review. Never hide arbitrary helpers/binary fixtures.
+                specification_snapshot(task)
+                verifier_snapshot(task)
+        except (ValueError, SpecificationInputError, VerifierInputError) as exc:
+            if conversion:
+                mechanics.fail(task, str(exc))
+            else:
+                drafts.observe(digest_task(task), task)
+            raise ValueError(str(exc)) from exc
+        if conversion:
             drafts.observe(digest_task(task), task)
-            raise
-        drafts.observe(digest_task(task), task)
-        if config.require_verification_plan:
-            check_verification_plan(task, contract)
         return contract
 
     async def check_specification(task: Path) -> str | None:
@@ -590,8 +641,11 @@ async def curate_one(
         except ValueError as exc:
             # A symlink, size violation or invalid export cannot be hashed safely.
             # Count each such submission rather than allowing unlimited tool retries.
-            drafts.observe(f"unexportable-{len(drafts.rows) + 1}", task)
-            repair_feedback("Candidate export failed: " + str(exc))
+            if conversion:
+                mechanics.fail(task, "Candidate export failed: " + str(exc))
+            else:
+                drafts.observe(f"unexportable-{len(drafts.rows) + 1}", task)
+                repair_feedback("Candidate export failed: " + str(exc))
             raise
 
     async def defer_candidate(reason: str) -> str:
@@ -603,11 +657,11 @@ async def curate_one(
         attempt += 1
         folder = root / "drafts" / str(attempt)
         task = folder / "task"
-        await export_submission(task)
         try:
+            await export_submission(task)
             submit(task)
         except ValueError as exc:
-            return repair_feedback("Structural validation failed: " + str(exc))
+            return structural_feedback("Structural validation failed: " + str(exc))
         specification_feedback = await check_specification(task)
         if specification_feedback:
             return repair_feedback(specification_feedback)
@@ -634,6 +688,8 @@ async def curate_one(
         )
         await sandbox.prepare(source)
         feedback = "Investigate this PR and create the task.\n" + json.dumps(source)
+        if conversion:
+            feedback += f"\nSemantic submission limit: {config.max_candidate_drafts}; mechanical failed-input limit: {config.max_mechanical_submissions}. All work shares the original cost and turn limits."
         if config.require_verification_plan and seed_task is None:
             design = await plan_candidate_design(
                 source=source,
@@ -690,7 +746,14 @@ async def curate_one(
             logger.info("%s: author revision %s", source["id"], revision + 1)
             await run_agent(
                 model=config.author_model,
-                system=AUTHOR + (PILOT_AUTHOR if config.require_verification_plan else ""),
+                system=AUTHOR
+                + (
+                    CONVERSION_AUTHOR
+                    if conversion
+                    else PILOT_AUTHOR
+                    if config.require_verification_plan
+                    else ""
+                ),
                 prompt=feedback,
                 budget=budget,
                 tools=[SHELL_TOOL, VALIDATE_TOOL, DEFER_TOOL],
@@ -706,11 +769,13 @@ async def curate_one(
             )
             folder = root / f"revision-{revision}"
             task = folder / "task"
-            await export_submission(task)
             try:
+                await export_submission(task)
                 contract = submit(task)
             except ValueError as exc:
-                feedback = repair_feedback("Repair the structural validation failure: " + str(exc))
+                feedback = structural_feedback(
+                    "Repair the structural validation failure: " + str(exc)
+                )
                 continue
             specification_feedback = await check_specification(task)
             if specification_feedback:
@@ -848,9 +913,24 @@ async def curate_one(
         }
     finally:
         try:
-            await sandbox.stop()
+            if conversion:
+                save(
+                    root / "construction-accounting.json",
+                    {
+                        "submission_policy": config.submission_policy,
+                        "semantic_submissions": len(drafts.rows),
+                        "mechanical_failures": len(mechanics.rows),
+                        "source_unsuitability_established": False,
+                        "note": "Construction outcomes do not establish source unsuitability. Author deferrals require independent review.",
+                    },
+                )
         finally:
-            budget.settle(reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True)
+            try:
+                await sandbox.stop()
+            finally:
+                budget.settle(
+                    reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True
+                )
 
 
 class RecoveryError(ValueError):
@@ -968,6 +1048,10 @@ def _validate_accepted(root: Path, row: dict, config: CampaignConfig) -> Path:
             "review_path",
             "score",
             "admission_version",
+            "acceptance_policy",
+            "validity_score",
+            "legacy_score",
+            "intrinsic_difficulty_score",
         )
     ):
         raise RecoveryError("Accepted result and durable verdict disagree")
@@ -995,11 +1079,11 @@ def _validate_accepted(root: Path, row: dict, config: CampaignConfig) -> Path:
         [m.name for m in contract.mutations],
         [e.name for e in contract.equivalents],
     )
-    if (
-        row.get("score") != result.score
-        or row.get("reasons") != []
-        or row.get("execution_errors", [])
-    ):
+    try:
+        validate_review_scores(row, result, config)
+    except ValueError as exc:
+        raise RecoveryError(str(exc)) from exc
+    if row.get("reasons") != [] or row.get("execution_errors", []):
         raise RecoveryError("Accepted verdict score or outcome mismatch")
     if reasons:
         raise RecoveryError("Accepted evidence fails admission: " + "; ".join(reasons))
@@ -1232,6 +1316,26 @@ async def _campaign(
                 release_task(task, out / "tasks" / source["id"])
         except CandidateDeferred as exc:
             result = {"source": url, "status": "rejected", "reasons": ["Deferred: " + str(exc)]}
+        except MechanicalLimitExceeded as exc:
+            result = {
+                "source": url,
+                "status": "construction_failure",
+                "failure_stage": "mechanical_inputs",
+                "reasons": [str(exc)],
+            }
+        except DraftLimitExceeded as exc:
+            result = {
+                "source": url,
+                "status": "construction_failure",
+                "failure_stage": "semantic_revision_limit",
+                "reasons": [str(exc)],
+            }
+            if config.submission_policy == "legacy":
+                result = {
+                    "source": url,
+                    "status": "rejected",
+                    "reasons": [type(exc).__name__ + ": " + str(exc)],
+                }
         except BudgetExceeded as exc:
             result = {"source": url, "status": "rejected", "reasons": [str(exc)]}
             if budget.spent + 1 >= config.budget_usd:
@@ -1243,6 +1347,8 @@ async def _campaign(
                 "status": "rejected",
                 "reasons": [type(exc).__name__ + ": " + str(exc)],
             }
+        if config.submission_policy == "conversion":
+            result["source_unsuitability_established"] = False
         result.update(budget_scope=scoped.scope, charged_or_reserved_usd=scoped.spent)
         manifest["in_progress"].remove(url)
         manifest["accepted" if result["status"] == "accepted" else "rejected"].append(result)

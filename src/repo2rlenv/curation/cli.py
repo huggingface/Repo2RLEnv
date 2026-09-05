@@ -108,6 +108,12 @@ def cmd_curate(args: argparse.Namespace) -> int:
                 "target": config.target,
                 "budget_usd": config.budget_usd,
                 "provider": "modal",
+                "submission_policy": config.submission_policy,
+                "acceptance_policy": config.acceptance_policy,
+                "semantic_submission_limit": config.max_candidate_drafts,
+                "mechanical_failure_limit": config.max_mechanical_submissions
+                if config.submission_policy == "conversion"
+                else "shared with drafts",
                 "models": ", ".join(config.solver_models),
             },
             title="Curation plan",

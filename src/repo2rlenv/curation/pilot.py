@@ -20,7 +20,7 @@ from repo2rlenv.curation.campaign import (
 )
 from repo2rlenv.curation.design import DesignNotSubmitted
 from repo2rlenv.curation.models import CampaignConfig
-from repo2rlenv.curation.protocol import DraftLimitExceeded
+from repo2rlenv.curation.protocol import DraftLimitExceeded, MechanicalLimitExceeded
 from repo2rlenv.curation.sources import PR_PATTERN
 
 
@@ -47,17 +47,26 @@ def validate_protocol(protocol: dict) -> CampaignConfig:
             raise ValueError("Source identity mismatch")
         if not all(re.fullmatch(r"[0-9a-f]{40}", source[k]) for k in ("base_sha", "head_sha")):
             raise ValueError("Sources must have pinned base and head commits")
+    conversion = config.submission_policy == "conversion"
+    if conversion and (
+        config.acceptance_policy != "validity" or config.max_mechanical_submissions != 6
+    ):
+        raise ValueError(
+            "Conversion pilot requires validity admission and six mechanical corrections"
+        )
     if (
         config.target != 5
         or config.budget_usd != 40
         or config.max_candidate_usd != 8
-        or config.max_revisions != 2
-        or config.max_candidate_drafts != 2
+        or config.max_revisions != (4 if conversion else 2)
+        or config.max_candidate_drafts != (3 if conversion else 2)
         or not config.require_verification_plan
         or not config.specification_review
         or not config.verifier_review
     ):
-        raise ValueError("Pilot requires five slots, $40/$8 caps, two drafts and all reviews")
+        raise ValueError(
+            "Pilot requires five slots, $40/$8 caps, two drafts for legacy or three semantic drafts for conversion, and all reviews"
+        )
     if not re.fullmatch(r"[a-z0-9-]+", protocol["id"]):
         raise ValueError("Invalid pilot ID")
     if not 0 < protocol["production_limit_usd"] <= 380:
@@ -148,6 +157,9 @@ async def run_pilot(protocol_path: Path, out: Path) -> dict:
                     "status": "running",
                     "budget_scope": scope,
                     "candidate_path": str(root),
+                    "source_unsuitability_established": False,
+                    "submission_policy": config.submission_policy,
+                    "acceptance_policy": config.acceptance_policy,
                 }
                 manifest["rows"].append(row)
                 save(manifest_path, manifest)
@@ -165,6 +177,7 @@ async def run_pilot(protocol_path: Path, out: Path) -> dict:
                     status = {
                         CandidateDeferred: "deferred",
                         DraftLimitExceeded: "repair_limit",
+                        MechanicalLimitExceeded: "mechanical_limit",
                         BudgetExceeded: "budget_exhausted",
                         DesignNotSubmitted: "design_failure",
                     }[type(exc)]
