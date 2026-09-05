@@ -126,6 +126,7 @@ async def snapshot(tmp_path, monkeypatch, *, instruction=None):
             model="mock",
             budget=budget,
             acceptance_policy="validity",
+            evidence_policy="legacy",
         )
     files = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
     config = tmp_path / "original-run-config.json"
@@ -440,6 +441,20 @@ async def test_superset_inventory_verified_and_overlapping_output_forbidden(tmp_
     s.out = s.root / "continuation"
     with pytest.raises(ValueError, match="disjoint"):
         await invoke(s)
+
+
+@pytest.mark.asyncio
+async def test_legacy_continuation_refuses_projection_policy_journal(tmp_path, monkeypatch):
+    s = await snapshot(tmp_path, monkeypatch)
+    events = [json.loads(line) for line in s.files["judge-trace.jsonl"].splitlines()]
+    for event in events[:2]:
+        event["prompt"] += "\nFinal-review evidence policy: complete-actions-v1.\n"
+    raw = "".join(json.dumps(event) + "\n" for event in events).encode()
+    files = {**s.files, "judge-trace.jsonl": raw}
+    with pytest.raises(ValueError, match="coverage-aware continuation"):
+        reconstruct_review(
+            files, expected_trace_digest=digest(raw), model="mock", acceptance_policy="validity"
+        )
 
 
 def retained_state(turns=1, cost=1.2):

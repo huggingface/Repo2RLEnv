@@ -10,7 +10,14 @@ from tempfile import TemporaryDirectory
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.campaign import ADMISSION_VERSION
-from repo2rlenv.curation.models import CampaignConfig, Review, validate_review_scores
+from repo2rlenv.curation.models import (
+    CampaignConfig,
+    Contract,
+    TrialEvidence,
+    acceptance,
+    validate_review_scores,
+)
+from repo2rlenv.curation.review import validate_review_receipt
 
 
 def _excluded(relative: Path, *, directory: bool) -> bool:
@@ -145,33 +152,58 @@ def _validate_admissions(root: Path, *, origin_root: Path | None = None) -> None
             or digest_task(task) != row.get("task_digest")
         ):
             raise ValueError(f"Accepted task missing or changed after review: {identity}")
-        if config.acceptance_policy == "validity" or any(
-            name in row for name in ("legacy_score", "validity_score", "intrinsic_difficulty_score")
-        ):
-            review_path = Path(row.get("review_path", ""))
-            try:
-                relative = (
-                    review_path.relative_to(origin_root or root)
-                    if review_path.is_absolute()
-                    else review_path
-                )
-            except ValueError as exc:
-                raise ValueError(
-                    "Accepted score receipt review is outside the evidence root"
-                ) from exc
-            retained_review = root / relative
-            if (
-                ".." in relative.parts
-                or not relative.parts
-                or relative.parts[0] != "candidates"
-                or not retained_review.is_file()
-                or retained_review.is_symlink()
-                or not retained_review.resolve().is_relative_to(root.resolve())
-            ):
-                raise ValueError("Accepted score receipt requires its retained review")
-            validate_review_scores(
-                row, Review.model_validate_json(retained_review.read_text()), config
+        review_path = Path(row.get("review_path", ""))
+        try:
+            relative = (
+                review_path.relative_to(origin_root or root)
+                if review_path.is_absolute()
+                else review_path
             )
+        except ValueError as exc:
+            raise ValueError("Accepted score receipt review is outside the evidence root") from exc
+        retained_review = root / relative
+        if (
+            ".." in relative.parts
+            or not relative.parts
+            or relative.parts[0] != "candidates"
+            or not retained_review.is_file()
+            or retained_review.is_symlink()
+            or not retained_review.resolve().is_relative_to(root.resolve())
+        ):
+            raise ValueError("Accepted score receipt requires its retained review")
+        folder = retained_review.parent
+        reviewed_task = folder / "task"
+        if digest_task(reviewed_task) != row["task_digest"]:
+            raise ValueError("Published task differs from reviewed task")
+        evidence_path = folder / "evidence.json"
+        if evidence_path.is_symlink() or not evidence_path.is_file():
+            raise ValueError("Accepted review requires retained trial evidence")
+        evidence = json.loads(evidence_path.read_text())
+        if (
+            evidence.get("admission_version") != ADMISSION_VERSION
+            or evidence.get("task_digest") != row["task_digest"]
+        ):
+            raise ValueError("Accepted trial evidence identity mismatch")
+        trials = [TrialEvidence.model_validate(item) for item in evidence["trials"]]
+        result = validate_review_receipt(
+            folder,
+            reviewed_task,
+            trials,
+            model=config.judge_model,
+            acceptance_policy=config.acceptance_policy,
+        )
+        validate_review_scores(row, result, config)
+        contract = Contract.model_validate_json((reviewed_task / "contract.json").read_text())
+        reasons = acceptance(
+            trials,
+            result,
+            config,
+            row["task_digest"],
+            [mutation.name for mutation in contract.mutations],
+            [equivalent.name for equivalent in contract.equivalents],
+        )
+        if reasons or row.get("reasons", []) or row.get("execution_errors", []):
+            raise ValueError("Published evidence fails admission: " + "; ".join(reasons))
 
 
 @contextmanager

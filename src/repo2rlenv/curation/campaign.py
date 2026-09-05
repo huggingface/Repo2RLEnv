@@ -53,7 +53,8 @@ from repo2rlenv.curation.protocol import (
     MechanicalTracker,
     check_verification_plan,
 )
-from repo2rlenv.curation.review import review
+from repo2rlenv.curation.review import review, validate_review_receipt
+from repo2rlenv.curation.review_evidence import ReviewEvidenceError
 from repo2rlenv.curation.sources import resolve_pr
 from repo2rlenv.curation.specification_review import SpecificationInputError, review_specification
 from repo2rlenv.curation.specification_review import _snapshot as specification_snapshot
@@ -61,7 +62,7 @@ from repo2rlenv.curation.verifier_review import VerifierInputError, review_verif
 from repo2rlenv.curation.verifier_review import _snapshot as verifier_snapshot
 
 logger = logging.getLogger(__name__)
-ADMISSION_VERSION = 5
+ADMISSION_VERSION = 6
 
 
 class CandidateDeferred(RuntimeError):
@@ -250,7 +251,7 @@ def _prepare_pending_review(
             if not isinstance(evidence, dict) or evidence["task_digest"] != digest:
                 return None
             # Legacy v3 omitted this field; the current wrapper still must match.
-            if evidence.get("admission_version") not in (None, 3, 4, ADMISSION_VERSION):
+            if evidence.get("admission_version") not in (None, 3, 4, 5, ADMISSION_VERSION):
                 return None
             candidates = [TrialEvidence.model_validate(t) for t in evidence["trials"]]
             if len({t.label for t in candidates}) != len(candidates):
@@ -398,6 +399,13 @@ async def _review_revision(
         trials,
         model=config.judge_model,
         budget=budget,
+        acceptance_policy=config.acceptance_policy,
+    )
+    result = validate_review_receipt(
+        folder,
+        task,
+        trials,
+        model=config.judge_model,
         acceptance_policy=config.acceptance_policy,
     )
     if result.adversary_assessment != "attempted_hack":
@@ -1069,7 +1077,16 @@ def _validate_accepted(root: Path, row: dict, config: CampaignConfig) -> Path:
     trials = [TrialEvidence.model_validate(t) for t in evidence["trials"]]
     if any(trial.task_digest != digest for trial in trials):
         raise RecoveryError("Accepted trial evidence digest mismatch")
-    result = Review.model_validate_json(review_path.read_text())
+    try:
+        result = validate_review_receipt(
+            review_path.parent,
+            task,
+            trials,
+            model=config.judge_model,
+            acceptance_policy=config.acceptance_policy,
+        )
+    except (ReviewEvidenceError, OSError) as exc:
+        raise RecoveryError(f"Accepted review evidence is invalid: {exc}") from exc
     contract = Contract.model_validate_json((task / "contract.json").read_text())
     reasons = acceptance(
         trials,

@@ -20,6 +20,7 @@ from repo2rlenv.curation.models import (
     TrialEvidence,
     execution_gate_reasons,
 )
+from repo2rlenv.curation.review_evidence import ReviewEvidenceError
 
 review_module = importlib.import_module("repo2rlenv.curation.review")
 
@@ -159,6 +160,52 @@ def good_review() -> Review:
     )
 
 
+async def recorded_review_state(kwargs, judge):
+    """Deliver actual required pages while replacing only the paid reviewer."""
+    folder = kwargs["trace"].parent
+    texts = json.loads((folder / "review-projections.json").read_text())["texts"]
+    texts.update(
+        {
+            name: (folder / name).read_text()
+            for name in json.loads((folder / "review-coverage.json").read_text())["required_sha256"]
+            if name not in texts
+        }
+    )
+    messages = [
+        {"role": "system", "content": kwargs["system"]},
+        {"role": "user", "content": kwargs["prompt"]},
+    ]
+    calls, outputs = [], []
+
+    async def recorded_read(path, offset=0, limit=12000):
+        identity = f"read-{len(calls)}"
+        arguments = {"path": path, "offset": offset, "limit": limit}
+        output = await kwargs["handlers"]["read_evidence"](**arguments)
+        calls.append(
+            {
+                "id": identity,
+                "function": {"name": "read_evidence", "arguments": json.dumps(arguments)},
+            }
+        )
+        outputs.append({"role": "tool", "tool_call_id": identity, "content": output})
+        return output
+
+    state = await judge(**{**kwargs, "handlers": {"read_evidence": recorded_read}})
+    final_message = state["messages"][-1]
+    for name, text in texts.items():
+        for offset in range(0, max(1, len(text)), 16000):
+            await recorded_read(name, offset, 16000)
+    messages.extend(
+        [
+            {"role": "assistant", "tool_calls": calls},
+            *outputs,
+            {"role": "assistant", **final_message},
+        ]
+    )
+    assert kwargs["validate_final"](final_message["content"]) is None
+    return {"messages": messages, "turns": 2, "cost": 0}
+
+
 @pytest.fixture
 def retained(tmp_path, monkeypatch):
     pytest.importorskip("harbor")
@@ -243,6 +290,16 @@ def retained(tmp_path, monkeypatch):
             folder / "result.json", json.dumps({"verifier_result": {"rewards": {"reward": reward}}})
         )
         write(folder / "agent/trajectory.jsonl", json.dumps({"label": label, "model": model}))
+        write(
+            folder / "agent/trace.jsonl",
+            json.dumps(
+                {
+                    "kind": "model",
+                    "message": {"role": "assistant", "content": f"Completed {label}."},
+                }
+            )
+            + "\n",
+        )
         write(folder / "verifier/reward.txt", str(reward))
         write(
             folder / "artifacts/manifest.json",
@@ -285,7 +342,11 @@ def retained(tmp_path, monkeypatch):
     reserve = Mock(side_effect=AssertionError("Unexpected model or cloud reservation"))
     monkeypatch.setattr(budget, "reserve", reserve)
     judge = AsyncMock(return_value={"messages": [{"content": good_review().model_dump_json()}]})
-    monkeypatch.setattr(review_module, "run_agent", judge)
+
+    async def complete_reader(**kwargs):
+        return await recorded_review_state(kwargs, judge)
+
+    monkeypatch.setattr(review_module, "run_agent", complete_reader)
     monkeypatch.setattr(
         review_module, "completion", AsyncMock(side_effect=AssertionError("Unexpected paid call"))
     )
@@ -330,11 +391,18 @@ async def test_pending_review_reuses_actual_evidence_without_author_or_rollouts(
         assert "prior-review/" not in kwargs["prompt"]
         read = kwargs["handlers"]["read_evidence"]
         instruction = await read("task/instruction.md")
-        assert instruction.partition("\n")[2] == (r.task / "instruction.md").read_text()
+        assert (
+            instruction.partition("\n")[2].split("\nRead progress:\n")[0]
+            == (r.task / "instruction.md").read_text()
+        )
         path = "trials/solver-1-0-retained-id/agent/trajectory.jsonl"
-        assert (await read(path)).partition("\n")[2] == (r.previous / path).read_text()
+        assert (await read(path)).partition("\n")[2].split("\nRead progress:\n")[0] == (
+            r.previous / path
+        ).read_text()
         changed = "trials/solver-1-0-retained-id/artifacts/workspace/src/widget/widget.py"
-        assert (await read(changed)).partition("\n")[2] == (r.previous / changed).read_text()
+        assert (await read(changed)).partition("\n")[2].split("\nRead progress:\n")[0] == (
+            r.previous / changed
+        ).read_text()
         return {"messages": [{"content": good_review().model_dump_json()}]}
 
     r.judge.side_effect = judge
@@ -408,6 +476,8 @@ def allow_reruns(r) -> None:
         assert task == r.root / "revision-0/task"
         folder = output / (label + "-fresh-id")
         old = r.previous / "trials" / (label + "-retained-id")
+        if not old.is_dir() and label.startswith("solver-"):
+            old = r.previous / "trials" / (label.rsplit("-", 1)[0] + "-0-retained-id")
         if old.is_dir():
             shutil.copytree(old, folder)
         else:
@@ -673,6 +743,91 @@ async def test_fresh_revision_writes_admission_version(retained):
     assert "resumed_from" not in verdict
 
 
+def damage_receipt(folder, damage):
+    path = folder / "review-coverage.json"
+    if damage == "missing":
+        path.unlink()
+    elif damage == "unread":
+        receipt = json.loads(path.read_text())
+        receipt["reads"]["review-actions/solver-1-0.txt"] = []
+        campaign.save(path, receipt)
+    else:
+        result = Review.model_validate_json((folder / "review.json").read_text())
+        result.criteria["realism"].explanation = "Changed after the recorded reviewer response."
+        write(folder / "review.json", result.model_dump_json())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", ["legacy", "validity"])
+@pytest.mark.parametrize("damage", ["missing", "unread", "changed_review"])
+async def test_pending_review_cannot_admit_without_valid_receipt(
+    retained, monkeypatch, policy, damage
+):
+    r = retained
+    r.config = r.config.model_copy(update={"acceptance_policy": policy})
+    original_review = campaign.review
+
+    async def damaged_review(task, folder, *args, **kwargs):
+        result = await original_review(task, folder, *args, **kwargs)
+        damage_receipt(folder, damage)
+        return result
+
+    monkeypatch.setattr(campaign, "review", damaged_review)
+    before = artifacts.digest_task(r.previous)
+    with pytest.raises(ReviewEvidenceError):
+        await campaign.curate_one(r.source, r.root, r.config, r.budget, r.task)
+    assert not (r.root / "verdict.json").exists()
+    assert (r.root / "revision-0/evidence.json").exists()
+    assert artifacts.digest_task(r.previous) == before
+    r.judge.assert_awaited_once()
+    for forbidden in (r.sandbox, r.author, r.preflight, r.trial, r.reserve):
+        forbidden.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", ["legacy", "validity"])
+@pytest.mark.parametrize("damage", ["missing", "unread", "changed_review"])
+async def test_accepted_recovery_revalidates_review_receipt(retained, policy, damage):
+    r = retained
+    r.config = r.config.model_copy(update={"acceptance_policy": policy})
+    output = r.root
+    output.mkdir()
+    campaign.save(output / "config.json", r.config.model_dump())
+    r.root = output / "candidates" / r.source["id"] / "123"
+    result = await campaign.curate_one(r.source, r.root, r.config, r.budget, r.task)
+    assert result["status"] == "accepted"
+    assert campaign._validate_accepted(output, result, r.config) == Path(result["task_path"])
+    r.judge.reset_mock()
+    damage_receipt(Path(result["review_path"]).parent, damage)
+    before = artifacts.digest_task(output)
+    with pytest.raises(campaign.RecoveryError, match="Accepted review evidence is invalid"):
+        campaign._validate_accepted(output, result, r.config)
+    assert artifacts.digest_task(output) == before
+    for forbidden in (r.sandbox, r.author, r.preflight, r.trial, r.judge, r.reserve):
+        forbidden.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_version_five_trials_can_receive_current_receipt_without_reruns(retained):
+    r = retained
+    r.metadata["admission_version"] = 5
+    campaign.save(r.previous / "evidence.json", r.metadata)
+    result = await assert_validation_resume(r, [])
+    assert result["admission_version"] == 6
+    folder = Path(result["review_path"]).parent
+    evidence = json.loads((folder / "evidence.json").read_text())
+    assert (
+        review_module.validate_review_receipt(
+            folder,
+            folder / "task",
+            [TrialEvidence.model_validate(item) for item in evidence["trials"]],
+            model=r.config.judge_model,
+            acceptance_policy=r.config.acceptance_policy,
+        )
+        == good_review()
+    )
+
+
 @pytest.mark.asyncio
 async def test_sidecars_recover_complete_validation_without_top_level_evidence(retained):
     r = retained
@@ -716,7 +871,7 @@ async def test_partial_validation_reuses_draft_preflight_and_controls_but_reruns
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("version", [None, 3, 4])
+@pytest.mark.parametrize("version", [None, 3, 4, 5])
 @pytest.mark.parametrize("old_digest", [None, "obsolete-inference-settings"])
 async def test_models_rerun_for_old_inference_policy_without_repeating_controls(
     retained, version, old_digest

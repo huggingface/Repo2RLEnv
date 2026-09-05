@@ -185,6 +185,10 @@ def reconstruct_review(
     if len(events) < 4 or events[0].get("kind") != "input":
         raise ValueError("Missing judge journal input")
     header = events[0]
+    if "Final-review evidence policy:" in header.get("prompt", ""):
+        raise ValueError(
+            "Projection-policy review requires coverage-aware continuation; legacy recovery refused"
+        )
     system = JUDGE + "\n" + JUDGE_ACCEPTANCE_POLICIES[acceptance_policy]
     if (
         header.get("runtime") != "langgraph"

@@ -15,6 +15,18 @@ from repo2rlenv.curation.models import CRITERIA, Review, TrialEvidence
 review_module = importlib.import_module("repo2rlenv.curation.review")
 
 
+@pytest.fixture(autouse=True)
+def retained_legacy_review_policy(monkeypatch):
+    """These retained fixtures test the historical reader/finalization protocol."""
+    original = review_module.review
+
+    async def legacy(*args, **kwargs):
+        kwargs.setdefault("evidence_policy", "legacy")
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(review_module, "review", legacy)
+
+
 def write(path: Path, content: str | bytes) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode() if isinstance(content, str) else content)

@@ -171,7 +171,12 @@ A score cannot override failed mandatory gates:
 6. An independent reviewer reads task files and trajectories and returns eight
    scored criteria with evidence, blockers, failure attribution and repair suggestions.
    The evidence includes oracle patches and changed solver/adversary submissions
-   compared with baseline exports. Omitted or oversized evidence is recorded explicitly.
+   compared with baseline exports. Before finalizing, the judge must receive the full
+   readable task specification, verifier, oracle, environment definition, and ordered
+   action and change projections for every solver and adversary. Projections retain tool arguments/results and changed source hunks;
+   only recognized opaque provider payloads and duplicate thinking blocks are removed.
+   Missing or oversized required evidence blocks review instead of counting as an empty
+   submission. Read coverage establishes evidence delivery, not understanding.
 7. Admit only with every criterion passed, no unresolved failures/hacks, score at
    least 85/100, and evidence bound to the exact task digest.
 
@@ -257,6 +262,12 @@ were created. If an accepted verdict was saved before a crash but its manifest r
 was not, recovery checks the original configuration, source, digest, score and all
 admission evidence before completing the release. Conflicting or missing evidence
 cannot trigger another author/judge attempt or overwrite an existing release.
+Admission version 6 additionally requires a review receipt binding the task, trial
+metadata, raw traces, submission inventories, policy, actual read transcript and
+final verdict. Admission, recovery and publication recompute the required projections
+and verify complete delivered coverage. Older admissions require revalidation; their
+historical outcomes remain unchanged. New coverage-aware judge journals cannot yet
+use the legacy final-review continuation path.
 
 `publish_evidence()` can archive a campaign or runtime comparison to a private
 Hugging Face bucket under a content-addressed prefix, with SHA-256 checksums.

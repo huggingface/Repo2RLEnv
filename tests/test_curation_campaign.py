@@ -80,6 +80,10 @@ async def test_terminal_failure_preserves_review_or_execution_evidence(
     monkeypatch.setattr(campaign, "preflight", preflight)
     monkeypatch.setattr(campaign, "trial", trial)
     monkeypatch.setattr(campaign, "review", review)
+    # This test isolates terminal-result preservation; receipt enforcement is
+    # exercised against real receipts in the resume/publication integration tests.
+    reviewed = await review()
+    monkeypatch.setattr(campaign, "validate_review_receipt", lambda *args, **kwargs: reviewed)
     monkeypatch.setattr(campaign, "digest_task", lambda _: "digest")
     monkeypatch.setattr(
         campaign,

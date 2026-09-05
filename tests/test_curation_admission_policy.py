@@ -218,6 +218,43 @@ def retained_receipt(root, review, *, comparison):
     task = candidate / identity / "123" / "revision-0" / "task"
     task.mkdir(parents=True)
     (task / "payload.txt").write_text("same immutable task content")
+    (task / "contract.json").write_text(
+        json.dumps(
+            {
+                "title": "A substantive behavior change",
+                "rationale": "Observe independent results",
+                "source_paths": ["src/project"],
+                "min_tests": 3,
+                "requirements": [
+                    {"id": "r1", "behavior": "Returns exact values", "tests": ["a", "b"]},
+                    {"id": "r2", "behavior": "Handles alternatives", "tests": ["c"]},
+                ],
+                "mutations": [
+                    {"name": name, "rationale": "Break observable behavior", "script": "false"}
+                    for name in ["zero", "wrong"]
+                ],
+                "equivalents": [
+                    {
+                        "name": "alternative",
+                        "rationale": "Preserve the behavior",
+                        "script": "true",
+                    }
+                ],
+            }
+        )
+    )
+    digest = digest_task(task)
+    trials = [trial.model_copy(update={"task_digest": digest}) for trial in passing_trials(config)]
+    trials.append(TrialEvidence(label="mutation-zero", task_digest=digest, reward=0, path="trial"))
+    (task.parent / "evidence.json").write_text(
+        json.dumps(
+            {
+                "admission_version": ADMISSION_VERSION,
+                "task_digest": digest,
+                "trials": [trial.model_dump() for trial in trials],
+            }
+        )
+    )
     review_path = task.parent / "review.json"
     review_path.write_text(review.model_dump_json())
     released = root / "tasks"
@@ -242,9 +279,23 @@ def retained_receipt(root, review, *, comparison):
     return row, config, manifest, manifest_path
 
 
+@pytest.fixture
+def score_receipt_validation(monkeypatch):
+    from repo2rlenv.curation import publish
+
+    # These tests isolate score policy and snapshot path resolution. Full proof
+    # validation is covered by the receipt and publication integration suites.
+    # Read the supplied folder each time so live-review changes and blockers
+    # still exercise the actual score and acceptance checks below this gate.
+    def retained_review(folder, task, trials, *, model, acceptance_policy):
+        return Review.model_validate_json((folder / "review.json").read_text())
+
+    monkeypatch.setattr(publish, "validate_review_receipt", retained_review)
+
+
 @pytest.mark.parametrize("comparison", [False, True])
 def test_publication_validates_receipt_from_snapshot_not_live_review(
-    tmp_path, easy_review, comparison
+    tmp_path, easy_review, comparison, score_receipt_validation
 ):
     from repo2rlenv.curation.publish import _validate_admissions, evidence_snapshot
 
@@ -260,7 +311,7 @@ def test_publication_validates_receipt_from_snapshot_not_live_review(
 @pytest.mark.parametrize("comparison", [False, True])
 @pytest.mark.parametrize("damage", ["missing_policy", "score", "missing_scale", "config"])
 def test_publication_rejects_changed_or_missing_validity_receipts(
-    tmp_path, easy_review, comparison, damage
+    tmp_path, easy_review, comparison, damage, score_receipt_validation
 ):
     from repo2rlenv.curation.publish import _validate_admissions
 

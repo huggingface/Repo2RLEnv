@@ -8,10 +8,22 @@ from copy import deepcopy
 from pathlib import Path
 
 from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
+from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
 from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS
 from repo2rlenv.curation.models import AcceptancePolicy, Review, TrialEvidence
 from repo2rlenv.curation.prompts import JUDGE, JUDGE_ACCEPTANCE_POLICIES
+from repo2rlenv.curation.review_evidence import (
+    MAX_RAW_TRACE_BYTES,
+    POLICY,
+    RequiredReads,
+    ReviewEvidenceError,
+    observed_required_reads,
+    policy_identity,
+    project_trace,
+    sha,
+    submission_diff,
+)
 
 TEXT_SUFFIXES = {
     ".md",
@@ -40,6 +52,182 @@ REVIEW_OUTPUT_GUIDANCE = (
     "to at most 100 words and at most 4 evidence items per criterion. Keep other entries "
     "concise while preserving all supported blockers, reward hacks and uncertainty."
 )
+
+REVIEW_READ_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "read_evidence",
+        "description": "Read task or complete trajectory evidence; paginate by character offset.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "offset": {"type": "integer"},
+                "limit": {"type": "integer"},
+            },
+            "required": ["path"],
+        },
+    },
+}
+
+
+def _trial_records(trials: list[TrialEvidence]) -> list[dict]:
+    # Pydantic's unvalidated float defaults may dump as integer 0, then reload
+    # as 0.0. Canonicalize through normal validation before hashing JSON bytes.
+    return [
+        {
+            **TrialEvidence.model_validate(trial.model_dump()).model_dump(),
+            "path": "trials/" + Path(trial.path).name,
+        }
+        for trial in trials
+    ]
+
+
+def _review_identity(model: str, acceptance_policy: str, required: RequiredReads) -> dict:
+    return {
+        **policy_identity(model, acceptance_policy),
+        "review_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "system_sha256": sha(JUDGE + "\n" + JUDGE_ACCEPTANCE_POLICIES[acceptance_policy]),
+        "review_schema_sha256": sha(json.dumps(Review.model_json_schema(), sort_keys=True)),
+        "read_tool_sha256": sha(json.dumps(REVIEW_READ_TOOL, sort_keys=True)),
+        "required_sha256": required.receipt()["required_sha256"],
+    }
+
+
+def _task_review_texts(task: Path, root: Path) -> tuple[dict[str, str], list[dict]]:
+    """Require all catalog-eligible task text; explicitly inventory packaged nontext."""
+    texts, omitted, unsafe = {}, [], []
+    for path in _walk(task, root, unsafe):
+        name = str(path.relative_to(root))
+        if path.name != "Dockerfile" and path.suffix not in TEXT_SUFFIXES:
+            omitted.append(
+                {
+                    "path": name,
+                    "reason": "packaged data or unsupported nontext type",
+                    "bytes": path.stat().st_size,
+                }
+            )
+            continue
+        if path.stat().st_nlink != 1:
+            raise ReviewEvidenceError(f"Linked required task text: {name}")
+        with path.open("rb") as stream:
+            data = stream.read(MAX_SOURCE_FILE_BYTES + 1)
+        if len(data) > MAX_SOURCE_FILE_BYTES:
+            raise ReviewEvidenceError(f"Oversized required task text: {name}")
+        text = data.decode("utf-8")
+        if "\x00" in text:
+            raise ReviewEvidenceError(f"Binary data in required task text: {name}")
+        texts[name] = text.replace("\r\n", "\n").replace("\r", "\n")
+    if unsafe:
+        raise ReviewEvidenceError(f"Unsafe task evidence cannot be omitted: {unsafe}")
+    for name in ("instruction.md", "contract.json"):
+        if not texts.get(str((task / name).relative_to(root)), "").strip():
+            raise ReviewEvidenceError(f"Missing required task text: {name}")
+    return texts, omitted
+
+
+def _retained_inventory(task: Path, root: Path, trials: list[TrialEvidence]) -> dict:
+    source_paths = json.loads((task / "contract.json").read_text())["source_paths"]
+    inventory = {"source_paths": source_paths, "trials": {}}
+    for trial in trials:
+        if (
+            trial.label != "baseline"
+            and trial.label != "adversary"
+            and not trial.label.startswith("solver-")
+        ):
+            continue
+        indexed, omitted, complete = _exports(trial, source_paths, root, [])
+        inventory["trials"][trial.label] = {
+            "folder": "trials/" + Path(trial.path).name,
+            "complete": complete and not omitted,
+            "files": {
+                name: {"sha256": data[1], "bytes": data[2]} for name, data in indexed.items()
+            },
+        }
+    return inventory
+
+
+def _inventory_changes(
+    inventory: dict, trials: list[TrialEvidence], texts: dict[str, str], source_paths: list[str]
+) -> list[dict]:
+    if (
+        not isinstance(source_paths, list)
+        or not source_paths
+        or any(
+            not isinstance(source, str)
+            or Path(source).is_absolute()
+            or ".." in Path(source).parts
+            or Path(source).as_posix() != source
+            for source in source_paths
+        )
+    ):
+        raise ReviewEvidenceError("Invalid retained submission source paths")
+    roles = [
+        trial
+        for trial in trials
+        if trial.label in {"baseline", "adversary"} or trial.label.startswith("solver-")
+    ]
+    expected_labels = {trial.label for trial in roles}
+    if (
+        len(roles) != len(expected_labels)
+        or set(inventory["trials"]) != expected_labels
+        or "baseline" not in expected_labels
+        or inventory["source_paths"] != source_paths
+    ):
+        raise ReviewEvidenceError(
+            "Submission inventory does not match all reviewed trials/source paths"
+        )
+    for trial in roles:
+        entry = inventory["trials"][trial.label]
+        if entry["complete"] is not True or entry["folder"] != "trials/" + Path(trial.path).name:
+            raise ReviewEvidenceError("Incomplete or relocated submission inventory mismatch")
+        for name, item in entry["files"].items():
+            path = Path(name)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or not any(
+                    path == Path(source) or path.is_relative_to(source) for source in source_paths
+                )
+            ):
+                raise ReviewEvidenceError("Submission inventory contains an out-of-scope path")
+            virtual = entry["folder"] + "/artifacts/workspace/" + name
+            if virtual in texts and (
+                sha(texts[virtual]) != item["sha256"]
+                or len(texts[virtual].encode()) != item["bytes"]
+            ):
+                raise ReviewEvidenceError(
+                    "Retained submitted source differs from its export inventory"
+                )
+    baseline = inventory["trials"]["baseline"]
+    before = baseline["files"]
+    changes = []
+    for trial in roles:
+        if trial.label == "baseline":
+            continue
+        current = inventory["trials"][trial.label]
+        after = current["files"]
+        for name in sorted(set(before) | set(after)):
+            if name in before and name in after and before[name] == after[name]:
+                continue
+            changes.append(
+                {
+                    "trial": trial.label,
+                    "submission": name,
+                    "status": "modified"
+                    if name in before and name in after
+                    else "added"
+                    if name in after
+                    else "deleted",
+                    "baseline": baseline["folder"] + "/artifacts/workspace/" + name
+                    if name in before
+                    else None,
+                    "evidence": current["folder"] + "/artifacts/workspace/" + name
+                    if name in after
+                    else None,
+                }
+            )
+    return changes
 
 
 def _safe_path(path: Path, root: Path) -> bool:
@@ -338,6 +526,8 @@ async def finalize_review(
     budget: Budget,
     tools: list[dict],
     start_spend: float,
+    *,
+    required_reads: RequiredReads | None = None,
 ) -> Review:
     """Validate a retained judge state, with at most one budgeted formatting call.
 
@@ -347,11 +537,17 @@ async def finalize_review(
     The caller persists the returned review and retains its original admission
     checks. ``start_spend`` must be the spend before this review's first call.
     """
+    if required_reads is not None and required_reads.feedback():
+        raise ReviewEvidenceError(required_reads.feedback())
     messages = state.get("messages", [])
     try:
         return _review_message(messages[-1] if messages else {})
     except ValueError as exc:
         validation_error = str(exc)[:2000]
+    if required_reads is not None and state.get("turns", 0) >= 16:
+        raise ReviewEvidenceError(
+            "Final review exhausted its 16-turn allowance; no formatting call"
+        )
 
     trace = Path(trace)
     attempted, previous_response = False, None
@@ -442,9 +638,12 @@ async def review(
     model: str,
     budget: Budget,
     acceptance_policy: AcceptancePolicy = "legacy",
+    evidence_policy: str = POLICY,
 ) -> Review:
     if acceptance_policy not in JUDGE_ACCEPTANCE_POLICIES:
         raise ValueError(f"Unknown acceptance policy: {acceptance_policy}")
+    if evidence_policy not in {"legacy", POLICY}:
+        raise ValueError(f"Unknown final-review evidence policy: {evidence_policy}")
     root = root.resolve()
     task = task.resolve()
     skipped = []
@@ -456,6 +655,9 @@ async def review(
             "review.json",
             "review-evidence.json",
             "review-submissions.json",
+            "review-projections.json",
+            "review-coverage.json",
+            "review-policy.json",
         }:
             continue
         if p.name == "Dockerfile" or p.suffix in TEXT_SUFFIXES:
@@ -465,6 +667,20 @@ async def review(
                 {"path": str(p.relative_to(root)), "reason": "unsupported evidence type"}
             )
     submitted, changes = _submitted_evidence(task, root, trials, skipped)
+    inventory = None
+    if evidence_policy == POLICY:
+        try:
+            inventory = _retained_inventory(task, root, trials)
+            changes = _inventory_changes(
+                inventory, trials, submitted, inventory["source_paths"]
+            ) + [row for row in changes if "submission" not in row]
+        except (OSError, ValueError, KeyError) as exc:
+            (root / "review-coverage.json").write_text(
+                json.dumps({"policy": POLICY, "complete": False, "error": str(exc)})
+            )
+            raise ReviewEvidenceError(
+                f"Required review submission evidence unavailable: {exc}"
+            ) from exc
     # The reader serves these bounded snapshots, not mutable exported files.
     # Persist exactly the same text for private evidence publication, which
     # deliberately excludes the full untrusted artifact trees.
@@ -477,6 +693,7 @@ async def review(
                     name: hashlib.sha256(text.encode()).hexdigest()
                     for name, text in submitted.items()
                 },
+                **({"submission_inventory": inventory} if inventory is not None else {}),
             },
             ensure_ascii=False,
             indent=2,
@@ -501,43 +718,115 @@ async def review(
         )
     )
     files.append(evidence_index)
+    required = None
+    projected = {}
+    if evidence_policy == POLICY:
+        try:
+            source_paths = json.loads((task / "contract.json").read_text())["source_paths"]
+            baseline = next(t for t in trials if t.label == "baseline")
+            _, baseline_omitted, baseline_complete = _exports(baseline, source_paths, root, [])
+            roles = [t for t in trials if t.label == "adversary" or t.label.startswith("solver-")]
+            if not roles or len({t.label for t in roles}) != len(roles):
+                raise ReviewEvidenceError("Missing or ambiguous solver/adversary trial evidence")
+            index = []
+            for trial in roles:
+                folder = Path(trial.path)
+                if not folder.is_absolute():
+                    folder = root / folder
+                trace_path = folder / "agent/trace.jsonl"
+                if not _safe_file(trace_path, root):
+                    raise ReviewEvidenceError(f"{trial.label}: missing readable action trace")
+                with trace_path.open("rb") as stream:
+                    raw = stream.read(MAX_RAW_TRACE_BYTES + 1)
+                actions, metadata = project_trace(raw, trial.label)
+                _, omitted, complete = _exports(trial, source_paths, root, [])
+                diff = submission_diff(
+                    trial.label,
+                    changes,
+                    submitted,
+                    complete=baseline_complete
+                    and complete
+                    and not baseline_omitted
+                    and not omitted,
+                )
+                action_name = f"review-actions/{trial.label}.txt"
+                diff_name = f"review-changes/{trial.label}.diff"
+                projected[action_name], projected[diff_name] = actions, diff
+                index.append(
+                    {
+                        "trial": trial.label,
+                        "raw_trace": str(trace_path.relative_to(root)),
+                        "actions": action_name,
+                        "changes": diff_name,
+                        "changes_sha256": sha(diff),
+                        **metadata,
+                    }
+                )
+            task_inputs, task_omissions = _task_review_texts(task, root)
+            index.append(
+                {"required_task_text": sorted(task_inputs), "excluded_task_data": task_omissions}
+            )
+            projected["review-required-index.json"] = json.dumps(
+                index, ensure_ascii=False, indent=2
+            )
+            required = RequiredReads({**task_inputs, **projected})
+            identity = _review_identity(model, acceptance_policy, required)
+        except (OSError, ValueError, KeyError, StopIteration) as exc:
+            (root / "review-coverage.json").write_text(
+                json.dumps({"policy": POLICY, "complete": False, "error": str(exc)})
+            )
+            raise ReviewEvidenceError(f"Required review evidence unavailable: {exc}") from exc
     catalog = "\n".join(f"{p.relative_to(root)} ({p.stat().st_size} bytes)" for p in files)
     catalog += "\n" + "\n".join(
         f"{p} ({len(text.encode())} bytes, submitted text)" for p, text in submitted.items()
     )
+    if required is not None:
+        catalog += (
+            "\nREQUIRED complete reads (actions and diffs are host-generated projections):\n"
+            + "\n".join(f"{name} ({len(text)} characters)" for name, text in required.texts.items())
+        )
     allowed = {str(p.relative_to(root)): p for p in files}
 
     async def read_evidence(path: str, offset: int = 0, limit: int = 12000) -> str:
-        if path in submitted:
+        if required is not None and path in required.texts:
+            text = required.texts[path]
+        elif path in submitted:
             text = submitted[path]
         elif path in allowed and _safe_file(allowed[path], root):
             text = allowed[path].read_text(errors="replace")
         else:
             raise ValueError("Path is not a listed evidence file")
-        offset, limit = max(0, offset), min(max(1, limit), 22000)
+        offset, limit = max(0, offset), min(max(1, limit), 16000 if required is not None else 22000)
         # Plain text avoids JSON escaping expanding pages past the agent tool
         # limit, which previously removed evidence from the middle of a page.
-        return (
+        end = min(offset + limit, len(text))
+        output = (
             f"{path}: characters {offset}:{min(offset + limit, len(text))} "
             f"of {len(text)}\n" + text[offset : offset + limit]
         )
+        if required is not None:
+            # Only credit source characters delivered before the agent's 24K truncation.
+            if len(output) > 20000:
+                raise ReviewEvidenceError("Evidence path/header exceeds safe reader bound")
+            required.observe(path, min(offset, len(text)), end)
+            progress = required.feedback()
+            (root / "review-coverage.json").write_text(
+                json.dumps({"policy": POLICY, **required.receipt()}, indent=2)
+            )
+            if progress:
+                output += "\nRead progress:\n" + progress[:3500]
+        return output
 
-    tool = {
-        "type": "function",
-        "function": {
-            "name": "read_evidence",
-            "description": "Read task or complete trajectory evidence; paginate by character offset.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                    "offset": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                },
-                "required": ["path"],
-            },
-        },
-    }
+    tool = REVIEW_READ_TOOL
+    if required is not None:
+        identity["read_tool_sha256"] = sha(json.dumps(tool, sort_keys=True))
+        (root / "review-policy.json").write_text(json.dumps(identity, indent=2))
+        (root / "review-coverage.json").write_text(
+            json.dumps({"policy": POLICY, **required.receipt()}, indent=2)
+        )
+        (root / "review-projections.json").write_text(
+            json.dumps({"policy": identity, "texts": projected}, ensure_ascii=False, indent=2)
+        )
     prompt = (
         "Task: "
         + str(task.relative_to(root))
@@ -560,6 +849,13 @@ async def review(
         "Inspect verifier output for failures. Cite evidence paths and specific events. "
         "Return the complete structured review when done. "
         + REVIEW_OUTPUT_GUIDANCE
+        + (
+            "\nFinal-review evidence policy: "
+            + POLICY
+            + ". Complete every required action projection and submission diff, plus all listed task text including the instruction, contract, verifier tests, oracle solution and environment definitions, before returning a verdict. These preserve actions and changes; full submitted source and raw evidence remain available for context. Packaged nontext data exclusions are listed explicitly in the required index. No file-size or missing-evidence marker counts as a completed read. Batch tool calls and paginate within the original 16-turn limit.\n"
+            if required is not None
+            else ""
+        )
         + "\nSchema:\n"
         + json.dumps(Review.model_json_schema())
     )
@@ -576,10 +872,230 @@ async def review(
             trace=trace,
             max_turns=16,
             max_cost=MAX_REVIEW_COST,
+            **({"validate_final": required.feedback} if required is not None else {}),
         )
     except IncompleteModelResponse as exc:
         state = exc.state
     (root / "judge-state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2))
-    result = await finalize_review(state, trace, model, budget, [tool], start_spend)
+    if required is not None:
+        (root / "review-coverage.json").write_text(
+            json.dumps({"policy": POLICY, **required.receipt()}, indent=2)
+        )
+    result = await finalize_review(
+        state, trace, model, budget, [tool], start_spend, required_reads=required
+    )
     (root / "review.json").write_text(result.model_dump_json(indent=2))
+    if required is not None:
+        (root / "judge-state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2))
+        receipt = {
+            "policy": POLICY,
+            **required.receipt(),
+            "task_digest": digest_task(task),
+            "trials_sha256": sha(json.dumps(_trial_records(trials), sort_keys=True)),
+            "files_sha256": {
+                name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                for name in (
+                    "review.json",
+                    "review-policy.json",
+                    "review-projections.json",
+                    "review-submissions.json",
+                    "review-evidence.json",
+                    "judge-state.json",
+                )
+            },
+        }
+        (root / "review-coverage.json").write_text(json.dumps(receipt, indent=2))
     return result
+
+
+def validate_review_receipt(
+    folder: Path,
+    task: Path,
+    trials: list[TrialEvidence],
+    *,
+    model: str,
+    acceptance_policy: AcceptancePolicy,
+) -> Review:
+    """Read-only proof validation, including relocated snapshots without raw exports.
+
+    Rebuild the inventory from trusted retained submission metadata and raw agent
+    traces, then verify actual delivered read pages and bind the exact final review.
+    This detects stale/inconsistent evidence; it is not a cryptographic signature
+    against someone authorized to replace every host-owned receipt and transcript.
+    """
+    folder, task = Path(folder), Path(task)
+    if folder.is_symlink() or task.is_symlink():
+        raise ReviewEvidenceError("Review receipt roots cannot be symlinks")
+    folder, task = folder.resolve(strict=True), task.resolve(strict=True)
+    if not task.is_relative_to(folder) or acceptance_policy not in JUDGE_ACCEPTANCE_POLICIES:
+        raise ReviewEvidenceError("Invalid review receipt task/policy")
+
+    def raw(name: str, maximum: int = 64_000_000) -> bytes:
+        path = folder / name
+        if not _safe_file(path, folder) or path.stat().st_nlink != 1:
+            raise ReviewEvidenceError(f"Missing or unsafe review receipt evidence: {name}")
+        with path.open("rb") as stream:
+            data = stream.read(maximum + 1)
+        if len(data) > maximum:
+            raise ReviewEvidenceError(f"Oversized review receipt evidence: {name}")
+        return data
+
+    try:
+        receipt = json.loads(raw("review-coverage.json"))
+        if receipt.get("policy") != POLICY or receipt.get("task_digest") != digest_task(task):
+            raise ReviewEvidenceError("Stale policy or changed task in review receipt")
+        if receipt.get("trials_sha256") != sha(json.dumps(_trial_records(trials), sort_keys=True)):
+            raise ReviewEvidenceError("Reviewed trial evidence has changed")
+        if any(trial.task_digest != receipt["task_digest"] for trial in trials):
+            raise ReviewEvidenceError("Trial evidence is bound to a different task digest")
+        names = {
+            "review.json",
+            "review-policy.json",
+            "review-projections.json",
+            "review-submissions.json",
+            "review-evidence.json",
+            "judge-state.json",
+        }
+        if set(receipt["files_sha256"]) != names:
+            raise ReviewEvidenceError("Incomplete review receipt file inventory")
+        data = {name: raw(name) for name in names}
+        if any(
+            hashlib.sha256(value).hexdigest() != receipt["files_sha256"][name]
+            for name, value in data.items()
+        ):
+            raise ReviewEvidenceError("Changed review or bound evidence file")
+        snapshot = json.loads(data["review-submissions.json"])
+        submitted = snapshot["texts"]
+        if (
+            snapshot.get("schema_version") != 1
+            or set(submitted) != set(snapshot["sha256"])
+            or any(
+                not isinstance(text, str) or sha(text) != snapshot["sha256"][name]
+                for name, text in submitted.items()
+            )
+        ):
+            raise ReviewEvidenceError("Invalid retained submitted text hashes")
+        source_paths = json.loads(
+            raw(str((task / "contract.json").relative_to(folder)), MAX_SOURCE_FILE_BYTES)
+        )["source_paths"]
+        changes = _inventory_changes(
+            snapshot["submission_inventory"], trials, submitted, source_paths
+        )
+        evidence = json.loads(data["review-evidence.json"])
+        recorded_changes = [row for row in evidence["submission_changes"] if "submission" in row]
+
+        def order(row):
+            return row["trial"], row["submission"]
+
+        if sorted(recorded_changes, key=order) != sorted(changes, key=order):
+            raise ReviewEvidenceError(
+                "Submission changes omit or disagree with retained source inventory"
+            )
+        roles = [
+            trial
+            for trial in trials
+            if trial.label == "adversary" or trial.label.startswith("solver-")
+        ]
+        if not roles or len({Path(trial.path).name for trial in roles}) != len(roles):
+            raise ReviewEvidenceError("Missing or ambiguous role trial directories")
+        projected, index = {}, []
+        for trial in roles:
+            trial_name = Path(trial.path).name
+            if not trial_name or trial_name in {".", ".."}:
+                raise ReviewEvidenceError("Invalid relocated trial directory")
+            trace_name = f"trials/{trial_name}/agent/trace.jsonl"
+            actions, metadata = project_trace(raw(trace_name, MAX_RAW_TRACE_BYTES), trial.label)
+            diff = submission_diff(trial.label, changes, submitted, complete=True)
+            action_name, diff_name = (
+                f"review-actions/{trial.label}.txt",
+                f"review-changes/{trial.label}.diff",
+            )
+            projected[action_name], projected[diff_name] = actions, diff
+            index.append(
+                {
+                    "trial": trial.label,
+                    "raw_trace": trace_name,
+                    "actions": action_name,
+                    "changes": diff_name,
+                    "changes_sha256": sha(diff),
+                    **metadata,
+                }
+            )
+        task_inputs, task_omissions = _task_review_texts(task, folder)
+        index.append(
+            {"required_task_text": sorted(task_inputs), "excluded_task_data": task_omissions}
+        )
+        projected["review-required-index.json"] = json.dumps(index, ensure_ascii=False, indent=2)
+        required = RequiredReads({**task_inputs, **projected})
+        identity = _review_identity(model, acceptance_policy, required)
+        saved_projections = json.loads(data["review-projections.json"])
+        if json.loads(data["review-policy.json"]) != identity or saved_projections != {
+            "policy": identity,
+            "texts": projected,
+        }:
+            raise ReviewEvidenceError(
+                "Stale policy identity or incomplete/fabricated projection inventory"
+            )
+        if receipt.get("required_sha256") != required.receipt()["required_sha256"] or set(
+            receipt.get("reads", {})
+        ) != set(required.texts):
+            raise ReviewEvidenceError(
+                "Required read inventory differs from complete trial evidence"
+            )
+        for name, spans in receipt["reads"].items():
+            if not isinstance(spans, list):
+                raise ReviewEvidenceError("Invalid saved read intervals")
+            for span in spans:
+                if (
+                    not isinstance(span, list)
+                    or len(span) != 2
+                    or any(type(value) is not int for value in span)
+                    or not 0 <= span[0] <= span[1] <= len(required.texts[name])
+                ):
+                    raise ReviewEvidenceError("Invalid saved read interval bounds")
+                required.observe(name, *span)
+        judge_state = json.loads(data["judge-state.json"])
+        messages = judge_state["messages"]
+        if (
+            type(judge_state.get("turns")) is not int
+            or not 0 < judge_state["turns"] <= 16
+            or sum(message.get("role") == "assistant" for message in messages)
+            != judge_state["turns"]
+            or messages[0]
+            != {
+                "role": "system",
+                "content": JUDGE + "\n" + JUDGE_ACCEPTANCE_POLICIES[acceptance_policy],
+            }
+        ):
+            raise ReviewEvidenceError("Invalid final reviewer state or policy input")
+        prompt = messages[1]["content"]
+        retained_trials = json.loads(
+            prompt.split("\nTrial results:\n", 1)[1].split(
+                "\nRead the instruction, contract, tests, oracle and actual solver/adversary traces.",
+                1,
+            )[0]
+        )
+        normalized_trials = [
+            {**trial, "path": "trials/" + Path(trial["path"]).name} for trial in retained_trials
+        ]
+        if normalized_trials != _trial_records(trials):
+            raise ReviewEvidenceError("Trial metadata differs from the reviewer's actual input")
+        observed = observed_required_reads(required.texts, messages)
+        if (
+            receipt.get("complete") is not True
+            or receipt.get("missing") != {}
+            or required.missing()
+            or observed.missing()
+            or observed.reads != required.reads
+        ):
+            raise ReviewEvidenceError("Incomplete or fabricated final-review read coverage")
+        result = Review.model_validate_json(data["review.json"])
+        if _review_message(messages[-1]) != result:
+            raise ReviewEvidenceError(
+                "Bound review differs from the reviewer's actual final response"
+            )
+        return result
+    except ReviewEvidenceError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+        raise ReviewEvidenceError(f"Invalid final-review receipt: {exc}") from exc

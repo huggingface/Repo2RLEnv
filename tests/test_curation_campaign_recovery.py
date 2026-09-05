@@ -12,7 +12,13 @@ from repo2rlenv.curation.artifacts import digest_task, release_task
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.campaign import ADMISSION_VERSION
 from repo2rlenv.curation.inference import inference_digest
-from repo2rlenv.curation.models import CRITERIA, CampaignConfig, Review, TrialEvidence
+from repo2rlenv.curation.models import (
+    CRITERIA,
+    CampaignConfig,
+    Review,
+    TrialEvidence,
+    review_scores,
+)
 
 URL = "https://github.com/example/project/pull/1"
 IDENTITY = "example-project-1"
@@ -35,7 +41,7 @@ def manifest():
 
 
 @pytest.fixture
-def accepted(tmp_path):
+def accepted_record(tmp_path):
     root = tmp_path.resolve() / "stage2"
     config = CampaignConfig(specification_review=True, verifier_review=True, concurrency=4)
     write(root / "config.json", config.model_dump())
@@ -141,6 +147,43 @@ def accepted(tmp_path):
     scoped.settle(key, 2.75)
     scoped.reserve(1, "interrupted request")
     return root, config, state, budget, task, row
+
+
+@pytest.fixture
+def accepted(accepted_record, monkeypatch):
+    # Persistence/provenance tests keep their complete execution and score gates
+    # real, while proof-read coverage has its own integration tests. Re-read the
+    # supplied review so corruption tests still reach their intended gate.
+    def retained_review(folder, task, trials, *, model, acceptance_policy):
+        return Review.model_validate_json((folder / "review.json").read_text())
+
+    monkeypatch.setattr(campaign, "validate_review_receipt", retained_review)
+    return accepted_record
+
+
+@pytest.mark.parametrize("policy", ["legacy", "validity"])
+def test_orphan_accepted_verdict_requires_review_proof_before_release(accepted_record, policy):
+    root, config, state, budget, task, row = accepted_record
+    config = config.model_copy(update={"acceptance_policy": policy})
+    write(root / "config.json", config.model_dump())
+    result = Review.model_validate_json((task.parent / "review.json").read_text())
+    row.update(review_scores(result, config))
+    verdict = task.parent.parent / "verdict.json"
+    write(verdict, row)
+    previous_verdict, previous_ledger = verdict.read_bytes(), budget.path.read_bytes()
+
+    # A complete passing review/trial set is insufficient without proof that
+    # this judge actually read the required evidence. Use the real validator.
+    with pytest.raises(
+        campaign.RecoveryError, match=r"review evidence is invalid.*review-coverage"
+    ):
+        campaign._reconcile_accepted(root, state, config, budget)
+
+    assert not state["accepted"]
+    assert not (root / "tasks").exists()
+    assert verdict.read_bytes() == previous_verdict
+    assert budget.path.read_bytes() == previous_ledger
+    assert budget.spent == 3.75
 
 
 def test_interrupted_scope_preserves_settled_and_reserved_spend(tmp_path):
