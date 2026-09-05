@@ -42,6 +42,29 @@ superiority over Pi or OpenCode. A larger comparison needs more sources, stable
 runtime versions, repeated authoring attempts and enough budget to reduce censored
 results.
 
+## Subsequent production selection
+
+As of September 5, 2026, two distinct production tasks have been selected after
+complete validation and additional agent review. Neither belongs to the matched
+runtime pilot above. Human benchmark review remains pending.
+
+| Source | Quality score | Deterministic trials | Sonnet / Opus reward | Adversarial attempt reward |
+|---|---:|---:|---|---:|
+| Diffusers 13226: confidence-aware loss | 90 | 13 | 1 / 1 | 0 |
+| PEFT 3083: transposed expert LoRA parameters | 92.5 | 12 | 1 / 1 | 0 |
+
+Both released directories match the exact digest used for their trials and final
+review. These are moderate numerical implementation tasks, not evidence of
+frontier difficulty. In PEFT 3083, the adversary's numeric-assertion monkeypatch
+attempt failed on an invalid tensor shape before reaching numerical comparison;
+its zero reward should not be presented as a universal monkeypatch-resistance
+result. Full upstream test suites may also require optional dependencies outside
+the packaged task's scoped offline checks.
+
+The target remains 30 tasks. Passing automatic review alone does not add a task to
+this count: earlier versions with circular numerical references or missing state
+transitions remain held out, with their original evidence and costs preserved.
+
 ## What changed after observing failures
 
 **Passing the reference solution is insufficient.** A numerical negative control
