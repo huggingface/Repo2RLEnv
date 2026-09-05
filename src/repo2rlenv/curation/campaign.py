@@ -53,6 +53,7 @@ from repo2rlenv.curation.protocol import (
     MechanicalTracker,
     check_verification_plan,
 )
+from repo2rlenv.curation.repair import RepairSession, SeedRepair, prepare_seed_repair
 from repo2rlenv.curation.review import review, validate_review_receipt
 from repo2rlenv.curation.review_evidence import ReviewEvidenceError
 from repo2rlenv.curation.sources import resolve_pr
@@ -520,17 +521,53 @@ async def _resume_validation(
 
 
 async def curate_one(
-    source: dict, root: Path, config: CampaignConfig, budget: Budget, seed_task: Path | None = None
+    source: dict,
+    root: Path,
+    config: CampaignConfig,
+    budget: Budget,
+    seed_task: Path | None = None,
+    *,
+    seed_repair: SeedRepair | None = None,
+) -> dict:
+    if seed_repair is None:
+        return await _curate_one(source, root, config, budget, seed_task)
+    if seed_task is None:
+        raise RecoveryError("Explicit seed repair requires its retained task")
+    with prepare_seed_repair(seed_repair, seed_task, root, source, config, budget) as repair:
+        seed_task = repair.restore_task(seed_task)
+        try:
+            result = await _curate_one(
+                source, root, config, repair.budget, seed_task, repair=repair
+            )
+        finally:
+            save(root / "repair-accounting.json", repair.accounting())
+        result.update(
+            kind=seed_repair.kind,
+            parent_task_digest=seed_repair.parent_task_digest,
+            repair_input_path=str(root / "repair-input.json"),
+        )
+        save(root / "repair-result.json", result)
+        return result
+
+
+async def _curate_one(
+    source: dict,
+    root: Path,
+    config: CampaignConfig,
+    budget: Budget,
+    seed_task: Path | None = None,
+    *,
+    repair: RepairSession | None = None,
 ) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     save(root / "source.json", source)
     drafts = DraftTracker(root / "submitted-drafts.json", config.max_candidate_drafts)
-    initial_design = None
+    initial_design = repair.design if repair else None
     conversion = config.submission_policy == "conversion"
     mechanics = MechanicalTracker(
         root / "mechanical-submissions.json", config.max_mechanical_submissions
     )
-    if conversion and seed_task is not None:
+    if conversion and seed_task is not None and repair is None:
         raise RecoveryError(
             "Conversion policy requires a fresh candidate; do not reset legacy repair allowances"
         )
@@ -584,6 +621,8 @@ async def curate_one(
                 drafts.observe(digest_task(task), task)
             raise ValueError(str(exc)) from exc
         if conversion:
+            if repair:
+                repair.require_unreviewed_change(digest_task(task))
             drafts.observe(digest_task(task), task)
         return contract
 
@@ -616,9 +655,9 @@ async def curate_one(
                 )
         return None
 
-    first_revision = 0
+    first_revision = repair.used if repair else 0
     seed_specification_feedback = None
-    if seed_task is not None:
+    if seed_task is not None and repair is None:
         pending = _prepare_pending_review(seed_task, root, source, config)
         if pending is None:
             # A preflight rejection has no execution trials to recover. Still
@@ -640,7 +679,11 @@ async def curate_one(
     sandbox = AuthorSandbox(config.author_timeout_sec)
     reserve = budget.reserve(config.author_cloud_allowance_usd, "cloud:author:" + source["id"])
     started = time.monotonic()
-    attempt = 0
+    attempt = (
+        max((int(p.name) for p in (root / "drafts").glob("*") if p.name.isdecimal()), default=0)
+        if repair
+        else 0
+    )
     cached = {}
 
     async def export_submission(task: Path) -> None:
@@ -729,29 +772,42 @@ async def curate_one(
                     await sandbox.sandbox.filesystem.copy_from_local.aio(
                         p, "/output/task/" + p.relative_to(seed_task).as_posix()
                     )
-            feedback += (
-                "\nA previous draft is restored in /output/task. Inspect and repair it, "
-                "rather than starting over. Previous infrastructure issues have been fixed. "
-                "Ensure EVERY dependency has an exact == version; ranges and unversioned "
-                "dependencies are rejected before builds. Re-run validate_candidate."
-            )
-            previous_evidence = sorted((seed_task.parent / "trials").glob("*.json"))
-            if previous_evidence:
-                feedback += "\nPrevious validation evidence:\n" + "\n".join(
-                    p.read_text()[:12000] for p in previous_evidence[:3]
-                )
-            previous_review = seed_task.parent / "review.json"
-            if previous_review.is_file():
+            if repair:
                 feedback += (
-                    "\nPrevious independent review to address:\n"
-                    + (previous_review.read_text()[:24000])
+                    "\nThe retained task is restored in /output/task for autonomous repair. "
+                    "Update its contract/verification-plan consistently when correcting supported defects. "
+                    "Call validate_candidate on the repaired task. Remaining allowances: "
+                    f"{drafts.limit - len(drafts.rows)} semantic submissions, "
+                    f"{mechanics.limit - len(mechanics.rows)} mechanical failures, "
+                    f"{config.max_revisions - repair.used} author revisions." + repair.feedback
                 )
+            else:
+                feedback += (
+                    "\nA previous draft is restored in /output/task. Inspect and repair it, "
+                    "rather than starting over. Previous infrastructure issues have been fixed. "
+                    "Ensure EVERY dependency has an exact == version; ranges and unversioned "
+                    "dependencies are rejected before builds. Re-run validate_candidate."
+                )
+                previous_evidence = sorted((seed_task.parent / "trials").glob("*.json"))
+                if previous_evidence:
+                    feedback += "\nPrevious validation evidence:\n" + "\n".join(
+                        p.read_text()[:12000] for p in previous_evidence[:3]
+                    )
+                previous_review = seed_task.parent / "review.json"
+                if previous_review.is_file():
+                    feedback += (
+                        "\nPrevious independent review to address:\n"
+                        + (previous_review.read_text()[:24000])
+                    )
             if seed_specification_feedback:
                 feedback += "\n" + seed_specification_feedback
-        for revision in range(first_revision, first_revision + config.max_revisions):
+        end_revision = config.max_revisions if repair else first_revision + config.max_revisions
+        for revision in range(first_revision, end_revision):
             last_verdict = None
             execution_errors = []
             logger.info("%s: author revision %s", source["id"], revision + 1)
+            if repair:
+                repair.start_revision(revision)
             await run_agent(
                 model=config.author_model,
                 system=AUTHOR

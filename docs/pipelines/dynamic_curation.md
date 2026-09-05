@@ -269,6 +269,16 @@ and verify complete delivered coverage. Older admissions require revalidation; t
 historical outcomes remain unchanged. New coverage-aware judge journals cannot yet
 use the legacy final-review continuation path.
 
+A conversion draft can enter a separately labelled assisted repair through the
+Python `curate_one(..., seed_task=..., seed_repair=SeedRepair(...))` API. The repair
+context binds the original source, configuration, design, submission histories,
+author history, task digest, actual judge result and independent audit feedback.
+It keeps judge findings separate from audit suggestions and delivers both to the
+author. It does not change the original verdict or count the repair as a fresh
+conversion. The remaining semantic, mechanical and author allowances are inherited;
+changed tasks must complete validation again. Explicit budget lineage and a stable
+child claim prevent a retry from resetting costs or creating parallel replacements.
+
 `publish_evidence()` can archive a campaign or runtime comparison to a private
 Hugging Face bucket under a content-addressed prefix, with SHA-256 checksums.
 It excludes raw solver exports and runtime credentials/caches, while preserving

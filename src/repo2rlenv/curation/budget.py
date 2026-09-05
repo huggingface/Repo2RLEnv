@@ -15,6 +15,83 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+def _scope_constraints(registry: dict) -> dict:
+    """Validate and normalize the host-owned registry without changing the ledger."""
+    if not isinstance(registry, dict):
+        raise ValueError("Invalid scope budget constraints registry")
+    normalized = {}
+    for scope, constraints in registry.items():
+        if (
+            not isinstance(scope, str)
+            or not scope.strip()
+            or not isinstance(constraints, dict)
+            or not constraints
+        ):
+            raise ValueError("Invalid scope budget constraints")
+        normalized[scope] = {}
+        for name, rule in constraints.items():
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or not isinstance(rule, dict)
+                or set(rule) != {"scopes", "groups", "limit_usd"}
+            ):
+                raise ValueError("Invalid named scope budget constraint")
+            limit = rule["limit_usd"]
+            if type(limit) not in (int, float) or not math.isfinite(limit) or limit <= 0:
+                raise ValueError("Scope budget constraint limit must be finite and positive")
+            memberships = {}
+            for field in ("scopes", "groups"):
+                values = rule[field]
+                if (
+                    not isinstance(values, list)
+                    or any(not isinstance(value, str) or not value.strip() for value in values)
+                    or len(set(values)) != len(values)
+                ):
+                    raise ValueError("Invalid scope budget constraint membership")
+                memberships[field] = sorted(values)
+            if not memberships["scopes"] and not memberships["groups"]:
+                raise ValueError("Scope budget constraint needs scope or group membership")
+            normalized[scope][name] = {**memberships, "limit_usd": limit}
+    return normalized
+
+
+def register_scope_constraints(state: dict, scope: str, constraints: dict) -> None:
+    """Bind limits while the caller holds the ledger lock, before any child charge.
+
+    Rules use named scope/group unions. Each also includes its target scope, so
+    reconstructed subprocess budgets cannot omit prior child charges by omitting
+    the group argument. Existing bindings are immutable and registration is
+    idempotent. Settlement and historical entries are never rewritten.
+    """
+    registry = _scope_constraints(state.get("scope_constraints", {}))
+    proposed = _scope_constraints({scope: constraints})[scope]
+    if scope in registry:
+        if registry[scope] != proposed:
+            raise ValueError("Scope budget constraints already bound to a different policy")
+        return
+    if any(entry.get("scope") == scope for entry in state["entries"].values()):
+        raise ValueError("Cannot register missing scope constraints after charges exist")
+    state.setdefault("scope_constraints", {})[scope] = proposed
+
+
+def _enforce_scope_constraints(state: dict, scope: str | None, amount: float) -> None:
+    registry = _scope_constraints(state.get("scope_constraints", {}))
+    for name, rule in registry.get(scope, {}).items():
+        scopes, groups = set(rule["scopes"]) | {scope}, set(rule["groups"])
+        committed = sum(
+            entry["charged_usd"]
+            for entry in state["entries"].values()
+            if entry.get("scope") in scopes or entry.get("group") in groups
+        )
+        if committed + amount > rule["limit_usd"]:
+            label = name.replace("_", " ").capitalize()
+            raise BudgetExceeded(
+                f"{label} allowance ${rule['limit_usd']:.2f}: "
+                f"${committed:.2f} committed; need ${amount:.2f}"
+            )
+
+
 class Budget:
     """Process-safe write-ahead reservations. Crashes retain outstanding charges."""
 
@@ -67,6 +144,7 @@ class Budget:
         if not math.isfinite(amount) or amount <= 0:
             raise ValueError("Reservation must be finite and positive")
         with self._locked() as state:
+            _enforce_scope_constraints(state, self.scope, amount)
             total = sum(e["charged_usd"] for e in state["entries"].values())
             if total + amount > self.limit:
                 raise BudgetExceeded(
