@@ -151,3 +151,61 @@ async def test_external_runtime_cannot_silently_ignore_final_validator(tmp_path)
             runtime="pi",
             validate_final=lambda _: "missing",
         )
+
+
+@pytest.mark.asyncio
+async def test_output_allowance_reaches_metered_completion_and_recorded_inference(setup):
+    s = setup
+    s.responses.append(response("complete"))
+    await agent.run_agent(
+        model="test",
+        system="s",
+        prompt="p",
+        budget=s.budget,
+        tools=[],
+        handlers={},
+        trace=s.trace,
+        max_turns=2,
+        max_cost=1,
+        max_output_tokens=32_000,
+    )
+    assert s.calls[0]["max_tokens"] == 32_000
+    assert s.calls[0]["max_charge"] == 1
+    recorded = json.loads(s.trace.read_text().splitlines()[0])
+    assert recorded["inference"]["max_tokens"] == 32_000
+    assert agent.inference_settings("test")["max_tokens"] == 16_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tokens", [True, 0, -1, 128_001])
+async def test_invalid_output_allowance_is_rejected_before_execution(tmp_path, tokens):
+    with pytest.raises(ValueError, match="Output token limit"):
+        await agent.run_agent(
+            model="test",
+            system="s",
+            prompt="p",
+            budget=Budget(tmp_path / "budget.json", 1),
+            tools=[],
+            handlers={},
+            trace=tmp_path / "trace.jsonl",
+            max_turns=2,
+            max_output_tokens=tokens,
+        )
+    assert not (tmp_path / "trace.jsonl").exists()
+
+
+@pytest.mark.asyncio
+async def test_external_runtime_cannot_silently_ignore_output_override(tmp_path):
+    with pytest.raises(ValueError, match="Output token overrides"):
+        await agent.run_agent(
+            model="test",
+            system="s",
+            prompt="p",
+            budget=Budget(tmp_path / "budget.json", 1),
+            tools=[],
+            handlers={},
+            trace=tmp_path / "trace.jsonl",
+            max_turns=2,
+            runtime="pi",
+            max_output_tokens=32_000,
+        )

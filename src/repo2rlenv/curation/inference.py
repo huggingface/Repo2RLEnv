@@ -23,8 +23,8 @@ def anthropic_options(model: str) -> dict:
     return {}
 
 
-def inference_settings(model: str) -> dict:
-    return {"model": model, "max_tokens": MAX_OUTPUT_TOKENS, **anthropic_options(model)}
+def inference_settings(model: str, *, max_tokens: int = MAX_OUTPUT_TOKENS) -> dict:
+    return {"model": model, "max_tokens": max_tokens, **anthropic_options(model)}
 
 
 def inference_digest(model: str, *, adversary: bool = False) -> str:

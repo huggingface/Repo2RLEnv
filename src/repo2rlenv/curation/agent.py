@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
-from repo2rlenv.curation.inference import inference_settings
+from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS, inference_settings
 
 
 class State(TypedDict):
@@ -52,11 +52,16 @@ async def run_agent(
     max_cost: float = 8,
     runtime: str = "langgraph",
     validate_final: Callable[[str], str | None] | None = None,
+    max_output_tokens: int = MAX_OUTPUT_TOKENS,
 ) -> State:
     """A real LangGraph model/tool loop; tool effects remain in cloud sandboxes."""
+    if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 128_000:
+        raise ValueError("Output token limit must be an integer between 1 and 128000")
     if runtime != "langgraph":
         if validate_final is not None:
             raise ValueError("Final-response validation requires the LangGraph runtime")
+        if max_output_tokens != MAX_OUTPUT_TOKENS:
+            raise ValueError("Output token overrides require the LangGraph runtime")
         from repo2rlenv.curation.external_agent import run_external_agent
 
         return await run_external_agent(
@@ -87,7 +92,7 @@ async def run_agent(
             "system": system,
             "prompt": prompt,
             "runtime": runtime,
-            "inference": inference_settings(model),
+            "inference": inference_settings(model, max_tokens=max_output_tokens),
         },
     )
 
@@ -100,6 +105,7 @@ async def run_agent(
             state["messages"],
             tools=tools,
             max_charge=max_cost - (budget.spent - start_spend),
+            max_tokens=max_output_tokens,
         )
         message = response.choices[0].message.model_dump(exclude_none=True)
         record(

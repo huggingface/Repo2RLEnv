@@ -108,13 +108,15 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert call["budget"] is s.budget
     assert call["max_turns"] == 10
     assert call["max_cost"] == 4
+    assert call["max_output_tokens"] == 32_000
     assert list(call["handlers"]) == ["read_evidence"]
     assert [t["function"]["name"] for t in call["tools"]] == ["read_evidence"]
     record = json.loads(record_path(s).read_text())
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
-    assert record["identity"]["policy_version"] == 2
+    assert record["identity"]["policy_version"] == 3
+    assert record["identity"]["inference"]["max_tokens"] == 32_000
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
     }
@@ -122,6 +124,29 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
         record_path(s).with_name(n).is_file() for n in ("input.json", "state.json", "trace.jsonl")
     )
     assert not list(s.task.rglob("*review*"))
+
+
+@pytest.mark.asyncio
+async def test_output_limit_is_recorded_and_separates_review_cache(setup, monkeypatch):
+    s = setup
+    await review(s)
+    original = json.loads(record_path(s).read_text())
+    assert original["identity"]["inference"]["max_tokens"] == 32_000
+    monkeypatch.setattr(verifier, "MAX_REVIEW_OUTPUT_TOKENS", 24_000)
+    await review(s)
+    assert s.agent.await_count == 2
+    assert s.agent.call_args.kwargs["max_output_tokens"] == 24_000
+    records = [
+        json.loads(path.read_text()) for path in (s.root / "verifier-reviews").glob("*/result.json")
+    ]
+    assert {record["identity"]["inference"]["max_tokens"] for record in records} == {
+        24_000,
+        32_000,
+    }
+    assert all(record["identity"]["limits"]["cost_usd"] == 4 for record in records)
+    assert all(record["identity"]["limits"]["turns"] == 10 for record in records)
+    await review(s)
+    assert s.agent.await_count == 2
 
 
 @pytest.mark.asyncio

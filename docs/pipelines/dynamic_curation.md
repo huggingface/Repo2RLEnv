@@ -136,6 +136,10 @@ outside the final trajectory review's evidence tree. Missing or incomplete revie
 evidence cannot pass this gate.
 It allows ten reviewer turns and a $4 model allowance per content/policy version,
 with up to 64 files, 64,000 bytes per file and 128,000 bytes overall. The reviewer
+has a 32,000-token output ceiling so analysis and the structured verdict can both
+fit on larger tasks. That ceiling is recorded in its cache identity and model-call
+trace and included in pre-call reservations; the $4 allowance is unchanged.
+Author, solver, and other reviewer defaults remain 16,000 tokens. The reviewer
 must read every included file in full. These are review input bounds, separate from
 the sandbox's execution limits; oversized or binary review inputs return actionable
 author feedback before any paid review. Remove generated caches from review source
