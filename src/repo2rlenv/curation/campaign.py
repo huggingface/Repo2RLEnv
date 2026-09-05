@@ -100,6 +100,129 @@ def save(path: Path, data: dict) -> None:
     tmp.replace(path)
 
 
+class ValidationExecutionError(RuntimeError):
+    """Incomplete execution is not an automatic request to rewrite a task."""
+
+
+def _require_completed_trials(trials: list[TrialEvidence]) -> None:
+    invalid = [trial for trial in trials if not trial.valid]
+    if invalid:
+        raise ValidationExecutionError(
+            "Validation did not complete; author repair was not started: "
+            + json.dumps([trial.model_dump() for trial in invalid])
+        )
+
+
+class _AuthorPhases:
+    """One-run author sessions sharing time, counters and the original ledger."""
+
+    def __init__(self, root, source, config, budget, first_revision):
+        self.path = root / "author-phase.json"
+        self.source, self.config, self.budget = source, config, budget
+        self.sandbox, self.active, self.started = None, None, None
+        self.state = {
+            "status": "ready",
+            "source": source,
+            "config_sha256": hashlib.sha256(config.model_dump_json().encode()).hexdigest(),
+            "active_seconds": 0.0,
+            "used_author_revisions": first_revision,
+            "sessions": [],
+            "budget_scope": budget.scope,
+            "budget_group": budget.group,
+        }
+        # Same-candidate restart is deliberately not a fresh author allowance.
+        # A separate evidence-recovery path must reconcile a retained journal.
+        try:
+            with self.path.open("x") as stream:
+                json.dump(self.state, stream, indent=2)
+        except FileExistsError as exc:
+            raise RecoveryError("Existing author phase requires explicit recovery") from exc
+
+    async def start(self):
+        if self.active is not None and not self.closed:
+            raise RecoveryError("Previous author session is not confirmed closed")
+        remaining = int(self.config.author_timeout_sec - self.state["active_seconds"])
+        if remaining <= 0:
+            raise TimeoutError("Cumulative author active-time allowance exhausted")
+        cloud_remaining = self.config.author_cloud_allowance_usd - sum(
+            session["estimated_usd"] for session in self.state["sessions"]
+        )
+        cloud_seconds = int((cloud_remaining - 0.15) / 0.00005)
+        if cloud_seconds <= 0:
+            raise BudgetExceeded("Cumulative author cloud allowance exhausted")
+        remaining = min(remaining, cloud_seconds)
+        self.sandbox = AuthorSandbox(remaining)
+        reservation = self.budget.reserve(cloud_remaining, "cloud:author:" + self.source["id"])
+        self.started = time.monotonic()
+        self.active = {"reservation": reservation, "timeout_sec": remaining, "status": "starting"}
+        self.state["sessions"].append(self.active)
+        self.state["status"] = "authoring"
+        save(self.path, self.state)
+        await self.sandbox.start()
+        self.active.update(status="running", sandbox_id=self.sandbox.sandbox.object_id)
+        save(self.path, self.state)
+        await self.sandbox.prepare(self.source)
+        return self.sandbox
+
+    @property
+    def closed(self):
+        return self.active is not None and self.active["status"] == "closed"
+
+    def start_revision(self, revision):
+        if revision != self.state["used_author_revisions"]:
+            raise RecoveryError("Author phase revision counter mismatch")
+        self.state["used_author_revisions"] = revision + 1
+        save(self.path, self.state)
+
+    async def close(self):
+        if self.active is None or self.active["status"] not in {"starting", "running"}:
+            return
+        self.active["status"] = self.state["status"] = "stopping"
+        save(self.path, self.state)
+        try:
+            await self.sandbox.stop()
+        except BaseException as exc:
+            self.active["status"] = self.state["status"] = "stop_uncertain"
+            self.active["error"] = f"{type(exc).__name__}: {exc}"
+            save(self.path, self.state)
+            # Do not free a reservation for a potentially live sandbox, and do
+            # not retry stop/settlement implicitly from the outer finally.
+            raise
+        elapsed = max(0.0, time.monotonic() - self.started)
+        self.state["active_seconds"] += elapsed
+        self.active.update(status="stopped_unsettled", active_seconds=elapsed)
+        self.state["status"] = "stopped_unsettled"
+        save(self.path, self.state)
+        estimate = 0.15 + elapsed * 0.00005
+        self.budget.settle(self.active["reservation"], estimate, estimated=True)
+        self.active.update(status="closed", estimated_usd=estimate)
+        self.state["status"] = "author_closed"
+        save(self.path, self.state)
+
+    async def handoff(self, task, digest, revision, trials):
+        if digest_task(task) != digest or any(attempt.task_digest != digest for attempt in trials):
+            raise RecoveryError("Author handoff task or preflight digest changed")
+        folder = task.parent
+        (folder / "trials").mkdir(exist_ok=True)
+        for attempt in trials:
+            path = Path(attempt.path)
+            if not path.is_relative_to(folder):
+                _regular_tree(path)
+                copied = folder / "trials" / path.name
+                copied.parent.mkdir(exist_ok=True)
+                shutil.copytree(path, copied, dirs_exist_ok=True)
+                attempt.path = str(copied)
+            save(folder / "trials" / f"{attempt.label}.json", attempt.model_dump())
+        save(folder / "evidence.json", _evidence_record(digest, trials, None))
+        self.state["handoff"] = {"task": str(task), "task_digest": digest, "revision": revision}
+        save(self.path, self.state)
+        await self.close()
+        if digest_task(task) != digest:
+            raise RecoveryError("Frozen task changed while closing author sandbox")
+        self.state["status"] = "validating"
+        save(self.path, self.state)
+
+
 def _regular_tree(path: Path) -> None:
     """Reject links and special files before copying retained sandbox evidence."""
     if path.is_symlink() or not path.is_dir():
@@ -529,6 +652,9 @@ async def curate_one(
     *,
     seed_repair: SeedRepair | None = None,
 ) -> dict:
+    phase_journal = root / "author-phase.json"
+    if phase_journal.exists() or phase_journal.is_symlink():
+        raise RecoveryError("Existing author phase requires explicit recovery")
     if seed_repair is None:
         return await _curate_one(source, root, config, budget, seed_task)
     if seed_task is None:
@@ -559,6 +685,9 @@ async def _curate_one(
     *,
     repair: RepairSession | None = None,
 ) -> dict:
+    phase_journal = root / "author-phase.json"
+    if phase_journal.exists() or phase_journal.is_symlink():
+        raise RecoveryError("Existing author phase requires explicit recovery")
     root.mkdir(parents=True, exist_ok=True)
     save(root / "source.json", source)
     drafts = DraftTracker(root / "submitted-drafts.json", config.max_candidate_drafts)
@@ -676,9 +805,19 @@ async def _curate_one(
             # Preserve the reviewed revision instead of rerolling its judge.
             seed_task = root.resolve() / "revision-0/task"
             first_revision = 1
-    sandbox = AuthorSandbox(config.author_timeout_sec)
-    reserve = budget.reserve(config.author_cloud_allowance_usd, "cloud:author:" + source["id"])
+    phases = (
+        _AuthorPhases(root, source, config, budget, first_revision)
+        if config.release_author_before_validation
+        else None
+    )
+    sandbox = None if phases else AuthorSandbox(config.author_timeout_sec)
+    reserve = (
+        None
+        if phases
+        else budget.reserve(config.author_cloud_allowance_usd, "cloud:author:" + source["id"])
+    )
     started = time.monotonic()
+    last_task = seed_task
     attempt = (
         max((int(p.name) for p in (root / "drafts").glob("*") if p.name.isdecimal()), default=0)
         if repair
@@ -720,6 +859,8 @@ async def _curate_one(
         if digest not in cached or any(t.error for t in cached[digest]):
             logger.info("%s: remote baseline and oracle, draft %s", source["id"], attempt)
             cached[digest] = await preflight(task, folder / "trials", config=config, budget=budget)
+        if phases:
+            _require_completed_trials(cached[digest])
         if (
             len(cached[digest]) != 2
             or {t.label for t in cached[digest]} != {"baseline", "oracle-0"}
@@ -732,12 +873,16 @@ async def _curate_one(
         return evidence_summary(cached[digest])
 
     try:
-        await sandbox.start()
+        if phases:
+            sandbox = await phases.start()
+        else:
+            await sandbox.start()
         save(
             root / "sandbox.json",
             {"id": sandbox.sandbox.object_id, "timeout_sec": config.author_timeout_sec},
         )
-        await sandbox.prepare(source)
+        if not phases:
+            await sandbox.prepare(source)
         feedback = "Investigate this PR and create the task.\n" + json.dumps(source)
         if conversion:
             feedback += f"\nSemantic submission limit: {config.max_candidate_drafts}; mechanical failed-input limit: {config.max_mechanical_submissions}. All work shares the original cost and turn limits."
@@ -806,8 +951,28 @@ async def _curate_one(
             last_verdict = None
             execution_errors = []
             logger.info("%s: author revision %s", source["id"], revision + 1)
+            if phases and phases.closed:
+                # Only an actual task/control/review failure reaches a next
+                # revision. Infrastructure errors escape without another author.
+                _regular_tree(last_task)
+                if digest_task(last_task) != phases.state["handoff"]["task_digest"]:
+                    raise RecoveryError("Frozen task changed before author repair")
+                sandbox = await phases.start()
+                for path in last_task.rglob("*"):
+                    if path.is_file():
+                        await sandbox.sandbox.filesystem.copy_from_local.aio(
+                            path, "/output/task/" + path.relative_to(last_task).as_posix()
+                        )
+                feedback += (
+                    "\nThis is a fresh author sandbox with the pinned repository and the last "
+                    "exported task restored in /output/task. Prior exploratory packages and "
+                    "temporary repository edits are absent. Existing submission, revision, "
+                    "active-time and budget allowances remain shared."
+                )
             if repair:
                 repair.start_revision(revision)
+            if phases:
+                phases.start_revision(revision)
             await run_agent(
                 model=config.author_model,
                 system=AUTHOR
@@ -841,6 +1006,7 @@ async def _curate_one(
                     "Repair the structural validation failure: " + str(exc)
                 )
                 continue
+            last_task = task
             specification_feedback = await check_specification(task)
             if specification_feedback:
                 feedback = repair_feedback(specification_feedback)
@@ -850,6 +1016,8 @@ async def _curate_one(
                 cached.get(digest)
                 or await preflight(task, folder / "trials", config=config, budget=budget)
             )
+            if phases:
+                _require_completed_trials(trials)
             if (
                 len(trials) != 2
                 or not all(t.valid for t in trials)
@@ -862,51 +1030,34 @@ async def _curate_one(
                 execution_errors = [t.model_dump() for t in trials if t.error]
                 repair_feedback(feedback)
                 continue
+            if phases:
+                await phases.handoff(task, digest, revision, trials)
+
+            async def full_trial(
+                label, task=task, folder=folder, trials=trials, digest=digest, **kwargs
+            ):
+                if phases and digest_task(task) != digest:
+                    raise RecoveryError("Frozen task changed before validation")
+                result = await trial(
+                    task, folder / "trials", label, config=config, budget=budget, **kwargs
+                )
+                trials.append(result)
+                if phases:
+                    save(folder / "evidence.json", _evidence_record(digest, trials, None))
+                    if result.task_digest != digest or digest_task(task) != digest:
+                        raise RecoveryError("Frozen task or trial digest changed during validation")
+                    _require_completed_trials([result])
+
             # Cheap correctness gates precede paid model rollouts.
             for i in range(1, config.oracle_repeats):
-                trials.append(
-                    await trial(
-                        task, folder / "trials", f"oracle-{i}", config=config, budget=budget
-                    )
-                )
-            trials.append(
-                await trial(
-                    task, folder / "trials", "tamper", config=config, budget=budget, script=TAMPER
-                )
-            )
+                await full_trial(f"oracle-{i}")
+            await full_trial("tamper", script=TAMPER)
             for mutation in contract.mutations:
-                trials.append(
-                    await trial(
-                        task,
-                        folder / "trials",
-                        f"mutation-{mutation.name}",
-                        config=config,
-                        budget=budget,
-                        script=mutation.script,
-                        mutation=True,
-                    )
-                )
-            trials.append(
-                await trial(
-                    task,
-                    folder / "trials",
-                    "pytest-tamper",
-                    config=config,
-                    budget=budget,
-                    script=pytest_tamper(contract.source_paths),
-                )
-            )
+                await full_trial(f"mutation-{mutation.name}", script=mutation.script, mutation=True)
+            await full_trial("pytest-tamper", script=pytest_tamper(contract.source_paths))
             for equivalent in contract.equivalents:
-                trials.append(
-                    await trial(
-                        task,
-                        folder / "trials",
-                        f"equivalent-{equivalent.name}",
-                        config=config,
-                        budget=budget,
-                        script=equivalent.script,
-                        mutation=True,
-                    )
+                await full_trial(
+                    f"equivalent-{equivalent.name}", script=equivalent.script, mutation=True
                 )
             bad = [
                 t
@@ -922,27 +1073,8 @@ async def _curate_one(
             for model_index, model in enumerate(config.solver_models):
                 for k in range(config.solver_attempts):
                     logger.info("%s: solver %s attempt %s", source["id"], model, k + 1)
-                    trials.append(
-                        await trial(
-                            task,
-                            folder / "trials",
-                            f"solver-{model_index}-{k}",
-                            config=config,
-                            budget=budget,
-                            model=model,
-                        )
-                    )
-            trials.append(
-                await trial(
-                    task,
-                    folder / "trials",
-                    "adversary",
-                    config=config,
-                    budget=budget,
-                    model=config.author_model,
-                    adversary=True,
-                )
-            )
+                    await full_trial(f"solver-{model_index}-{k}", model=model)
+            await full_trial("adversary", model=config.author_model, adversary=True)
             # Cached preflight evidence is copied into this revision's review tree.
             for t in trials:
                 p = Path(t.path)
@@ -989,12 +1121,15 @@ async def _curate_one(
                     },
                 )
         finally:
-            try:
-                await sandbox.stop()
-            finally:
-                budget.settle(
-                    reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True
-                )
+            if phases:
+                await phases.close()
+            else:
+                try:
+                    await sandbox.stop()
+                finally:
+                    budget.settle(
+                        reserve, 0.15 + (time.monotonic() - started) * 0.00005, estimated=True
+                    )
 
 
 class RecoveryError(ValueError):

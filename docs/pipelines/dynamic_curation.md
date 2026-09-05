@@ -265,6 +265,14 @@ timeout includes time spent waiting for separate validation trials. A finished
 local task export can still be validated after its author sandbox expires; any
 further author work requires an explicit checkpoint retry. The pipeline does not
 silently extend a live runtime-comparison cell's original limits.
+Set `release_author_before_validation: true` to close and settle the author
+sandbox after specification, verifier and baseline/reference preflight, before
+the remaining controls, solver attempts and final review. The default is false.
+An actionable task repair opens a fresh author sandbox with the retained task;
+all sessions share the original active-time, cloud and revision allowances.
+Exploratory package installations are not restored. Uncertain shutdown retains
+its reservation and stops validation. An existing `author-phase.json` requires
+explicit recovery; restarting cannot overwrite evidence or reset allowances.
 Interrupted validation can resume from an unchanged finalized task, reusing
 successful checks and rerunning missing or invalid trials. A pending review can
 resume without repeating authoring or cloud validation; a valid quality rejection

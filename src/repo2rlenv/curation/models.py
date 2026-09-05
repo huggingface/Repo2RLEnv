@@ -505,6 +505,7 @@ class CampaignConfig(StrictModel):
     max_candidate_usd: float = Field(default=18, gt=0)
     trial_timeout_sec: int = Field(default=900, ge=60, le=1800)
     author_timeout_sec: int = Field(default=3600, ge=60, le=7200)
+    release_author_before_validation: bool = False
     cloud_trial_allowance_usd: float = Field(default=1.0, ge=0.5)
     author_cloud_allowance_usd: float = Field(default=1.5, ge=1)
 
