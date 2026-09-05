@@ -41,6 +41,10 @@ historical scopes stop recovery rather than resetting the spending cap.
 
 ## Compare authoring runtimes
 
+The [completed nine-cell pilot and its verifier lessons](curation_pilot.md) record
+the observed results and limitations. It produced no final selected task and does
+not establish a winning runtime.
+
 Set `author_runtime` to `langgraph`, `pi`, or `opencode` in a campaign config.
 Pi and OpenCode require Node >=22.19 and the pinned packages next to their adapters:
 
