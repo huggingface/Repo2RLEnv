@@ -22,6 +22,11 @@ def register(subparsers) -> None:
     sources.add_argument("--repo", help="GitHub owner/name; discover recent merged PRs")
     parser.add_argument("--out", type=Path, default=Path("workspace/curation"))
     parser.add_argument(
+        "--compare-runtimes",
+        action="store_true",
+        help="Compare LangGraph, Pi and OpenCode authors on every input PR",
+    )
+    parser.add_argument(
         "--retry-rejected",
         action="store_true",
         help="Retry rejected candidates, preserving earlier evidence and spend",
@@ -78,6 +83,20 @@ def cmd_curate(args: argparse.Namespace) -> int:
         )
         return 2
     from repo2rlenv.curation.campaign import campaign
+
+    if args.compare_runtimes:
+        from repo2rlenv.curation.compare import compare
+
+        result = asyncio.run(compare(seeds, args.out, config, retry_failures=args.retry_rejected))
+        console.kv(
+            {
+                "status": result["status"],
+                "cells": len(result["rows"]),
+                "report": str(args.out.resolve() / "comparison.md"),
+            },
+            title="Runtime comparison",
+        )
+        return 0 if result["status"] == "complete" else 2
 
     result = asyncio.run(campaign(seeds, args.out, config, retry_rejected=args.retry_rejected))
     console.kv(

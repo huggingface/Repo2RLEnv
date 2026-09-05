@@ -106,6 +106,7 @@ async def completion(
     *,
     tools: list[dict] | None = None,
     max_tokens: int = 6000,
+    max_charge: float | None = None,
 ):
     import litellm
 
@@ -121,6 +122,8 @@ async def completion(
     )
     # Cache writes cost 1.25x input; reserve that worst case, settle actual reads.
     ceiling = input_bound * in_rate * (1.25 if cache_options else 1) + max_tokens * out_rate
+    if max_charge is not None and ceiling > max_charge:
+        raise BudgetExceeded("Next model request would exceed the agent cost limit")
     key = budget.reserve(ceiling, f"llm:{model}")
     response = await litellm.acompletion(
         model=model,

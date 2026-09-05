@@ -99,6 +99,7 @@ def good_trials():
         "oracle-2": 1,
         "baseline": 0,
         "tamper": 0,
+        "pytest-tamper": 0,
         "mutation-boundary": 0,
         "mutation-constant": 0,
         "equivalent-alternative": 1,
@@ -209,6 +210,35 @@ def test_exact_pins_and_editable_source_are_allowed():
     )
 
 
+def test_protected_tests_only_import_target_inside_worker():
+    from repo2rlenv.curation.artifacts import validate_probe_tests
+
+    validate_probe_tests(
+        "from probe import run_probe\ndef test_behavior():\n"
+        "    assert run_probe('import accelerate; print(1)') == 1\n"
+    )
+    for unsafe in [
+        "import accelerate\n",
+        "from torch import Tensor\n",
+        "__import__('accelerate')\n",
+        "exec('import accelerate')\n",
+        "open('/workspace/code.py')\n",
+    ]:
+        with pytest.raises(ValueError):
+            validate_probe_tests(unsafe + "run_probe('print(0)')\n")
+
+
+def test_worker_cannot_own_assertions_or_exceed_protocol_bounds():
+    from repo2rlenv.curation.probe_runtime import run_probe
+
+    with pytest.raises(ValueError, match="Assertions"):
+        run_probe("assert True")
+    with pytest.raises(ValueError, match="timeout"):
+        run_probe("print(0)", timeout=1000)
+    with pytest.raises(ValueError, match="bounded protocol"):
+        run_probe("print(0)", "x" * 1_000_001)
+
+
 def test_duplicate_solver_and_trial_evidence_rejected(good_trials, good_review):
     with pytest.raises(ValidationError):
         CampaignConfig(solver_models=["same", "same"])
@@ -260,7 +290,7 @@ def test_finalize_owns_separate_grader_and_digest(tmp_path, monkeypatch):
         + source["base_sha"]
         + "\nRUN pip install pytest==8.4.2\n",
         "solution/solve.sh": "#!/bin/bash\ntrue\n",
-        "tests/test_contract.py": "def test_empty(): pass\ndef test_nested(): pass\ndef test_general(): pass\n",
+        "tests/test_contract.py": "from probe import run_probe\ndef test_empty(): run_probe('print(0)')\ndef test_nested(): pass\ndef test_general(): pass\n",
         "contract.json": json.dumps(
             {
                 "title": "Widget",
@@ -436,3 +466,43 @@ async def test_langgraph_executes_tools_then_finishes(tmp_path, monkeypatch, max
         json.loads(line).get("kind") == "tool"
         for line in (tmp_path / "trace.jsonl").read_text().splitlines()
     )
+
+
+@pytest.mark.asyncio
+async def test_model_reservation_respects_remaining_agent_cap(tmp_path, monkeypatch):
+    import litellm
+
+    from repo2rlenv.curation.budget import completion
+
+    monkeypatch.setattr(
+        litellm,
+        "get_model_info",
+        lambda _: {
+            "input_cost_per_token": 0.001,
+            "output_cost_per_token": 0.001,
+        },
+    )
+
+    async def forbidden(**kwargs):
+        pytest.fail("Provider called despite insufficient agent budget")
+
+    monkeypatch.setattr(litellm, "acompletion", forbidden)
+    budget = Budget(tmp_path / "ledger.json", 100)
+    with pytest.raises(BudgetExceeded, match="agent cost limit"):
+        await completion(budget, "test", [], max_charge=0.1)
+    assert budget.spent == 0
+
+
+def test_task_release_is_atomic_idempotent_and_preserves_existing(tmp_path):
+    from repo2rlenv.curation.artifacts import release_task
+
+    source, destination = tmp_path / "source", tmp_path / "released/task"
+    source.mkdir()
+    (source / "instruction.md").write_text("Original task")
+    release_task(source, destination)
+    release_task(source, destination)
+    (source / "instruction.md").write_text("Changed task")
+    with pytest.raises(ValueError, match="Refusing to overwrite"):
+        release_task(source, destination)
+    assert (destination / "instruction.md").read_text() == "Original task"
+    assert not list(destination.parent.glob(".release-*"))

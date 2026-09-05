@@ -69,6 +69,19 @@ jobs:
       - name: Run pytest
         run: uv run pytest -q
 
+  author-runtimes:
+    name: Pi and OpenCode adapters (mock inference)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/repo2rlenv/curation/runtimes/package-lock.json
+      - run: npm ci --prefix src/repo2rlenv/curation/runtimes --no-fund --no-audit
+      - run: node --test tests/test_pi_runtime.mjs tests/opencode_runtime.test.mjs
+
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest

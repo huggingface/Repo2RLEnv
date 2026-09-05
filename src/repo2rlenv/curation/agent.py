@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TypedDict
 
-from repo2rlenv.curation.budget import Budget, completion
+from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
 
 
 class State(TypedDict):
@@ -43,8 +43,24 @@ async def run_agent(
     trace: Path,
     max_turns: int,
     max_cost: float = 8,
+    runtime: str = "langgraph",
 ) -> State:
     """A real LangGraph model/tool loop; tool effects remain in cloud sandboxes."""
+    if runtime != "langgraph":
+        from repo2rlenv.curation.external_agent import run_external_agent
+
+        return await run_external_agent(
+            engine=runtime,
+            model=model,
+            system=system,
+            prompt=prompt,
+            budget=budget,
+            tools=tools,
+            handlers=handlers,
+            trace=trace,
+            max_turns=max_turns,
+            max_cost=max_cost,
+        )
     from langgraph.graph import END, START, StateGraph
 
     trace.parent.mkdir(parents=True, exist_ok=True)
@@ -56,8 +72,14 @@ async def run_agent(
 
     async def think(state: State) -> State:
         if budget.spent - start_spend >= max_cost:
-            raise RuntimeError(f"Agent cost limit reached: ${max_cost}")
-        response, cost = await completion(budget, model, state["messages"], tools=tools)
+            raise BudgetExceeded(f"Agent cost limit reached: ${max_cost}")
+        response, cost = await completion(
+            budget,
+            model,
+            state["messages"],
+            tools=tools,
+            max_charge=max_cost - (budget.spent - start_spend),
+        )
         message = response.choices[0].message.model_dump(exclude_none=True)
         record(
             "model",

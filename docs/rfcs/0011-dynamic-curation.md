@@ -58,6 +58,14 @@ Solvers run unprivileged. Verification uses a fresh sandbox and imports only the
 declared submission paths, leaving the test runner and dependencies immutable.
 An adversarial trial attempts bypasses; this is evidence, not a proof of security.
 
+The first live isolation audit demonstrated that a submitted package could set
+`pytest.Function.runtest` to a no-op and earn full reward in an in-process verifier.
+The release protocol therefore runs assertions in a separate protected Python
+environment. Submitted packages execute only in an unprivileged worker that returns
+JSON observations. The worker cannot read hidden tests or change their execution.
+This architectural fix is required before admission; old admissions are archived
+and revalidated when the protocol changes.
+
 ## Research basis and limits
 
 [Good Benchmarks](https://arxiv.org/html/2607.12217v1) motivates realistic outcomes,

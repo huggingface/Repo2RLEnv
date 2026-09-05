@@ -15,13 +15,14 @@ from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
 from repo2rlenv.curation.artifacts import digest_task, finalize, release_task
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.cloud import AuthorSandbox
-from repo2rlenv.curation.evaluate import TAMPER, evidence_summary, preflight, trial
+from repo2rlenv.curation.evaluate import TAMPER, evidence_summary, preflight, pytest_tamper, trial
 from repo2rlenv.curation.models import CampaignConfig, acceptance
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
 
 logger = logging.getLogger(__name__)
+ADMISSION_VERSION = 3
 
 
 class CandidateDeferred(RuntimeError):
@@ -110,7 +111,14 @@ async def curate_one(
                 "Ensure EVERY dependency has an exact == version; ranges and unversioned "
                 "dependencies are rejected before builds. Re-run validate_candidate."
             )
+            previous_evidence = sorted((seed_task.parent / "trials").glob("*.json"))
+            if previous_evidence:
+                feedback += "\nPrevious validation evidence:\n" + "\n".join(
+                    p.read_text()[:12000] for p in previous_evidence[:3]
+                )
         for revision in range(config.max_revisions):
+            last_verdict = None
+            execution_errors = []
             logger.info("%s: author revision %s", source["id"], revision + 1)
             await run_agent(
                 model=config.author_model,
@@ -126,6 +134,7 @@ async def curate_one(
                 trace=root / f"author-{revision}.jsonl",
                 max_turns=config.author_turns,
                 max_cost=8,
+                runtime=config.author_runtime,
             )
             folder = root / f"revision-{revision}"
             task = folder / "task"
@@ -149,6 +158,7 @@ async def curate_one(
                 feedback = "Repair based on these baseline/oracle results:\n" + evidence_summary(
                     trials
                 )
+                execution_errors = [t.model_dump() for t in trials if t.error]
                 continue
             # Cheap correctness gates precede paid model rollouts.
             for i in range(1, config.oracle_repeats):
@@ -174,6 +184,16 @@ async def curate_one(
                         mutation=True,
                     )
                 )
+            trials.append(
+                await trial(
+                    task,
+                    folder / "trials",
+                    "pytest-tamper",
+                    config=config,
+                    budget=budget,
+                    script=pytest_tamper(contract.source_paths),
+                )
+            )
             for equivalent in contract.equivalents:
                 trials.append(
                     await trial(
@@ -193,6 +213,7 @@ async def curate_one(
                 or t.reward != (1 if t.label.startswith(("oracle", "equivalent-")) else 0)
             ]
             if bad:
+                execution_errors = [t.model_dump() for t in bad if t.error]
                 feedback = "Repair validation; these controls failed:\n" + evidence_summary(bad)
                 continue
             for model_index, model in enumerate(config.solver_models):
@@ -240,18 +261,24 @@ async def curate_one(
                 [m.name for m in contract.mutations],
                 [e.name for e in contract.equivalents],
             )
+            execution_errors = [t.model_dump() for t in trials if t.error]
             verdict = {
                 "id": source["id"],
                 "source": source["url"],
                 "task_digest": digest,
-                "status": "accepted" if not reasons else "rejected",
+                "status": "accepted"
+                if not reasons
+                else ("execution_failure" if execution_errors else "rejected"),
+                "execution_errors": execution_errors,
                 "score": result.score,
                 "reasons": reasons,
                 "task_path": str(task),
                 "human_review": "pending",
+                "admission_version": ADMISSION_VERSION,
                 "review_path": str(folder / "review.json"),
             }
             save(root / "verdict.json", verdict)
+            last_verdict = verdict
             if not reasons:
                 return verdict
             feedback = (
@@ -261,9 +288,11 @@ async def curate_one(
                 + json.dumps(reasons)
             )
         return {
+            **(last_verdict or {}),
             "id": source["id"],
             "source": source["url"],
-            "status": "rejected",
+            "status": "execution_failure" if execution_errors else "rejected",
+            "execution_errors": execution_errors,
             "reasons": ["Revision limit reached", feedback],
             "human_review": "pending",
         }
@@ -326,6 +355,21 @@ async def _campaign(
     if retry_rejected:
         manifest.setdefault("previous_attempts", []).extend(manifest["rejected"])
         manifest["rejected"] = []
+    current_admissions = []
+    for admitted in manifest["accepted"]:
+        task = out / "tasks" / admitted["id"]
+        if digest_task(task) != admitted["task_digest"]:
+            raise ValueError(f"Released task changed: {admitted['id']}")
+        if admitted.get("admission_version") == ADMISSION_VERSION:
+            current_admissions.append(admitted)
+        else:
+            destination = out / "superseded" / f"{admitted['id']}-{time.time_ns()}"
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(task, destination)
+            manifest.setdefault("previous_attempts", []).append(
+                {**admitted, "status": "needs_revalidation", "archived_task": str(destination)}
+            )
+    manifest["accepted"] = current_admissions
     manifest["status"] = "running"
     manifest["seeds"] = list(dict.fromkeys([*manifest.get("seeds", []), *seeds]))
     manifest["in_progress"] = []

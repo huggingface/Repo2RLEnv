@@ -36,6 +36,47 @@ require a separate campaign directory. An interrupted candidate restarts in a fr
 sandbox; previous reservations remain charged until reconciled. The CLI exits 2
 when it ends short of the requested target, including budget exhaustion.
 
+## Compare authoring runtimes
+
+Set `author_runtime` to `langgraph`, `pi`, or `opencode` in a campaign config.
+Pi and OpenCode require Node >=22.19 and the pinned packages next to their adapters:
+
+```bash
+npm ci --prefix src/repo2rlenv/curation/runtimes
+uv run --extra curation repo2rlenv curate --compare-runtimes \
+  --pr https://github.com/huggingface/accelerate/pull/3969 \
+  --pr https://github.com/huggingface/peft/pull/2661 \
+  --pr https://github.com/huggingface/trl/pull/6066 \
+  --config configs/curation/runtime-comparison.json \
+  --out workspace/runtime-comparison
+```
+
+All three authors run concurrently for each PR, using a shared $90 ceiling and
+$10 per cell in this example. Only the authoring runtime varies; the source,
+instructions, remote tools, model, token/turn limits, solver panel and judge are
+fixed. Runtime labels are omitted from the judge's evidence paths. Reports retain
+unscored and failed candidates alongside admissions; missing scores never become
+zero scores. `comparison.json` holds the machine-readable results and
+`comparison.md` the summary. Re-running the identical command skips completed cells
+and preserves interrupted attempts and their spending.
+Use `--retry-rejected` to retry comparison cells with execution or infrastructure
+failures after a repair; earlier
+outcomes remain in attempt history and the same per-cell budget still applies.
+Resume records harness changes and preserves resolved source revisions. Accepted
+cells are checked against their task digest and admission protocol before reuse.
+
+This is a comparison of controlled adapters, not each product's unrestricted
+defaults: local tools, resource discovery, automatic retries, compaction and
+auxiliary agents are disabled. Sessions and native events remain available.
+Pi and OpenCode receive only an ephemeral loopback token; the Python bridge holds
+the real provider key, meters inference and forwards the allowed cloud tools.
+The Python controller, verification protocol and solver implementation stay common.
+Three PRs provide diagnostic evidence, not a statistically established winner.
+
+The first supported external-provider protocol is Anthropic. Other providers
+remain supported by the LangGraph adapter through LiteLLM; additional external
+protocols require explicit adapters and matching budget accounting.
+
 ## Admission
 
 A score cannot override failed mandatory gates:
@@ -49,6 +90,8 @@ A score cannot override failed mandatory gates:
 5. A dedicated adversarial solver attempts to earn reward without implementing the task.
 6. An independent reviewer reads task files and trajectories and returns eight
    scored criteria with evidence, blockers, failure attribution and repair suggestions.
+   The evidence includes oracle patches and changed solver/adversary submissions
+   compared with baseline exports. Omitted or oversized evidence is recorded explicitly.
 7. Admit only with every criterion passed, no unresolved failures/hacks, score at
    least 85/100, and evidence bound to the exact task digest.
 
@@ -75,14 +118,19 @@ non-root user. Runtime probes check these properties, including IP-level egress.
 
 Harbor copies only the declared source paths into a fresh grading image. The test
 runner, dependency environment and reward writer are independent of the solver's
-filesystem. Pytest executes as the unprivileged agent user with external plugins
-and repository configuration disabled. Missing reports, insufficient collected
+filesystem. Protected pytest runs in its own virtual environment containing only
+pytest, numpy and standard Python. It never imports the editable repository.
+Tests use `from probe import run_probe` to call submitted code in a separate
+unprivileged process and receive bounded JSON observations; assertions and expected
+results stay in the protected process. Workers cannot read `/tests`, modify that
+virtual environment, or write the reward. Repository pytest plugins and configuration
+are disabled. Missing reports, insufficient collected
 tests, skips, errors and timeouts yield zero. The default reward is binary and
 deterministic; curation scores never become solver rewards.
 
-This is a defense-in-depth design, not a proof against all malicious Python code.
-In-process test runners can still be attacked by submitted code. Adversarial
-rollouts and human inspection remain important. Judge-based tasks are deferred from
+This boundary closes direct pytest monkeypatching and report forgery from submitted
+Python. It does not prove that a task's behavioral coverage excludes every shortcut;
+adversarial rollouts and human inspection remain important. Judge-based tasks are deferred from
 the default deterministic campaign. An explicit opt-in Harbor verifier is available
 as `repo2rlenv.curation.judge_reward:JudgeRewardVerifier`: configure
 `verifier.import_path` in the Harbor job and pass `budget_path`, `budget_limit`, and
@@ -91,6 +139,12 @@ as `repo2rlenv.curation.judge_reward:JudgeRewardVerifier`: configure
 `artifacts`, and `threshold`. Deterministic prechecks run first; the host-side judge
 then grades only the declared artifacts and records its model, cost and rationale.
 These rewards are explicitly nondeterministic and never silently enabled.
+
+The JSON interface deliberately limits this first profile. Tests requiring arbitrary
+Python object exchange need an explicit serializable observation contract or should
+be deferred. Sending a worker a script containing assertions is rejected: untrusted
+code could neutralize those assertions. Batch related inputs to avoid paying Python
+and torch import overhead for every individual example.
 
 ## Evidence and costs
 
@@ -101,8 +155,11 @@ in each trial's `agent/trace.jsonl`. `budget.json` is a process-safe write-ahead
 ledger of API reservations, metered model cost and conservative cloud allowances.
 Unknown model pricing fails closed. Provider invoices remain the billing authority.
 
-`publish_evidence()` can archive a campaign to a private Hugging Face bucket under
-a content-addressed prefix, with SHA-256 checksums and no solver filesystem exports.
+`publish_evidence()` can archive a campaign or runtime comparison to a private
+Hugging Face bucket under a content-addressed prefix, with SHA-256 checksums.
+It excludes raw solver exports and runtime credentials/caches, while preserving
+native transcripts and the bounded changed text inspected by the reviewer in
+`review-submissions.json`.
 It freezes files before hashing and uploading, refuses an active campaign, and
 rejects admitted tasks changed since their review. No secret is passed into an
 author or solver sandbox. Publishing public benchmark tasks should include the

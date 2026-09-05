@@ -143,6 +143,7 @@ class CampaignConfig(StrictModel):
     concurrency: int = Field(default=2, ge=1, le=4)
     budget_usd: float = Field(default=450, gt=0, le=500)
     author_model: str = "anthropic/claude-sonnet-4-6"
+    author_runtime: Literal["langgraph", "pi", "opencode"] = "langgraph"
     judge_model: str = "anthropic/claude-opus-4-6"
     solver_models: list[str] = Field(
         default_factory=lambda: ["anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4-6"],
@@ -182,7 +183,7 @@ def acceptance(
         reasons.append("Duplicate trial labels")
     by_label = {t.label: t for t in trials}
     expected = {f"oracle-{i}": 1 for i in range(config.oracle_repeats)}
-    expected.update({"baseline": 0, "tamper": 0})
+    expected.update({"baseline": 0, "tamper": 0, "pytest-tamper": 0})
     expected.update({f"mutation-{n}": 0 for n in mutation_names})
     expected.update({f"equivalent-{n}": 1 for n in equivalent_names})
     if not equivalent_names:

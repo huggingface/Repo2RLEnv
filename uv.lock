@@ -1944,6 +1944,7 @@ dependencies = [
 
 [package.optional-dependencies]
 curation = [
+    { name = "aiohttp" },
     { name = "harbor", extra = ["modal"] },
     { name = "langgraph" },
     { name = "modal" },
@@ -1958,6 +1959,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", marker = "extra == 'curation'", specifier = ">=3.13,<4" },
     { name = "harbor", extras = ["modal"], marker = "extra == 'curation'", specifier = ">=0.20,<0.21" },
     { name = "huggingface-hub", specifier = ">=1.13.0" },
     { name = "langgraph", marker = "extra == 'curation'", specifier = ">=1.0,<2" },

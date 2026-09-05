@@ -27,6 +27,9 @@ Required output:
   Install git, curl and ca-certificates in the image when used by the recipe or oracle;
   the author sandbox having git does not imply the task image has it. Verify source
   really lands at /workspace/src/... (tar --strip-components=1), not a nested checkout.
+  For a repository with src/ at its root, extract to /workspace, NOT /workspace/src:
+  the latter accidentally creates /workspace/src/src. Check each contract source_path
+  against the actual extracted location; all are relative to /workspace.
   Use CPU torch wheels from https://download.pytorch.org/whl/cpu when needed. Prefer
   tiny locally constructed model/config fixtures over downloaded weights. Install all
   runtime/test dependencies at image BUILD time: both solver and grader have NO network.
@@ -37,15 +40,29 @@ Required output:
   explanatory comments that show how to derive the fix from the task. You may include
   solution/patch.diff and apply it with git apply /solution/patch.diff (Git history is
   removed but git apply works). Scope the oracle to the task, not unrelated PR changes.
-* tests/test_contract.py: independent pytest tests of public behavior. No tests skip,
+* tests/test_contract.py: independent pytest tests of public behavior. The harness
+  supplies `from probe import run_probe`. Protected pytest has ONLY standard Python,
+  pytest and numpy, in a separate immutable virtual environment. NEVER import the
+  target repository (or torch/transformers) directly in the test process. Instead:
+  `observed = run_probe(code_string, payload)` launches an unprivileged worker with
+  the task's installed packages. Its globals include json, sys and payload; it must
+  print ONE JSON value. Put imports/computation in code_string; put ALL assertions
+  and expected results in the protected pytest function, outside that string.
+  For example, code_string can import a target function, call it on payload, and
+  print(json.dumps(result)); the test then asserts observed == expected. Batch many
+  related inputs into one probe to avoid repeatedly importing torch. Workers cannot
+  read /tests or change the pytest process/reward file. Each probe defaults to 60s,
+  accepts timeout= up to 120s, and supports at most 1MB JSON input/output. All tensors
+  must be converted to lists/scalars; expected numeric results can use numpy in pytest.
+  No assertions inside probe strings: a submitted package could neutralize them.
+  Use validate_candidate for the real isolated test runner. No tests skip,
   xfail, network calls, model downloads or performance assertions based on wall time.
   Cover each requirement, boundaries, nontrivial combinations and regressions. Include
   seeded randomized/property cases or metamorphic checks when appropriate. Reject
   superficial/constant-output fixes and accept alternative valid implementations.
   No inspecting source strings as a substitute for behavioral testing. The original
-  repo conftest/plugins are disabled. All tests run directly from /tests with a fresh
-  editable repository. Import the repo normally; don't modify sys.path unless a specific
-  module requires it. Don't write test.sh: the harness owns the isolated reward wrapper.
+  repo conftest/plugins are disabled. Only the worker imports the editable repository.
+  Don't write test.sh or probe.py: the harness owns the isolated reward wrapper.
 * contract.json: {title, rationale, source_paths:[relative directories/files holding
   submitted code, e.g. 'src/accelerate'], requirements:[{id,behavior,tests:[function_name]}],
   mutations:[{name:lowercase_identifier,rationale,script:bash}],

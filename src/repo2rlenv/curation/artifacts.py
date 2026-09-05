@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
 import shlex
 import shutil
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -84,7 +86,7 @@ WORKDIR /workspace
 """
 
 VERIFIER = r"""from __future__ import annotations
-import json, os, pathlib, subprocess, xml.etree.ElementTree as ET
+import json, pathlib, subprocess, sys, xml.etree.ElementTree as ET
 
 out = pathlib.Path('/logs/verifier')
 out.mkdir(parents=True, exist_ok=True)
@@ -101,8 +103,7 @@ try:
             if p.is_symlink() or (not p.is_file() and not p.is_dir()):
                 raise ValueError('Non-regular submission entry: ' + str(p))
     report_dir = pathlib.Path('/tmp/r2e-pytest')
-    report_dir.mkdir(exist_ok=True)
-    os.chown(report_dir, 1000, 1000)
+    report_dir.mkdir(mode=0o700, exist_ok=True)
     report = report_dir / 'junit.xml'
     report.unlink(missing_ok=True)
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/home/agent',
@@ -110,7 +111,7 @@ try:
            'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1',
            'TOKENIZERS_PARALLELISM': 'false', 'OMP_NUM_THREADS': '1'}
     result = subprocess.run(
-        ['/usr/sbin/runuser', '-u', 'agent', '--', '/usr/local/bin/python', '-I', '-m',
+        [sys.executable, '-I', '-m',
          'pytest', '-p', 'no:cacheprovider', '--confcutdir=/tests', '-c', '/tests/pytest.ini',
          '/tests/test_contract.py', '-v', '--junitxml=' + str(report)],
         cwd='/tests', env=env, capture_output=True, text=True, timeout=240)
@@ -134,6 +135,55 @@ except Exception as exc:
     details = {'valid': False, 'reason': type(exc).__name__ + ': ' + str(exc)}
 (out / 'details.json').write_text(json.dumps(details, indent=2))
 """
+
+
+def validate_probe_tests(text: str) -> None:
+    """Keep protected assertions in a clean interpreter, away from editable code."""
+    allowed = {
+        "collections",
+        "contextlib",
+        "functools",
+        "itertools",
+        "json",
+        "math",
+        "random",
+        "re",
+        "statistics",
+        "textwrap",
+        "typing",
+        "pytest",
+        "numpy",
+        "probe",
+    }
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise ValueError(f"Invalid test syntax: {exc}") from exc
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+            )
+            if any(name.split(".")[0] not in allowed for name in names):
+                raise ValueError(
+                    "Protected tests may import only standard math/test helpers, numpy and probe. "
+                    "Import submitted packages inside run_probe code strings."
+                )
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"eval", "exec", "__import__", "compile", "open"}
+        ):
+            raise ValueError("Protected tests may not execute or load submitted files directly")
+    if not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_probe"
+        for node in ast.walk(tree)
+    ):
+        raise ValueError("Tests must observe submitted behavior through run_probe")
 
 
 def digest_task(path: Path) -> str:
@@ -161,6 +211,7 @@ def finalize(path: Path, source: dict) -> Contract:
             raise ValueError(f"Missing regular task file: {name}")
     digest_task(path)
     contract = Contract.model_validate_json((path / "contract.json").read_text())
+    validate_probe_tests((path / "tests/test_contract.py").read_text())
     if contract.reward_mode != "deterministic":
         raise ValueError(
             "Judge rewards are review-only: no deterministic release without a verifier"
@@ -213,15 +264,20 @@ def finalize(path: Path, source: dict) -> Contract:
     tests = path / "tests"
     (tests / "contract.json").write_text(contract.model_dump_json(indent=2))
     (tests / "runner.py").write_text(VERIFIER)
+    (tests / "probe.py").write_text(Path(__file__).with_name("probe_runtime.py").read_text())
     (tests / "pytest.ini").write_text("[pytest]\naddopts =\n")
     (tests / "test.sh").write_text(
-        "#!/bin/bash\nset -eu\nexec /usr/local/bin/python -I /tests/runner.py\n"
+        "#!/bin/bash\nset -eu\nchmod -R go-rwx /tests /opt/r2e-grader\n"
+        "exec /opt/r2e-grader/bin/python -I /tests/runner.py\n"
     )
     # The clean grading image discards its base copy of submitted source paths,
     # then Harbor imports only those paths from the finished solver sandbox.
     paths = " ".join(shlex.quote("/workspace/" + p) for p in contract.source_paths)
     (tests / "Dockerfile").write_text(
-        recipe + f"\nRUN rm -rf {paths}\nCOPY . /tests/\nRUN chmod -R a+rX /tests\n"
+        recipe
+        + "\nRUN python -m venv /opt/r2e-grader"
+        + " && /opt/r2e-grader/bin/pip install --no-cache-dir pytest==8.4.2 numpy==2.2.6\n"
+        + f"RUN rm -rf {paths}\nCOPY . /tests/\nRUN chmod -R go-rwx /tests /opt/r2e-grader\n"
     )
     task = {
         "schema_version": "1.4",
@@ -269,6 +325,15 @@ def finalize(path: Path, source: dict) -> Contract:
 
 
 def release_task(source: Path, destination: Path) -> None:
+    expected = digest_task(source)
     if destination.exists():
+        if digest_task(destination) == expected:
+            return
         raise ValueError(f"Refusing to overwrite released task: {destination}")
-    shutil.copytree(source, destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".release-", dir=destination.parent) as tmp:
+        staged = Path(tmp) / "task"
+        shutil.copytree(source, staged)
+        if digest_task(staged) != expected:
+            raise ValueError("Task changed during release")
+        staged.rename(destination)
