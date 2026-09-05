@@ -105,8 +105,10 @@ protocols require explicit adapters and matching budget accounting.
 Set `specification_review: true` to run an early independent review with `judge_model`
 before the first baseline/oracle build. The CPU-first production config enables it;
 the default and existing runtime-comparison protocol leave it disabled. The reviewer
-reads only frozen `instruction.md` and `contract.json` snapshots and checks clear
-observable outcomes, solution recipe leakage, public API sufficiency and consistency.
+reads frozen `instruction.md`, `contract.json` and `task.toml` snapshots and checks
+clear observable outcomes, solution recipe leakage, public API sufficiency and
+consistency. Policy 3 explicitly compares advertised edit/helper permissions with
+collected submission paths and exclusions; a valid helper must survive collection.
 A score below 3/4 or any blocker returns concrete repair feedback to the author.
 The controller also runs it after authoring if the author skipped `validate_candidate`.
 Recovered checkpoints receive the same preflight before missing trials resume; a
@@ -115,9 +117,9 @@ failed specification returns to the author for repair.
 Each distinct specification and judge policy gets at most six reviewer turns and
 a $2 model allowance, charged to the existing candidate/campaign budget. The
 read-only tool serves at most 16,000 characters per page and accepts at most 32,000
-bytes per file; both files must be fully read. Missing, oversized, malformed or
+bytes per file; all three files must be fully read. Missing, oversized, malformed or
 interrupted evidence cannot pass or start cloud validation. Completed findings,
-including failures, are cached by instruction/contract contents and judge policy.
+including failures, are cached by all three input contents and judge policy.
 Durable inputs, trace, state and results live under each candidate's
 `specification-reviews/`, shared across timestamped attempts and outside the final
 judge's evidence tree. Private evidence publication retains these artifacts.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -39,11 +40,12 @@ def write_task(path, *, instruction="Widget.update accepts an integer and return
     path.mkdir(parents=True, exist_ok=True)
     (path / "instruction.md").write_text(instruction)
     (path / "contract.json").write_text('{"requirements": [{"behavior": "update state"}]}')
+    (path / "task.toml").write_text('[[artifacts]]\nsource = "/workspace/src/pkg"\n')
 
 
 async def read_all(kwargs):
     read = kwargs["handlers"]["read_evidence"]
-    for name in ("instruction.md", "contract.json"):
+    for name in ("instruction.md", "contract.json", "task.toml"):
         offset = 0
         while True:
             page = await read(name, offset=offset)
@@ -192,7 +194,7 @@ async def test_bounded_independent_review_caches_by_specification_and_policy(set
     assert artifact["status"] == "completed"
     assert artifact["cost_usd"] == artifact["charged_usd"] == 0.15
     assert artifact["identity"]["inference"]["model"] == call["model"]
-    assert artifact["identity"]["policy_version"] == spec.POLICY_VERSION == 2
+    assert artifact["identity"]["policy_version"] == spec.POLICY_VERSION == 3
     assert next((s.root / "specification-reviews").glob("*/input.json")).is_file()
     assert next((s.root / "specification-reviews").glob("*/state.json")).is_file()
     (s.task / "tests").mkdir()
@@ -230,6 +232,90 @@ async def test_policy_change_does_not_reuse_retained_previous_pass(setup, monkey
     assert s.agent.await_count == 2
     assert len(list((s.root / "specification-reviews").glob("*/result.json"))) == 2
     assert previous_path.read_bytes() == retained
+
+
+def test_specification_policy_checks_edit_permissions_against_collected_artifacts():
+    assert spec.POLICY_VERSION == 3
+    assert spec.READ_TOOL["function"]["parameters"]["properties"]["path"]["enum"] == [
+        "instruction.md",
+        "contract.json",
+        "task.toml",
+    ]
+    assert "advertised editable paths and helper-file freedom" in spec.SYSTEM
+    assert (
+        "contract.source_paths and task.toml's [[artifacts]] source paths and exclusions"
+        in spec.SYSTEM
+    )
+    assert "distinguish a collected file from a directory tree" in spec.SYSTEM
+    assert "sibling helper or package file that collection omits" in spec.SYSTEM
+    assert "record this concrete mismatch as a blocker" in spec.SYSTEM
+    assert "do not silently narrow\n   the public task" in spec.SYSTEM
+    assert "Do not demand wider edit permissions" in spec.SYSTEM
+
+
+@pytest.mark.asyncio
+async def test_task_toml_collection_changes_have_distinct_cached_reviews(setup):
+    s = setup
+    original = (s.task / "task.toml").read_text()
+    assert (await review(s)).passed
+    first = next((s.root / "specification-reviews").glob("*/result.json"))
+    retained = first.read_bytes()
+    original_record = json.loads(retained)
+    assert set(original_record["identity"]["files"]) == {
+        "instruction.md",
+        "contract.json",
+        "task.toml",
+    }
+    assert original_record["reads"]["task.toml"] == [[0, len(original)]]
+    (s.task / "task.toml").write_text('[[artifacts]]\nsource = "/workspace/src/pkg/core.py"\n')
+    assert (await review(s)).passed
+    assert s.agent.await_count == 2
+    records = [json.loads(path.read_text()) for path in first.parent.parent.glob("*/result.json")]
+    assert len({r["identity"]["files"]["task.toml"] for r in records}) == 2
+    assert first.read_bytes() == retained
+    (s.task / "task.toml").write_text(original)
+    assert (await review(s)).passed
+    assert s.agent.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("omission", ["unread", "missing_final_character"])
+async def test_score_four_cannot_pass_without_reading_complete_task_toml(setup, omission):
+    s = setup
+
+    async def judge(**kwargs):
+        read = kwargs["handlers"]["read_evidence"]
+        await read("instruction.md")
+        await read("contract.json")
+        if omission == "missing_final_character":
+            await read("task.toml", limit=len((s.task / "task.toml").read_text()) - 1)
+        return state(result(score=4))
+
+    s.agent.side_effect = judge
+    with pytest.raises(spec.SpecificationReviewError, match="every complete specification file"):
+        await review(s)
+    with pytest.raises(
+        spec.SpecificationReviewError, match="Cached specification review unavailable"
+    ):
+        await review(s)
+    assert s.agent.await_count == 1
+    record = json.loads(next((s.root / "specification-reviews").glob("*/result.json")).read_text())
+    assert record["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_cached_pass_missing_task_toml_read_coverage_is_rejected(setup):
+    s = setup
+    assert (await review(s)).passed
+    path = next((s.root / "specification-reviews").glob("*/result.json"))
+    cached = json.loads(path.read_text())
+    del cached["reads"]["task.toml"]
+    path.write_text(json.dumps(cached))
+    retained = path.read_bytes()
+    with pytest.raises(spec.SpecificationReviewError, match="every complete specification file"):
+        await review(s)
+    assert s.agent.await_count == 1
+    assert path.read_bytes() == retained
 
 
 @pytest.mark.asyncio
@@ -290,15 +376,16 @@ async def test_high_score_required_repair_is_cached_as_failure_without_reroll(se
 
 
 @pytest.mark.asyncio
-async def test_reader_is_bounded_and_uses_frozen_text(setup):
+@pytest.mark.parametrize("filename", ["instruction.md", "task.toml"])
+async def test_reader_is_bounded_and_uses_frozen_text(setup, filename):
     s = setup
     text = "a" * (spec.MAX_PAGE_CHARS + 100)
-    (s.task / "instruction.md").write_text(text)
+    (s.task / filename).write_text(text)
 
     async def judge(**kwargs):
-        (s.task / "instruction.md").write_text("changed after snapshot")
+        (s.task / filename).write_text("changed after snapshot")
         read = kwargs["handlers"]["read_evidence"]
-        page = await read("instruction.md", limit=10**9)
+        page = await read(filename, limit=10**9)
         assert page.partition("\n")[2] == text[: spec.MAX_PAGE_CHARS]
         await read_all(kwargs)
         return state()
@@ -306,7 +393,7 @@ async def test_reader_is_bounded_and_uses_frozen_text(setup):
     s.agent.side_effect = judge
     assert (await review(s)).passed
     saved = json.loads(next((s.root / "specification-reviews").glob("*/input.json")).read_text())
-    assert saved["texts"]["instruction.md"] == text
+    assert saved["texts"][filename] == text
 
 
 @pytest.mark.asyncio
@@ -319,6 +406,7 @@ async def test_incomplete_results_never_pass_or_repeat_the_paid_call(setup, fail
             read = kwargs["handlers"]["read_evidence"]
             await read("instruction.md", offset=1)
             await read("contract.json")
+            await read("task.toml")
         elif failure != "unread":
             await read_all(kwargs)
         if failure == "missing":
@@ -361,9 +449,10 @@ async def test_execution_errors_keep_evidence_and_propagate(setup, failure):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["missing", "symlink", "oversized", "binary", "empty"])
-async def test_unavailable_input_never_calls_model_and_is_recorded(setup, failure):
+@pytest.mark.parametrize("filename", ["instruction.md", "task.toml"])
+async def test_unavailable_input_never_calls_model_and_is_recorded(setup, failure, filename):
     s = setup
-    file = s.task / "instruction.md"
+    file = s.task / filename
     file.unlink()
     if failure == "symlink":
         file.symlink_to(s.task / "contract.json")
@@ -373,7 +462,7 @@ async def test_unavailable_input_never_calls_model_and_is_recorded(setup, failur
         file.write_bytes(b"\xff")
     elif failure == "empty":
         file.write_text(" ")
-    with pytest.raises(spec.SpecificationReviewError, match=r"Cannot review instruction\.md"):
+    with pytest.raises(spec.SpecificationReviewError, match=re.escape(f"Cannot review {filename}")):
         await review(s)
     s.agent.assert_not_awaited()
     assert (
