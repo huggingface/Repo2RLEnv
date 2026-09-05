@@ -117,6 +117,29 @@ class SpecificationReview(StrictModel):
         return self.score >= 3 and not self.blockers
 
 
+class VerifierReview(SpecificationReview):
+    """A high score cannot override an outstanding verifier repair request."""
+
+    repairs: list[str] = Field(description="Required corrections; any entry prevents passing.")
+    optional_improvements: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Nonblocking polish only. A concrete uncovered contract violation or a valid "
+            "implementation rejected by the tests belongs in blockers and repairs."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def optional_findings_contain_text(self) -> VerifierReview:
+        if any(not item.strip() for item in self.optional_improvements):
+            raise ValueError("Optional verifier improvements must contain text")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return super().passed and not self.repairs
+
+
 class Review(StrictModel):
     criteria: dict[str, Criterion]
     blockers: list[str]

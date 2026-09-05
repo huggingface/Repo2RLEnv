@@ -12,7 +12,7 @@ import pytest
 
 from repo2rlenv.curation.agent import IncompleteModelResponse
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
-from repo2rlenv.curation.models import SpecificationReview
+from repo2rlenv.curation.models import VerifierReview
 
 verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
 
@@ -24,7 +24,7 @@ def write(path: Path, text: str | bytes) -> Path:
 
 
 def feedback(*, passed=True):
-    return SpecificationReview(
+    return VerifierReview(
         score=4 if passed else 2,
         blockers=[] if passed else ["tests/test_contract.py does not observe the gradient"],
         repairs=[] if passed else ["Observe a nondegenerate loss gradient in the protected test"],
@@ -115,7 +115,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
-    assert record["identity"]["policy_version"] == 3
+    assert record["identity"]["policy_version"] == 4
     assert record["identity"]["inference"]["max_tokens"] == 32_000
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
@@ -506,3 +506,49 @@ async def test_concurrent_review_does_not_duplicate_the_paid_attempt(setup):
         finish.set()
     assert (await first).passed
     assert s.agent.await_count == 1
+
+
+@pytest.mark.parametrize("score", [3, 4])
+def test_required_repairs_prevent_passing_despite_high_score(score):
+    result = VerifierReview(
+        score=score,
+        blockers=[],
+        repairs=["Observe the promised internal-label projection bound"],
+        evidence=["The labels branch is never observed by the resource probe"],
+    )
+    assert not result.passed
+
+
+def test_optional_improvements_do_not_block_complete_verifier():
+    result = feedback().model_copy(update={"optional_improvements": ["Improve test names"]})
+    assert result.passed
+    assert VerifierReview.model_validate_json(result.model_dump_json()) == result
+
+
+def test_empty_optional_improvement_is_invalid():
+    with pytest.raises(ValueError, match="must contain text"):
+        VerifierReview.model_validate({**feedback().model_dump(), "optional_improvements": ["  "]})
+
+
+def test_high_score_repair_feedback_is_cached_as_nonpassing(setup):
+    async def judge(**kwargs):
+        await read_all(kwargs)
+        result = feedback().model_copy(
+            update={"score": 4, "repairs": ["Assert the promised scale independently"]}
+        )
+        return state(result)
+
+    setup.agent.side_effect = judge
+    result = asyncio.run(
+        verifier.review_verifier(
+            setup.task, setup.root, model="anthropic/test", budget=setup.budget
+        )
+    )
+    assert not result.passed
+    cached = asyncio.run(
+        verifier.review_verifier(
+            setup.task, setup.root, model="anthropic/test", budget=setup.budget
+        )
+    )
+    assert cached == result
+    setup.agent.assert_awaited_once()
