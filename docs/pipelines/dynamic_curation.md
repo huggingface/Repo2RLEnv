@@ -143,6 +143,11 @@ directories; keep packaged runtime data in the environment. Incomplete paid revi
 remain explicit failures. The allowance accommodates conservative final-call
 reservations after reading a large task; actual charges remain metered against the
 same candidate and campaign caps.
+Read responses report the remaining file ranges. If the reviewer tries to finalize
+before reading them, the same conversation receives that missing-read feedback
+within its original turn and cost limits. The premature response stays in the
+trace. This correction checks reading completeness only; a complete quality
+rejection is never rerolled, and exhausted or truncated reviews still fail closed.
 
 This step only guides author repairs. Every admission still requires the trials,
 eight-criterion trajectory review and mandatory gates below.

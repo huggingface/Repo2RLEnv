@@ -114,6 +114,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
+    assert record["identity"]["policy_version"] == 2
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
     }
@@ -162,6 +163,90 @@ async def test_long_unicode_files_are_read_completely_without_executing_evidence
     record = json.loads(record_path(s).read_text())
     assert len(record["reads"]["tests/helpers/data.py"]) == 2
     assert not marker.exists()
+
+
+@pytest.mark.asyncio
+async def test_read_progress_tracks_unicode_gaps_overlaps_and_completion(setup):
+    s = setup
+    name = "tests/helpers/data.py"
+    text = "α🙂b界cδe🚀fηgh"
+    write(s.task / name, text)
+
+    async def judge(**kwargs):
+        await read_all(kwargs, skip=name)
+        read = kwargs["handlers"]["read_evidence"]
+        validate = kwargs["validate_final"]
+        page = await read(name, offset=4, limit=4)
+        assert page.startswith(f"{name}: characters 4:8 of 12\n{text[4:8]}\n\n")
+        await read(name, offset=0, limit=2)
+        page = await read(name, offset=7, limit=3)
+        assert "Read progress: 9/10 files complete." in page
+        assert f'path="{name}", offset=2, limit=2; missing=2:4' in page
+        assert f'path="{name}", offset=10, limit=2; missing=10:12' in page
+        # Final content does not affect the read gate, including a failing quality score.
+        correction = validate(feedback(passed=False).model_dump_json())
+        assert correction in page
+        await read(name, offset=10)
+        page = await read(name, offset=1, limit=3)
+        assert "Read progress: 10/10 files complete. All evidence read" in page
+        assert "missing=" not in page
+        assert validate(feedback(passed=False).model_dump_json()) is None
+        assert validate("not JSON") is None
+        return state(feedback(passed=False))
+
+    s.agent.side_effect = judge
+    assert not (await review(s)).passed
+    assert not (await review(s)).passed
+    s.agent.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_incomplete_final_diagnostic_names_exact_unread_range(setup):
+    s = setup
+    name = "tests/helpers/data.py"
+
+    async def judge(**kwargs):
+        await read_all(kwargs, skip=name)
+        await kwargs["handlers"]["read_evidence"](name, offset=1)
+        return state()
+
+    s.agent.side_effect = judge
+    with pytest.raises(verifier.VerifierReviewError) as error:
+        await review(s)
+    assert f'path="{name}", offset=0, limit=1; missing=0:1' in str(error.value)
+    assert "Read progress: 9/10 files complete." in str(error.value)
+    record = json.loads(record_path(s).read_text())
+    assert str(error.value).endswith(record["error"])
+
+
+@pytest.mark.asyncio
+async def test_progress_at_file_limit_never_truncates_recorded_evidence(setup, monkeypatch):
+    s = setup
+    names = [f"tests/{index:02d}-" + "x" * 180 + ".py" for index in range(63)]
+    # Long headers must reduce the actual recorded page size, not cause agent truncation.
+    long_name = "tests/" + "nested/" * 2100 + "data.py"
+    texts = dict.fromkeys(names, "abc")
+    texts[long_name] = "β" * 25_000
+    monkeypatch.setattr(verifier, "_snapshot", lambda task: texts)
+
+    async def judge(**kwargs):
+        read = kwargs["handlers"]["read_evidence"]
+        page = await read(long_name)
+        header, body = page.split("\n", 1)
+        end = int(header.split("characters 0:")[1].split(" of ")[0])
+        assert 0 < end < verifier.MAX_PAGE_CHARS
+        assert body.startswith(texts[long_name][:end] + "\n\nRead progress:")
+        assert len(page) <= 24_000
+        progress = kwargs["validate_final"]("{}")
+        assert "0/64 files complete" in progress
+        assert "additional missing ranges omitted" in progress
+        assert len(progress) <= verifier.MAX_PROGRESS_CHARS
+        await read_all(kwargs)
+        assert kwargs["validate_final"]("{}") is None
+        return state()
+
+    s.agent.side_effect = judge
+    assert (await review(s)).passed
 
 
 @pytest.mark.asyncio

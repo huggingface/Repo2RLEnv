@@ -51,9 +51,12 @@ async def run_agent(
     max_turns: int,
     max_cost: float = 8,
     runtime: str = "langgraph",
+    validate_final: Callable[[str], str | None] | None = None,
 ) -> State:
     """A real LangGraph model/tool loop; tool effects remain in cloud sandboxes."""
     if runtime != "langgraph":
+        if validate_final is not None:
+            raise ValueError("Final-response validation requires the LangGraph runtime")
         from repo2rlenv.curation.external_agent import run_external_agent
 
         return await run_external_agent(
@@ -122,6 +125,18 @@ async def run_agent(
             raise IncompleteModelResponse(
                 "Incomplete model response: no final text or tool call", updated
             )
+        if not message.get("tool_calls") and validate_final is not None:
+            correction = validate_final(message["content"])
+            if correction is not None:
+                record("final_validation", {"turn": updated["turns"], "feedback": correction})
+                if updated["turns"] >= max_turns:
+                    raise IncompleteModelResponse(
+                        "Final-response requirements unmet at the turn limit: " + correction,
+                        updated,
+                    )
+                # Preserve the premature response and continue the same bounded
+                # conversation. This is not a fresh author/reviewer attempt.
+                updated["messages"].append({"role": "user", "content": correction})
         return updated
 
     async def act(state: State) -> State:
@@ -145,7 +160,10 @@ async def run_agent(
         return {**state, "messages": messages}
 
     def route(state: State) -> str:
-        return "act" if state["messages"][-1].get("tool_calls") else END
+        last = state["messages"][-1]
+        if last.get("role") == "user":
+            return "think"
+        return "act" if last.get("tool_calls") else END
 
     graph = StateGraph(State)
     graph.add_node("think", think)
