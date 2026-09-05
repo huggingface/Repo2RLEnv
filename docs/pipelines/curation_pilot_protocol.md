@@ -234,8 +234,8 @@ must not rewrite the old allowance or count a repeated source as fresh-source yi
 
 ### Input authority evidence in verifier review
 
-Verifier policy 8 requires a structured worksheet covering every public contract
-requirement. For applicable input interactions, it identifies the authoritative
+Verifier policy 8 introduced a structured worksheet covering every public contract
+requirement; current policy 9 retains that requirement. For applicable input interactions, it identifies the authoritative
 input, a competing input/default/configuration, the relevant public condition,
 a fixture where those inputs differ, the independently expected observation,
 a conditional shortcut, and the mapped test that distinguishes it. Requirements
@@ -244,11 +244,22 @@ Only materially promised conditions belong in this inventory; it does not requir
 an arbitrary Cartesian product of all options.
 
 Each row cites exact frozen source text and the public contract. The host resolves
-unique quotes to line numbers and validates requirement/test references and cited
-test or helper locations. This checks evidence references, not semantic truth:
+exact quotes to line numbers and validates requirement/test references and cited
+test or helper locations. Repeated public-contract text can use its first match;
+repeated test text is resolved within the named test or a linked helper. Explicit
+line numbers remain checked. Errors identify the affected row and candidate lines.
+This checks evidence references, not semantic truth:
 the judge must still determine whether the actual assertion distinguishes the
 shortcut. A declared gap becomes required author feedback and cannot receive a
 passing score. Existing records remain readable, but a previous-policy cache is
 not reused as a current worksheet review. No reward function or overall validity
 threshold changes. Improved live detection must be measured separately from
 schema and reference validation.
+
+
+A review-only replay of the retained third draft completed under policy 8 and
+independently detected the previously missed compiled-path input substitution.
+It cost $1.441381 and left the task unchanged. Its nine model responses included
+three citation/test-reference corrections; policy 9 addresses that avoidable
+formatting work without changing the detected semantic standard. This is static
+review evidence, not an executed exploit or a task admission.

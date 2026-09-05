@@ -209,7 +209,7 @@ async def test_cached_new_policy_pass_missing_worksheet_fails_without_paid_retry
     await review(s)
     path = record_path(s)
     record = json.loads(path.read_text())
-    assert record["identity"]["policy_version"] == 8
+    assert record["identity"]["policy_version"] == 9
     record["review"].pop("authority_checks")
     path.write_text(json.dumps(record))
     with pytest.raises(verifier.VerifierReviewError, match="Cached verifier review unavailable"):
@@ -329,13 +329,14 @@ def test_omitted_lines_are_resolved_from_unique_raw_quotes():
     assert [e.line for e in result.authority_checks[0].evidence] == [1, 2]
 
 
-def test_ambiguous_quote_requests_context_or_explicit_line():
+def test_repeated_test_quote_selects_mapped_helper_occurrence():
     row = check()
     row["evidence"][1].pop("line")
     material = texts()
     material["tests/test_contract.py"] += "\ndef unrelated():\n    assert actual == ['left']\n"
-    with pytest.raises(ValueError, match="longer quote or exact line"):
-        _check_authority_inventory(report([row]), material)
+    result = report([row])
+    _check_authority_inventory(result, material)
+    assert result.authority_checks[0].evidence[1].line == 2
     row["evidence"][1]["line"] = 2
     _check_authority_inventory(report([row]), material)
 
@@ -391,3 +392,79 @@ async def test_optional_line_reconsideration_normalizes_raw_initial_and_reuses_c
         not in json.loads(stored["messages"][0]["content"])["authority_checks"][0]["evidence"][0]
     )
     s.agent.assert_awaited_once()
+
+
+def test_repeated_public_contract_quote_resolves_first_occurrence():
+    material = texts()
+    material["instruction.md"] += "\nRepeated requirement:\n" + material["instruction.md"]
+    row = check()
+    row["evidence"][0].pop("line")
+    result = report([row])
+    _check_authority_inventory(result, material)
+    assert result.authority_checks[0].evidence[0].line == 1
+
+
+def test_repeated_assertion_chooses_later_mapped_helper_not_first_unrelated_hit():
+    material = texts()
+    material["tests/test_contract.py"] = (
+        "def unrelated():\n    assert actual == ['left']\n\n" + material["tests/test_contract.py"]
+    )
+    row = check()
+    row["evidence"][1].pop("line")
+    result = report([row])
+    _check_authority_inventory(result, material)
+    assert result.authority_checks[0].evidence[1].line == 5
+
+
+def test_missing_link_error_reports_requirement_condition_and_hit_lines():
+    material = texts()
+    material["tests/test_contract.py"] = (
+        "def unrelated():\n    assert actual == ['left']\n\ndef test_compiled():\n    probe()\n"
+    )
+    row = check()
+    row["evidence"][1].pop("line")
+    with pytest.raises(ValueError) as error:
+        _check_authority_inventory(report([row]), material)
+    message = str(error.value)
+    assert "[compiled] under target is compiled" in message
+    assert "candidate hit lines: [2]" in message
+    assert "eligible lines: [5]" in message
+
+
+def test_wrong_explicit_line_still_rejected_with_correct_candidate_line():
+    row = check()
+    row["evidence"][1]["line"] = 3
+    with pytest.raises(ValueError, match=r"does not match.*:3; candidate hit lines: \[2\]"):
+        _check_authority_inventory(report([row]), texts())
+
+
+@pytest.mark.parametrize(
+    "joined",
+    ["test_one,test_two", "test_one / test_two", "test_one and test_two", "[test_one, test_two]"],
+)
+def test_distinguishing_test_requires_exactly_one_machine_name(joined):
+    row = check()
+    row["distinguishing_test"] = joined
+    with pytest.raises(ValueError, match="distinguishing_test"):
+        report([row])
+    schema = VerifierPreflightReview.model_json_schema()["$defs"]["InputAuthorityCheck"][
+        "properties"
+    ]["distinguishing_test"]
+    assert any(part.get("pattern") == r"^test_[A-Za-z0-9_]+$" for part in schema["anyOf"])
+
+
+def test_reference_errors_are_batched_across_rows_and_evidence():
+    material = texts()
+    first, second = check(), check()
+    first["evidence"] = first["evidence"][1:]  # Missing public citation.
+    first["evidence"][0]["line"] = 8
+    second["public_condition"] = "source is compiled"
+    second["evidence"][0]["quote"] = "invented source text"
+    with pytest.raises(ValueError) as error:
+        _check_authority_inventory(report([first, second]), material)
+    message = str(error.value)
+    assert "authority_checks[0] [compiled] under target is compiled" in message
+    assert "public-contract citation" in message
+    assert "candidate hit lines: [2]" in message
+    assert "authority_checks[1] [compiled] under source is compiled" in message
+    assert "candidate hit lines: []" in message

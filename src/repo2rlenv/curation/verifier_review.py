@@ -24,7 +24,7 @@ MAX_TOOL_RESPONSE_CHARS = 24_000
 MAX_REVIEW_COST = 4
 MAX_REVIEW_TURNS = 10
 MAX_REVIEW_OUTPUT_TOKENS = 32_000
-POLICY_VERSION = 8
+POLICY_VERSION = 9
 RECONSIDER_PASS = """Before finalizing this tentative pass, reconsider each item you called optional
 against the solver-visible instruction and the actual assertions you read. If the item identifies
 a concrete wrong implementation that passes, or a permitted implementation that fails, it is a
@@ -65,8 +65,10 @@ permitted equivalent designs where relevant to this task. In particular:
   does not distinguish a shortcut restricted to a wrapped/enabled/alternate path. Identical
   competing inputs do not establish authority, even if names, prefixes or shapes are checked.
   For distinguished, name the exact mapped protected test and quote its actual assertion
-  with raw source quotes and file paths; omit line to let the host locate a unique quote,
-  or supply its exact one-based line when a quote repeats. Trace fixtures through helpers
+  with raw source quotes and file paths. Omit line to let the host resolve matching text:
+  repeated public-contract quotes use the first occurrence; distinguished test quotes use
+  an occurrence linked to the single named test/helper. Supply an exact one-based line only
+  when needed. distinguishing_test is exactly one mapped test function, never joined names. Trace fixtures through helpers
   and run_probe. For dynamically resolved helpers, cite both the mapped test callsite and
   the helper assertion and explain the linkage; host reference checks are not semantic proof.
   Cite the instruction or contract supporting the public condition as well. For gap, explain
@@ -293,9 +295,12 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
         raise ValueError(
             f"Input authority inventory must cover every requirement: expected {sorted(requirements)}, received {sorted(actual)}"
         )
-    for row in review.authority_checks:
+    errors = []
+    for index, row in enumerate(review.authority_checks):
+        label = f"authority_checks[{index}] [{row.requirement_id}] under {row.public_condition}"
+        row_errors = []
         if not any(e.path in {"instruction.md", "contract.json"} for e in row.evidence):
-            raise ValueError("Input authority condition needs a public-contract citation")
+            row_errors.append("Input authority condition needs a public-contract citation")
         assertion_cited = False
         assertions, test_found = (
             _authority_reference_lines(texts, row.distinguishing_test)
@@ -303,40 +308,72 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
             else ({}, False)
         )
         for evidence in row.evidence:
-            if evidence.path not in texts or not evidence.quote.strip():
-                raise ValueError(
-                    "Input authority citation needs a listed file and exact nonempty quote"
-                )
-            text = texts[evidence.path]
-            if evidence.line is None:
-                offset = text.find(evidence.quote)
-                if offset < 0 or text.find(evidence.quote, offset + 1) >= 0:
+            try:
+                if evidence.path not in texts or not evidence.quote.strip():
                     raise ValueError(
-                        f"Input authority quote must uniquely identify source in {evidence.path}; provide a longer quote or exact line"
+                        "Input authority citation needs a listed file and exact nonempty quote"
                     )
-                evidence.line = text.count("\n", 0, offset) + 1
-            lines = text.splitlines()
-            count = evidence.quote.count("\n") + 1
-            excerpt = "\n".join(lines[evidence.line - 1 : evidence.line - 1 + count])
-            if evidence.line > len(lines) or evidence.quote not in excerpt:
-                raise ValueError(
-                    f"Input authority quote does not match {evidence.path}:{evidence.line}"
+                text = texts[evidence.path]
+                count = evidence.quote.count("\n") + 1
+                hit_lines = []
+                offset = text.find(evidence.quote)
+                while offset >= 0:
+                    line = text.count("\n", 0, offset) + 1
+                    if not hit_lines or hit_lines[-1] != line:
+                        hit_lines.append(line)
+                    offset = text.find(evidence.quote, offset + 1)
+                candidates = f"candidate hit lines: {hit_lines[:20]}" + (
+                    " (additional hits omitted)" if len(hit_lines) > 20 else ""
                 )
-            assertion_cited |= bool(
-                set(range(evidence.line, evidence.line + count))
-                & assertions.get(evidence.path, set())
-            )
+                if evidence.line is not None:
+                    if evidence.line not in hit_lines:
+                        raise ValueError(
+                            f"Input authority quote does not match {evidence.path}:{evidence.line}; {candidates}"
+                        )
+                elif evidence.path in {"instruction.md", "contract.json"}:
+                    if not hit_lines:
+                        raise ValueError(
+                            f"Input authority quote does not match {evidence.path}; {candidates}"
+                        )
+                    evidence.line = hit_lines[0]
+                elif row.result == "distinguished" and evidence.path.startswith("tests/"):
+                    eligible = assertions.get(evidence.path, set())
+                    linked = [
+                        line for line in hit_lines if set(range(line, line + count)) & eligible
+                    ]
+                    if not linked:
+                        raise ValueError(
+                            f"Input authority quote has no occurrence reachable from {row.distinguishing_test} in {evidence.path}; {candidates}; eligible lines: {sorted(eligible)[:20]}"
+                        )
+                    evidence.line = linked[0]
+                else:
+                    if len(hit_lines) != 1:
+                        raise ValueError(
+                            f"Input authority quote must uniquely identify source in {evidence.path}; provide a longer quote or exact line; {candidates}"
+                        )
+                    evidence.line = hit_lines[0]
+                assertion_cited |= bool(
+                    set(range(evidence.line, evidence.line + count))
+                    & assertions.get(evidence.path, set())
+                )
+            except ValueError as exc:
+                row_errors.append(str(exc))
         if row.distinguishing_test is not None and (
             row.distinguishing_test not in requirements[row.requirement_id] or not test_found
         ):
-            raise ValueError(f"Input authority test must exist and map to {row.requirement_id}")
+            row_errors.append(
+                f"Input authority test must exist and map to {row.requirement_id}; mapped tests: {sorted(requirements[row.requirement_id])}"
+            )
         # Calls include numerical/custom assertions and dynamic helper callsites.
-        # Referencing such a statement is not proof of semantic discrimination;
-        # the reviewer must trace the fixture and explain the expected observation.
+        # Reference linkage does not prove execution or semantic discrimination.
         if row.result == "distinguished" and not assertion_cited:
-            raise ValueError(
+            row_errors.append(
                 "Distinguished input authority check must cite an assertion or call reachable from its mapped test or explicitly resolved helper/fixture"
             )
+        if row_errors:
+            errors.append(label + ": " + "; ".join(row_errors))
+    if errors:
+        raise ValueError("Input authority worksheet reference errors:\n" + "\n".join(errors))
 
 
 def _directory(path: Path) -> None:

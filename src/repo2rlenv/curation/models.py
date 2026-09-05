@@ -127,11 +127,11 @@ class AuthorityEvidence(StrictModel):
         default=None,
         ge=1,
         strict=True,
-        description="Optional exact one-based line; omit when quote occurs uniquely in the file",
+        description="Optional exact one-based line; omitted lines are resolved from raw quotes, using the mapped test/helper for distinguished test evidence",
     )
     quote: str = Field(
         min_length=1,
-        description="Exact raw source text, not a paraphrase; use a longer quote when ambiguous",
+        description="Exact raw source text, not a paraphrase; repeated public-contract text is permitted",
     )
 
 
@@ -143,7 +143,10 @@ class InputAuthorityCheck(StrictModel):
     discordant_fixture: str | None
     expected_observation: str | None
     conditional_shortcut: str | None
-    distinguishing_test: str | None
+    distinguishing_test: str | None = Field(
+        pattern=r"^test_[A-Za-z0-9_]+$",
+        description="Exactly one mapped protected test function name, never joined names; null when no distinguishing test is claimed",
+    )
     result: Literal["distinguished", "gap", "not_applicable"]
     reason: str = Field(min_length=30)
     evidence: list[AuthorityEvidence] = Field(min_length=1, max_length=8)
