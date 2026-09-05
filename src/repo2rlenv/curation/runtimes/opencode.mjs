@@ -31,6 +31,7 @@ export function validateConfig(config) {
   if (url.username || url.password || url.search || url.hash) throw new Error("Invalid bridge URL");
   if (!Number.isInteger(config.max_turns) || config.max_turns < 1) throw new Error("Invalid max_turns");
   if (!Number.isInteger(config.max_tokens) || config.max_tokens < 1) throw new Error("Invalid max_tokens");
+  if (!Number.isFinite(config.model_timeout_sec ?? 300) || (config.model_timeout_sec ?? 300) <= 0) throw new Error("Invalid model_timeout_sec");
   if (!Array.isArray(config.tools)) throw new Error("tools must be an array");
   const names = new Set();
   for (const item of config.tools) {
@@ -113,9 +114,12 @@ export default async () => ({
     if (turns >= config.max_turns) throw new Error("REPO2RLENV_MAX_TURNS");
     turns += 1;
     writeFileSync(${JSON.stringify(turnPath)}, JSON.stringify({ turns }));
-    record({ type: "repo2rlenv.model_turn", properties: { turns } });
+    record({ type: "repo2rlenv.model_turn", properties: { turns, max_tokens: config.max_tokens, inference_options: config.inference_options ?? {}, model_timeout_sec: config.model_timeout_sec ?? 300 } });
     output.maxOutputTokens = config.max_tokens;
-    output.options = {};
+    output.options = config.inference_options?.thinking ? {
+      thinking: config.inference_options.thinking,
+      effort: config.inference_options.output_config?.effort,
+    } : {};
   },
 });
 `;
@@ -171,12 +175,13 @@ async function prepare(config) {
           baseURL: `${config.bridge_url.replace(/\/$/, "")}/v1`,
           apiKey: config.bridge_token,
           headers: { Authorization: `Bearer ${config.bridge_token}` },
+          timeout: (config.model_timeout_sec ?? 300) * 1000,
         },
         models: {
           [config.model]: {
             name: config.model,
             tool_call: true,
-            reasoning: false,
+            reasoning: config.inference_options?.thinking?.type === "adaptive",
             limit: { context: 200000, output: config.max_tokens },
             cost: { input: 0, output: 0 },
           },
@@ -343,6 +348,17 @@ export async function runOpenCode(rawConfig) {
     const modelError = response?.info?.error ?? entries.findLast((entry) => entry.info.error)?.info.error;
     const errorText = promptError ? describeError(promptError) : (modelError ? JSON.stringify(modelError) : "");
     if (errorText && !errorText.includes("REPO2RLENV_MAX_TURNS")) throw promptError ?? new Error(errorText);
+    // The loop-limit hook creates a local error placeholder without making a
+    // provider request. Validate the last actual response, not that marker.
+    const lastAssistant = entries.findLast((entry) => entry.info.role === "assistant" &&
+      !JSON.stringify(entry.info.error ?? "").includes("REPO2RLENV_MAX_TURNS"));
+    if (["length", "max_tokens"].includes(lastAssistant?.info.finish)) {
+      throw new Error(`OpenCode provider response truncated: ${lastAssistant.info.finish}`);
+    }
+    if (!lastAssistant || !lastAssistant.parts.some((part) =>
+      (part.type === "text" && part.text.trim()) || part.type === "tool")) {
+      throw new Error("OpenCode provider response contained no text or tool calls (thinking-only or empty)");
+    }
     result = { messages: normalizeMessages(entries, config.system), turns, cost: 0 };
   } catch (error) {
     failure = error;

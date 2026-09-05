@@ -9,6 +9,12 @@ import signal
 from pathlib import Path
 
 from repo2rlenv.curation.bridge import AgentBridge
+from repo2rlenv.curation.inference import (
+    MAX_OUTPUT_TOKENS,
+    MODEL_TIMEOUT_SEC,
+    anthropic_options,
+    inference_settings,
+)
 
 
 def runtime_path(engine: str) -> Path:
@@ -39,7 +45,15 @@ async def run_external_agent(
         max_turns=max_turns,
         max_cost=max_cost,
     ) as bridge:
-        bridge.record("input", model=model, system=system, prompt=prompt, runtime=engine)
+        bridge.record(
+            "input",
+            model=model,
+            system=system,
+            prompt=prompt,
+            runtime=engine,
+            inference=inference_settings(model),
+            timeout_sec=MODEL_TIMEOUT_SEC,
+        )
         config = {
             "model": model.split("/", 1)[1],
             "system": system,
@@ -49,7 +63,9 @@ async def run_external_agent(
             "tools": tools,
             "session_dir": str(session_dir),
             "max_turns": max_turns,
-            "max_tokens": 6000,
+            "max_tokens": MAX_OUTPUT_TOKENS,
+            "inference_options": anthropic_options(model),
+            "model_timeout_sec": MODEL_TIMEOUT_SEC,
         }
         config_path.write_text(json.dumps(config))
         config_path.chmod(0o600)

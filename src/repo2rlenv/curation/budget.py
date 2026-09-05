@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS, MODEL_TIMEOUT_SEC, anthropic_options
+
 
 class BudgetExceeded(RuntimeError):
     pass
@@ -105,8 +107,9 @@ async def completion(
     messages: list[dict],
     *,
     tools: list[dict] | None = None,
-    max_tokens: int = 6000,
+    max_tokens: int = MAX_OUTPUT_TOKENS,
     max_charge: float | None = None,
+    tool_choice: str | None = None,
 ):
     import litellm
 
@@ -130,9 +133,11 @@ async def completion(
         messages=messages,
         tools=tools,
         max_tokens=max_tokens,
-        timeout=180,
+        timeout=MODEL_TIMEOUT_SEC,
         num_retries=0,
+        **({"tool_choice": tool_choice} if tool_choice is not None else {}),
         **cache_options,
+        **anthropic_options(model),
     )
     cost = float(litellm.completion_cost(completion_response=response))
     budget.settle(key, cost)

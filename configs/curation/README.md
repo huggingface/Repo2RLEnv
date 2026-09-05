@@ -19,5 +19,5 @@ attempt per model, rather than claiming precise pass-rate estimates.
 ```bash
 uv run --extra curation repo2rlenv curate \
   --seeds seeds.md --config configs/curation/cpu-first.json \
-  --out workspace/curation-admission-v3
+  --out workspace/curation-admission-v4
 ```

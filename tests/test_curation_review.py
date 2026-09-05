@@ -5,10 +5,11 @@ import importlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from repo2rlenv.curation.budget import Budget
+from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.models import CRITERIA, Review, TrialEvidence
 
 review_module = importlib.import_module("repo2rlenv.curation.review")
@@ -86,6 +87,7 @@ async def test_reviewer_reads_patches_changed_exports_and_full_trace_pages(evide
     trace_text = "α" * 26000 + "middle event\n" + "β" * 26000 + "final event"
     trace = write(Path(trials[1].path) / "agent/trajectory.jsonl", trace_text)
     write(root / "review-submissions.json", '{"old": "stale duplicate text"}')
+    write(root / "judge-state.json", '{"old": "stale judge state"}')
 
     async def judge(**kwargs):
         prompt = kwargs["prompt"]
@@ -93,6 +95,7 @@ async def test_reviewer_reads_patches_changed_exports_and_full_trace_pages(evide
         assert str(root) not in prompt
         assert "unchanged.py" not in prompt
         assert "review-submissions.json" not in prompt
+        assert "judge-state.json" not in prompt
         assert "stale duplicate text" not in prompt
         assert "git apply" in await read("task/solution/solve.sh")
         assert "--- a/pkg.py" in await read("task/solution/patch.diff")
@@ -132,6 +135,8 @@ async def test_reviewer_reads_patches_changed_exports_and_full_trace_pages(evide
     assert snapshot["texts"][changed] == "value = 2\n"
     assert snapshot["sha256"][changed] == hashlib.sha256(b"value = 2\n").hexdigest()
     assert not any(name.endswith("unchanged.py") for name in snapshot["texts"])
+    state = json.loads((root / "judge-state.json").read_text())
+    assert state["messages"][-1]["content"] == good_review().model_dump_json()
 
 
 def test_source_export_limits_and_binary_files_are_explicit(evidence, monkeypatch):
@@ -205,3 +210,183 @@ def test_scan_limit_explicitly_marks_unenumerated_source(evidence, monkeypatch):
     skipped = []
     review_module._submitted_evidence(task, root, trials, skipped)
     assert any(s["reason"] == "export scan limit reached" for s in skipped)
+
+
+def response(content: str, *, tool_calls=None):
+    message = {"role": "assistant", "content": content}
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(model_dump=lambda **_: message))],
+        usage=SimpleNamespace(model_dump=lambda: {"completion_tokens": 100, "prompt_tokens": 200}),
+    )
+
+
+def retained_state(content: str):
+    return {
+        "messages": [
+            {"role": "system", "content": "Original strict rubric"},
+            {"role": "user", "content": "Original evidence catalog and schema"},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "read-1",
+                        "type": "function",
+                        "function": {"name": "read_evidence", "arguments": '{"path":"trace"}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "read-1", "content": "Observed verifier bypass"},
+            {"role": "assistant", "content": content},
+        ],
+        "turns": 16,
+        "cost": 2.5,
+    }
+
+
+@pytest.mark.asyncio
+async def test_valid_final_review_needs_no_model_call(tmp_path, monkeypatch):
+    async def unexpected(*args, **kwargs):
+        pytest.fail("A valid review must not make another model request")
+
+    monkeypatch.setattr(review_module, "completion", unexpected)
+    result = await review_module.finalize_review(
+        retained_state(good_review().model_dump_json()),
+        tmp_path / "judge-trace.jsonl",
+        "mock",
+        Budget(tmp_path / "budget.json", 20),
+        [],
+        0,
+    )
+    assert result == good_review()
+    assert not (tmp_path / "judge-trace.jsonl").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("incomplete", ['{"criteria": {', '{"criteria": {}}', "```"])
+async def test_finalization_preserves_evidence_and_uses_remaining_budget_once(
+    tmp_path, monkeypatch, incomplete
+):
+    budget = Budget(tmp_path / "budget.json", 20)
+    budget.settle(budget.reserve(3.5, "earlier work and original review"), 3.5)
+    state = retained_state(incomplete)
+    original = json.loads(json.dumps(state))
+    trace = tmp_path / "judge-trace.jsonl"
+    tools = [{"type": "function", "function": {"name": "read_evidence"}}]
+    expected = good_review().model_copy(deep=True)
+    expected.criteria["verifier_integrity"].score = 0
+    expected.criteria["verifier_integrity"].outcome = "fail"
+    expected.blockers = ["Observed verifier bypass"]
+    expected.reward_hacks = ["Submission controls its own reported test results"]
+    calls = []
+
+    async def finalize(received_budget, model, messages, **kwargs):
+        calls.append(messages)
+        assert received_budget is budget
+        assert model == "mock"
+        assert messages[:-1] == original["messages"]
+        assert "100 words" in messages[-1]["content"]
+        assert "4 evidence items" in messages[-1]["content"]
+        assert "Do not invent evidence, relax the rubric" in messages[-1]["content"]
+        assert kwargs == {
+            "tools": tools,
+            "tool_choice": "none",
+            "max_tokens": 16000,
+            "max_charge": 5.5,
+        }
+        budget.settle(budget.reserve(0.2, "finalization"), 0.2)
+        return response(expected.model_dump_json()), 0.2
+
+    monkeypatch.setattr(review_module, "completion", finalize)
+    result = await review_module.finalize_review(state, trace, "mock", budget, tools, 1)
+    assert result == expected
+    assert state["turns"] == 17
+    assert state["cost"] == pytest.approx(2.7)
+    assert state["messages"][:-2] == original["messages"]
+    events = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert [event["kind"] for event in events] == ["review_finalization", "model"]
+    assert events[1]["model"] == "mock"
+    assert events[1]["cost_usd"] == 0.2
+    assert events[1]["usage"]["completion_tokens"] == 100
+    # An interrupted caller can reuse the durable completed response, including
+    # when its in-memory state is still the original truncated conversation.
+    assert await review_module.finalize_review(original, trace, "mock", budget, tools, 1) == result
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["invalid_json", "invalid_schema", "tool_call", "api_error"])
+async def test_failed_finalization_is_recorded_and_not_repeated(tmp_path, monkeypatch, failure):
+    trace = tmp_path / "judge-trace.jsonl"
+    budget = Budget(tmp_path / "budget.json", 20)
+    state = retained_state('{"criteria":')
+    calls = []
+
+    async def finalize(*args, **kwargs):
+        calls.append(kwargs)
+        if failure == "api_error":
+            raise RuntimeError("Transport failed after request")
+        if failure == "invalid_json":
+            return response('{"criteria":'), 0.2
+        if failure == "invalid_schema":
+            return response('{"criteria":{}}'), 0.2
+        return response(good_review().model_dump_json(), tool_calls=[{"id": "unexpected"}]), 0.2
+
+    monkeypatch.setattr(review_module, "completion", finalize)
+    with pytest.raises((ValueError, RuntimeError)):
+        await review_module.finalize_review(state, trace, "mock", budget, [], 0)
+    events = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert events[-1]["kind"] == "error"
+    assert events[-1]["phase"] == "review_finalization"
+    assert events[-1]["model"] == "mock"
+    assert events[-1]["error_type"]
+    with pytest.raises(ValueError):
+        await review_module.finalize_review(state, trace, "mock", budget, [], 0)
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_finalization_cannot_extend_original_review_allowance(tmp_path, monkeypatch):
+    budget = Budget(tmp_path / "budget.json", 20)
+    budget.settle(budget.reserve(8, "original review"), 8)
+
+    async def unexpected(*args, **kwargs):
+        pytest.fail("No finalization request is allowed after the review budget is exhausted")
+
+    monkeypatch.setattr(review_module, "completion", unexpected)
+    trace = tmp_path / "judge-trace.jsonl"
+    with pytest.raises(BudgetExceeded, match="Review cost limit"):
+        await review_module.finalize_review(
+            retained_state("incomplete"), trace, "mock", budget, [], 0
+        )
+    event = json.loads(trace.read_text())
+    assert event["kind"] == "error"
+    assert event["error_type"] == "BudgetExceeded"
+
+
+@pytest.mark.asyncio
+async def test_review_saves_complete_state_before_finalization(evidence, monkeypatch):
+    root, task, trials = evidence
+    budget = Budget(root / "budget.json", 20)
+    state = retained_state('{"criteria":')
+
+    async def judge(**kwargs):
+        assert "100 words" in kwargs["prompt"]
+        assert "4 evidence items" in kwargs["prompt"]
+        budget.settle(budget.reserve(1, "original review"), 1)
+        return state
+
+    async def finalize(received_budget, model, messages, **kwargs):
+        assert json.loads((root / "judge-state.json").read_text()) == state
+        assert messages[:-1] == state["messages"]
+        assert kwargs["max_charge"] == 7
+        assert kwargs["tools"][0]["function"]["name"] == "read_evidence"
+        assert kwargs["tool_choice"] == "none"
+        return response(good_review().model_dump_json()), 0.2
+
+    monkeypatch.setattr(review_module, "run_agent", judge)
+    monkeypatch.setattr(review_module, "completion", finalize)
+    result = await review_module.review(task, root, trials, model="mock", budget=budget)
+    assert result == good_review()
+    assert Review.model_validate_json((root / "review.json").read_text()) == result

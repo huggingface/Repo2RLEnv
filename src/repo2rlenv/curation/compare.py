@@ -18,6 +18,7 @@ from repo2rlenv.curation.campaign import (
     save,
 )
 from repo2rlenv.curation.external_agent import runtime_path
+from repo2rlenv.curation.inference import inference_settings
 from repo2rlenv.curation.models import CampaignConfig
 from repo2rlenv.curation.sources import resolve_pr
 
@@ -228,6 +229,10 @@ async def compare(
         save(protocol_path, protocol)
         path = out / "comparison.json"
         snapshot = runtime_snapshot()
+        snapshot["inference"] = {
+            model: inference_settings(model)
+            for model in {config.author_model, config.judge_model, *config.solver_models}
+        }
         manifest = (
             json.loads(path.read_text())
             if path.exists()

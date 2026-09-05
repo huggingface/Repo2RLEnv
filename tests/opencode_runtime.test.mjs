@@ -37,11 +37,13 @@ function config(directory, bridge_url = "http://127.0.0.1:1") {
     tools: [tool],
     session_dir: directory,
     max_turns: 3,
-    max_tokens: 6000,
+    max_tokens: 16000,
+    model_timeout_sec: 300,
+    inference_options: { thinking: { type: "adaptive" }, output_config: { effort: "medium" } },
   };
 }
 
-function streamMessage(response, body, callIndex, alwaysTools = false, validation = false) {
+function streamMessage(response, body, callIndex, alwaysTools = false, validation = false, options = {}) {
   response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
   const event = (type, fields) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...fields })}\n\n`);
   event("message_start", { message: {
@@ -49,21 +51,31 @@ function streamMessage(response, body, callIndex, alwaysTools = false, validatio
     content: [], stop_reason: null, stop_sequence: null,
     usage: { input_tokens: 20, output_tokens: 0 },
   } });
-  const useTool = alwaysTools || callIndex === 1;
-  if (useTool) {
-    event("content_block_start", { index: 0, content_block: { type: "tool_use", id: `tool_${callIndex}`, name: validation ? "validate_candidate" : "remote_shell", input: {} } });
-    event("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify(validation ? {} : { command: "echo remote-only" }) } });
-  } else {
-    event("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
-    event("content_block_delta", { index: 0, delta: { type: "text_delta", text: "The remote tool returned remote-only." } });
+  const useTool = !options.badResponse && (alwaysTools || callIndex === 1);
+  let index = 0;
+  if (options.opaqueThinking || options.badResponse === "thinking_only") {
+    event("content_block_start", { index, content_block: { type: "thinking", thinking: "", signature: "" } });
+    event("content_block_delta", { index, delta: { type: "signature_delta", signature: "opaque-signature" } });
+    event("content_block_stop", { index });
+    index += 1;
+    event("content_block_start", { index, content_block: { type: "redacted_thinking", data: "opaque-redacted" } });
+    event("content_block_stop", { index });
+    index += 1;
   }
-  event("content_block_stop", { index: 0 });
-  event("message_delta", { delta: { stop_reason: useTool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  if (useTool) {
+    event("content_block_start", { index, content_block: { type: "tool_use", id: `tool_${callIndex}`, name: validation ? "validate_candidate" : "remote_shell", input: {} } });
+    event("content_block_delta", { index, delta: { type: "input_json_delta", partial_json: JSON.stringify(validation ? {} : { command: "echo remote-only" }) } });
+  } else if (options.badResponse !== "thinking_only") {
+    event("content_block_start", { index, content_block: { type: "text", text: "" } });
+    event("content_block_delta", { index, delta: { type: "text_delta", text: options.badResponse === "empty" ? "" : "The remote tool returned remote-only." } });
+  }
+  if (options.badResponse !== "thinking_only") event("content_block_stop", { index });
+  event("message_delta", { delta: { stop_reason: options.badResponse === "max_tokens" ? "max_tokens" : useTool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   event("message_stop", {});
   response.end();
 }
 
-async function runMock(t, { alwaysTools = false, cancel = false, apiError = false, validation = false } = {}) {
+async function runMock(t, { alwaysTools = false, cancel = false, apiError = false, validation = false, opaqueThinking = false, badResponse } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "repo2rlenv-opencode-test-"));
   t.after(async () => { if (!process.env.R2E_KEEP_OPENCODE_TEST_OUTPUT) await rm(directory, { recursive: true, force: true }); });
   const requests = [];
@@ -85,7 +97,7 @@ async function runMock(t, { alwaysTools = false, cancel = false, apiError = fals
       if (apiError) {
         response.writeHead(402, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "mock provider budget exhausted" } }));
-      } else if (!cancel) streamMessage(response, body, requests.length, alwaysTools, validation);
+      } else if (!cancel) streamMessage(response, body, requests.length, alwaysTools, validation, { opaqueThinking, badResponse });
     } else if (request.url === "/tool") {
       tools.push(body);
       if (validation) {
@@ -102,7 +114,7 @@ async function runMock(t, { alwaysTools = false, cancel = false, apiError = fals
   await once(server, "listening");
   t.after(() => { server.closeAllConnections(); server.close(); });
   const settings = config(directory, `http://127.0.0.1:${server.address().port}`);
-  settings.max_turns = validation ? 1 : alwaysTools ? 2 : 3;
+  settings.max_turns = validation || badResponse ? 1 : alwaysTools ? 2 : 3;
   if (validation) settings.tools = [{ type: "function", function: { name: "validate_candidate", description: "Validate remotely", parameters: { type: "object", properties: {}, additionalProperties: false } } }];
   await writeFile(path.join(directory, "input.json"), JSON.stringify(settings));
   const child = spawn(process.execPath, [adapter, path.join(directory, "input.json")], { stdio: ["ignore", "pipe", "pipe"] });
@@ -117,7 +129,7 @@ async function runMock(t, { alwaysTools = false, cancel = false, apiError = fals
     child.kill("SIGTERM");
   }
   const [code] = await done;
-  assert.equal(code, cancel || apiError ? 1 : 0, `${directory}\n${stderr}`);
+  assert.equal(code, cancel || apiError || badResponse ? 1 : 0, `${directory}\n${stderr}\n${stdout}`);
   const events = (await readFile(path.join(directory, "opencode-events.jsonl"), "utf8")).trim().split("\n").map(JSON.parse);
   const started = events.find((event) => event.type === "repo2rlenv.server");
   assert.ok(started);
@@ -168,7 +180,9 @@ test("OpenCode only sees exact remote tools and shared model settings", { skip: 
   assert.equal(result.cost, 0);
   for (const body of requests) {
     assert.equal(body.model, settings.model);
-    assert.equal(body.max_tokens, 6000);
+    assert.equal(body.max_tokens, 16000);
+    assert.deepEqual(body.thinking, settings.inference_options.thinking);
+    assert.deepEqual(body.output_config, settings.inference_options.output_config);
     assert.equal(body.stream, true);
     assert.deepEqual(body.tools.map((entry) => entry.name), [tool.function.name]);
     assert.deepEqual(body.tools[0].input_schema, tool.function.parameters);
@@ -213,3 +227,29 @@ test("OpenCode awaits validation on its final allowed turn", { skip: !depsReady,
   const stopped = events.findIndex((event) => event.type === "repo2rlenv.server_stopped");
   assert.ok(finished >= 0 && stopped > finished);
 });
+
+test("OpenCode roundtrips opaque thinking unchanged", { skip: !depsReady, timeout: 60000 }, async (t) => {
+  const { requests, events } = await runMock(t, { opaqueThinking: true });
+  const previous = requests[1].messages.find((message) => message.role === "assistant");
+  assert.deepEqual(previous.content.filter((block) => ["thinking", "redacted_thinking"].includes(block.type)), [
+    { type: "thinking", thinking: "", signature: "opaque-signature" },
+    { type: "redacted_thinking", data: "opaque-redacted" },
+  ]);
+  const policy = events.find((event) => event.type === "repo2rlenv.model_turn").properties;
+  assert.equal(policy.max_tokens, 16000);
+  assert.equal(policy.model_timeout_sec, 300);
+  assert.deepEqual(policy.inference_options, { thinking: { type: "adaptive" }, output_config: { effort: "medium" } });
+});
+
+for (const [badResponse, pattern] of [
+  ["max_tokens", /truncated/],
+  ["empty", /no text or tool calls/],
+  ["thinking_only", /no text or tool calls/],
+]) {
+  test(`OpenCode fails on ${badResponse} provider responses`, { skip: !depsReady, timeout: 60000 }, async (t) => {
+    const { result, requests, tools } = await runMock(t, { badResponse });
+    assert.match(result.error, pattern);
+    assert.equal(requests.length, 1);
+    assert.equal(tools.length, 0);
+  });
+}

@@ -6,17 +6,39 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from repo2rlenv.curation.agent import run_agent
-from repo2rlenv.curation.budget import Budget
+from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
+from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
+from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS
 from repo2rlenv.curation.models import Review, TrialEvidence
 from repo2rlenv.curation.prompts import JUDGE
 
-TEXT_SUFFIXES = {".md", ".py", ".sh", ".json", ".jsonl", ".toml", ".txt", ".diff", ".patch"}
+TEXT_SUFFIXES = {
+    ".md",
+    ".py",
+    ".sh",
+    ".json",
+    ".jsonl",
+    ".toml",
+    ".txt",
+    ".diff",
+    ".patch",
+    ".ini",
+    ".cfg",
+    ".yaml",
+    ".yml",
+    ".log",
+}
 MAX_SOURCE_FILE_BYTES = 512_000
 MAX_SOURCE_SCAN_BYTES = 64_000_000
 MAX_SOURCE_SCAN_FILES = 10_000
 MAX_CHANGED_BYTES = 2_000_000
 MAX_CHANGED_FILES = 80
+MAX_REVIEW_COST = 8
+REVIEW_OUTPUT_GUIDANCE = (
+    "Return one complete JSON object without markdown. Keep each criterion explanation "
+    "to at most 100 words and at most 4 evidence items per criterion. Keep other entries "
+    "concise while preserving all supported blockers, reward hacks and uncertainty."
+)
 
 
 def _safe_path(path: Path, root: Path) -> bool:
@@ -255,8 +277,117 @@ def _submitted_evidence(task: Path, root: Path, trials: list[TrialEvidence], ski
 def parse_json(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        text = text.partition("\n")[2].rsplit("```", 1)[0].strip()
     return json.loads(text)
+
+
+def _review_message(message: dict) -> Review:
+    if message.get("role", "assistant") != "assistant" or message.get("tool_calls"):
+        raise ValueError("The reviewer has not returned a final assistant response")
+    content = message.get("content")
+    if not isinstance(content, str):
+        raise ValueError("The reviewer has not returned review text")
+    return Review.model_validate(parse_json(content))
+
+
+async def finalize_review(
+    state: dict,
+    trace: Path,
+    model: str,
+    budget: Budget,
+    tools: list[dict],
+    start_spend: float,
+) -> Review:
+    """Validate a retained judge state, with at most one budgeted formatting call.
+
+    The complete conversation, including evidence already read, is retained. A
+    durable request marker prevents a second call after an interrupted or failed
+    finalization; a recorded valid response can be recovered without spending.
+    The caller persists the returned review and retains its original admission
+    checks. ``start_spend`` must be the spend before this review's first call.
+    """
+    messages = state.get("messages", [])
+    try:
+        return _review_message(messages[-1] if messages else {})
+    except ValueError as exc:
+        validation_error = str(exc)[:2000]
+
+    trace = Path(trace)
+    attempted, previous_response = False, None
+    if trace.exists():
+        for line in trace.read_text().splitlines():
+            event = json.loads(line)
+            if event.get("phase") != "review_finalization":
+                continue
+            attempted |= event.get("kind") == "review_finalization"
+            if event.get("kind") == "model":
+                attempted, previous_response = True, event["message"]
+    if previous_response is not None:
+        return _review_message(previous_response)
+    if attempted:
+        raise ValueError("Review finalization was already attempted; no recorded valid response")
+
+    def record(kind: str, **data) -> None:
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        with trace.open("a") as stream:
+            stream.write(
+                json.dumps({"kind": kind, "phase": "review_finalization", **data}, default=str)
+                + "\n"
+            )
+
+    remaining = min(MAX_REVIEW_COST, MAX_REVIEW_COST - (budget.spent - start_spend))
+    request = {
+        "role": "user",
+        "content": (
+            "Your final response was incomplete or did not satisfy the review schema. "
+            "Finalize the review using only the evidence already present in this conversation. "
+            "Preserve supported findings, scores, outcomes, blockers, reward hacks and failure "
+            "attributions. Do not invent evidence, relax the rubric, or convert missing evidence "
+            "into a pass. No additional evidence can be read in this finalization step. "
+            + REVIEW_OUTPUT_GUIDANCE
+            + "\nValidation error:\n"
+            + validation_error
+            + "\nSchema:\n"
+            + json.dumps(Review.model_json_schema())
+        ),
+    }
+    try:
+        if remaining <= 0:
+            raise BudgetExceeded(f"Review cost limit reached: ${MAX_REVIEW_COST}")
+        record(
+            "review_finalization",
+            model=model,
+            message=request,
+            start_spend=start_spend,
+            max_charge=remaining,
+        )
+        response, cost = await completion(
+            budget,
+            model,
+            [*messages, request],
+            tools=tools,
+            tool_choice="none",
+            max_tokens=MAX_OUTPUT_TOKENS,
+            max_charge=remaining,
+        )
+        message = response.choices[0].message.model_dump(exclude_none=True)
+        record(
+            "model",
+            model=model,
+            turn=state.get("turns", 0),
+            message=message,
+            cost_usd=cost,
+            usage=response.usage.model_dump(),
+        )
+        state.update(
+            messages=[*messages, request, message],
+            turns=state.get("turns", 0) + 1,
+            cost=state.get("cost", 0) + cost,
+        )
+        return _review_message(message)
+    except BaseException as exc:
+        record("error", model=model, error_type=type(exc).__name__, error=str(exc)[:2000])
+        raise
 
 
 async def review(
@@ -269,6 +400,7 @@ async def review(
     for p in _walk(root, root, skipped, exclude={"artifacts", ".git"}):
         if p.name in {
             "judge-trace.jsonl",
+            "judge-state.json",
             "review.json",
             "review-evidence.json",
             "review-submissions.json",
@@ -374,21 +506,28 @@ async def review(
         )
         + "\nRead the instruction, contract, tests, oracle and actual solver/adversary traces. "
         "Inspect verifier output for failures. Cite evidence paths and specific events. "
-        "Return the complete structured review when done.\nSchema:\n"
+        "Return the complete structured review when done. "
+        + REVIEW_OUTPUT_GUIDANCE
+        + "\nSchema:\n"
         + json.dumps(Review.model_json_schema())
     )
-    state = await run_agent(
-        model=model,
-        system=JUDGE,
-        prompt=prompt,
-        budget=budget,
-        tools=[tool],
-        handlers={"read_evidence": read_evidence},
-        trace=root / "judge-trace.jsonl",
-        max_turns=16,
-        max_cost=8,
-    )
-    final = state["messages"][-1].get("content") or ""
-    result = Review.model_validate(parse_json(final))
+    trace = root / "judge-trace.jsonl"
+    start_spend = budget.spent
+    try:
+        state = await run_agent(
+            model=model,
+            system=JUDGE,
+            prompt=prompt,
+            budget=budget,
+            tools=[tool],
+            handlers={"read_evidence": read_evidence},
+            trace=trace,
+            max_turns=16,
+            max_cost=MAX_REVIEW_COST,
+        )
+    except IncompleteModelResponse as exc:
+        state = exc.state
+    (root / "judge-state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2))
+    result = await finalize_review(state, trace, model, budget, [tool], start_spend)
     (root / "review.json").write_text(result.model_dump_json(indent=2))
     return result

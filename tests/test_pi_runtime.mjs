@@ -20,14 +20,26 @@ const tool = {
   },
 };
 
-function replySSE(response, model, { name, args = { command: "echo remote" }, text = "Finished remotely." } = {}) {
+function replySSE(response, model, { name, args = { command: "echo remote" }, text = "Finished remotely.", opaqueThinking = false, thinkingOnly = false, stopReason } = {}) {
   response.writeHead(200, { "Content-Type": "text/event-stream" });
   const emit = (type, fields) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...fields })}\n\n`);
   emit("message_start", { message: { id: "msg_mock", type: "message", role: "assistant", model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 5, output_tokens: 0 } } });
-  emit("content_block_start", { index: 0, content_block: name ? { type: "tool_use", id: "tool_mock", name, input: {} } : { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: name ? { type: "input_json_delta", partial_json: JSON.stringify(args) } : { type: "text_delta", text } });
-  emit("content_block_stop", { index: 0 });
-  emit("message_delta", { delta: { stop_reason: name ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  let index = 0;
+  if (opaqueThinking || thinkingOnly) {
+    emit("content_block_start", { index, content_block: { type: "thinking", thinking: "", signature: "" } });
+    emit("content_block_delta", { index, delta: { type: "signature_delta", signature: "opaque-signature" } });
+    emit("content_block_stop", { index });
+    index += 1;
+    emit("content_block_start", { index, content_block: { type: "redacted_thinking", data: "opaque-redacted" } });
+    emit("content_block_stop", { index });
+    index += 1;
+  }
+  if (!thinkingOnly) {
+    emit("content_block_start", { index, content_block: name ? { type: "tool_use", id: "tool_mock", name, input: {} } : { type: "text", text: "" } });
+    emit("content_block_delta", { index, delta: name ? { type: "input_json_delta", partial_json: JSON.stringify(args) } : { type: "text_delta", text } });
+    emit("content_block_stop", { index });
+  }
+  emit("message_delta", { delta: { stop_reason: stopReason ?? (name ? "tool_use" : "end_turn"), stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
   response.end();
 }
@@ -51,8 +63,8 @@ async function scenario(options = {}) {
           response.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "budget exhausted" } }));
           return;
         }
-        replySSE(response, body.model, requests.length === 1 || options.repeatTools
-          ? { name: options.requestTool ?? options.tools?.[0]?.function.name ?? tool.function.name, ...(options.toolArgs ? { args: options.toolArgs } : {}) }
+        replySSE(response, body.model, options.badResponse ? { ...options.badResponse } : requests.length === 1 || options.repeatTools
+          ? { name: options.requestTool ?? options.tools?.[0]?.function.name ?? tool.function.name, opaqueThinking: options.opaqueThinking, ...(options.toolArgs ? { args: options.toolArgs } : {}) }
           : {});
       } else if (request.url === "/tool") {
         effects.push(body);
@@ -81,7 +93,7 @@ async function scenario(options = {}) {
     await writeFile(join(dir, "AGENTS.md"), "UNWANTED_PROJECT_CONTEXT");
     await writeFile(join(dir, ".pi", "extensions", "unwanted.mjs"), "throw new Error('UNWANTED_EXTENSION_LOADED');");
     const config = {
-      model: "claude-mock-not-in-any-catalog",
+      model: options.model ?? "claude-mock-not-in-any-catalog",
       system: "The exact shared system prompt.",
       prompt: "Inspect the remote environment.",
       bridge_url: `http://127.0.0.1:${server.address().port}`,
@@ -89,7 +101,9 @@ async function scenario(options = {}) {
       tools: options.tools ?? [tool],
       session_dir: dir,
       max_turns: options.maxTurns ?? 3,
-      max_tokens: 6000,
+      max_tokens: 16000,
+      model_timeout_sec: 300,
+      inference_options: options.inferenceOptions ?? {},
     };
     const configPath = join(dir, "config.json");
     await writeFile(configPath, JSON.stringify(config));
@@ -131,7 +145,7 @@ test("Pi uses the exact model, prompt, and remote tool and persists its transcri
   assert.ok(run.events.includes('"type":"tool_execution_end"'));
   for (const request of run.requests) {
     assert.equal(request.model, run.config.model);
-    assert.equal(request.max_tokens, 6000);
+    assert.equal(request.max_tokens, 16000);
     assert.equal(request.stream, true);
     assert.deepEqual(request.tools.map((entry) => entry.name), ["remote_exec"]);
     assert.equal(request.system.map((block) => block.text).join("\n"), run.config.system);
@@ -190,3 +204,35 @@ test("Pi awaits the final validation callback before stopping at max_turns", { t
   assert.equal(run.result.messages.at(-1).content, "remote output");
   assert.ok(run.events.indexOf('"type":"tool_execution_end"') < run.events.indexOf('"type":"adapter_end"'));
 });
+
+test("Pi uses adaptive medium policy and roundtrips opaque thinking unchanged", { timeout: 30000 }, async () => {
+  const inference = { thinking: { type: "adaptive" }, output_config: { effort: "medium" } };
+  const run = await scenario({ model: "claude-sonnet-5", inferenceOptions: inference, opaqueThinking: true });
+  assert.equal(run.exitCode, 0, JSON.stringify(run.result));
+  for (const body of run.requests) {
+    assert.equal(body.max_tokens, 16000);
+    assert.deepEqual(body.thinking, inference.thinking);
+    assert.deepEqual(body.output_config, inference.output_config);
+  }
+  const previous = run.requests[1].messages.find((message) => message.role === "assistant");
+  assert.deepEqual(previous.content.filter((block) => ["thinking", "redacted_thinking"].includes(block.type)), [
+    { type: "thinking", thinking: "", signature: "opaque-signature" },
+    { type: "redacted_thinking", data: "opaque-redacted" },
+  ]);
+  assert.ok(run.events.includes('"inference_options":{"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}'));
+});
+
+for (const [name, badResponse, pattern] of [
+  ["truncated", { text: "partial answer", stopReason: "max_tokens" }, /truncated/],
+  ["empty", { text: "" }, /no text or tool calls/],
+  ["thinking-only", { thinkingOnly: true }, /no text or tool calls/],
+]) {
+  test(`Pi reports ${name} provider responses as failures`, { timeout: 30000 }, async () => {
+    const run = await scenario({ badResponse, maxTurns: 1 });
+    assert.equal(run.exitCode, 1, JSON.stringify(run.result));
+    assert.match(run.result.error, pattern);
+    assert.equal(run.requests.length, 1);
+    assert.equal(run.effects.length, 0);
+    assert.ok(run.events.includes('"type":"adapter_error"'));
+  });
+}

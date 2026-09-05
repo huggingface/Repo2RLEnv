@@ -10,6 +10,12 @@ from pathlib import Path
 from aiohttp import ClientSession, ClientTimeout, web
 
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
+from repo2rlenv.curation.inference import (
+    MAX_OUTPUT_TOKENS,
+    MODEL_TIMEOUT_SEC,
+    anthropic_options,
+    inference_settings,
+)
 
 
 class AgentBridge:
@@ -42,7 +48,7 @@ class AgentBridge:
 
     async def __aenter__(self):
         self.trace.parent.mkdir(parents=True, exist_ok=True)
-        self.http = ClientSession(timeout=ClientTimeout(total=240))
+        self.http = ClientSession(timeout=ClientTimeout(total=MODEL_TIMEOUT_SEC))
         app = web.Application(client_max_size=8 * 1024 * 1024)
         app.router.add_post("/v1/messages", self.messages)
         app.router.add_get("/v1/models", self.models)
@@ -159,10 +165,12 @@ class AgentBridge:
         allowed = {t["function"]["name"] for t in self.tools}
         if any(t.get("name") not in allowed for t in body.get("tools", [])):
             raise ValueError("Runtime exposed tools outside the matched allowlist")
-        body["max_tokens"] = min(body.get("max_tokens", 6000), 6000)
-        # Match the existing LangGraph baseline's default inference settings.
+        body["max_tokens"] = MAX_OUTPUT_TOKENS
+        # Runtime defaults cannot change the matched inference policy. Preserve
+        # signed/opaque thinking blocks in the conversation exactly as supplied.
         for key in ("thinking", "temperature", "top_p", "top_k", "output_config"):
             body.pop(key, None)
+        body.update(anthropic_options(self.model))
         normalize_cache(body)
         pricing = litellm.get_model_info(self.model)
         input_rate, output_rate = pricing["input_cost_per_token"], pricing["output_cost_per_token"]
@@ -191,6 +199,8 @@ class AgentBridge:
             system=body.get("system"),
             messages=body.get("messages", [])[-1:],
             tools=[t.get("name") for t in body.get("tools", [])],
+            inference=inference_settings(self.model),
+            timeout_sec=MODEL_TIMEOUT_SEC,
         )
         headers = {
             "x-api-key": os.environ["ANTHROPIC_API_KEY"],
@@ -209,10 +219,23 @@ class AgentBridge:
                 raise RuntimeError(f"Anthropic HTTP {upstream.status}: {error[:1500]}")
             if not body.get("stream"):
                 result = await upstream.json()
-                cost = usage_cost(result.get("usage", {}), input_rate, output_rate)
+                usage = result.get("usage", {})
+                try:
+                    cost = usage_cost(usage, input_rate, output_rate)
+                except ValueError:
+                    self.record(
+                        "model",
+                        turn=turn,
+                        message=result,
+                        usage=usage,
+                        cost_usd=None,
+                        reservation_usd=ceiling,
+                    )
+                    raise
                 self.budget.settle(reservation, cost)
                 self.cost += cost
-                self.record("model", turn=turn, message=result, cost_usd=cost)
+                self.record("model", turn=turn, message=result, usage=usage, cost_usd=cost)
+                validate_provider_response(result.get("content", []), result.get("stop_reason"))
                 return web.json_response(result)
             response = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
             await response.prepare(request)
@@ -226,21 +249,59 @@ class AgentBridge:
                             events.append(json.loads(line[6:]))
                 with contextlib.suppress(ConnectionError):
                     await response.write(chunk)
-            if not any(e.get("type") == "message_stop" for e in events):
-                raise RuntimeError("Incomplete provider stream; reservation retained")
             usage = {}
+            content = []
+            stop_reason = None
             for event in events:
                 if event.get("type") == "message_start":
-                    usage.update(event.get("message", {}).get("usage", {}))
+                    message = event.get("message", {})
+                    usage.update(message.get("usage", {}))
+                    content.extend(message.get("content", []))
+                    stop_reason = message.get("stop_reason") or stop_reason
                 elif event.get("type") == "message_delta":
                     usage.update(event.get("usage", {}))
-            cost = usage_cost(usage, input_rate, output_rate)
+                    stop_reason = event.get("delta", {}).get("stop_reason") or stop_reason
+                elif event.get("type") == "content_block_start":
+                    content.append(event.get("content_block", {}))
+                elif event.get("type") == "content_block_delta":
+                    delta = event.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        content.append({"type": "text", "text": delta.get("text", "")})
+            try:
+                if not any(e.get("type") == "message_stop" for e in events):
+                    raise RuntimeError("Incomplete provider stream; reservation retained")
+                cost = usage_cost(usage, input_rate, output_rate)
+            except (ValueError, RuntimeError):
+                self.record(
+                    "model",
+                    turn=turn,
+                    events=events,
+                    usage=usage,
+                    cost_usd=None,
+                    reservation_usd=ceiling,
+                )
+                raise
             self.budget.settle(reservation, cost)
             self.cost += cost
             self.record("model", turn=turn, events=events, usage=usage, cost_usd=cost)
+            validate_provider_response(content, stop_reason)
             with contextlib.suppress(ConnectionError):
                 await response.write_eof()
             return response
+
+
+def validate_provider_response(content, stop_reason):
+    """A metered model turn needs usable text or a tool call, not just thinking."""
+    if stop_reason in {"max_tokens", "length"}:
+        raise RuntimeError(f"Provider response truncated: stop_reason={stop_reason}")
+    if not any(
+        (block.get("type") == "text" and (block.get("text") or "").strip())
+        or block.get("type") == "tool_use"
+        for block in content
+    ):
+        raise RuntimeError(
+            "Provider response contained no text or tool calls (thinking-only or empty)"
+        )
 
 
 def normalize_cache(value):

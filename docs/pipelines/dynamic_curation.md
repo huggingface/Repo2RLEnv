@@ -73,6 +73,13 @@ the real provider key, meters inference and forwards the allowed cloud tools.
 The Python controller, verification protocol and solver implementation stay common.
 Three PRs provide diagnostic evidence, not a statistically established winner.
 
+Supported Sonnet/Opus models use explicit adaptive thinking at medium effort and
+a 16,000-token response ceiling across all three adapters. Thinking tokens share
+that ceiling with visible responses. Empty or truncated responses are execution
+failures, never completed zero-reward rollouts. Model settings are recorded in
+traces and bound to solver/adversary evidence; changing the policy reruns those
+trials while retaining compatible deterministic checks.
+
 The first supported external-provider protocol is Anthropic. Other providers
 remain supported by the LangGraph adapter through LiteLLM; additional external
 protocols require explicit adapters and matching budget accounting.
@@ -154,6 +161,11 @@ trial output, independent review and a verdict. Full solver traces are recorded
 in each trial's `agent/trace.jsonl`. `budget.json` is a process-safe write-ahead
 ledger of API reservations, metered model cost and conservative cloud allowances.
 Unknown model pricing fails closed. Provider invoices remain the billing authority.
+Interrupted validation can resume from an unchanged finalized task, reusing
+successful checks and rerunning missing or invalid trials. A pending review can
+resume without repeating authoring or cloud validation; a valid quality rejection
+requires task repair. Structured-review formatting gets at most one budgeted
+finalization call that preserves the evidence and findings already collected.
 
 `publish_evidence()` can archive a campaign or runtime comparison to a private
 Hugging Face bucket under a content-addressed prefix, with SHA-256 checksums.

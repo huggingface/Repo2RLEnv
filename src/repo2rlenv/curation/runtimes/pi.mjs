@@ -9,8 +9,6 @@ import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { requestJSON, RUNTIME_REQUEST_TIMEOUT_MS } from "./local_http.mjs";
 
-const REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
-
 function validateConfig(config) {
   for (const field of ["model", "system", "prompt", "bridge_url", "bridge_token", "session_dir"]) {
     if (typeof config[field] !== "string" || !config[field].trim()) {
@@ -25,9 +23,12 @@ function validateConfig(config) {
   if (!Number.isSafeInteger(config.max_turns) || config.max_turns < 1) {
     throw new Error("Pi max_turns must be a positive integer");
   }
-  const maxTokens = config.max_tokens ?? 6000;
+  const maxTokens = config.max_tokens ?? 16000;
   if (!Number.isSafeInteger(maxTokens) || maxTokens < 1) {
     throw new Error("Pi max_tokens must be a positive integer");
+  }
+  if (!Number.isFinite(config.model_timeout_sec ?? 300) || (config.model_timeout_sec ?? 300) <= 0) {
+    throw new Error("Pi model_timeout_sec must be positive");
   }
   if (!Array.isArray(config.tools)) throw new Error("Pi tools must be an array");
   const names = new Set();
@@ -93,6 +94,9 @@ function emptyResourceLoader(createExtensionRuntime, system) {
 
 export async function runPi(config) {
   const { bridge, maxTokens } = validateConfig(config);
+  const inference = config.inference_options ?? {};
+  const adaptive = inference.thinking?.type === "adaptive";
+  const requestTimeoutMs = (config.model_timeout_sec ?? 300) * 1000;
   const sessionDir = resolve(config.session_dir);
   mkdirSync(sessionDir, { recursive: true });
   const eventsPath = join(sessionDir, "pi-events.jsonl");
@@ -124,7 +128,7 @@ export async function runPi(config) {
     if (url.origin !== bridge.origin || !["/v1/messages", "/tool"].includes(url.pathname)) {
       throw new Error("Pi attempted an HTTP request outside its configured bridge");
     }
-    const signals = [controller.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)];
+    const signals = [controller.signal, AbortSignal.timeout(requestTimeoutMs)];
     if (init.signal) signals.push(init.signal);
     if (input instanceof Request && input.signal) signals.push(input.signal);
     return fetch(input, { ...init, redirect: "error", signal: AbortSignal.any(signals) });
@@ -180,7 +184,7 @@ export async function runPi(config) {
       provider: "anthropic",
       api: "anthropic-messages",
       baseUrl: bridge.origin,
-      reasoning: false,
+      reasoning: adaptive,
       input: ["text"],
       // Parent computes actual usage/cost and rejects requests over its budget.
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -192,7 +196,7 @@ export async function runPi(config) {
       agentDir: sessionDir,
       model,
       modelRuntime,
-      thinkingLevel: "off",
+      thinkingLevel: adaptive ? "medium" : "off",
       noTools: "builtin",
       tools: customTools.map((tool) => tool.name),
       customTools,
@@ -213,17 +217,31 @@ export async function runPi(config) {
       // system prompt at the provider boundary for the matched comparison.
       return piStream(currentModel, { ...context, systemPrompt: config.system }, {
         ...options, maxTokens, maxRetries: 0, fetch: bridgeFetch,
+        // The parent selects the same policy for every runtime. Override Pi's
+        // model-catalog defaults without touching signed conversation blocks.
+        onPayload: (payload) => {
+          for (const key of ["thinking", "temperature", "top_p", "top_k", "output_config"]) delete payload[key];
+          Object.assign(payload, inference, { max_tokens: maxTokens });
+          return payload;
+        },
       });
     };
     session.agent.shouldStopAfterTurn = () => turns >= config.max_turns;
     session.subscribe(log);
-    log({ type: "adapter_start", runtime: "pi", model: config.model, tools: activeTools, max_turns: config.max_turns, max_tokens: maxTokens });
+    log({ type: "adapter_start", runtime: "pi", model: config.model, tools: activeTools, max_turns: config.max_turns, max_tokens: maxTokens, inference_options: inference, model_timeout_sec: requestTimeoutMs / 1000 });
     controller.signal.throwIfAborted();
     await session.prompt(config.prompt);
     if (interrupted) throw new Error(`Pi interrupted by ${interrupted}`);
     const lastAssistant = session.messages.findLast((message) => message.role === "assistant");
     if (lastAssistant?.stopReason === "error" || lastAssistant?.stopReason === "aborted") {
       throw new Error(`Pi provider failed: ${lastAssistant.errorMessage || lastAssistant.stopReason}`);
+    }
+    if (["length", "max_tokens"].includes(lastAssistant?.stopReason)) {
+      throw new Error(`Pi provider response truncated: ${lastAssistant.stopReason}`);
+    }
+    if (!lastAssistant || (!textContent(lastAssistant.content).trim() &&
+        !(lastAssistant.content ?? []).some((block) => block.type === "toolCall"))) {
+      throw new Error("Pi provider response contained no text or tool calls (thinking-only or empty)");
     }
     const result = { messages: normalizedMessages(config.system, session.messages), turns, cost: 0 };
     log({ type: "adapter_end", turns, session_file: session.sessionFile });

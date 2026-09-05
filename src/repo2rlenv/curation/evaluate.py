@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget
+from repo2rlenv.curation.inference import inference_digest
 from repo2rlenv.curation.models import CampaignConfig, TrialEvidence
 
 TAMPER = r"""
@@ -98,7 +99,11 @@ async def trial(
         }
     )
     evidence = TrialEvidence(
-        label=label, task_digest=digest_task(task), path=str(output / name), model=model
+        label=label,
+        task_digest=digest_task(task),
+        path=str(output / name),
+        model=model,
+        inference_digest=inference_digest(model) if model else None,
     )
     try:
         runtime = await Trial.create(cfg)
@@ -129,6 +134,23 @@ async def trial(
 
 def inspect_execution(folder: Path) -> str | None:
     """Harbor's best-effort exports and oracle exit codes need explicit gates."""
+    trace = folder / "agent/trace.jsonl"
+    if trace.exists():
+        try:
+            models = [
+                record
+                for line in trace.read_text().splitlines()
+                if (record := json.loads(line)).get("kind") == "model"
+            ]
+            if models:
+                last = models[-1]
+                message = last.get("message", {})
+                if last.get("finish_reason") in {"length", "max_tokens"}:
+                    return "Incomplete model response: output token limit reached"
+                if not message.get("tool_calls") and not (message.get("content") or "").strip():
+                    return "Incomplete model response: no final text or tool call"
+        except (ValueError, TypeError, AttributeError):
+            return "Malformed agent execution trace"
     exit_code = folder / "agent/exit-code.txt"
     if exit_code.exists() and exit_code.read_text().strip() != "0":
         return "Oracle execution failed with exit code " + exit_code.read_text().strip()

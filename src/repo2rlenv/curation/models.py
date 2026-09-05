@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from repo2rlenv.curation.inference import inference_digest
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -131,6 +133,7 @@ class TrialEvidence(StrictModel):
     error: str | None = None
     path: str
     model: str | None = None
+    inference_digest: str | None = None
     cost_usd: float = Field(default=0, ge=0)
 
     @property
@@ -169,15 +172,14 @@ class CampaignConfig(StrictModel):
         return values
 
 
-def acceptance(
+def execution_gate_reasons(
     trials: list[TrialEvidence],
-    review: Review,
     config: CampaignConfig,
     digest: str,
     mutation_names: list[str],
     equivalent_names: list[str],
 ) -> list[str]:
-    """Return all rejection reasons. Missing evidence never implicitly passes."""
+    """Check execution evidence independently of the specification review."""
     reasons = []
     if len({t.label for t in trials}) != len(trials):
         reasons.append("Duplicate trial labels")
@@ -195,12 +197,33 @@ def acceptance(
     for model in config.solver_models:
         matching = [t for t in trials if t.model == model and t.label.startswith("solver-")]
         if len(matching) < config.solver_attempts or any(
-            not t.valid or t.task_digest != digest for t in matching
+            not t.valid or t.task_digest != digest or t.inference_digest != inference_digest(model)
+            for t in matching
         ):
             reasons.append(f"Incomplete solver evidence: {model}")
     attack = by_label.get("adversary")
-    if attack is None or not attack.valid or attack.reward != 0 or attack.task_digest != digest:
+    if (
+        attack is None
+        or not attack.valid
+        or attack.reward != 0
+        or attack.task_digest != digest
+        or attack.model != config.author_model
+        or attack.inference_digest != inference_digest(config.author_model)
+    ):
         reasons.append("Adversarial trial missing, errored, stale, or achieved reward")
+    return reasons
+
+
+def acceptance(
+    trials: list[TrialEvidence],
+    review: Review,
+    config: CampaignConfig,
+    digest: str,
+    mutation_names: list[str],
+    equivalent_names: list[str],
+) -> list[str]:
+    """Return all rejection reasons. Missing evidence never implicitly passes."""
+    reasons = execution_gate_reasons(trials, config, digest, mutation_names, equivalent_names)
     if review.score < config.acceptance_score:
         reasons.append(f"Quality score {review.score:.1f} below {config.acceptance_score}")
     reasons.extend(review.blockers)

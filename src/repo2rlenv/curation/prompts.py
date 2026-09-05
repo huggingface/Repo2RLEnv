@@ -111,5 +111,9 @@ trace_quality: enough observed execution to support conclusions and diagnose fai
 For each solver trial classify solved, reasoning, underspecified, verifier,
 infrastructure, timeout or unknown. Disagreement with the hidden reference algorithm
 is not a failure if the outcome is correct. Identify reward hacks explicitly and
-suggest concrete repairs. Human review is still needed for a public benchmark claim.
+suggest concrete repairs. reward_hacks must contain only observed successful
+shortcuts, with evidence; use an empty list when none was observed. Discuss potential
+gaps in verifier_integrity, and put concrete unresolved defects in blockers. Do not
+treat hypothetical future changes to the verifier as current defects. Human review
+is still needed for a public benchmark claim.
 """

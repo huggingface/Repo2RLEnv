@@ -6,12 +6,19 @@ from pathlib import Path
 from typing import TypedDict
 
 from repo2rlenv.curation.budget import Budget, BudgetExceeded, completion
+from repo2rlenv.curation.inference import inference_settings
 
 
 class State(TypedDict):
     messages: list[dict]
     turns: int
     cost: float
+
+
+class IncompleteModelResponse(RuntimeError):
+    def __init__(self, message: str, state: State):
+        super().__init__(message)
+        self.state = state
 
 
 SHELL_TOOL = {
@@ -70,6 +77,17 @@ async def run_agent(
         with trace.open("a") as f:
             f.write(json.dumps({"kind": kind, **data}, default=str) + "\n")
 
+    record(
+        "input",
+        {
+            "model": model,
+            "system": system,
+            "prompt": prompt,
+            "runtime": runtime,
+            "inference": inference_settings(model),
+        },
+    )
+
     async def think(state: State) -> State:
         if budget.spent - start_spend >= max_cost:
             raise BudgetExceeded(f"Agent cost limit reached: ${max_cost}")
@@ -88,13 +106,23 @@ async def run_agent(
                 "message": message,
                 "cost_usd": cost,
                 "usage": response.usage.model_dump(),
+                "finish_reason": getattr(response.choices[0], "finish_reason", None),
             },
         )
-        return {
+        updated = {
             "messages": [*state["messages"], message],
             "turns": state["turns"] + 1,
             "cost": state["cost"] + cost,
         }
+        if getattr(response.choices[0], "finish_reason", None) in {"length", "max_tokens"}:
+            raise IncompleteModelResponse(
+                "Incomplete model response: output token limit reached", updated
+            )
+        if not message.get("tool_calls") and not (message.get("content") or "").strip():
+            raise IncompleteModelResponse(
+                "Incomplete model response: no final text or tool call", updated
+            )
+        return updated
 
     async def act(state: State) -> State:
         messages = list(state["messages"])

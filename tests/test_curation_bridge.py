@@ -14,6 +14,7 @@ from repo2rlenv.curation import bridge as bridge_module
 from repo2rlenv.curation import external_agent
 from repo2rlenv.curation.bridge import AgentBridge, normalize_cache, usage_cost
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
+from repo2rlenv.curation.inference import MAX_OUTPUT_TOKENS, MODEL_TIMEOUT_SEC, anthropic_options
 
 
 def test_provider_usage_accounts_cache_without_double_charging():
@@ -96,6 +97,8 @@ class LocalProvider:
         self.finish = asyncio.Event()
         self.finish.set()
         self.usage = {"input_tokens": 100, "output_tokens": 50}
+        self.blocks = [{"type": "text", "text": "Completed response"}]
+        self.stop_reason = "end_turn"
         self.content = self
 
     def post(self, url, *, json, headers):
@@ -116,12 +119,20 @@ class LocalProvider:
 
     async def json(self):
         await self.finish.wait()
-        return {"usage": self.usage}
+        return {"usage": self.usage, "content": self.blocks, "stop_reason": self.stop_reason}
 
     async def iter_any(self):
         events = [
             {"type": "message_start", "message": {"usage": self.usage}},
-            {"type": "message_delta", "usage": {"output_tokens": 50}},
+            *[
+                {"type": "content_block_start", "index": i, "content_block": block}
+                for i, block in enumerate(self.blocks)
+            ],
+            {
+                "type": "message_delta",
+                "usage": {"output_tokens": 50},
+                "delta": {"stop_reason": self.stop_reason},
+            },
             {"type": "message_stop"},
         ]
         yield "".join("data: " + json.dumps(event) + "\n\n" for event in events).encode()
@@ -187,7 +198,7 @@ async def test_agent_cost_limit_includes_the_next_reservation(tmp_path, local_pr
 @pytest.mark.asyncio
 async def test_agent_cost_limit_counts_an_inflight_model_reservation(tmp_path, local_provider):
     local_provider.finish.clear()
-    async with make_bridge(tmp_path, max_cost=0.075) as bridge:
+    async with make_bridge(tmp_path, max_cost=0.5) as bridge:
         first = asyncio.create_task(bridge._messages(model_request()))
         try:
             await asyncio.wait_for(local_provider.called.wait(), 2)
@@ -342,7 +353,11 @@ def local_runtime(monkeypatch, tmp_path, local_provider):
 
     async def create_runtime(*args, **kwargs):
         assert "ANTHROPIC_API_KEY" not in kwargs["env"]
-        return RuntimeProcess(json.loads(Path(args[2]).read_text()))
+        config = json.loads(Path(args[2]).read_text())
+        assert config["max_tokens"] == MAX_OUTPUT_TOKENS
+        assert config["model_timeout_sec"] == MODEL_TIMEOUT_SEC
+        assert config["inference_options"] == anthropic_options("anthropic/" + config["model"])
+        return RuntimeProcess(config)
 
     monkeypatch.setattr(external_agent, "AgentBridge", DrainBridge)
     monkeypatch.setattr(external_agent, "runtime_path", lambda engine: tmp_path / "runtime.mjs")
@@ -390,3 +405,107 @@ async def test_runtime_propagates_accounting_errors_after_message_stop(
     assert budget.spent > 0
     ledger = json.loads(budget.path.read_text())
     assert {entry["status"] for entry in ledger["entries"].values()} == {"reserved"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["claude-sonnet-5", "claude-opus-4-6", "claude-mock"])
+async def test_bridge_overrides_runtime_inference_settings_and_preserves_opaque_thinking(
+    tmp_path, local_provider, model
+):
+    opaque = [
+        {"type": "thinking", "thinking": "", "signature": "opaque-signed-reasoning"},
+        {"type": "redacted_thinking", "data": "opaque-redacted-reasoning"},
+        {"type": "text", "text": "Previous response"},
+    ]
+    async with make_bridge(tmp_path, model="anthropic/" + model) as bridge:
+        body = {
+            "model": model,
+            "messages": [{"role": "assistant", "content": opaque}],
+            "max_tokens": 1,
+            "thinking": {"type": "disabled"},
+            "output_config": {"effort": "high"},
+            "temperature": 0.3,
+            "top_p": 0.1,
+            "top_k": 2,
+        }
+        await bridge._messages(BridgeRequest(body))
+    forwarded = local_provider.requests[0]
+    assert forwarded["max_tokens"] == MAX_OUTPUT_TOKENS
+    assert forwarded["messages"][0]["content"] == opaque
+    assert not {"temperature", "top_p", "top_k"} & forwarded.keys()
+    for key in ("thinking", "output_config"):
+        assert forwarded.get(key) == anthropic_options("anthropic/" + model).get(key)
+    events = [json.loads(line) for line in bridge.trace.read_text().splitlines()]
+    assert events[0]["inference"]["max_tokens"] == MAX_OUTPUT_TOKENS
+    assert events[0]["timeout_sec"] == MODEL_TIMEOUT_SEC
+    assert events[0]["inference"].get("thinking") == forwarded.get("thinking")
+
+
+@pytest.fixture
+def in_memory_sse(monkeypatch):
+    class StreamResponse:
+        def __init__(self, **kwargs):
+            pass
+
+        async def prepare(self, request):
+            pass
+
+        async def write(self, chunk):
+            pass
+
+        async def write_eof(self):
+            pass
+
+    monkeypatch.setattr(bridge_module.web, "StreamResponse", StreamResponse)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("failure", ["max_tokens", "length", "empty", "thinking_only"])
+async def test_empty_and_truncated_provider_turns_fail_after_metering_and_trace(
+    tmp_path, local_provider, in_memory_sse, stream, failure
+):
+    if failure in {"max_tokens", "length"}:
+        local_provider.stop_reason = failure
+    else:
+        local_provider.blocks = (
+            []
+            if failure == "empty"
+            else [{"type": "thinking", "thinking": "", "signature": "retained-opaque-signature"}]
+        )
+    async with make_bridge(tmp_path) as bridge:
+        reply = await bridge.messages(
+            BridgeRequest(
+                {"model": "claude-mock", "messages": [], "stream": stream},
+                token=bridge.token,
+            )
+        )
+        assert reply.status == 502
+        assert bridge.failed.is_set()
+        assert bridge.budget.spent == bridge.cost == pytest.approx(0.002)
+    events = [json.loads(line) for line in bridge.trace.read_text().splitlines()]
+    assert [event["kind"] for event in events] == ["model_request", "model", "runtime_error"]
+    assert events[1]["cost_usd"] == pytest.approx(0.002)
+    assert events[1]["usage"]["output_tokens"] == 50
+    if failure == "thinking_only":
+        assert "retained-opaque-signature" in json.dumps(events[1])
+    assert (
+        "truncated" in events[2]["error"]
+        if failure in {"max_tokens", "length"}
+        else "no text or tool calls" in events[2]["error"]
+    )
+    ledger = json.loads(bridge.budget.path.read_text())
+    assert {entry["status"] for entry in ledger["entries"].values()} == {"metered"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_tool_only_provider_turn_is_usable(tmp_path, local_provider, in_memory_sse, stream):
+    local_provider.blocks = [{"type": "tool_use", "id": "tool-1", "name": "shell", "input": {}}]
+    local_provider.stop_reason = "tool_use"
+    async with make_bridge(tmp_path) as bridge:
+        await bridge._messages(
+            BridgeRequest({"model": "claude-mock", "messages": [], "stream": stream})
+        )
+        assert bridge.failure is None
+        assert bridge.cost == pytest.approx(0.002)

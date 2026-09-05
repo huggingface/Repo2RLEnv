@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
+from repo2rlenv.curation.inference import inference_digest
 from repo2rlenv.curation.models import (
     CRITERIA,
     CampaignConfig,
@@ -113,7 +114,12 @@ def good_trials():
             reward=v,
             task_digest="digest",
             path="/evidence/" + k,
-            model=cfg.solver_models[int(k.split("-")[1])] if k.startswith("solver") else None,
+            model=cfg.solver_models[int(k.split("-")[1])]
+            if k.startswith("solver")
+            else (cfg.author_model if k == "adversary" else None),
+            inference_digest=inference_digest(cfg.solver_models[int(k.split("-")[1])])
+            if k.startswith("solver")
+            else (inference_digest(cfg.author_model) if k == "adversary" else None),
         )
         for k, v in labels.items()
     ]
