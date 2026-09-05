@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import time
 from pathlib import Path
 
 
@@ -32,14 +33,34 @@ class AuthorSandbox:
         return self
 
     async def shell(self, command: str, timeout_sec: int = 120) -> str:
-        p = await self.sandbox.exec.aio(
-            "bash", "-lc", command, timeout=max(1, min(timeout_sec, 300))
-        )
+        """Run a remote command with an outer timeout (default 120s, maximum 300s).
+
+        Pass timeout_sec to change that limit; it is clamped to 1–300 seconds.
+        An inner shell command such as `timeout 280 ...` cannot extend this outer
+        limit. Returned timing describes this call, not a diagnosed provider cause.
+        """
+        effective_timeout = max(1, min(timeout_sec, 300))
+        started = time.monotonic()
+        p = await self.sandbox.exec.aio("bash", "-lc", command, timeout=effective_timeout)
         import asyncio
 
         out, err = await asyncio.gather(p.stdout.read.aio(), p.stderr.read.aio())
         code = await p.wait.aio()
-        return json.dumps({"exit_code": code, "stdout": out[-20000:], "stderr": err[-4000:]})
+        result = {
+            "exit_code": code,
+            "stdout": out[-20000:],
+            "stderr": err[-4000:],
+            "effective_timeout_sec": effective_timeout,
+            "elapsed_seconds": round(max(0.0, time.monotonic() - started), 3),
+        }
+        if code == -1:
+            result["note"] = (
+                "Process ended without a normal exit status; the cause is not reported here. "
+                f"The outer command limit was {effective_timeout} seconds. Check that limit; "
+                "if more time is needed, pass timeout_sec explicitly (maximum 300), or split "
+                "the work into shorter commands. An inner shell timeout cannot extend the outer limit."
+            )
+        return json.dumps(result)
 
     async def write(self, path: str, text: str) -> None:
         await self.sandbox.filesystem.write_text.aio(text, path)
