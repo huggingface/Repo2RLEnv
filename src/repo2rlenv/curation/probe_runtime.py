@@ -11,6 +11,18 @@ import subprocess
 import tempfile
 
 
+def _stderr_excerpt(stream) -> str:
+    limit, head_size = 16_000, 4_000
+    size = stream.seek(0, os.SEEK_END)
+    stream.seek(0)
+    if size <= limit:
+        return stream.read(limit).decode(errors="replace")
+    marker = b"\n[stderr middle omitted]\n"
+    head = stream.read(head_size)
+    stream.seek(-(limit - head_size - len(marker)), os.SEEK_END)
+    return (head + marker + stream.read(limit - head_size - len(marker))).decode(errors="replace")
+
+
 def run_probe(code: str, payload=None, timeout: int = 60):
     """Run an operation against submitted code, returning JSON for trusted assertions.
 
@@ -65,8 +77,7 @@ def run_probe(code: str, payload=None, timeout: int = 60):
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
             raise TimeoutError(f"Submitted operation exceeded {timeout}s") from None
-        stderr.seek(0)
-        errors = stderr.read(16000).decode(errors="replace")
+        errors = _stderr_excerpt(stderr)
         if process.returncode:
             raise RuntimeError(f"Submitted operation exited {process.returncode}: {errors}")
         stdout.seek(0)
