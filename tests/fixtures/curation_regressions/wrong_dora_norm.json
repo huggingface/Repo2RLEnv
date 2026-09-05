@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "id": "wrong_dora_norm",
+  "source": {
+    "url": "https://github.com/huggingface/peft/pull/2661",
+    "repo": "huggingface/peft",
+    "number": 2661,
+    "base_sha": "2cbe6ab3337db8e4d2c1058d48885fd296648996",
+    "head_sha": "ebcb340e7034444aa0919a4113838d99a2da787d"
+  },
+  "tasks": [
+    {
+      "role": "diagnostic_verified_false_positive",
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task",
+      "digest": "345ea92c85621747ac8c79f04758798e3c3f811e0fd185a487d1c4d94ff22077"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/result.json",
+      "sha256": "98106e65473b22cd564c216e1f17ce38b54c859dc32ffd81fa29cd2a80fd2340",
+      "value": {
+        "label": "norm-returns-ones",
+        "task_digest": "345ea92c85621747ac8c79f04758798e3c3f811e0fd185a487d1c4d94ff22077",
+        "reward": 1.0,
+        "error": null,
+        "path": "workspace/runtime-comparison/diagnostics/peft-numerics/trials/norm-returns-ones-5eabc4df8808",
+        "model": null,
+        "inference_digest": null,
+        "cost_usd": 0.0
+      }
+    },
+    {
+      "path": "workspace/peft-numerics-probe.json",
+      "sha256": "03258fdc1ae2ff4c72f5a48c21e6e9fef14194ceb3ec2ccf51e4e7a38cee16d3",
+      "value": {
+        "mutation_name": "dora_weight_norm_returns_ones",
+        "script": "set -euo pipefail\ncd /workspace\npython3 - <<'PY'\nfrom pathlib import Path\n\npath = Path(\"src/peft/tuners/lora/dora.py\")\nsource = path.read_text()\nassert source.count('@cache_decorator(\"weight-norm\")') == 2, \"Expected GOLD caching decorators\"\nanchors = ['        weight_norm = torch.linalg.norm(weight, dim=1).to(weight.dtype)\\n        return weight_norm\\n', '        weight_norm = weight.norm(p=2, dim=dim, keepdim=True).transpose(1, 0)\\n        return weight_norm\\n']\nfor anchor in anchors:\n    assert source.count(anchor) == 1, \"Expected exactly one GOLD norm anchor: \" + repr(anchor)\n    replacement = anchor.replace(\"return weight_norm\", \"return torch.ones_like(weight_norm)\")\n    source = source.replace(anchor, replacement, 1)\nassert source.count(\"return torch.ones_like(weight_norm)\") == 2\npath.write_text(source)\nPY\n"
+      }
+    }
+  ],
+  "snippets": {
+    "_check_common": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "_check_common",
+      "text": "def _check_common(observed, key):\n    r = observed[key]\n    assert r[\"num_caches\"] >= 1\n    # before any caching was ever engaged, all dora caches must be empty\n    assert all(v is False for v in r[\"caches_empty_before_any_caching\"])\n    # DoRA must actually change the output relative to the un-adapted base model\n    assert r[\"base_vs_dora_differ\"] is True\n",
+      "text_sha256": "897adac9c8cf4a486e0829974294e1fa720900f1b8172b9926878c2a84c75685"
+    },
+    "test_dora_caching_linear_matches_uncached_result": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "test_dora_caching_linear_matches_uncached_result",
+      "text": "def test_dora_caching_linear_matches_uncached_result(observed):\n    r = observed[\"linear\"]\n    _check_common(observed, \"linear\")\n    dora = np.array(r[\"dora_result\"])\n    c1 = np.array(r[\"cached_result_1\"])\n    c2 = np.array(r[\"cached_result_2\"])\n    np.testing.assert_allclose(c1, dora, atol=1e-6, rtol=1e-6)\n    np.testing.assert_allclose(c2, dora, atol=1e-6, rtol=1e-6)\n",
+      "text_sha256": "81e35075676e5665f99e69eab1460e43bddaf4d220f9549f940b18e05303333d"
+    },
+    "test_cache_populated_while_context_active": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "test_cache_populated_while_context_active",
+      "text": "def test_cache_populated_while_context_active(observed, key):\n    r = observed[key]\n    # after the very first forward call inside the caching context, all dora\n    # caches for this model must be populated\n    assert all(v is True for v in r[\"caches_nonempty_after_first_cached_call\"])\n",
+      "text_sha256": "9fbabbe618f2845d8e68e2a63547bf19b55a3cd378233fa0d9002af92c32c56d"
+    },
+    "test_cache_cleared_after_context_exit": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "test_cache_cleared_after_context_exit",
+      "text": "def test_cache_cleared_after_context_exit(observed, key):\n    r = observed[key]\n    # the forward call performed after exiting the `with DoraCaching()` block\n    # must not use stale cached values (caching disabled again by then)\n    assert all(v is False for v in r[\"caches_nonempty_after_exit_forward\"])\n    dora = np.array(r[\"dora_result\"])\n    after_exit = np.array(r[\"after_exit_result\"])\n    np.testing.assert_allclose(after_exit, dora, atol=1e-6, rtol=1e-6)\n",
+      "text_sha256": "907ce4c39d76a9b2d8e2b33ee9d6cdf6a4e15995b978908df5a84510b7debaac"
+    },
+    "test_train_mode_disables_and_clears_cache": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "test_train_mode_disables_and_clears_cache",
+      "text": "def test_train_mode_disables_and_clears_cache(observed, key):\n    r = observed[key]\n    # switching the model to train() must clear any lingering cache immediately\n    assert all(v is False for v in r[\"caches_nonempty_after_train_switch\"])\n    # even with the global caching flag enabled (inside the `with` block), a\n    # module in training mode must never populate its cache\n    assert all(v is False for v in r[\"caches_nonempty_during_train_forward\"])\n    dora = np.array(r[\"dora_result\"])\n    train_mode = np.array(r[\"train_mode_result\"])\n    np.testing.assert_allclose(train_mode, dora, atol=1e-6, rtol=1e-6)\n",
+      "text_sha256": "53b528186d10986da67e652148ab43ecf54c732507433d811351bda5faf8e123"
+    },
+    "test_permanent_toggle_matches_context_manager_semantics": {
+      "path": "workspace/runtime-comparison/diagnostics/peft-numerics/task/tests/test_contract.py",
+      "sha256": "4759a3eadec28769124175cca05c355aeadbc08cb2aec56d6f1ee1f9a748e0e0",
+      "selector": "test_permanent_toggle_matches_context_manager_semantics",
+      "text": "def test_permanent_toggle_matches_context_manager_semantics(observed, key):\n    r = observed[key]\n    dora = np.array(r[\"dora_result\"])\n    perm = np.array(r[\"perm_cached_result\"])\n    # DoraCaching()(enabled=True) permanently enables caching outside of a\n    # `with` block, but must still preserve the numerical result\n    np.testing.assert_allclose(perm, dora, atol=1e-6, rtol=1e-6)\n",
+      "text_sha256": "65d9312669210bc50151cec6e35ed45009e698fb54b4630e68b8fb3795a4fc0f"
+    }
+  },
+  "witness": {
+    "weight": [
+      [
+        3,
+        4
+      ],
+      [
+        0,
+        2
+      ]
+    ],
+    "delta": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "magnitude": [
+      6,
+      3
+    ],
+    "input": [
+      [
+        1,
+        0
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "bad_norm": [
+      1,
+      1
+    ]
+  },
+  "local_scope": "Execute retained protected cache/numeric assertions against computed good and wrong outputs. A separate independent norm calculation rejects the same wrong outputs.",
+  "limitation": "The frozen remote diagnostic really earned reward1. This local fixed-magnitude witness is new and is not a previously validated corrected task; no target execution is replayed."
+}

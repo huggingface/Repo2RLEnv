@@ -1,0 +1,18 @@
+{
+  "target": 30,
+  "concurrency": 3,
+  "budget_usd": 380,
+  "max_candidate_usd": 14,
+  "author_model": "anthropic/claude-sonnet-5",
+  "judge_model": "anthropic/claude-opus-5",
+  "specification_review": true,
+  "verifier_review": true,
+  "solver_models": ["anthropic/claude-sonnet-5", "anthropic/claude-opus-5"],
+  "author_turns": 55,
+  "author_timeout_sec": 7200,
+  "solver_turns": 40,
+  "max_revisions": 3,
+  "oracle_repeats": 3,
+  "solver_attempts": 1,
+  "acceptance_score": 85
+}

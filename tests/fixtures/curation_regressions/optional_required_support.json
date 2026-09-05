@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "id": "optional_required_support",
+  "source": {
+    "url": "https://github.com/huggingface/peft/pull/2939",
+    "repo": "huggingface/peft",
+    "number": 2939,
+    "base_sha": "9bb8947e7ce4511a756c7c5430727ad42091a87d",
+    "head_sha": "20255ee3a0e81901a413dd64e45869f24876f59f"
+  },
+  "tasks": [
+    {
+      "role": "before",
+      "path": "workspace/peft-2939-repair/seed-v4/task",
+      "digest": "c3a4a337c23a05a8263f7413e81a12b8ae90a8e86dd15f0b325670dc72498395"
+    },
+    {
+      "role": "after",
+      "path": "workspace/peft-2939-repair/seed-v5/task",
+      "digest": "71e35a396ad74f79eea166e40d0f5db2abdc936377932de001de22864c60c6c4"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/peft-2939-repair/provenance-v5.json",
+      "sha256": "ea7b5316b4a91517776c272bce5a710013f216e24d16b6a605d81ed0c19a78ff",
+      "value": {
+        "review_interpretation": "The v4 reviewer scored3 with no blockers but described an actual untested public support-gating requirement as an optional repair. This bounded v5 adds only that coverage and its counterexample."
+      }
+    },
+    {
+      "path": "workspace/peft-2939-repair/validation-v4/verifier-reviews/00675ecd9889a0ad5aa33be1bea4386610c3df8bfb62a302ed32948d95de969f/result.json",
+      "sha256": "3dac7fd1de9d04bce6895833003887e2da2b2951958d6fc7835e1554345fee05",
+      "value": {
+        "score": 3,
+        "blockers": [],
+        "repairs": [
+          "Non-Linear LoRA layers are unchecked. instruction.md promises only `lora.layer.Linear` overrides the hook (default False). A submission that puts `supports_lora_conversion -> True` on `LoraLayer` (so Embedding/Conv2d/Conv3d also report True) passes every assertion, yet `convert_to_lora` would then silently emit wrong-shaped factors for an Embedding target. Add a probe observation on a real LoRA Embedding/Conv2d layer (and a tuner containing one) asserting support is False and that conversion raises TypeError.",
+          "tests/test_contract.py PROBE_CODE lines for rank_zero/rank_gt_one/rank_too_high/unsupported catch only the exact expected exception type, so a submission raising e.g. TypeError for rank=0 crashes the whole module-scoped `probe_result` fixture (5 tests error with an opaque RuntimeError from run_probe). Mirror the `rank_float_zero`/`rank_float_negative` style (`except Exception: type(error).__name__`) so the failure is attributable.",
+          "runner.py requires `len(cases) >= contract['min_tests']` with min_tests=9 and exactly 9 unparametrized test functions collected; there is zero headroom. Any future skip/xfail or collection-time error silently flips the reward to 0 for an otherwise correct submission. Either lower min_tests slightly or add an extra independent test (e.g. the Embedding-support case above) to restore margin."
+        ],
+        "evidence": [
+          "tests/test_contract.py:_make_diag_delta uses S=[9,3,1,1]; energy thresholds 0.9 give k=2 while raw-S accumulation gives k=3, so the `threshold_uses_raw_singular_values` mutation is genuinely distinguished by test_threshold_rank_matches_energy_formula.",
+          "test_factor_dimensions_threshold_products_and_scale_metadata checks a_shape==[k,in], b_shape==[out,k], product vs numpy `_best_product`, exact key set, and rank_pattern==alpha_pattern==ranks; this rejects pad_unused_factor_dimension, ignore_rank_always_full, zero_float_factors and any constant/ignored-rank output. Its two matrices ([9,3,1] vs [4,3,2]) pick different k at threshold 0.8, so a per-model (not per-layer) threshold is caught.",
+          "REAL_MODEL_PROBE_CODE builds a real get_peft_model adapter named \"source\" with r=3, alpha=6, so get_delta_weight is scaled by 2; test_real_... compares product to 2*B@A and the reloaded forward to inputs @ (base+product).T. This is an independent oracle for scale-baking, adapter_name forwarding, key prefixes, Conv1D transpose orientation and rank/alpha_pattern reload.",
+          "test_rank_limit_checks_every_nonsquare_layer covers 4x3, 3x5 and square-then-rectangular models with rank 4, distinguishing rank_limit_uses_max_dimension and rank_limit_only_first_layer; test_error_handling additionally asserts ValueError for float 0.0 and -0.5 (kills float_threshold_upper_bound_only).",
+          "hooks in REAL_MODEL_PROBE_CODE observe default_false (bare BaseTunerLayer subclass), selected_true/other_false via a SelectedOnly sentinel, the same through the PeftModel wrapper, empty tuner/wrapper False after replacing fc with its base layer, mixed_false, and TypeError messages containing \"Unsupported\" \u2014 this kills aggregate_ignores_adapter_name and the peft_model.py delegation that drops adapter_name (repaired by solution/repair_reference.py).",
+          "solution/repair_reference.py shows the upstream patch alone fails the contract (float ranks left target_modules empty, aggregate/wrapper dropped adapter_name); solve.sh applies patch.diff then the repair, so the oracle trial must validate the composed result, not patch.diff alone.",
+          "Permitted designs are not over-constrained: _assert_targeted_modules accepts list, suffix or regex targets; _effective_pattern_value accepts redundant integer rank/alpha patterns; the contract's regex_targets_and_metadata, redundant_integer_patterns and aggregate_traverses_wrapped_model equivalents all survive these assertions.",
+          "Resource fit: environment/tests Dockerfiles pin CPU-only torch 2.4.1 and transformers 4.46.3 with HF_HUB_OFFLINE=1; fixtures are 1x3..5x5 matrices and a 4x5 Tiny model, well inside the 240s pytest and 90-120s probe RLIMIT_CPU budgets. Residual uncertainty: the Conv1D reload relies on PEFT auto-correcting fan_in_fan_out=False for a Conv1D target (GOLD does not copy it into the saved config); the oracle execution trial should confirm this emits only a warning in this pinned version."
+        ]
+      }
+    }
+  ],
+  "snippets": {
+    "before": {
+      "path": "workspace/peft-2939-repair/seed-v4/task/tests/test_contract.py",
+      "sha256": "0c71b1c41aa0227443a03f73bbc2838673c23419ecb316a0dd1be1bbf7b7de99",
+      "selector": "test_public_support_hooks_and_mixed_model_rejection",
+      "text": "def test_public_support_hooks_and_mixed_model_rejection(real_model_result):\n    observed, _ = real_model_result\n    hooks = observed[\"hooks\"]\n    assert hooks[\"default_false\"] is False\n    assert hooks[\"selected_true\"] is True\n    assert hooks[\"other_false\"] is False\n    assert hooks[\"wrapper_selected_true\"] is True\n    assert hooks[\"wrapper_other_false\"] is False\n    assert hooks[\"empty_false\"] is False\n    assert hooks[\"empty_wrapper_false\"] is False\n    assert hooks[\"mixed_false\"] is False\n    assert hooks[\"mixed_error\"][\"type\"] == \"TypeError\"\n    assert \"Unsupported\" in hooks[\"mixed_error\"][\"message\"]\n    assert hooks[\"empty_error\"][\"type\"] == \"TypeError\"\n",
+      "text_sha256": "5116c740ce6f1ff14b6ec084e7113c1e4858961976afd5a8d1e5331fb22b3f0f"
+    },
+    "after": {
+      "path": "workspace/peft-2939-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "456bc74175dd08126fc92b6e5d5c59898054649bc936cbdd1349149bae08c0e1",
+      "selector": "test_real_non_linear_lora_layers_are_not_convertible",
+      "text": "def test_real_non_linear_lora_layers_are_not_convertible():\n    observed = run_probe(UNSUPPORTED_MODEL_PROBE_CODE, {}, timeout=90)\n    assert [result[\"kind\"] for result in observed] == [\"embedding\", \"conv2d\"]\n    for result in observed:\n        assert result[\"layer_support\"] is False, result\n        assert result[\"tuner_support\"] is False, result\n        assert result[\"wrapper_support\"] is False, result\n        assert result[\"conversion_error\"] == \"TypeError\", result\n",
+      "text_sha256": "57dda92fb7e79424a1f9428335d4d932cb2e19fbc8328b3be87db4a791f80451"
+    }
+  },
+  "mutation": {
+    "name": "all_lora_layer_types_report_supported",
+    "rationale": "Place the True support override on the common LoraLayer base, incorrectly claiming that Embedding/Conv2d are convertible. Linear still works, but real non-Linear layer/tuner/wrapper support observations must reject this overbroad support claim.",
+    "script": "cd /workspace && python3 - <<'PY_CONTROL'\nfrom pathlib import Path\np = Path('src/peft/tuners/lora/layer.py')\ns = p.read_text()\nold = 'class LoraLayer(BaseTunerLayer):\\n'\nnew = 'class LoraLayer(BaseTunerLayer):\\n    def supports_lora_conversion(self, adapter_name=\"default\"):\\n        return True\\n\\n'\nassert s.count(old) == 1, 'expected unique LoraLayer oracle anchor'\np.write_text(s.replace(old, new, 1))\nPY_CONTROL\n"
+  },
+  "local_scope": "Stdlib inheritance witness: moving support=True to the shared LoRA parent preserves old synthetic-hook assertions but violates newly observed non-Linear support checks.",
+  "review_replay_required": true,
+  "limitation": "The score3/no-blocker historical review placed a real contract gap in repairs. Local assertions prove the witness gap; they cannot establish that a future model classifies it correctly."
+}

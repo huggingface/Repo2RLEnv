@@ -47,9 +47,20 @@ Homepage = "https://github.com/huggingface/Repo2RLEnv"
 Repository = "https://github.com/huggingface/Repo2RLEnv"
 Issues = "https://github.com/huggingface/Repo2RLEnv/issues"
 
+[project.optional-dependencies]
+curation = [
+    "aiohttp>=3.13,<4",
+    "harbor[modal]>=0.20,<0.21",
+    "langgraph>=1.0,<2",
+    "modal>=1.5.3,<2",
+]
+
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+source-exclude = ["node_modules"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

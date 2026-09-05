@@ -331,7 +331,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 failures += 1
                 continue
 
-            missing = [k for k in ("version", "task") if k not in data]
+            missing = [k for k in ("task",) if k not in data]
+            if "version" not in data and "schema_version" not in data:
+                missing.insert(0, "version or schema_version")
             if missing:
                 console.error(f"{tf.relative_to(dataset_dir)}: missing top-level {missing}")
                 failures += 1
@@ -846,6 +848,10 @@ def main(argv: list[str] | None = None) -> int:
         "--no-ui", action="store_true", help="disable Rich live displays globally (plain logs)"
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
+
+    from repo2rlenv.curation.cli import register as register_curation
+
+    register_curation(sub)
 
     # generate
     g = sub.add_parser("generate", help="Run a synthesis pipeline against a repo")
