@@ -39,6 +39,7 @@ from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
 from repo2rlenv.curation.specification_review import review_specification
+from repo2rlenv.curation.verifier_review import review_verifier
 
 logger = logging.getLogger(__name__)
 ADMISSION_VERSION = 5
@@ -491,27 +492,33 @@ async def curate_one(
     save(root / "source.json", source)
 
     async def check_specification(task: Path) -> str | None:
-        if not config.specification_review:
-            return None
         # Timestamped attempts of this candidate share specification findings.
         # Keep prior judge scores outside every final-review revision tree.
-        result = await review_specification(
-            task, root.parent, model=config.judge_model, budget=budget
-        )
-        if not result.passed:
-            return (
-                "Repair this independent specification preflight before remote validation. "
-                "Replace solution recipes with observable requirements and resolve the cited "
-                "ambiguities or contract inconsistencies. Then call validate_candidate again.\n"
-                + result.model_dump_json()
-            )
+        for enabled, reviewer, kind in (
+            (config.specification_review, review_specification, "specification"),
+            (config.verifier_review, review_verifier, "verifier"),
+        ):
+            if not enabled:
+                continue
+            result = await reviewer(task, root.parent, model=config.judge_model, budget=budget)
+            if not result.passed:
+                return (
+                    f"Repair this independent {kind} preflight before remote validation. "
+                    "Address the cited contract, fixture or assertion defects while keeping "
+                    "the task substantive. Then call validate_candidate again.\n"
+                    + result.model_dump_json()
+                )
         return None
 
     first_revision = 0
     seed_specification_feedback = None
     if seed_task is not None:
         pending = _prepare_pending_review(seed_task, root, source, config)
-        if pending is not None:
+        if pending is None:
+            # A preflight rejection has no execution trials to recover. Still
+            # restore its cached findings before another author/model round.
+            seed_specification_feedback = await check_specification(seed_task)
+        else:
             seed_specification_feedback = await check_specification(root / "revision-0/task")
             verdict = (
                 None

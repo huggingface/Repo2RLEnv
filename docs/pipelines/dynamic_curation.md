@@ -116,6 +116,22 @@ Durable inputs, trace, state and results live under each candidate's
 judge's evidence tree. Private evidence publication retains these artifacts.
 Changing tests alone does not rerun this preflight.
 
+Set `verifier_review: true` for a separate focused review of the instruction,
+contract and verifier code before the baseline/oracle builds. The CPU-first profile
+enables both preflights; they remain disabled in the fixed comparison profile.
+This reviewer checks whether actual inputs and assertions distinguish plausible
+wrong implementations, including weighting, numerical thresholds, shapes, gradients
+and promised resource behavior. It checks that equivalent controls preserve the
+whole contract. Findings feed the author repair loop before expensive rollouts.
+Static counterexamples are hypotheses until executed; they are not reported as
+confirmed reward hacks. Results are cached separately by verifier content and policy,
+outside the final trajectory review's evidence tree. Missing or incomplete review
+evidence cannot pass this gate.
+It allows ten reviewer turns and a $2 model allowance per content/policy version,
+with up to 64 files, 64,000 bytes per file and 128,000 bytes overall. The reviewer
+must read every included file in full. These are review input bounds, separate from
+the sandbox's execution limits; oversized or binary review inputs need repair.
+
 This step only guides author repairs. Every admission still requires the trials,
 eight-criterion trajectory review and mandatory gates below.
 

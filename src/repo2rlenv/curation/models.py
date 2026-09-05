@@ -179,6 +179,7 @@ class CampaignConfig(StrictModel):
     author_runtime: Literal["langgraph", "pi", "opencode"] = "langgraph"
     judge_model: str = "anthropic/claude-opus-4-6"
     specification_review: bool = False
+    verifier_review: bool = False
     solver_models: list[str] = Field(
         default_factory=lambda: ["anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4-6"],
         min_length=2,

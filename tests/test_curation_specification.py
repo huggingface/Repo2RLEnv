@@ -87,12 +87,15 @@ async def review(s, **kwargs):
 
 def test_configuration_is_opt_in_and_cpu_first_enables_it():
     assert CampaignConfig().specification_review is False
+    assert CampaignConfig().verifier_review is False
     config = CampaignConfig.model_validate_json(Path("configs/curation/cpu-first.json").read_text())
     assert config.specification_review is True
+    assert config.verifier_review is True
     comparison = CampaignConfig.model_validate_json(
         Path("configs/curation/runtime-comparison.json").read_text()
     )
     assert comparison.specification_review is False
+    assert comparison.verifier_review is False
 
 
 @pytest.mark.parametrize(
@@ -325,10 +328,11 @@ def author_campaign(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["specification", "verifier"])
 @pytest.mark.parametrize("calls_tool", [False, True])
 @pytest.mark.parametrize("passes", [False, True])
 async def test_specification_precedes_cloud_with_or_without_author_tool(
-    author_campaign, monkeypatch, calls_tool, passes
+    author_campaign, monkeypatch, calls_tool, passes, kind
 ):
     s = author_campaign
     static = (
@@ -348,10 +352,10 @@ async def test_specification_precedes_cloud_with_or_without_author_tool(
         if calls_tool:
             feedback.append(await kwargs["handlers"]["validate_candidate"]())
 
-    monkeypatch.setattr(campaign, "review_specification", specification)
+    monkeypatch.setattr(campaign, f"review_{kind}", specification)
     monkeypatch.setattr(campaign, "run_agent", author)
     config = CampaignConfig(
-        specification_review=True, judge_model="anthropic/claude-opus-5", max_revisions=1
+        **{f"{kind}_review": True}, judge_model="anthropic/claude-opus-5", max_revisions=1
     )
     verdict = await campaign.curate_one(s.source, s.root, config, s.budget)
     assert len(checks) == (2 if calls_tool else 1)
@@ -372,6 +376,7 @@ async def test_default_config_does_not_add_a_model_call(author_campaign, monkeyp
     s = author_campaign
     specification = AsyncMock(side_effect=AssertionError("Opt-in only"))
     monkeypatch.setattr(campaign, "review_specification", specification)
+    monkeypatch.setattr(campaign, "review_verifier", specification)
     monkeypatch.setattr(campaign, "run_agent", AsyncMock())
     await campaign.curate_one(s.source, s.root, CampaignConfig(max_revisions=1), s.budget)
     specification.assert_not_awaited()
@@ -379,9 +384,10 @@ async def test_default_config_does_not_add_a_model_call(author_campaign, monkeyp
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["specification", "verifier"])
 @pytest.mark.parametrize("passes", [True, False])
 async def test_resumed_checkpoint_is_reviewed_before_missing_trials(
-    author_campaign, monkeypatch, passes
+    author_campaign, monkeypatch, passes, kind
 ):
     s = author_campaign
     seed = s.root.parent / "previous/revision-0/task"
@@ -408,9 +414,13 @@ async def test_resumed_checkpoint_is_reviewed_before_missing_trials(
 
     author = AsyncMock(side_effect=author)
     monkeypatch.setattr(campaign, "run_agent", author)
-    monkeypatch.setattr(campaign, "review_specification", specification)
+    monkeypatch.setattr(campaign, f"review_{kind}", specification)
     verdict = await campaign.curate_one(
-        s.source, s.root, CampaignConfig(specification_review=True, max_revisions=1), s.budget, seed
+        s.source,
+        s.root,
+        CampaignConfig(**{f"{kind}_review": True}, max_revisions=1),
+        s.budget,
+        seed,
     )
     if passes:
         assert verdict == accepted
@@ -443,4 +453,41 @@ async def test_incomplete_resumed_preflight_cannot_start_cloud(author_campaign, 
         )
     resumed.assert_not_awaited()
     s.sandbox.start.assert_not_awaited()
+    s.preflight.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["specification", "verifier"])
+async def test_resume_without_trials_restores_preflight_repairs_before_author(
+    author_campaign, monkeypatch, kind
+):
+    s = author_campaign
+    seed = s.root.parent / "previous/drafts/1/task"
+    write_task(seed)
+    monkeypatch.setattr(campaign, "_prepare_pending_review", Mock(return_value=None))
+    checked = []
+
+    async def static(task, root, **kwargs):
+        checked.append(task)
+        return result(
+            score=2,
+            blockers=["Unit weights cannot distinguish incorrect weighting"],
+            repairs=["Use unequal positive weights and assert the weighted result"],
+        )
+
+    async def author(**kwargs):
+        assert checked == [seed]
+        assert "Use unequal positive weights" in kwargs["prompt"]
+
+    monkeypatch.setattr(campaign, f"review_{kind}", static)
+    monkeypatch.setattr(campaign, "run_agent", AsyncMock(side_effect=author))
+    verdict = await campaign.curate_one(
+        s.source,
+        s.root,
+        CampaignConfig(**{f"{kind}_review": True}, max_revisions=1),
+        s.budget,
+        seed,
+    )
+    assert verdict["status"] == "rejected"
+    assert checked[0] == seed
     s.preflight.assert_not_awaited()
