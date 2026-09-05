@@ -8,6 +8,7 @@
   "specification_review": true,
   "solver_models": ["anthropic/claude-sonnet-5", "anthropic/claude-opus-5"],
   "author_turns": 55,
+  "author_timeout_sec": 7200,
   "solver_turns": 40,
   "max_revisions": 3,
   "oracle_repeats": 3,

@@ -202,6 +202,11 @@ trial output, independent review and a verdict. Full solver traces are recorded
 in each trial's `agent/trace.jsonl`. `budget.json` is a process-safe write-ahead
 ledger of API reservations, metered model cost and conservative cloud allowances.
 Unknown model pricing fails closed. Provider invoices remain the billing authority.
+The CPU-first profile allows a two-hour author sandbox lifetime because Modal's
+timeout includes time spent waiting for separate validation trials. A finished
+local task export can still be validated after its author sandbox expires; any
+further author work requires an explicit checkpoint retry. The pipeline does not
+silently extend a live runtime-comparison cell's original limits.
 Interrupted validation can resume from an unchanged finalized task, reusing
 successful checks and rerunning missing or invalid trials. A pending review can
 resume without repeating authoring or cloud validation; a valid quality rejection
