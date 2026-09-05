@@ -302,3 +302,22 @@ and a new cache identity. Thresholds, read coverage and six-turn/$2 limits are
 unchanged. This closes a feedback bypass observed in score-3 reviews containing
 material repairs; it does not establish improved conversion yield. Frozen v26
 continues with its original specification policy.
+
+### Interrupted final review continuation
+
+A final judge stopped after six complete model/tool turns in v26 because its
+next worst-case reservation exceeded the candidate cap while the author sandbox
+reservation was held. After sandbox settlement, the same original scope had
+headroom. `review_resume.resume_review` can continue that journal on an isolated
+evidence copy without rerunning authoring, trials or completed tools.
+
+The caller pins the original run configuration and evidence hashes. The helper
+checks model/policy/inference, catalog sizes, exact previously read pages, complete
+ordered tool batches, and original ledger/scope/group limits. It preserves prior
+turns and costs and makes a durable ledger-wide claim keyed by the original
+journal digest. Another output directory, evidence copy or scope cannot restart
+that journal. A second failure remains recorded; no formatting retry or admission
+override is provided. Historical unread-file contents were not hashed by the
+original review, so the receipt distinguishes newly frozen evidence from verified
+previous reads. The returned review still requires all normal admission checks
+and independent audit.
