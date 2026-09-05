@@ -339,7 +339,9 @@ def test_finalize_owns_separate_grader_and_digest(tmp_path, monkeypatch):
     }
     content = {
         "instruction.md": "Fix the widget behavior in src/widget, including empty and nested inputs.",
-        "environment/Dockerfile": "FROM python:3.12-slim\nWORKDIR /workspace\nRUN curl "
+        "environment/Dockerfile": "FROM python:3.12-slim\nWORKDIR /workspace\n"
+        "# Fetch source as an archive, not a git clone.\n"
+        "# Do not run pip install unpinned-package.\nRUN curl "
         + source["base_sha"]
         + "\nRUN pip install pytest==8.4.2\n",
         "solution/solve.sh": "#!/bin/bash\ntrue\n",
@@ -377,6 +379,24 @@ def test_finalize_owns_separate_grader_and_digest(tmp_path, monkeypatch):
     before = digest_task(tmp_path)
     (tmp_path / "instruction.md").write_text("changed")
     assert digest_task(tmp_path) != before
+    recipe_path = tmp_path / "environment/Dockerfile"
+    recipe_path.write_text(
+        recipe_path.read_text().replace(
+            "WORKDIR /workspace", "RUN git clone source\nWORKDIR /workspace", 1
+        )
+    )
+    with pytest.raises(ValueError, match="Forbidden build input: git clone"):
+        finalize(tmp_path, source)
+
+
+def test_build_comment_filter_preserves_executable_and_heredoc_inputs():
+    from repo2rlenv.curation.artifacts import build_instruction_text
+
+    assert "git clone" not in build_instruction_text("# archive, not a git clone\nRUN curl source")
+    assert "git clone" in build_instruction_text("# fine\nRUN git clone source")
+    assert "git clone" in build_instruction_text("RUN <<'SCRIPT'\n# git clone source\nSCRIPT")
+    assert "git clone" in build_instruction_text('COPY <<"DATA" /file\n# git clone source\nDATA')
+    assert "git clone" in build_instruction_text("RUN <<-SCRIPT\n\t# git clone source\n\tSCRIPT")
 
 
 def test_cli_validate_accepts_current_harbor_schema(tmp_path):

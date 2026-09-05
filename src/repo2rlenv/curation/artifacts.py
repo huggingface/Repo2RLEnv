@@ -15,6 +15,29 @@ import tomli_w
 from repo2rlenv.curation.models import Contract
 
 
+def build_instruction_text(recipe: str) -> str:
+    """Exclude Docker comments, retaining heredoc contents for conservative checks."""
+    lines = []
+    pending: list[tuple[str, bool]] = []
+    uncertain = False
+    for line in recipe.splitlines():
+        if pending:
+            lines.append(line)
+            delimiter, tabs = pending[0]
+            if (line.lstrip("\t") if tabs else line) == delimiter:
+                pending.pop(0)
+            continue
+        if line.lstrip().startswith("#") and not uncertain:
+            continue
+        lines.append(line)
+        matches = list(re.finditer(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2", line))
+        pending.extend((m[3], bool(m[1])) for m in matches)
+        if "<<" in line and not matches:
+            # Unrecognized shell/data syntax must not hide later executable text.
+            uncertain = True
+    return "\n".join(lines)
+
+
 def validate_dependency_pins(recipe: str) -> None:
     """Catch direct floating dependencies before paying to build or run a task."""
     for line in recipe.replace("\\\n", " ").splitlines():
@@ -232,21 +255,23 @@ def finalize(path: Path, source: dict) -> Contract:
     recipe = (
         (path / "environment/Dockerfile").read_text().split("# repo2rlenv isolation:")[0].rstrip()
     )
+    instructions = build_instruction_text(recipe)
     for forbidden in [
         source["head_sha"],
         "/private/",
         "gold.patch",
         "/solution",
         "/tests",
-        "git clone",
     ]:
         if forbidden in recipe:
             raise ValueError(f"Forbidden build input: {forbidden}")
+    if "git clone" in instructions:
+        raise ValueError("Forbidden build input: git clone")
     if source["base_sha"] not in recipe:
         raise ValueError("Build recipe must fetch the immutable base revision")
     if "WORKDIR /workspace" not in recipe:
         raise ValueError("Build recipe must use /workspace")
-    validate_dependency_pins(recipe)
+    validate_dependency_pins(instructions)
     bases = re.findall(r"^FROM\s+(\S+)", recipe, re.MULTILINE)
     if len(bases) != 1:
         raise ValueError("This profile requires one explicit base image")

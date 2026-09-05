@@ -8,6 +8,7 @@ import pytest
 
 from repo2rlenv.curation import campaign, pilot
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
+from repo2rlenv.curation.design import DesignNotSubmitted
 from repo2rlenv.curation.models import CampaignConfig
 from repo2rlenv.curation.protocol import DraftLimitExceeded, DraftTracker
 
@@ -79,9 +80,8 @@ async def test_author_cannot_bypass_limit_with_repeated_validation_tools(tmp_pat
     async def author(**kwargs):
         validate = kwargs["handlers"]["validate_candidate"]
         assert "Structural" in await validate()
-        assert "Structural" in await validate()
         await validate()
-        pytest.fail("A third draft must terminate the author")
+        pytest.fail("A second failed draft must terminate before a third repair")
 
     monkeypatch.setattr(campaign, "AuthorSandbox", Sandbox)
     monkeypatch.setattr(campaign, "finalize", invalid)
@@ -95,6 +95,9 @@ async def test_author_cannot_bypass_limit_with_repeated_validation_tools(tmp_pat
         )
     assert stopped == [True]
     assert len(json.loads((tmp_path / "candidate/submitted-drafts.json").read_text())) == 2
+    assert (
+        "Missing required files" in (tmp_path / "candidate/repair-limit-feedback.json").read_text()
+    )
 
 
 def protocol(tmp_path):
@@ -129,7 +132,12 @@ def protocol(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_pilot_keeps_failures_in_denominator_and_never_reruns(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "error,status", [(DraftLimitExceeded, "repair_limit"), (DesignNotSubmitted, "design_failure")]
+)
+async def test_pilot_keeps_failures_in_denominator_and_never_reruns(
+    tmp_path, monkeypatch, error, status
+):
     data = protocol(tmp_path)
     path = tmp_path / "input.json"
     path.write_text(json.dumps(data))
@@ -138,14 +146,14 @@ async def test_pilot_keeps_failures_in_denominator_and_never_reruns(tmp_path, mo
     async def curate(source, root, config, budget):
         calls.append(source["id"])
         budget.reserve(0.2, "unknown failed call")
-        raise DraftLimitExceeded("one repair exhausted")
+        raise error("bounded phase exhausted")
 
     monkeypatch.setattr(pilot, "curate_one", curate)
     out = tmp_path / "pilot"
     result = await pilot.run_pilot(path, out)
     assert len(result["rows"]) == 5
     assert result["charged_or_reserved_usd"] == 1
-    assert {r["status"] for r in result["rows"]} == {"repair_limit"}
+    assert {r["status"] for r in result["rows"]} == {status}
     await pilot.run_pilot(path, out)
     assert len(calls) == 5
     with pytest.raises(ValueError, match="original output"):

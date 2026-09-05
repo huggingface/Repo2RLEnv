@@ -136,7 +136,7 @@ async def test_unexportable_structural_submissions_exhaust_the_same_two_draft_li
             CampaignConfig(max_candidate_drafts=2),
             Budget(tmp_path / "ledger.json", 20),
         )
-    assert len(exports) == 3
+    assert len(exports) == 2
     assert stopped == [True]
 
 
@@ -195,26 +195,25 @@ def test_verification_plan_rejects_missing_or_wrong_behavior_mapping(tmp_path, f
         check_verification_plan(tmp_path, contract)
 
 
-def test_verifier_snapshot_and_read_coverage_include_the_complete_plan(tmp_path):
+@pytest.mark.parametrize("extra", ["verification-plan.json", "authoring-context.json"])
+def test_verifier_snapshot_and_read_coverage_include_private_authoring_evidence(tmp_path, extra):
     verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
     _, plan = _contract_and_plan()
     files = {
         "instruction.md": "Compute sum and preserve order.",
         "contract.json": "{}",
         "tests/test_contract.py": "def test_sum():\n    assert 1 + 2 == 3\n",
-        "verification-plan.json": json.dumps(plan),
+        extra: json.dumps(plan),
     }
     for name, text in files.items():
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     snapshot = verifier._snapshot(tmp_path)
-    assert snapshot["verification-plan.json"] == files["verification-plan.json"]
+    assert snapshot[extra] == files[extra]
     reads = {name: [[0, len(text)]] for name, text in snapshot.items()}
     assert verifier._complete(snapshot, reads)
-    del reads["verification-plan.json"]
+    del reads[extra]
     assert not verifier._complete(snapshot, reads)
-    (tmp_path / "verification-plan.json").write_text(
-        json.dumps({**plan, "artifact_boundary": "different"})
-    )
+    (tmp_path / extra).write_text(json.dumps({**plan, "artifact_boundary": "different"}))
     assert verifier._snapshot(tmp_path) != snapshot

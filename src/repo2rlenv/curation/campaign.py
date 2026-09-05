@@ -17,6 +17,7 @@ from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
 from repo2rlenv.curation.artifacts import digest_task, finalize, release_task
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.cloud import AuthorSandbox
+from repo2rlenv.curation.design import plan_candidate_design
 from repo2rlenv.curation.evaluate import (
     TAMPER,
     evidence_summary,
@@ -38,6 +39,7 @@ from repo2rlenv.curation.models import (
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.protocol import (
     PILOT_AUTHOR,
+    DraftLimitExceeded,
     DraftTracker,
     check_verification_plan,
 )
@@ -496,8 +498,26 @@ async def curate_one(
     root.mkdir(parents=True, exist_ok=True)
     save(root / "source.json", source)
     drafts = DraftTracker(root / "submitted-drafts.json", config.max_candidate_drafts)
+    initial_design = None
+
+    def repair_feedback(message: str) -> str:
+        if drafts.limit is not None and len(drafts.rows) >= drafts.limit:
+            save(root / "repair-limit-feedback.json", {"feedback": message, "drafts": drafts.rows})
+            raise DraftLimitExceeded(
+                f"Submitted draft limit {drafts.limit} exhausted; final failure retained in repair-limit-feedback.json"
+            )
+        return message
 
     def submit(task: Path) -> Contract:
+        if initial_design is not None:
+            save(
+                task / "authoring-context.json",
+                {
+                    "source": {key: source.get(key) for key in ("url", "base_sha", "head_sha")},
+                    "screening_observations": source.get("screening_observations", []),
+                    "initial_design": initial_design.model_dump(),
+                },
+            )
         try:
             contract = finalize(task, source)
         except ValueError:
@@ -567,10 +587,11 @@ async def curate_one(
     async def export_submission(task: Path) -> None:
         try:
             await sandbox.export(task)
-        except ValueError:
+        except ValueError as exc:
             # A symlink, size violation or invalid export cannot be hashed safely.
             # Count each such submission rather than allowing unlimited tool retries.
             drafts.observe(f"unexportable-{len(drafts.rows) + 1}", task)
+            repair_feedback("Candidate export failed: " + str(exc))
             raise
 
     async def defer_candidate(reason: str) -> str:
@@ -586,14 +607,23 @@ async def curate_one(
         try:
             submit(task)
         except ValueError as exc:
-            return "Structural validation failed: " + str(exc)
+            return repair_feedback("Structural validation failed: " + str(exc))
         specification_feedback = await check_specification(task)
         if specification_feedback:
-            return specification_feedback
+            return repair_feedback(specification_feedback)
         digest = digest_task(task)
         if digest not in cached or any(t.error for t in cached[digest]):
             logger.info("%s: remote baseline and oracle, draft %s", source["id"], attempt)
             cached[digest] = await preflight(task, folder / "trials", config=config, budget=budget)
+        if (
+            len(cached[digest]) != 2
+            or {t.label for t in cached[digest]} != {"baseline", "oracle-0"}
+            or any(
+                not t.valid or t.reward != (0 if t.label == "baseline" else 1)
+                for t in cached[digest]
+            )
+        ):
+            repair_feedback(evidence_summary(cached[digest]))
         return evidence_summary(cached[digest])
 
     try:
@@ -604,6 +634,30 @@ async def curate_one(
         )
         await sandbox.prepare(source)
         feedback = "Investigate this PR and create the task.\n" + json.dumps(source)
+        if config.require_verification_plan and seed_task is None:
+            design = await plan_candidate_design(
+                source=source,
+                root=root,
+                shell=sandbox.shell,
+                budget=budget,
+                model=config.author_model,
+                runtime=config.author_runtime,
+            )
+            initial_design = design
+            prepared = json.loads(await sandbox.shell("mkdir -p /output/task"))
+            if prepared["exit_code"]:
+                raise RuntimeError("Could not prepare the planned task directory")
+            await sandbox.write(
+                "/output/task/verification-plan.json",
+                design.verification_plan.model_dump_json(indent=2),
+            )
+            feedback += (
+                "\nThe planning phase accepted and saved this design. Its verification plan "
+                "is already in /output/task/verification-plan.json. Implement it and check "
+                "the real fixtures before submitting a complete task. Schema acceptance "
+                "is not a semantic review or proof that the reference works.\n"
+                + design.model_dump_json()
+            )
         if seed_task is not None:
             digest_task(seed_task)
             for p in seed_task.rglob("*"):
@@ -656,11 +710,11 @@ async def curate_one(
             try:
                 contract = submit(task)
             except ValueError as exc:
-                feedback = "Repair the structural validation failure: " + str(exc)
+                feedback = repair_feedback("Repair the structural validation failure: " + str(exc))
                 continue
             specification_feedback = await check_specification(task)
             if specification_feedback:
-                feedback = specification_feedback
+                feedback = repair_feedback(specification_feedback)
                 continue
             digest = digest_task(task)
             trials = list(
@@ -677,6 +731,7 @@ async def curate_one(
                     trials
                 )
                 execution_errors = [t.model_dump() for t in trials if t.error]
+                repair_feedback(feedback)
                 continue
             # Cheap correctness gates precede paid model rollouts.
             for i in range(1, config.oracle_repeats):
@@ -733,6 +788,7 @@ async def curate_one(
             if bad:
                 execution_errors = [t.model_dump() for t in bad if t.error]
                 feedback = "Repair validation; these controls failed:\n" + evidence_summary(bad)
+                repair_feedback(feedback)
                 continue
             for model_index, model in enumerate(config.solver_models):
                 for k in range(config.solver_attempts):
@@ -780,6 +836,7 @@ async def curate_one(
                 + "\nGate failures: "
                 + json.dumps(verdict["reasons"])
             )
+            repair_feedback(feedback)
         return {
             **(last_verdict or {}),
             "id": source["id"],

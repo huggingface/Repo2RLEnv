@@ -14,16 +14,24 @@ successes in this experiment.
    each slot has $8; reservations, estimated cloud cost, and metered model costs
    share these limits. Prior costs remain charged. These are accounting ceilings,
    not a claim of reconciled provider invoices; settlement overruns remain visible.
-3. Authors explore remotely and write a verification design before implementing
-   assertions. Every requirement names independent expected results, tests, a
+3. A separate bounded author phase explores remotely and submits a verification
+   design before implementation starts (at most 20 turns/$2 within the same budget).
+   Its structured tool returns schema feedback without consuming environment drafts.
+   Acceptance atomically stores the design and its source digest; a different PR
+   cannot reuse that cache. The host places the validated plan in the task directory
+   before invoking the implementation author. Every requirement names independent expected results, tests, a
    plausible wrong implementation and a permitted alternative. Structural checks
    enforce those mappings before paid review or task execution. The verifier
-   reviewer reads the plan and actual tests; a plan alone proves nothing.
+   reviewer reads the plan and actual tests; a plan alone proves nothing. Host-owned
+   review context retains the screened scope and original design, so later omissions
+   remain visible even when the author rewrites the final plan.
 4. Each slot permits an initial submitted task and one autonomous repair.
    Distinct finalized task digests count across validation tool calls and author
    rounds; structurally invalid submissions count too. Resubmitting identical
    content does not consume another draft. Exports that cannot safely be hashed
-   (such as linked or oversized files) each consume a submission. This limits submitted candidates, not
+   (such as linked or oversized files) each consume a submission. A failed final
+   submission saves its feedback and terminates immediately, without inviting
+   another repair. This limits submitted candidates, not
    ordinary edits during initial authoring. No manual rescue counts toward yield.
 5. Keep structural and static reviews, baseline/reference repetitions, negative
    and equivalent controls, Sonnet/Opus attempts, and adversarial attempts. A
@@ -40,6 +48,12 @@ Changing the frozen runtime or configuration is rejected. Moving to a new output
 directory cannot reset a pilot that already has charges. All five slots remain in
 the denominator, including deferrals, budget stops, and infrastructure failures.
 No replacement is made after observing author or solver outcomes.
+
+The first frozen pilot used commit `df18b52` before the separate design phase and
+immediate termination were added. Its original runtime and outcomes remain retained;
+later fixes do not retroactively change that experiment. A discovered Dockerfile
+comment false positive is also corrected: ordinary full-line comments are excluded
+from executable-input checks, while heredoc bodies remain conservatively inspected.
 
 ```bash
 repo2rlenv curation-audit --workspace workspace --seeds seeds.md \
@@ -61,3 +75,39 @@ Cloud builds and task execution use Modal. Solver and grader environments remain
 offline, with separate protected assertions and no PR history or solution data
 in the solver environment. Other author adapters remain available; the pilot
 holds its chosen adapter fixed instead of changing it after an unfavorable result.
+
+## First frozen pilot: observed results
+
+The September 5, 2026 pilot at `df18b52` completed with **0/5 accepted** and
+**$7.683947 recorded cost** (metered models plus estimated cloud use). Each fixed
+slot exhausted its two submitted drafts. No candidate reached isolated Harbor
+baseline/reference, solver or adversarial trials; author-sandbox smoke checks are
+separate evidence. There were no manual rescues or replacement candidates.
+
+| Fixed source | Recorded cost | Observed blocking failures |
+| --- | ---: | --- |
+| PEFT #2962 | $1.296 | Invalid control mapping, then tests unable to distinguish state-dict selection from config fallback. |
+| TRL #6152 | $2.182 | Missing plan, then guard coverage missing false cases; a proposed precompute fixture had already failed in author smoke checks. |
+| Diffusers #13921 | $1.574 | Harness falsely flagged `git clone` in a comment; the next submission still lacked its verification plan. |
+| Accelerate #3142 | $0.863 | Inconsistent plan mappings; independent audit also found omitted call-site behavior required by screening. |
+| TRL #6150 | $1.769 | Single paired-batch fixtures missed wrong running-average behavior; the revised export included Python bytecode that the text-only evidence reader rejected. |
+
+All costs count, including work exported after the submission allowance was already
+exhausted. Those third exports were blocked before validation and are not extra
+evaluated repairs. A structural rejection does not establish that the source PR is
+inherently unsuitable. TRL #6150's repaired author-side smoke checks are encouraging,
+but cannot establish isolated task admission or model difficulty.
+
+The scaling gate failed. The three earlier selected tasks remain a separate,
+manually reviewed collection pending human benchmark review; this pilot added none.
+The target of 30 selected tasks has not been achieved.
+
+The next runtime adds the separate design phase, retained screening context,
+immediate final-failure termination, Dockerfile comment handling, and reviewer
+instructions distinguishing suggested fixtures from executed evidence. These changes
+have automated coverage, but no new live pilot validates their effect on yield.
+Bytecode/export hygiene remains a known follow-up: silently hiding binary evidence
+from the reviewer would be unsafe. Before any new paid batch, define and test a
+canonical export policy and replay the retained failure cases without model calls.
+A subsequent fresh pilot must have its own frozen sources and cumulative budget;
+this failed pilot must stay in the denominator of any aggregate report.

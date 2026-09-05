@@ -18,6 +18,7 @@ from repo2rlenv.curation.campaign import (
     curate_one,
     save,
 )
+from repo2rlenv.curation.design import DesignNotSubmitted
 from repo2rlenv.curation.models import CampaignConfig
 from repo2rlenv.curation.protocol import DraftLimitExceeded
 from repo2rlenv.curation.sources import PR_PATTERN
@@ -155,11 +156,17 @@ async def run_pilot(protocol_path: Path, out: Path) -> dict:
                     if result["status"] == "accepted":
                         task = _validate_accepted(out, result, config)
                         release_task(task, out / "tasks" / source["id"])
-                except (CandidateDeferred, DraftLimitExceeded, BudgetExceeded) as exc:
+                except (
+                    CandidateDeferred,
+                    DraftLimitExceeded,
+                    BudgetExceeded,
+                    DesignNotSubmitted,
+                ) as exc:
                     status = {
                         CandidateDeferred: "deferred",
                         DraftLimitExceeded: "repair_limit",
                         BudgetExceeded: "budget_exhausted",
+                        DesignNotSubmitted: "design_failure",
                     }[type(exc)]
                     result = {"status": status, "reasons": [str(exc)]}
                 except Exception as exc:
