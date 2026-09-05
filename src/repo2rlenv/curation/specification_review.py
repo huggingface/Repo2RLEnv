@@ -31,6 +31,9 @@ Evaluate only these static specification questions:
    flow are solution leakage, even if no literal code is supplied. Treat material leakage as
    a blocker. Public interface signatures, input/output examples, and behavioral invariants
    needed to define the problem are legitimate specification, not automatically leakage.
+   A mathematical equation defining the required public output is also legitimate when
+   necessary for an unambiguous contract. Endpoints and monotonicity alone cannot define
+   every interior value of a required cosine schedule; do not remove necessary semantics.
 3. Is the public API contract sufficient to identify how behavior is invoked and observed,
    including required names/signatures, inputs/outputs and relevant compatibility constraints?
    Do not demand an implementation design or manufacture undocumented API requirements.

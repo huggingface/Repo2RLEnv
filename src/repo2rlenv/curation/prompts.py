@@ -84,6 +84,14 @@ Required output:
   initialization can hide normalization errors by cancelling the same wrong quantity
   in numerator and denominator. Include a mutation that breaks the promised math
   while preserving the new API or cache lifecycle, and ensure the tests reject it.
+  Choose inputs that distinguish plausible wrong implementations: for weighted means,
+  use nonuniform nonzero weights and total weight below one; for energy thresholds,
+  choose boundaries where raw and squared singular values select different ranks.
+  Observe every promised output, including shapes, metadata, dtype and gradients where
+  relevant. Converting a loss to float alone cannot verify that it remains differentiable.
+  For memory/chunking promises, measure deterministic allocation or projection-shape
+  observables on small CPU inputs, not wall-clock speed. An equivalent control must
+  preserve resource behavior as well as numeric outputs when both are required.
   No inspecting source strings as a substitute for behavioral testing. The original
   repo conftest/plugins are disabled. Only the worker imports the editable repository.
   Don't write test.sh or probe.py: the harness owns the isolated reward wrapper.
@@ -131,6 +139,10 @@ implementation expressions is solution leakage even without a code block. Such a
 recipe cannot score above 2 here. Distinguish it from necessary public interfaces,
 observable ordering rules and concise input/output examples. Do not excuse a recipe
 because the verifier asserts exact outputs: those outcomes can be specified directly.
+A mathematical definition of a required public output is not, by itself, an
+implementation recipe. Removing a necessary equation can make the task ambiguous:
+endpoints and monotonicity alone do not uniquely define a cosine schedule. Judge
+algorithmic hints separately from the mathematical function the API must compute.
 realism: useful, coherent engineering work; not rote patch application or a toy rewrite.
 test_coverage: map EVERY instruction requirement to observed executable tests; probe
 edge cases, regressions and alternative correct solutions. Inspect the equivalent
@@ -151,6 +163,12 @@ For numerical preservation claims, check for an independent numerical anchor and
 nontrivial parameter states. Comparing two paths through the same submitted math can
 pass when both are wrong; fresh initialization may cancel a defective normalization.
 Metamorphic consistency alone does not establish the original numerical contract.
+Check that fixtures actually distinguish plausible wrong alternatives: unit weights
+cannot establish weighting, and some thresholds select identical ranks from raw and
+squared singular values. Check all promised outputs, not just a scalar summary: float
+conversion hides broken gradient and tensor contracts; product equality hides wrong
+factor shapes. Memory/chunking guarantees need deterministic resource observations,
+not only numerical parity. An equivalent that violates those guarantees is invalid.
 verifier_integrity: negative controls/mutations/adversary, clean grader, no answer access.
 solvability: oracle succeeds repeatedly AND solution follows from the visible contract.
 reproducibility: pinned, offline, deterministic, no undeclared hardware/services.
