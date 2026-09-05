@@ -94,6 +94,10 @@ Required output:
   A requirement-to-test map must cover ALL instruction promises. source_paths are the
   only directories/files transferred into a FRESH grader; tell the solver where code
   belongs. Dependencies, repo tests and grading scripts are never submitted.
+  Check every public option and promised compatibility behavior, including ignored
+  extra keyword arguments and custom parameters on each behavior branch. A test of
+  custom correct-answer bounds does not cover custom wrong-answer bounds. Do not map
+  a requirement to a test that never exercises or asserts that requirement.
 
 Aim for demanding but self-contained work. Use defer_candidate with concrete reasons
 when no substantive task fits the profile. Reject/defer candidates needing hardware
@@ -124,6 +128,13 @@ test_coverage: map EVERY instruction requirement to observed executable tests; p
 edge cases, regressions and alternative correct solutions. Inspect the equivalent
 control script: a no-op or cosmetic-only edit is insufficient fairness evidence.
 min_tests is not coverage.
+An explicitly promised behavior with no executable assertion is a blocker and caps
+test_coverage at 2. This includes an untested public option, compatibility promise or
+custom parameter branch. A requirement-to-test mapping alone is not evidence: inspect
+the actual inputs and assertions. Do not describe such missing coverage as optional
+polish while passing the criterion; request a concrete test or a justified narrower
+contract. Distinguish a missing promised behavior from merely wanting more examples
+of behavior already tested.
 For numerical preservation claims, check for an independent numerical anchor and
 nontrivial parameter states. Comparing two paths through the same submitted math can
 pass when both are wrong; fresh initialization may cancel a defective normalization.
