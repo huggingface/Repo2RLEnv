@@ -42,6 +42,10 @@ permitted equivalent designs where relevant to this task. In particular:
   through the same submitted math is not an independent oracle. Reading submitted parameters
   can test arithmetic relationships, but all-zero or identical fixture values may hide mistakes.
   Inspect actual expected values and choose distinguishing inputs for proposed repairs.
+  Derive required scales/config values from fixed public inputs, not submitted fields
+  that can be wrong consistently. Save/load checks need changed post-construction state;
+  reconstructing constructor weights must not pass as persisting a trained component.
+  Lifecycle tests must observe newly requested states as well as old-state preservation.
 - Promises of learnable parameters or gradient behavior need gradient observations. Avoid a
   degenerate loss such as the unweighted sum of a layer-normalized output. Separate ordinary
   learning from optional checkpointing, GPU performance, VRAM, and unmeasured resource claims.

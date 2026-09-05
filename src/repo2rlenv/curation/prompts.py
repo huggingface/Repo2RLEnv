@@ -84,6 +84,12 @@ Required output:
   initialization can hide normalization errors by cancelling the same wrong quantity
   in numerator and denominator. Include a mutation that breaks the promised math
   while preserving the new API or cache lifecycle, and ensure the tests reject it.
+  Derive specified scales and metadata from fixed public inputs, not a submitted
+  scaling/config field that could share the same defect. For persistence, change
+  weights after construction and compare reloaded values with those changed values;
+  recreating a freshly initialized model must not satisfy a save/load requirement.
+  For lifecycle operations, observe the newly requested state as well as preservation
+  of the old state. Test promised remote metadata behavior with offline service stubs.
   Choose inputs that distinguish plausible wrong implementations: for weighted means,
   use nonuniform nonzero weights and total weight below one; for energy thresholds,
   choose boundaries where raw and squared singular values select different ranks.
@@ -163,6 +169,10 @@ For numerical preservation claims, check for an independent numerical anchor and
 nontrivial parameter states. Comparing two paths through the same submitted math can
 pass when both are wrong; fresh initialization may cancel a defective normalization.
 Metamorphic consistency alone does not establish the original numerical contract.
+Trace the origin of expected values: a submitted scaling/config field is not an
+independent reference for its own specified formula. A save/load fixture at constructor
+weights can pass when an implementation recreates the model instead of saving it.
+Check that lifecycle tests observe new requested states, not only unchanged old ones.
 Check that fixtures actually distinguish plausible wrong alternatives: unit weights
 cannot establish weighting, and some thresholds select identical ranks from raw and
 squared singular values. Check all promised outputs, not just a scalar summary: float
@@ -176,8 +186,11 @@ intrinsic_difficulty: meaningful reasoning; failures must not be caused by missi
 dependencies, ambiguity, arbitrary formatting, resource starvation or an invalid grader.
 trace_quality: enough observed execution to support conclusions and diagnose failures.
 
-For each solver trial classify solved, reasoning, underspecified, verifier,
-infrastructure, timeout or unknown. Disagreement with the hidden reference algorithm
+Populate failure_attribution only for solver-* trials, classifying each as solved,
+reasoning, underspecified, verifier, infrastructure, timeout or unknown. Describe
+control rejection causes in criterion evidence and adversary behavior in
+adversary_assessment; an expected reward-zero control is not a solved coding task.
+Disagreement with the hidden reference algorithm
 is not a failure if the outcome is correct. Identify reward hacks explicitly and
 set adversary_assessment from the actual attack trace: attempted_hack, solved_task,
 no_audit, or unknown. A reward of one alone does not prove a hack: if the purported
