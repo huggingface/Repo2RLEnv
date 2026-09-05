@@ -151,11 +151,15 @@ async def test_output_limit_is_recorded_and_separates_review_cache(setup, monkey
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("material", [False, True])
-async def test_optional_findings_get_one_bounded_reconsideration_without_forced_verdict(setup, material):
+async def test_optional_findings_get_one_bounded_reconsideration_without_forced_verdict(
+    setup, material
+):
     s = setup
-    initial = feedback().model_copy(update={
-        "optional_improvements": ["A bias-only configuration could still initialize to zero."]
-    })
+    initial = feedback().model_copy(
+        update={
+            "optional_improvements": ["A bias-only configuration could still initialize to zero."]
+        }
+    )
     final = feedback(passed=False) if material else initial
 
     async def judge(**kwargs):
