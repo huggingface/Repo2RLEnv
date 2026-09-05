@@ -68,6 +68,11 @@ Required output:
   Cover each requirement, boundaries, nontrivial combinations and regressions. Include
   seeded randomized/property cases or metamorphic checks when appropriate. Reject
   superficial/constant-output fixes and accept alternative valid implementations.
+  Instruction examples are not a sufficient hidden test distribution. Vary the
+  semantic inputs, not only a secondary dimension such as length. For symbolic
+  correctness, include differently written equivalent answers and varied wrong
+  answers; a raw-string matcher or memorized example must not earn full reward.
+  Use a small seeded input family with independently known expected outcomes.
   For numerical invariance, cached/uncached or before/after observations from the same
   submitted implementation are not an independent correctness reference: both can be
   wrong identically. Anchor representative cases to a small mathematical reference
@@ -135,6 +140,10 @@ the actual inputs and assertions. Do not describe such missing coverage as optio
 polish while passing the criterion; request a concrete test or a justified narrower
 contract. Distinguish a missing promised behavior from merely wanting more examples
 of behavior already tested.
+Inspect semantic input diversity: repeating one correct and one wrong example at
+many lengths does not verify general symbolic correctness. Check whether example
+memorization or raw-string equality could pass a promised equivalence contract.
+Report a concrete uncovered distinction as a coverage blocker.
 For numerical preservation claims, check for an independent numerical anchor and
 nontrivial parameter states. Comparing two paths through the same submitted math can
 pass when both are wrong; fresh initialization may cancel a defective normalization.
