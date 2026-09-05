@@ -130,10 +130,15 @@ Static counterexamples are hypotheses until executed; they are not reported as
 confirmed reward hacks. Results are cached separately by verifier content and policy,
 outside the final trajectory review's evidence tree. Missing or incomplete review
 evidence cannot pass this gate.
-It allows ten reviewer turns and a $2 model allowance per content/policy version,
+It allows ten reviewer turns and a $4 model allowance per content/policy version,
 with up to 64 files, 64,000 bytes per file and 128,000 bytes overall. The reviewer
 must read every included file in full. These are review input bounds, separate from
-the sandbox's execution limits; oversized or binary review inputs need repair.
+the sandbox's execution limits; oversized or binary review inputs return actionable
+author feedback before any paid review. Remove generated caches from review source
+directories; keep packaged runtime data in the environment. Incomplete paid reviews
+remain explicit failures. The allowance accommodates conservative final-call
+reservations after reading a large task; actual charges remain metered against the
+same candidate and campaign caps.
 
 This step only guides author repairs. Every admission still requires the trials,
 eight-criterion trajectory review and mandatory gates below.

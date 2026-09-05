@@ -491,3 +491,66 @@ async def test_resume_without_trials_restores_preflight_repairs_before_author(
     assert verdict["status"] == "rejected"
     assert checked[0] == seed
     s.preflight.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_binary_verifier_cache_returns_filename_and_allows_author_repair(
+    author_campaign, monkeypatch
+):
+    s = author_campaign
+    verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
+    repaired = False
+    filename = "tests/__pycache__/test_contract.cpython-312.pyc"
+
+    async def export(task):
+        write_task(task)
+        (task / "tests").mkdir(exist_ok=True)
+        (task / "tests/test_contract.py").write_text("def test_sum():\n    assert 2 + 2 == 4\n")
+        if not repaired:
+            cached = task / filename
+            cached.parent.mkdir()
+            cached.write_bytes(b"\xcb\x00\x00")
+
+    async def reviewer(task, root, **kwargs):
+        # Exercise the real input parser and its error class. Paid review is mocked.
+        verifier._snapshot(task)
+        return result()
+
+    async def author(**kwargs):
+        nonlocal repaired
+        feedback = await kwargs["handlers"]["validate_candidate"]()
+        assert filename in feedback
+        assert "Repair the verifier review inputs" in feedback
+        s.preflight.assert_not_awaited()
+        repaired = True
+        await kwargs["handlers"]["validate_candidate"]()
+        s.preflight.assert_awaited_once()
+
+    monkeypatch.setattr(s.sandbox, "export", AsyncMock(side_effect=export))
+    monkeypatch.setattr(campaign, "review_verifier", reviewer)
+    monkeypatch.setattr(campaign, "run_agent", author)
+    verdict = await campaign.curate_one(
+        s.source, s.root, CampaignConfig(verifier_review=True, max_revisions=1), s.budget
+    )
+    assert verdict["status"] == "rejected"  # Missing controls still prevent admission.
+    s.sandbox.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_incomplete_verifier_call_is_not_reclassified_as_author_input(
+    author_campaign, monkeypatch
+):
+    s = author_campaign
+    verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
+    monkeypatch.setattr(campaign, "run_agent", AsyncMock())
+    monkeypatch.setattr(
+        campaign,
+        "review_verifier",
+        AsyncMock(side_effect=verifier.VerifierReviewError("Incomplete paid response")),
+    )
+    with pytest.raises(verifier.VerifierReviewError, match="Incomplete paid response"):
+        await campaign.curate_one(
+            s.source, s.root, CampaignConfig(verifier_review=True, max_revisions=1), s.budget
+        )
+    s.preflight.assert_not_awaited()
+    s.sandbox.stop.assert_awaited_once()

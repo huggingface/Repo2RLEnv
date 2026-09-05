@@ -107,7 +107,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert call["model"] == "anthropic/claude-opus-5"
     assert call["budget"] is s.budget
     assert call["max_turns"] == 10
-    assert call["max_cost"] == 2
+    assert call["max_cost"] == 4
     assert list(call["handlers"]) == ["read_evidence"]
     assert [t["function"]["name"] for t in call["tools"]] == ["read_evidence"]
     record = json.loads(record_path(s).read_text())
@@ -300,7 +300,7 @@ async def test_incomplete_or_oversized_evidence_never_calls_model(setup, failure
             write(s.task / f"tests/helper{i}.py", "x")
     elif failure == "contract":
         (s.task / "contract.json").write_text("[]")
-    with pytest.raises(verifier.VerifierReviewError, match="Cannot review verifier evidence"):
+    with pytest.raises(verifier.VerifierInputError, match="Cannot review verifier evidence"):
         await review(s)
     s.agent.assert_not_awaited()
     assert (

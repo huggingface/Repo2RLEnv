@@ -38,8 +38,8 @@ from repo2rlenv.curation.models import (
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
-from repo2rlenv.curation.specification_review import review_specification
-from repo2rlenv.curation.verifier_review import review_verifier
+from repo2rlenv.curation.specification_review import SpecificationInputError, review_specification
+from repo2rlenv.curation.verifier_review import VerifierInputError, review_verifier
 
 logger = logging.getLogger(__name__)
 ADMISSION_VERSION = 5
@@ -500,7 +500,17 @@ async def curate_one(
         ):
             if not enabled:
                 continue
-            result = await reviewer(task, root.parent, model=config.judge_model, budget=budget)
+            try:
+                result = await reviewer(task, root.parent, model=config.judge_model, budget=budget)
+            except (SpecificationInputError, VerifierInputError) as exc:
+                return (
+                    f"Repair the {kind} review inputs before remote validation: {exc}. "
+                    "Keep the instruction and complete verifier/reference source as readable "
+                    "text within the stated limits. Remove generated caches such as "
+                    "__pycache__ from tests and solution; package runtime data under environment. "
+                    "Do not remove required behavior or hide source from review. "
+                    "Then call validate_candidate again."
+                )
             if not result.passed:
                 return (
                     f"Repair this independent {kind} preflight before remote validation. "

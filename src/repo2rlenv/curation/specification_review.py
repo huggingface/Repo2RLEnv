@@ -76,6 +76,10 @@ class SpecificationReviewError(RuntimeError):
     """Missing or incomplete static evidence must not start remote validation."""
 
 
+class SpecificationInputError(SpecificationReviewError):
+    """An author can repair the specification files before review."""
+
+
 def _save(path: Path, data: dict) -> None:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2))
@@ -98,7 +102,7 @@ def _snapshot(task: Path) -> dict[str, str]:
                 raise ValueError("empty file")
             texts[name] = text
         except (OSError, ValueError) as exc:
-            raise SpecificationReviewError(f"Cannot review {name}: {exc}") from exc
+            raise SpecificationInputError(f"Cannot review {name}: {exc}") from exc
     return texts
 
 

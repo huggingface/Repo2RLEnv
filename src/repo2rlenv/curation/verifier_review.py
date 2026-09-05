@@ -16,7 +16,9 @@ MAX_INPUT_BYTES = 128_000
 MAX_FILE_BYTES = 64_000
 MAX_FILES = 64
 MAX_PAGE_CHARS = 16_000
-MAX_REVIEW_COST = 2
+# The byte-based worst-case reservation for a fully read 128KB task plus the
+# final response can exceed $2 even when metered reading cost is below $1.
+MAX_REVIEW_COST = 4
 MAX_REVIEW_TURNS = 10
 POLICY_VERSION = 1
 SYSTEM = """You are an independent verifier reviewer performing a static author-repair preflight.
@@ -63,6 +65,10 @@ counterexamples. Score 0 (unusable), 1 (major defects), 2 (substantive repairs),
 only optional polish), or 4 (adequate and well supported). Any blocker or score below 3 requires
 concrete repairs. Describe observable assertions/fixtures to add, not a solver implementation
 recipe. Preserve meaningful task behavior rather than weakening promises to fit a weak test.
+If a concrete wrong implementation satisfies every current assertion while violating the
+public contract, or a permitted implementation fails a hidden requirement, that is a blocker,
+not optional polish: include it in blockers and score at most 2. Reserve repairs on passing
+reviews for optional improvements that do not leave either of these supported defects.
 This is an early repair preflight, never admission. The independent trajectory review, real
 oracle/baseline/mutation/equivalent/solver/adversary trials and execution gates still follow.
 Return one complete JSON object matching the schema, without markdown. Keep at most 8 items
@@ -72,6 +78,10 @@ per list and at most 90 words per item; group related findings without dropping 
 
 class VerifierReviewError(RuntimeError):
     """Missing or incomplete verifier evidence cannot produce passing repair feedback."""
+
+
+class VerifierInputError(VerifierReviewError):
+    """An author can repair the task files before another review is attempted."""
 
 
 def _directory(path: Path) -> None:
@@ -136,7 +146,10 @@ def _snapshot(task: Path) -> dict[str, str]:
                 raise ValueError(f"evidence exceeds the {MAX_INPUT_BYTES}-byte total input limit")
             if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                 raise ValueError(f"evidence changed while reading: {name}")
-            text = data.decode("utf-8")
+            try:
+                text = data.decode("utf-8")
+            except UnicodeError as exc:
+                raise ValueError(f"non-UTF-8 evidence: {name}") from exc
             if "\0" in text:
                 raise ValueError(f"binary evidence: {name}")
             if (
@@ -149,7 +162,7 @@ def _snapshot(task: Path) -> dict[str, str]:
             raise ValueError("contract.json must contain a JSON object")
         return texts
     except (OSError, ValueError) as exc:
-        raise VerifierReviewError(f"Cannot review verifier evidence: {exc}") from exc
+        raise VerifierInputError(f"Cannot review verifier evidence: {exc}") from exc
 
 
 def _read_tool(texts: dict[str, str]) -> dict:
