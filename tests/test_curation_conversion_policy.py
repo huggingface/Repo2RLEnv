@@ -188,6 +188,7 @@ def harness(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_repeated_structural_errors_are_mechanical_then_last_semantic_failure_stops(harness):
+    pytest.importorskip("harbor")
     h = harness
     invalid = task_files()
     del invalid["solution/solve.sh"]
@@ -215,6 +216,7 @@ async def test_repeated_structural_errors_are_mechanical_then_last_semantic_fail
 
 @pytest.mark.asyncio
 async def test_second_distinct_semantic_failure_stops_before_third_repair(harness):
+    pytest.importorskip("harbor")
     h = harness
     revised = task_files()
     revised["instruction.md"] += " Preserve stable ordering too."
@@ -237,6 +239,7 @@ async def test_second_distinct_semantic_failure_stops_before_third_repair(harnes
 
 @pytest.mark.asyncio
 async def test_missing_plan_restored_exactly_from_accepted_design(harness):
+    pytest.importorskip("harbor")
     h = harness
     files = task_files()
     del files["verification-plan.json"]
@@ -258,6 +261,7 @@ async def test_missing_plan_restored_exactly_from_accepted_design(harness):
 
 @pytest.mark.asyncio
 async def test_unknown_plan_mapping_is_not_invented_or_sent_to_paid_review(harness):
+    pytest.importorskip("harbor")
     h = harness
     files = task_files()
     unknown = plan()
@@ -344,6 +348,7 @@ async def test_export_failure_counts_once_without_semantic_or_review(harness):
 
 @pytest.mark.asyncio
 async def test_unreadable_review_fixture_is_mechanical_before_semantic_count(harness):
+    pytest.importorskip("harbor")
     h = harness
     files = task_files()
     # An arbitrary binary helper must not be hidden by cache sanitation.
@@ -368,6 +373,7 @@ async def test_unreadable_review_fixture_is_mechanical_before_semantic_count(har
 
 @pytest.mark.asyncio
 async def test_restored_plan_cannot_invent_mapping_for_a_changed_contract(harness):
+    pytest.importorskip("harbor")
     h = harness
     files = task_files()
     del files["verification-plan.json"]
