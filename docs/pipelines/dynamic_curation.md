@@ -275,8 +275,11 @@ A conversion draft can enter a separately labelled assisted repair through the
 Python `curate_one(..., seed_task=..., seed_repair=SeedRepair(...))` API. The repair
 context binds the original source, configuration, design, submission histories,
 author history, task digest, actual judge result and independent audit feedback.
-It keeps judge findings separate from audit suggestions and delivers both to the
-author. It does not change the original verdict or count the repair as a fresh
+The origin can be a completed final judge review or a typed static-preflight
+record. Preflight origins bind the final submitted draft, frozen review inputs,
+result, read transcript and terminal outcome; an interrupted preflight remains a
+process error and never becomes a fabricated quality verdict. It keeps recorded
+findings separate from audit suggestions and delivers both to the author. It does not change the original verdict or count the repair as a fresh
 conversion. The remaining semantic, mechanical and author allowances are inherited;
 changed tasks must complete validation again. Explicit budget lineage and a stable
 child claim prevent a retry from resetting costs or creating parallel replacements.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -12,12 +13,19 @@ from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget, BudgetExceeded, register_scope_constraints
 from repo2rlenv.curation.design import CandidateDesign
-from repo2rlenv.curation.models import CampaignConfig, Review, StrictModel, validate_review_scores
+from repo2rlenv.curation.models import (
+    CampaignConfig,
+    Review,
+    SpecificationPreflightReview,
+    StrictModel,
+    VerifierPreflightReview,
+    validate_review_scores,
+)
 
 MAX_FEEDBACK_BYTES = 64_000
 SHA = r"^[0-9a-f]{64}$"
@@ -51,6 +59,22 @@ class RepairBudgetReceipt(StrictModel):
     phase_limit: float = Field(gt=0)
 
 
+class FinalJudgeOrigin(StrictModel):
+    kind: Literal["final_judge"] = "final_judge"
+    review: BoundRepairFile
+    result: BoundRepairFile
+
+
+class PreflightOrigin(StrictModel):
+    kind: Literal["preflight"] = "preflight"
+    stage: Literal["specification", "verifier"]
+    input: BoundRepairFile
+    result: BoundRepairFile
+    trace: BoundRepairFile
+    terminal: BoundRepairFile
+    state: BoundRepairFile | None = None
+
+
 class SeedRepair(StrictModel):
     kind: Literal["assisted_autonomous_repair"] = "assisted_autonomous_repair"
     evidence_root: Path
@@ -64,10 +88,31 @@ class SeedRepair(StrictModel):
     author_traces: list[BoundRepairFile] = Field(min_length=1)
     # Required for a parent that was itself an explicit repair.
     revision_history: BoundRepairFile | None = None
-    review: BoundRepairFile
-    review_result: BoundRepairFile
+    # Old serialized contexts retain these fields and their original claim bytes.
+    review: BoundRepairFile | None = None
+    review_result: BoundRepairFile | None = None
+    origin: FinalJudgeOrigin | PreflightOrigin | None = Field(default=None, discriminator="kind")
     audit: BoundRepairFile
     budget_receipt: BoundRepairFile
+
+    @model_validator(mode="after")
+    def one_origin(self):
+        if self.origin is None:
+            if self.review is None or self.review_result is None:
+                raise ValueError("Repair needs either a typed origin or both legacy review files")
+        elif self.review is not None or self.review_result is not None:
+            raise ValueError("Repair origin cannot be mixed with legacy review fields")
+        return self
+
+    def claim_context(self) -> dict:
+        """Preserve the historical context shape in existing repair-input claims."""
+        value = self.model_dump(mode="json")
+        if self.origin is None:
+            value.pop("origin")
+        else:
+            value.pop("review")
+            value.pop("review_result")
+        return value
 
 
 def _canonical(value) -> bytes:
@@ -222,6 +267,284 @@ def _history(data: bytes, *, semantic: bool) -> list[dict]:
     return rows
 
 
+def _completed_preflight_journal(events, texts, reads, state):
+    """Bind completed static feedback to actual delivered pages and final state."""
+    first = next(event for event in events if event.get("kind") == "input")
+    messages = [
+        {"role": "system", "content": first["system"]},
+        {"role": "user", "content": first["prompt"]},
+    ]
+    pending, seen = {}, set()
+    observed = {name: [] for name in texts}
+    for event in events:
+        if event.get("kind") == "model":
+            if pending:
+                raise RepairError("Preflight journal has an unfinished tool batch")
+            message = event["message"]
+            messages.append(message)
+            for call in message.get("tool_calls") or []:
+                if call["id"] in seen or call["function"]["name"] != "read_evidence":
+                    raise RepairError("Preflight journal has duplicate or unexpected tool calls")
+                seen.add(call["id"])
+                pending[call["id"]] = call["function"]["arguments"]
+        elif event.get("kind") == "tool":
+            raw_arguments = pending.pop(event["call_id"])
+            output = event["output"]
+            messages.append({"role": "tool", "tool_call_id": event["call_id"], "content": output})
+            if output.startswith("Tool input error: "):
+                continue
+            arguments = json.loads(raw_arguments)
+            name = arguments["path"]
+            content = texts[name]
+            page = re.match(re.escape(name) + r": characters (\d+):(\d+) of (\d+)\n", output)
+            if page is None:
+                raise RepairError("Preflight read output lacks its frozen page header")
+            start, end, size = map(int, page.groups())
+            if (
+                start != min(max(0, arguments.get("offset", 0)), len(content))
+                or not start
+                <= end
+                <= min(start + min(arguments.get("limit", 16000), 16000), len(content))
+                or size != len(content)
+                or not output[len(page[0]) :].startswith(content[start:end])
+                or len(output) >= 24000
+            ):
+                raise RepairError("Preflight read output differs from its frozen text")
+            observed[name].append([start, end])
+        elif event.get("kind") == "final_validation":
+            messages.append({"role": "user", "content": event["feedback"]})
+    if pending or observed != reads or state.get("messages") != messages:
+        raise RepairError("Completed preflight reads/state disagree with its journal")
+
+
+def _preflight_feedback(
+    origin: PreflightOrigin,
+    context: SeedRepair,
+    task: Path,
+    source: dict,
+    config: CampaignConfig,
+    receipt: RepairBudgetReceipt,
+) -> str:
+    """Validate historical static evidence as data, never as an admission receipt."""
+    parent, evidence_root = context.parent_root.absolute(), context.evidence_root.absolute()
+    folder = origin.result.path.absolute().parent
+    if folder.parent not in {
+        parent / f"{origin.stage}-reviews",
+        parent.parent / f"{origin.stage}-reviews",
+    }:
+        raise RepairError("Preflight evidence is outside the parent candidate's stage cache")
+    data = {}
+    for field, name in (
+        ("input", "input.json"),
+        ("result", "result.json"),
+        ("trace", "trace.jsonl"),
+    ):
+        bound = getattr(origin, field)
+        if bound.path.absolute() != folder / name:
+            raise RepairError("Preflight inputs must belong to one frozen stage attempt")
+        data[field] = _read(bound, evidence_root)
+    state_path = folder / "state.json"
+    if origin.state is None:
+        if state_path.exists() or state_path.is_symlink():
+            raise RepairError("Existing preflight state must be bound in the repair origin")
+        state = None
+    else:
+        if origin.state.path.absolute() != state_path:
+            raise RepairError("Preflight state belongs to a different attempt")
+        state = json.loads(_read(origin.state, evidence_root))
+    saved, result = json.loads(data["input"]), json.loads(data["result"])
+    if not isinstance(saved, dict) or set(saved) != {"identity", "texts"}:
+        raise RepairError("Invalid frozen preflight input")
+    identity, texts = saved["identity"], saved["texts"]
+    if (
+        not isinstance(identity, dict)
+        or not isinstance(result, dict)
+        or result.get("identity") != identity
+        or not isinstance(texts, dict)
+        or not 1 <= len(texts) <= 64
+        or any(
+            not isinstance(name, str) or not isinstance(text, str) for name, text in texts.items()
+        )
+        or type(identity.get("policy_version")) is not int
+        or identity["policy_version"] < 1
+        or not re.fullmatch(SHA, str(identity.get("policy_sha256", "")))
+        or identity.get("inference", {}).get("model") != config.judge_model
+        or folder.name != _sha(json.dumps(identity, sort_keys=True).encode())
+    ):
+        raise RepairError("Preflight identity, model or frozen cache key mismatch")
+    if (
+        any(len(text.encode()) > 64_000 for text in texts.values())
+        or sum(len(text.encode()) for text in texts.values()) > 128_000
+        or identity.get("files") != {name: _sha(text.encode()) for name, text in texts.items()}
+    ):
+        raise RepairError("Preflight frozen text hashes or size bounds mismatch")
+    if origin.stage == "verifier":
+        from repo2rlenv.curation.verifier_review import _snapshot
+
+        expected = _snapshot(task)
+    else:
+        names = ["instruction.md", "contract.json"]
+        if identity["policy_version"] >= 3:
+            names.append("task.toml")
+        expected = {}
+        for name in names:
+            path = _safe(task / name, task)
+            if path.stat().st_size > 32_000:
+                raise RepairError("Oversized specification repair input")
+            expected[name] = path.read_bytes().decode("utf-8")
+    if texts != expected:
+        raise RepairError("Preflight snapshot does not match the complete selected task inputs")
+    events = [json.loads(line) for line in data["trace"].splitlines() if line.strip()]
+    if not events or any(not isinstance(event, dict) for event in events):
+        raise RepairError("Missing or malformed preflight journal")
+    inputs = [event for event in events if event.get("kind") == "input"]
+    if not inputs or any(event.get("model") != config.judge_model for event in inputs):
+        raise RepairError("Preflight journal model mismatch")
+    status = result.get("status")
+    if status not in {"completed", "error"}:
+        raise RepairError("Preflight origin must be a completed rejection or recorded error")
+    if origin.stage == "verifier" and (
+        events[0] != {"kind": "verifier_review_started", "identity": identity}
+        or events[-1] != {"kind": "verifier_review_finished", "status": status}
+    ):
+        raise RepairError("Preflight journal identity or terminal status mismatch")
+    reads = result.get("reads")
+    if not isinstance(reads, dict) or set(reads) != set(texts):
+        raise RepairError("Invalid preflight read inventory")
+    for name, spans in reads.items():
+        if not isinstance(spans, list) or any(
+            not isinstance(span, list)
+            or len(span) != 2
+            or any(type(value) is not int for value in span)
+            or not 0 <= span[0] <= span[1] <= len(texts[name])
+            for span in spans
+        ):
+            raise RepairError("Invalid preflight read intervals")
+    for name in ("charged_usd", "cost_usd"):
+        value = result.get(name)
+        if name == "cost_usd" and value is None:
+            continue
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+            raise RepairError("Invalid retained preflight cost")
+    terminal = json.loads(_read(origin.terminal, evidence_root))
+    if (
+        not isinstance(terminal, dict)
+        or terminal.get("status") != "complete"
+        or terminal.get("candidate_path") != str(parent)
+        or terminal.get("budget_scope") != receipt.parent.scope
+        or terminal.get("shared_ledger") != str(receipt.ledger_path)
+        or terminal.get("accepted") != []
+    ):
+        raise RepairError("Preflight terminal receipt candidate, budget or completion mismatch")
+    rows = terminal.get("rejected")
+    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        raise RepairError("Preflight terminal receipt needs one rejected candidate")
+    row = rows[0]
+    if (
+        row.get("id") != source["id"]
+        or row.get("source") != source["url"]
+        or row.get("status") in {None, "accepted", "running"}
+        or not isinstance(row.get("reasons"), list)
+        or any(not isinstance(reason, str) for reason in row["reasons"])
+    ):
+        raise RepairError("Preflight terminal source or outcome mismatch")
+    for path in parent.glob("revision-*/review.json"):
+        _safe(path, parent)
+        reviewed_task = path.parent / "task"
+        if reviewed_task.is_dir() and digest_task(reviewed_task) == context.parent_task_digest:
+            try:
+                Review.model_validate_json(path.read_bytes())
+            except ValueError:
+                continue
+            raise RepairError("Selected task has a final review; use its final-judge origin")
+    if status == "completed":
+        from repo2rlenv.curation.specification_review import _coverage_complete
+
+        model = (
+            VerifierPreflightReview if origin.stage == "verifier" else SpecificationPreflightReview
+        )
+        reviewed = model.model_validate(result.get("review"))
+        if origin.stage == "verifier":
+            from repo2rlenv.curation.verifier_review import _check_authority_inventory
+
+            _check_authority_inventory(reviewed, texts)
+        if reviewed.passed or not _coverage_complete(texts, reads):
+            raise RepairError("Completed preflight must contain a fully read rejection")
+        if not isinstance(state, dict) or not isinstance(state.get("messages"), list):
+            raise RepairError("Completed preflight requires its final reviewer state")
+        _completed_preflight_journal(events, texts, reads, state)
+        final = state["messages"][-1]
+        final_review = model.model_validate_json(final.get("content") or "")
+        if origin.stage == "verifier":
+            _check_authority_inventory(final_review, texts)
+        models = [event["message"] for event in events if event.get("kind") == "model"]
+        if (
+            final.get("role") != "assistant"
+            or final.get("tool_calls")
+            or final_review != reviewed
+            or not models
+            or models[-1] != final
+        ):
+            raise RepairError("Completed preflight review disagrees with its state or journal")
+        if not any(
+            finding in reason
+            for finding in [*reviewed.blockers, *reviewed.repairs]
+            for reason in row["reasons"]
+        ):
+            raise RepairError("Preflight rejection disagrees with the terminal failure")
+        label = "Historical completed static preflight rejection (not a final task review):\n"
+    else:
+        if "review" in result or not all(
+            isinstance(result.get(name), str) and result[name].strip()
+            for name in ("error_type", "error")
+        ):
+            raise RepairError("Errored preflight cannot supply a completed review")
+        error = result["error_type"] + ": " + result["error"]
+        if not any(error in reason for reason in row["reasons"]):
+            raise RepairError("Preflight error disagrees with the terminal failure")
+        if state is not None and (
+            not isinstance(state, dict) or not isinstance(state.get("messages"), list)
+        ):
+            raise RepairError("Malformed retained interrupted preflight state")
+        label = (
+            "Historical static preflight process error; no completed semantic verdict exists. "
+            "Any preliminary_review is tentative, not a validated rejection or executed counterexample.\n"
+        )
+    return (
+        label
+        + data["result"].decode()
+        + "\nHistorical terminal outcome (reservation failure and settled cost are distinct):\n"
+        + json.dumps(terminal)
+        + "\nBound preflight journal retained at: "
+        + str(origin.trace.path)
+    )
+
+
+def _origin_feedback(context, task, source, config, receipt) -> str:
+    origin = context.origin or FinalJudgeOrigin(review=context.review, result=context.review_result)
+    if isinstance(origin, PreflightOrigin):
+        try:
+            return _preflight_feedback(origin, context, task, source, config, receipt)
+        except RepairError:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+            raise RepairError(f"Invalid preflight repair evidence: {exc}") from exc
+    review_raw = _read(origin.review, context.evidence_root.absolute())
+    result = json.loads(_read(origin.result, context.evidence_root.absolute()))
+    review = Review.model_validate_json(review_raw)
+    if result.get("task_digest") != context.parent_task_digest:
+        raise RepairError("Review task digest mismatch")
+    if "review" in result and Review.model_validate(result["review"]) != review:
+        raise RepairError("Parent judge review and result disagree")
+    validate_review_scores(result, review, config)
+    return (
+        "Historical judge review (not a new admission receipt):\n"
+        + review_raw.decode()
+        + "\nHistorical automatic result:\n"
+        + json.dumps({k: v for k, v in result.items() if k != "review"})
+    )
+
+
 @contextmanager
 def prepare_seed_repair(
     context: SeedRepair,
@@ -262,8 +585,6 @@ def prepare_seed_repair(
             "design",
             "semantic_history",
             "mechanical_history",
-            "review",
-            "review_result",
             "audit",
             "budget_receipt",
         )
@@ -289,6 +610,11 @@ def prepare_seed_repair(
     mechanics = _history(raw["mechanical_history"], semantic=False)
     if context.parent_task_digest not in {row["digest"] for row in semantics}:
         raise RepairError("Parent task absent from semantic history")
+    if isinstance(context.origin, PreflightOrigin) and (
+        semantics[-1]["digest"] != context.parent_task_digest
+        or Path(semantics[-1]["task"]).absolute() != task
+    ):
+        raise RepairError("Preflight repair must select the latest submitted task and digest")
     if (
         len(semantics) >= config.max_candidate_drafts
         or len(mechanics) >= config.max_mechanical_submissions
@@ -320,31 +646,22 @@ def prepare_seed_repair(
             raise RepairError("Invalid parent revision count")
     if used >= config.max_revisions:
         raise RepairError("Inherited author revision allowance exhausted")
-    review = Review.model_validate_json(raw["review"])
-    result, audit = json.loads(raw["review_result"]), json.loads(raw["audit"])
-    if (
-        result.get("task_digest") != context.parent_task_digest
-        or audit.get("task_digest") != context.parent_task_digest
-    ):
+    audit = json.loads(raw["audit"])
+    if audit.get("task_digest") != context.parent_task_digest:
         raise RepairError("Review/audit task digest mismatch")
-    if "review" in result and Review.model_validate(result["review"]) != review:
-        raise RepairError("Parent judge review and result disagree")
-    validate_review_scores(result, review, config)
+    receipt = RepairBudgetReceipt.model_validate_json(raw["budget_receipt"])
+    origin_feedback = _origin_feedback(context, task, source, config, receipt)
     feedback = (
         "\nExplicitly assisted autonomous repair of a retained task, not fresh conversion yield. "
         "Preserve the complete public behavior; investigate the cited evidence and repair only "
         "supported defects. The old task and verdict remain immutable. Audit suggestions are "
         "separate from the judge verdict and are not proof of an executed counterexample.\n"
-        "Historical judge review (not a new admission receipt):\n"
-        + raw["review"].decode()
-        + "\nHistorical automatic result:\n"
-        + json.dumps({k: v for k, v in result.items() if k != "review"})
+        + origin_feedback
         + "\nIndependent audit suggestions, bound to the parent task:\n"
         + raw["audit"].decode()
     )
     if len(feedback.encode()) > MAX_FEEDBACK_BYTES:
         raise RepairError("Oversized repair feedback; no silent truncation")
-    receipt = RepairBudgetReceipt.model_validate_json(raw["budget_receipt"])
     identity = receipt.child
     if (
         (
@@ -392,7 +709,7 @@ def prepare_seed_repair(
             raise RepairError("Repair receipt drops ancestor budget identity")
     _safe(budget.path, evidence_root)
     payload = {
-        "context": context.model_dump(mode="json"),
+        "context": context.claim_context(),
         "feedback": feedback,
         "inherited_author_revisions": used,
         "classification": context.kind,
