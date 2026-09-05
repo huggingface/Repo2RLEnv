@@ -391,3 +391,18 @@ def main(argv: list[str] | None = None) -> int:
 
     print(json.dumps(breakdown, indent=2))
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+
+__all__ = [
+    "grade",
+    "main",
+    "parse_cargo_test",
+    "parse_go_test",
+    "parse_jest",
+    "parse_logs",
+    "parse_pytest",
+]
