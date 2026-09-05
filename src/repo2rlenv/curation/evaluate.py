@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget
+from repo2rlenv.curation.build_logs import collect_modal_build_log
 from repo2rlenv.curation.inference import inference_digest
 from repo2rlenv.curation.models import CampaignConfig, TrialEvidence
 
@@ -118,9 +119,6 @@ async def trial(
             evidence.reward = rewards.get("reward")
         if result.agent_result:
             evidence.cost_usd = result.agent_result.cost_usd or 0
-        execution_error = inspect_execution(Path(evidence.path))
-        if execution_error:
-            evidence.error = execution_error
     except Exception as exc:
         evidence.error = f"{type(exc).__name__}: {exc}"
     finally:
@@ -128,6 +126,24 @@ async def trial(
         # invoices, rather than this elapsed-time estimate, are authoritative.
         estimate = 0.10 + (time.monotonic() - started) * 0.0001
         budget.settle(reservation, estimate, estimated=True)
+    try:
+        execution_error = inspect_execution(Path(evidence.path))
+    except Exception as exc:
+        execution_error = f"Execution inspection failed ({type(exc).__name__}): {exc}"
+    if execution_error:
+        evidence.error = (
+            evidence.error + "\nSecondary inspection: " + execution_error
+            if evidence.error
+            else execution_error
+        )
+    if evidence.error:
+        try:
+            await collect_modal_build_log(evidence.error, Path(evidence.path))
+        except Exception as exc:
+            # Failed retrieval/persistence must not replace the actual build or
+            # runtime failure. The exception type is sufficient here; any CLI
+            # output belongs in the bounded, redacted build log.
+            evidence.error += f"\nBuild log retrieval unavailable ({type(exc).__name__})."
     (output / f"{label}.json").write_text(evidence.model_dump_json(indent=2))
     return evidence
 
@@ -198,6 +214,7 @@ def evidence_summary(trials: list[TrialEvidence]) -> str:
                 "exit-code.txt",
                 "control.json",
                 "manifest.json",
+                "build.log",
             }
         }
         summaries.append(item)
