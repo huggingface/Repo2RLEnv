@@ -10,22 +10,44 @@ import os
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
 from repo2rlenv.curation.budget import Budget
 from repo2rlenv.curation.models import StrictModel
-from repo2rlenv.curation.protocol import VerificationPlan
+from repo2rlenv.curation.protocol import BehaviorDesign, VerificationPlan
 
 MAX_DESIGN_TURNS = 20
 MAX_DESIGN_COST_USD = 2.0
 
 
+class PlannedBehavior(BehaviorDesign):
+    """Executable references are identifiers; prose belongs in expected_result."""
+
+    requirement: str = Field(
+        pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$",
+        description="Exact contract.requirements[].id, never its behavior description",
+    )
+    tests: list[Annotated[str, Field(pattern=r"^test_[a-zA-Z0-9_]+$")]] = Field(
+        min_length=1, description="Exact protected Python test function names"
+    )
+    mutations: list[Annotated[str, Field(pattern=r"^[a-z0-9_-]{1,50}$")]] = Field(
+        min_length=1, description="Exact contract.mutations[].name identifiers"
+    )
+    equivalents: list[Annotated[str, Field(pattern=r"^[a-z0-9_-]{1,50}$")]] = Field(
+        min_length=1, description="Exact contract.equivalents[].name identifiers"
+    )
+
+
+class PlannedVerificationPlan(VerificationPlan):
+    behaviors: list[PlannedBehavior] = Field(min_length=2)
+
+
 class CandidateDesign(StrictModel):
     task_request: str = Field(min_length=50)
-    verification_plan: VerificationPlan
+    verification_plan: PlannedVerificationPlan
 
     @field_validator("task_request", mode="before")
     @classmethod
@@ -75,6 +97,13 @@ evidence, not infallible ground truth. Do not silently narrow the public contrac
 Specify credible pinned offline dependencies and locally constructed fixtures, and
 explain the permitted artifact boundary. Distinguish demonstrated feasibility from
 assumptions. Do not claim tests, controls or model trials passed unless observed.
+
+Machine references in verification_plan must be identifiers, not prose:
+- requirement is the exact future contract.requirements[].id (for example sync-cadence).
+- tests are future Python test function names (for example test_sync_cadence).
+- mutations/equivalents are exact future contract control names (for example always_sync).
+Put behavioral descriptions, expected results and fixture explanations in expected_result.
+The implementation phase must use these same identifiers when creating the contract.
 
 Submit the complete design with submit_design. Schema errors return feedback and
 may be corrected within this phase's original turn/cost caps; they do not consume

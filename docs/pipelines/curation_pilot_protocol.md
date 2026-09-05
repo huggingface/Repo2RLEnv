@@ -171,3 +171,19 @@ correctness is still unvalidated. Automated tests cover distinct mechanical and
 semantic allowances, missing-plan restoration, invalid mappings and policy-bound
 admission. The first pilot remains 0/5; this policy has not yet established improved
 live conversion yield.
+
+### Planning reference handoff
+
+The first conversion recovery cohort exposed a construction defect: accepted plans
+used prose where contract requirement IDs and executable control names were needed.
+The first two slots exhausted mechanical corrections without reaching semantic
+review; the remaining work was stopped explicitly, preserving all five planned
+slots and the original evidence. This does not establish source unsuitability.
+
+New planning schemas require identifier-shaped requirement references, Python test
+names and safe control names before accepting a design. Both author phases explain
+that `requirement` references `contract.requirements[].id`, not `behavior`, and that
+control arrays contain names rather than rationale. Validation errors list expected
+and received references. Historical verification-plan parsing is unchanged; invalid
+old planning caches fail closed rather than being silently rewritten. The frozen
+recovery runtime remains unchanged; these corrections apply to subsequent runs.

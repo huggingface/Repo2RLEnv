@@ -49,7 +49,7 @@ async def test_schema_failure_then_acceptance_persists_before_build(tmp_path, mo
         schema = kwargs["tools"][1]["function"]["parameters"]
         assert schema["properties"]["task_request"]["minLength"] == 50
         assert schema["additionalProperties"] is False
-        assert schema["$defs"]["BehaviorDesign"]["properties"]["mutations"]["minItems"] == 1
+        assert schema["$defs"]["PlannedBehavior"]["properties"]["mutations"]["minItems"] == 1
         handlers = kwargs["handlers"]
         assert await handlers["shell"]("inspect source") == "remote source inspected"
         broken = copy.deepcopy(payload)
@@ -397,3 +397,49 @@ async def test_torn_or_invalid_design_envelope_fails_closed(tmp_path, monkeypatc
     assert path.read_text() == contents
     agent.assert_not_awaited()
     shell.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("requirement", "When the compiled model receives a checkpoint"),
+        ("tests", ["Verify the model handles compiled checkpoints"]),
+        ("mutations", ["Ignore the checkpoint and use config targets"]),
+        ("equivalents", ["Register the callback through an equivalent public path"]),
+    ],
+)
+async def test_prose_references_rejected_before_design_acceptance(
+    tmp_path, monkeypatch, field, value
+):
+    payload = valid_design()
+    invalid = copy.deepcopy(payload)
+    invalid["verification_plan"]["behaviors"][0][field] = value
+
+    async def agent(**kwargs):
+        submit = kwargs["handlers"]["submit_design"]
+        result = await submit(**invalid)
+        assert "schema validation failed" in result and field in result
+        assert not (tmp_path / "design.json").exists()
+        assert not (tmp_path / "submitted-drafts.json").exists()
+        assert "accepted" in await submit(**payload)
+
+    monkeypatch.setattr(design, "run_agent", agent)
+    accepted = await design.plan_candidate_design(
+        source={},
+        root=tmp_path,
+        shell=AsyncMock(),
+        budget=Budget(tmp_path / "budget.json", 8),
+        model="m",
+    )
+    assert accepted.model_dump() == payload
+
+
+def test_planning_schema_exposes_identifier_rules_and_preserves_hyphenated_ids():
+    schema = design.CandidateDesign.model_json_schema()["$defs"]["PlannedBehavior"]["properties"]
+    assert "pattern" in schema["requirement"]
+    for name in ("tests", "mutations", "equivalents"):
+        assert "pattern" in schema[name]["items"]
+    payload = valid_design()
+    payload["verification_plan"]["behaviors"][0]["requirement"] = "compiled-targets"
+    assert design.CandidateDesign.model_validate(payload)

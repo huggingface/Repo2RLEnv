@@ -85,14 +85,24 @@ def check_verification_plan(task: Path, contract: Contract) -> None:
     if len(plan.behaviors) != len(requirements) or {b.requirement for b in plan.behaviors} != set(
         requirements
     ):
-        raise ValueError("Verification design must cover every requirement exactly once")
+        raise ValueError(
+            "Verification design must cover every requirement exactly once. "
+            "behaviors[].requirement must equal contract.requirements[].id, NOT its behavior text. "
+            f"Expected IDs: {sorted(requirements)!r}; received: {[b.requirement for b in plan.behaviors]!r}"
+        )
     for behavior in plan.behaviors:
         if set(behavior.tests) != set(requirements[behavior.requirement].tests):
-            raise ValueError("Design tests must match their requirement")
+            raise ValueError(
+                f"Design tests must match their requirement {behavior.requirement!r}: expected function names {requirements[behavior.requirement].tests!r}; received {behavior.tests!r}"
+            )
         if not set(behavior.mutations) <= {m.name for m in contract.mutations}:
-            raise ValueError("Design names a missing negative control")
+            raise ValueError(
+                f"Design names a missing negative control: use contract.mutations[].name, not rationale text. Available: {[m.name for m in contract.mutations]!r}; received: {behavior.mutations!r}"
+            )
         if not set(behavior.equivalents) <= {m.name for m in contract.equivalents}:
-            raise ValueError("Design names a missing alternative implementation")
+            raise ValueError(
+                f"Design names a missing alternative implementation: use contract.equivalents[].name, not rationale text. Available: {[m.name for m in contract.equivalents]!r}; received: {behavior.equivalents!r}"
+            )
 
 
 PILOT_AUTHOR = """
@@ -120,7 +130,12 @@ to obtain a pass. Defer with evidence if it cannot be verified honestly on CPU.
 
 CONVERSION_AUTHOR = """
 This run uses the conversion policy. Mechanical input corrections have a separate
-bounded allowance from structurally complete semantic submissions. The host records
+bounded allowance from structurally complete semantic submissions.
+verification-plan.json behaviors[].requirement must equal contract.requirements[].id,
+NOT contract.requirements[].behavior. tests lists Python function names; mutations
+and equivalents list contract control names, NOT descriptive rationale. Implement
+the identifiers in the accepted design consistently in contract.json and the tests.
+Expected outcomes and explanations belong in expected_result. The host records
 both and all cost still counts. Generated Python bytecode backed by source is removed
 from exported tests/solution; other binary review inputs must be corrected explicitly.
 Required plan metadata is prepared from the accepted design. Never invent tests or
