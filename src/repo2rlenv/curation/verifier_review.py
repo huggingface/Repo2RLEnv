@@ -10,7 +10,11 @@ from pathlib import Path
 from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
 from repo2rlenv.curation.budget import Budget
 from repo2rlenv.curation.inference import inference_settings
-from repo2rlenv.curation.models import VerifierPreflightReview, VerifierReview
+from repo2rlenv.curation.models import (
+    VerifierPreflightReview,
+    VerifierPreflightReviewV11,
+    VerifierReview,
+)
 from repo2rlenv.curation.specification_review import _coverage_complete, _save
 
 MAX_INPUT_BYTES = 128_000
@@ -24,7 +28,7 @@ MAX_TOOL_RESPONSE_CHARS = 24_000
 MAX_REVIEW_COST = 4
 MAX_REVIEW_TURNS = 10
 MAX_REVIEW_OUTPUT_TOKENS = 32_000
-POLICY_VERSION = 10
+POLICY_VERSION = 11
 RECONSIDER_PASS = """Before finalizing this tentative pass, reconsider each item you called optional
 against the solver-visible instruction and the actual assertions you read. If the item identifies
 a concrete wrong implementation that passes, or a permitted implementation that fails, it is a
@@ -79,6 +83,31 @@ permitted equivalent designs where relevant to this task. In particular:
   requirement has no input-authority interaction, use not_applicable with a grounded reason
   and a quoted public-contract citation. Do not invent precedence or test arbitrary Cartesian
   products of options. Public semantic coverage, not private implementation layout, is required.
+- Complete condition_matrices for EVERY contract requirement ID. Group only public axes whose
+  joint settings materially affect the same promised behavior; cite their public meanings and
+  allowed values. When no material interaction exists, use empty axes/cases and give a grounded,
+  cited interaction_reason explaining why. Do not invent new axes, devices, data families or
+  Cartesian requirements unrelated to the public contract. Do not split a material joint
+  interaction into marginal groups to hide a missing combination.
+  For each declared group, enumerate every combination exactly once as covered, gap, or
+  inapplicable. Marginal coverage does not establish joint coverage: separate source/target
+  wrapper combinations on ordinary names and one-sided wrapper tests on interior names do
+  not establish the both-wrapped plus interior-name case. Likewise, a mutation that changes
+  both branches does not prove that a fixture reaches both branches simultaneously.
+  Every covered case must name a mapped protected test and cite BOTH its concrete joint fixture
+  inputs and its independent expected observation. Trace parameter grids, setup, helpers and
+  run_probe arguments to establish that all listed axis values hold in the SAME execution.
+  Cite actual protected assertions and fixed expected values or independently derived public
+  invariants; worker self-assertions, comments, test names, GOLD and mutation scripts are not
+  coverage proof. Explain why the expectation is independent of submitted behavior.
+  Mark a feasible unobserved combination gap, even if every axis appears elsewhere; give its
+  proposed fixture and expected observation as required repair without claiming it was run.
+  Inapplicable needs a cited public exclusion or impossibility reason, not the absence of a
+  test or an unsupported claim. Group at most four axes with two to four public categories
+  each, at most 32 cases per group and 64 cases overall. Keep fields concise. These are bounds
+  on the review worksheet, not permission to drop a material public condition or add scope.
+  The host checks declared Cartesian inventory and citation linkage, not semantic truth or
+  runtime coverage; you remain responsible for tracing the joint conditions and expectations.
 - Shape-only full-model checks cannot establish numerical model behavior. Comparing two paths
   through the same submitted math is not an independent oracle. Reading submitted parameters
   can test arithmetic relationships, but all-zero or identical fixture values may hide mistakes.
@@ -149,7 +178,9 @@ class VerifierInputError(VerifierReviewError):
     """An author can repair the task files before another review is attempted."""
 
 
-def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, bool]:
+def _authority_reference_lines(
+    texts: dict[str, str], test: str, *, assertions_only: bool = False, include_inputs: bool = False
+) -> tuple[dict, bool]:
     """Conservative module-local links; unresolved calls remain a judge responsibility."""
     from pathlib import PurePosixPath
 
@@ -278,6 +309,9 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
         seen.add(key)
         path, name = key
         function = definitions[path][name]
+        if include_inputs:
+            for decorator in function.decorator_list:
+                add(checks, path, decorator)
         fixture_names = [arg.arg for arg in function.args.args]
         for decorator in function.decorator_list:
             if (
@@ -294,7 +328,19 @@ def _authority_reference_lines(texts: dict[str, str], test: str) -> tuple[dict, 
             if target:
                 pending.append(target)
         for node in body_nodes(function):
-            if isinstance(node, (ast.Assert, ast.Call)):
+            if (
+                isinstance(node, ast.Assert)
+                or (
+                    isinstance(node, ast.Call)
+                    and (
+                        not assertions_only
+                        or dotted(node.func).rpartition(".")[2].startswith("assert")
+                        or expanded(path, dotted(node.func))
+                        in {"pytest.raises", "pytest.warns", "pytest.deprecated_call"}
+                    )
+                )
+                or (include_inputs and isinstance(node, (ast.Assign, ast.AnnAssign, ast.Return)))
+            ):
                 add(checks, path, node)
             if isinstance(node, ast.Call):
                 target = resolve(path, dotted(node.func), name)
@@ -414,6 +460,114 @@ def _check_authority_inventory(review: VerifierPreflightReview, texts: dict[str,
             errors.append(label + ": " + "; ".join(row_errors))
     if errors:
         raise ValueError("Input authority worksheet reference errors:\n" + "\n".join(errors))
+
+
+def _condition_citations(evidence, texts: dict[str, str], *, public: bool, reachable=None) -> bool:
+    """Resolve exact raw quotes; linkage is not proof of semantic discrimination."""
+    linked = False
+    for item in evidence:
+        if item.path not in texts or not item.quote.strip():
+            raise ValueError("Condition citation needs a listed file and exact nonempty quote")
+        if public:
+            if item.path not in {"instruction.md", "contract.json"}:
+                raise ValueError("Condition axis/exclusion needs a public-contract citation")
+        elif not item.path.startswith("tests/") or item.path == "tests/contract.json":
+            raise ValueError(
+                "Joint fixture/expectation evidence must cite protected tests, not GOLD or mutation scripts"
+            )
+        text = texts[item.path]
+        hits = []
+        offset = text.find(item.quote)
+        while offset >= 0:
+            line = text.count("\n", 0, offset) + 1
+            if line not in hits:
+                hits.append(line)
+            offset = text.find(item.quote, offset + 1)
+        span = item.quote.count("\n") + 1
+        eligible = (reachable or {}).get(item.path, set())
+        local = [line for line in hits if set(range(line, line + span)) & eligible]
+        if item.line is not None:
+            if item.line not in hits:
+                raise ValueError(
+                    f"Condition quote does not match {item.path}:{item.line}; candidate lines {hits[:12]}"
+                )
+        elif local:
+            item.line = local[0]
+        elif hits and (public or len(hits) == 1):
+            item.line = hits[0]
+        else:
+            raise ValueError(
+                f"Condition quote needs an exact occurrence in {item.path}; candidate lines {hits[:12]}"
+            )
+        linked |= bool(set(range(item.line, item.line + span)) & eligible)
+    return linked
+
+
+def _check_condition_inventory(review: VerifierPreflightReviewV11, texts: dict[str, str]) -> None:
+    """Check bounded joint inventories and source links, never execute a fixture."""
+    rows = json.loads(texts["contract.json"])["requirements"]
+    requirements = {row["id"]: set(row["tests"]) for row in rows}
+    if len(requirements) != len(rows):
+        raise ValueError("Joint condition inventory needs unique requirement IDs")
+    actual = {name for matrix in review.condition_matrices for name in matrix.requirement_ids}
+    if actual != set(requirements):
+        raise ValueError(
+            f"Joint condition inventory must assess every requirement: expected {sorted(requirements)}, received {sorted(actual)}"
+        )
+    errors = []
+    references = {}
+    for index, matrix in enumerate(review.condition_matrices):
+        try:
+            _condition_citations(matrix.evidence, texts, public=True)
+            for axis in matrix.axes:
+                _condition_citations(axis.evidence, texts, public=True)
+        except ValueError as exc:
+            errors.append(f"condition_matrices[{index}]: {exc}")
+        for case in matrix.cases:
+            label = f"condition_matrices[{index}] {case.values}"
+            try:
+                if case.result == "inapplicable":
+                    _condition_citations(case.inapplicable_evidence, texts, public=True)
+                    continue
+                if case.result == "gap":
+                    # Proposed fixtures need not exist; they must not be called coverage.
+                    continue
+                if case.test not in references:
+                    inputs, found = _authority_reference_lines(
+                        texts, case.test, include_inputs=True
+                    )
+                    assertions, _ = _authority_reference_lines(
+                        texts, case.test, assertions_only=True
+                    )
+                    references[case.test] = inputs, assertions, found
+                inputs, assertions, found = references[case.test]
+                if not found or not any(
+                    case.test in requirements[name] for name in matrix.requirement_ids
+                ):
+                    raise ValueError(
+                        "Covered joint case test must exist and map to a declared requirement"
+                    )
+                if not _condition_citations(
+                    case.fixture_evidence, texts, public=False, reachable=inputs
+                ):
+                    raise ValueError(
+                        "Joint fixture inputs need a citation reachable from the mapped test, helper or parameter grid"
+                    )
+                if not _condition_citations(
+                    case.expected_evidence, texts, public=False, reachable=assertions
+                ):
+                    raise ValueError(
+                        "Joint expected observation needs a protected assertion reachable from the mapped test; worker strings and GOLD mutations do not qualify"
+                    )
+            except ValueError as exc:
+                errors.append(label + ": " + str(exc))
+    if errors:
+        raise ValueError("Joint condition worksheet reference errors:\n" + "\n".join(errors))
+
+
+def _check_preflight_inventories(review: VerifierPreflightReviewV11, texts: dict[str, str]) -> None:
+    _check_authority_inventory(review, texts)
+    _check_condition_inventory(review, texts)
 
 
 def _directory(path: Path) -> None:
@@ -585,8 +739,8 @@ def _check_reconsideration(
         if review.passed and review.optional_improvements:
             raise ValueError("tentative pass with optional findings was not reconsidered")
         return
-    initial = VerifierPreflightReview.model_validate(preliminary)
-    _check_authority_inventory(initial, texts)
+    initial = VerifierPreflightReviewV11.model_validate(preliminary)
+    _check_preflight_inventories(initial, texts)
     if not initial.passed or not initial.optional_improvements:
         raise ValueError("invalid preliminary reconsideration evidence")
     messages = state["messages"]
@@ -595,8 +749,8 @@ def _check_reconsideration(
             continue
         previous = messages[index - 1]
         if previous.get("role") == "assistant" and not previous.get("tool_calls"):
-            prior = VerifierPreflightReview.model_validate_json(previous.get("content") or "")
-            _check_authority_inventory(prior, texts)
+            prior = VerifierPreflightReviewV11.model_validate_json(previous.get("content") or "")
+            _check_preflight_inventories(prior, texts)
             if prior == initial:
                 return
     raise ValueError("missing bounded reconsideration conversation")
@@ -617,12 +771,12 @@ def _cached(folder: Path, identity: dict, texts: dict[str, str]) -> VerifierRevi
         saved = json.loads((folder / "input.json").read_text())
         if saved != {"identity": identity, "texts": texts}:
             raise ValueError("cached frozen inputs do not match")
-        review = VerifierPreflightReview.model_validate(record["review"])
-        _check_authority_inventory(review, texts)
+        review = VerifierPreflightReviewV11.model_validate(record["review"])
+        _check_preflight_inventories(review, texts)
         state = json.loads((folder / "state.json").read_text())
         last = state["messages"][-1]
-        final_review = VerifierPreflightReview.model_validate_json(last.get("content") or "")
-        _check_authority_inventory(final_review, texts)
+        final_review = VerifierPreflightReviewV11.model_validate_json(last.get("content") or "")
+        _check_preflight_inventories(final_review, texts)
         if last.get("role") != "assistant" or last.get("tool_calls") or final_review != review:
             raise ValueError("cached final state does not match the review")
         events = [json.loads(line) for line in (folder / "trace.jsonl").read_text().splitlines()]
@@ -653,7 +807,7 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
         raise
 
     tool = _read_tool(texts)
-    schema = VerifierPreflightReview.model_json_schema()
+    schema = VerifierPreflightReviewV11.model_json_schema()
     identity = {
         "policy_version": POLICY_VERSION,
         "policy_sha256": hashlib.sha256(
@@ -717,11 +871,11 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
         if not _complete(texts, reads):
             return _read_progress(texts, reads)
         try:
-            proposed = VerifierPreflightReview.model_validate_json(content)
-            _check_authority_inventory(proposed, texts)
+            proposed = VerifierPreflightReviewV11.model_validate_json(content)
+            _check_preflight_inventories(proposed, texts)
         except (ValueError, KeyError, TypeError) as exc:
             return (
-                "Complete or correct the required input-authority worksheet and its exact references: "
+                "Complete or correct the required input-authority and joint-condition worksheets and their exact references: "
                 + str(exc)[:3000]
             )
         if (
@@ -769,8 +923,8 @@ async def review_verifier(task: Path, root: Path, *, model: str, budget: Budget)
             )
         if _snapshot(task) != texts:
             raise ValueError("verifier evidence changed during the review")
-        result = VerifierPreflightReview.model_validate_json(last.get("content") or "")
-        _check_authority_inventory(result, texts)
+        result = VerifierPreflightReviewV11.model_validate_json(last.get("content") or "")
+        _check_preflight_inventories(result, texts)
         _check_reconsideration(record, state, result, texts)
         record.update(status="completed", review=result.model_dump())
         return result

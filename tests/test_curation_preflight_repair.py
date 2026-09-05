@@ -10,7 +10,11 @@ from pydantic import ValidationError
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.curation.budget import Budget
-from repo2rlenv.curation.models import SpecificationPreflightReview, VerifierPreflightReview
+from repo2rlenv.curation.models import (
+    SpecificationPreflightReview,
+    VerifierPreflightReview,
+    VerifierPreflightReviewV11,
+)
 from repo2rlenv.curation.protocol import DraftLimitExceeded, DraftTracker, MechanicalTracker
 from repo2rlenv.curation.repair import (
     FinalJudgeOrigin,
@@ -135,7 +139,7 @@ def preflight_family(final_family):
     return result
 
 
-def attach_preflight(f, *, stage="verifier", status="error"):
+def attach_preflight(f, *, stage="verifier", status="error", verifier_policy=10):
     texts = (
         _snapshot(f.task)
         if stage == "verifier"
@@ -145,7 +149,7 @@ def attach_preflight(f, *, stage="verifier", status="error"):
         }
     )
     identity = {
-        "policy_version": 10 if stage == "verifier" else 3,
+        "policy_version": verifier_policy if stage == "verifier" else 3,
         "policy_sha256": "a" * 64,
         "inference": {"model": f.config.judge_model},
         "files": {k: hashlib.sha256(v.encode()).hexdigest() for k, v in texts.items()},
@@ -171,9 +175,11 @@ def attach_preflight(f, *, stage="verifier", status="error"):
             error_type="BudgetExceeded", error="Candidate budget $8.00: $6.05 committed; need $1.98"
         )
     else:
-        review_type = (
-            VerifierPreflightReview if stage == "verifier" else SpecificationPreflightReview
-        )
+        review_type = SpecificationPreflightReview
+        if stage == "verifier":
+            review_type = (
+                VerifierPreflightReviewV11 if verifier_policy >= 11 else VerifierPreflightReview
+            )
         fields = {
             "score": 2,
             "blockers": ["The instruction permits an omitted helper."],
@@ -197,6 +203,18 @@ def attach_preflight(f, *, stage="verifier", status="error"):
                     "evidence": [{"path": "instruction.md", "quote": texts["instruction.md"]}],
                 }
                 for requirement in json.loads(texts["contract.json"])["requirements"]
+            ]
+        if stage == "verifier" and verifier_policy >= 11:
+            fields["condition_matrices"] = [
+                {
+                    "requirement_ids": [
+                        r["id"] for r in json.loads(texts["contract.json"])["requirements"]
+                    ],
+                    "interaction_reason": "The public edit boundary is a single constraint with no interacting condition axes.",
+                    "evidence": [{"path": "instruction.md", "quote": texts["instruction.md"]}],
+                    "axes": [],
+                    "cases": [],
+                }
             ]
         review = review_type.model_validate(fields)
         record["review"] = review.model_dump()
@@ -564,3 +582,25 @@ def test_completed_preflight_accepts_corrected_malformed_tool_input(preflight_fa
     with prepare(f) as repair:
         assert "completed static preflight rejection" in repair.feedback
     assert origin.trace.path.read_bytes() == trace_before
+
+
+def test_completed_policy11_preflight_origin_preserves_matrix(preflight_family):
+    f = preflight_family
+    attach_preflight(f, status="completed", verifier_policy=11)
+    with prepare(f) as repair:
+        assert "condition_matrices" in repair.feedback
+        assert "completed static preflight rejection" in repair.feedback
+
+
+def test_policy11_origin_cannot_drop_required_condition_matrix(preflight_family):
+    f = preflight_family
+    attach_preflight(f, status="completed", verifier_policy=11)
+    record = json.loads(f.context.origin.result.path.read_text())
+    record["review"].pop("condition_matrices")
+    change_bound(f, "result", record)
+    before = f.budget.path.read_bytes()
+    with pytest.raises(ValueError, match="condition_matrices"):
+        with prepare(f):
+            pass
+    assert f.budget.path.read_bytes() == before
+    assert not f.root.exists()

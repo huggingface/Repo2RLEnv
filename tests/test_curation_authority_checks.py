@@ -184,15 +184,19 @@ def test_grounded_na_covers_requirement_without_inventing_authority():
 
 
 @pytest.mark.asyncio
-async def test_new_policy_rejects_old_final_then_accepts_corrected_worksheet_with_same_caps(setup):
+@pytest.mark.parametrize("missing_field", ["authority_checks", "condition_matrices"])
+async def test_new_policy_rejects_old_final_then_accepts_corrected_worksheet_with_same_caps(
+    setup, missing_field
+):
     s = setup
     seen = []
 
     async def judge(**kwargs):
         await read_all(kwargs)
         legacy = feedback().model_dump()
-        legacy.pop("authority_checks")
-        assert "input-authority worksheet" in kwargs["validate_final"](json.dumps(legacy))
+        legacy.pop(missing_field)
+        correction = kwargs["validate_final"](json.dumps(legacy))
+        assert "worksheets" in correction and missing_field in correction
         seen.append(legacy)
         assert kwargs["validate_final"](feedback().model_dump_json()) is None
         assert kwargs["max_turns"] == 10 and kwargs["max_cost"] == 4
@@ -204,13 +208,16 @@ async def test_new_policy_rejects_old_final_then_accepts_corrected_worksheet_wit
 
 
 @pytest.mark.asyncio
-async def test_cached_new_policy_pass_missing_worksheet_fails_without_paid_retry(setup):
+@pytest.mark.parametrize("missing_field", ["authority_checks", "condition_matrices"])
+async def test_cached_new_policy_pass_missing_worksheet_fails_without_paid_retry(
+    setup, missing_field
+):
     s = setup
     await review(s)
     path = record_path(s)
     record = json.loads(path.read_text())
-    assert record["identity"]["policy_version"] == 10
-    record["review"].pop("authority_checks")
+    assert record["identity"]["policy_version"] == 11
+    record["review"].pop(missing_field)
     path.write_text(json.dumps(record))
     with pytest.raises(verifier.VerifierReviewError, match="Cached verifier review unavailable"):
         await review(s)
@@ -218,7 +225,8 @@ async def test_cached_new_policy_pass_missing_worksheet_fails_without_paid_retry
 
 
 @pytest.mark.asyncio
-async def test_reconsidered_final_still_gets_missing_worksheet_feedback(setup):
+@pytest.mark.parametrize("missing_field", ["authority_checks", "condition_matrices"])
+async def test_reconsidered_final_still_gets_missing_worksheet_feedback(setup, missing_field):
     s = setup
     initial = feedback().model_copy(
         update={"optional_improvements": ["A harmless naming cleanup."]}
@@ -229,8 +237,9 @@ async def test_reconsidered_final_still_gets_missing_worksheet_feedback(setup):
         validate = kwargs["validate_final"]
         assert validate(initial.model_dump_json()) == verifier.RECONSIDER_PASS
         missing = initial.model_dump()
-        missing.pop("authority_checks")
-        assert "input-authority worksheet" in validate(json.dumps(missing))
+        missing.pop(missing_field)
+        correction = validate(json.dumps(missing))
+        assert "worksheets" in correction and missing_field in correction
         assert validate(initial.model_dump_json()) is None
         result = state(initial)
         result["messages"][:0] = [

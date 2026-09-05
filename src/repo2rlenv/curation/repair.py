@@ -24,6 +24,7 @@ from repo2rlenv.curation.models import (
     SpecificationPreflightReview,
     StrictModel,
     VerifierPreflightReview,
+    VerifierPreflightReviewV11,
     validate_review_scores,
 )
 
@@ -460,14 +461,23 @@ def _preflight_feedback(
     if status == "completed":
         from repo2rlenv.curation.specification_review import _coverage_complete
 
-        model = (
-            VerifierPreflightReview if origin.stage == "verifier" else SpecificationPreflightReview
-        )
+        model = SpecificationPreflightReview
+        if origin.stage == "verifier":
+            from repo2rlenv.curation.verifier_review import (
+                _check_authority_inventory,
+                _check_preflight_inventories,
+            )
+
+            if identity["policy_version"] > 11:
+                raise RepairError("Unsupported completed verifier preflight policy")
+            matrix_policy = identity["policy_version"] == 11
+            model = VerifierPreflightReviewV11 if matrix_policy else VerifierPreflightReview
+            check_inventory = (
+                _check_preflight_inventories if matrix_policy else _check_authority_inventory
+            )
         reviewed = model.model_validate(result.get("review"))
         if origin.stage == "verifier":
-            from repo2rlenv.curation.verifier_review import _check_authority_inventory
-
-            _check_authority_inventory(reviewed, texts)
+            check_inventory(reviewed, texts)
         if reviewed.passed or not _coverage_complete(texts, reads):
             raise RepairError("Completed preflight must contain a fully read rejection")
         if not isinstance(state, dict) or not isinstance(state.get("messages"), list):
@@ -476,7 +486,7 @@ def _preflight_feedback(
         final = state["messages"][-1]
         final_review = model.model_validate_json(final.get("content") or "")
         if origin.stage == "verifier":
-            _check_authority_inventory(final_review, texts)
+            check_inventory(final_review, texts)
         models = [event["message"] for event in events if event.get("kind") == "model"]
         if (
             final.get("role") != "assistant"

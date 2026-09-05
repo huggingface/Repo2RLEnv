@@ -12,7 +12,7 @@ import pytest
 
 from repo2rlenv.curation.agent import IncompleteModelResponse
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
-from repo2rlenv.curation.models import VerifierPreflightReview, VerifierReview
+from repo2rlenv.curation.models import VerifierPreflightReviewV11, VerifierReview
 
 verifier = importlib.import_module("repo2rlenv.curation.verifier_review")
 
@@ -24,7 +24,22 @@ def write(path: Path, text: str | bytes) -> Path:
 
 
 def feedback(*, passed=True):
-    return VerifierPreflightReview(
+    return VerifierPreflightReviewV11(
+        condition_matrices=[
+            {
+                "requirement_ids": ["sum"],
+                "interaction_reason": "The public sum and its derivative depend on one supplied sequence; no independently configurable public modes or competing input axes are specified in this fixture.",
+                "evidence": [
+                    {
+                        "path": "instruction.md",
+                        "line": 1,
+                        "quote": "The update must be differentiable and return the input sum.",
+                    }
+                ],
+                "axes": [],
+                "cases": [],
+            }
+        ],
         authority_checks=[
             {
                 "requirement_id": "sum",
@@ -136,7 +151,7 @@ async def test_bounded_review_reads_all_files_and_reuses_durable_cache(setup):
     assert record["status"] == "completed"
     assert record["cost_usd"] == record["charged_usd"] == 0.15
     assert record["identity"]["limits"]["input_bytes"] == 128_000
-    assert record["identity"]["policy_version"] == 10
+    assert record["identity"]["policy_version"] == 11
     assert record["identity"]["inference"]["max_tokens"] == 32_000
     assert set(record["reads"]) == {
         p.relative_to(s.task).as_posix() for p in s.task.rglob("*") if p.is_file()
@@ -296,7 +311,7 @@ async def test_read_progress_tracks_unicode_gaps_overlaps_and_completion(setup):
         assert "Read progress: 10/10 files complete. All evidence read" in page
         assert "missing=" not in page
         assert validate(feedback(passed=False).model_dump_json()) is None
-        assert "input-authority worksheet" in validate("not JSON")
+        assert "input-authority and joint-condition worksheets" in validate("not JSON")
         return state(feedback(passed=False))
 
     s.agent.side_effect = judge
@@ -349,7 +364,7 @@ async def test_progress_at_file_limit_never_truncates_recorded_evidence(setup, m
         assert "additional missing ranges omitted" in progress
         assert len(progress) <= verifier.MAX_PROGRESS_CHARS
         await read_all(kwargs)
-        assert "input-authority worksheet" in kwargs["validate_final"]("{}")
+        assert "input-authority and joint-condition worksheets" in kwargs["validate_final"]("{}")
         return state()
 
     s.agent.side_effect = judge
@@ -605,14 +620,16 @@ def test_optional_improvements_do_not_block_complete_verifier():
     result = feedback().model_copy(update={"optional_improvements": ["Improve test names"]})
     assert result.passed
     assert (
-        VerifierReview.model_validate_json(result.model_dump_json()).model_dump()
+        VerifierPreflightReviewV11.model_validate_json(result.model_dump_json()).model_dump()
         == result.model_dump()
     )
 
 
 def test_empty_optional_improvement_is_invalid():
     with pytest.raises(ValueError, match="must contain text"):
-        VerifierReview.model_validate({**feedback().model_dump(), "optional_improvements": ["  "]})
+        VerifierPreflightReviewV11.model_validate(
+            {**feedback().model_dump(), "optional_improvements": ["  "]}
+        )
 
 
 def test_high_score_repair_feedback_is_cached_as_nonpassing(setup):

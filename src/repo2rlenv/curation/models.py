@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from itertools import product
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -230,7 +231,104 @@ class VerifierReview(SpecificationReview):
         )
 
 
+class ConditionAxis(StrictModel):
+    name: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,49}$")
+    values: list[str] = Field(min_length=2, max_length=4)
+    public_meaning: str = Field(min_length=20)
+    evidence: list[AuthorityEvidence] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def distinct_values(self) -> ConditionAxis:
+        if any(not value.strip() for value in self.values) or len(set(self.values)) != len(
+            self.values
+        ):
+            raise ValueError("Condition axis values must be distinct nonempty public categories")
+        return self
+
+
+class ConditionCase(StrictModel):
+    values: dict[str, str] = Field(min_length=2, max_length=4)
+    result: Literal["covered", "gap", "inapplicable"]
+    fixture_input: str | None
+    expected_observation: str | None
+    test: str | None = Field(default=None, pattern=r"^test_[A-Za-z0-9_]+$")
+    fixture_evidence: list[AuthorityEvidence] = Field(default_factory=list, max_length=6)
+    expected_evidence: list[AuthorityEvidence] = Field(default_factory=list, max_length=6)
+    inapplicable_evidence: list[AuthorityEvidence] = Field(default_factory=list, max_length=4)
+    reason: str = Field(min_length=30)
+
+    @model_validator(mode="after")
+    def concrete_case(self) -> ConditionCase:
+        if self.result != "inapplicable" and (
+            not (self.fixture_input or "").strip() or not (self.expected_observation or "").strip()
+        ):
+            raise ValueError(
+                "A covered or missing joint case needs concrete inputs and an independent expected observation"
+            )
+        if self.result == "covered" and (
+            not self.test or not self.fixture_evidence or not self.expected_evidence
+        ):
+            raise ValueError(
+                "Covered joint case requires a mapped test, fixture evidence and expected-observation evidence"
+            )
+        if self.result == "inapplicable" and not self.inapplicable_evidence:
+            raise ValueError(
+                "Inapplicable combination needs cited public scope or an impossibility justification"
+            )
+        if self.result != "inapplicable" and self.inapplicable_evidence:
+            raise ValueError("Only inapplicable combinations may carry inapplicable evidence")
+        return self
+
+
+class ConditionMatrix(StrictModel):
+    requirement_ids: list[str] = Field(min_length=1, max_length=64)
+    interaction_reason: str = Field(
+        min_length=30,
+        description="Why these independently varying public conditions materially interact, or a grounded reason no material interaction exists when axes/cases are empty.",
+    )
+    evidence: list[AuthorityEvidence] = Field(min_length=1, max_length=6)
+    axes: list[ConditionAxis] = Field(max_length=4)
+    cases: list[ConditionCase] = Field(max_length=32)
+
+    @model_validator(mode="after")
+    def complete_cartesian_inventory(self) -> ConditionMatrix:
+        if any(not name.strip() for name in self.requirement_ids) or len(
+            set(self.requirement_ids)
+        ) != len(self.requirement_ids):
+            raise ValueError("Condition matrix requires distinct nonempty requirement IDs")
+        if not self.axes:
+            if self.cases:
+                raise ValueError("No-interaction assessment must have no cases")
+            return self
+        names = [axis.name for axis in self.axes]
+        if len(names) < 2 or len(set(names)) != len(names):
+            raise ValueError("A joint condition matrix needs two to four distinct axes")
+        expected = set(product(*(axis.values for axis in self.axes)))
+        if len(expected) > 32:
+            raise ValueError(
+                "Condition matrix exceeds 32 joint cases; keep only grounded material interaction groups"
+            )
+        actual = []
+        for case in self.cases:
+            if set(case.values) != set(names):
+                raise ValueError(f"Joint case must specify exactly these axes: {names}")
+            values = tuple(case.values[name] for name in names)
+            if values not in expected:
+                raise ValueError(f"Joint case has undeclared axis values: {values}")
+            actual.append(values)
+        if len(set(actual)) != len(actual):
+            raise ValueError("Duplicate joint condition combination")
+        missing = sorted(expected - set(actual))
+        if missing:
+            raise ValueError(
+                f"Condition matrix omits joint combinations for {names}: {missing}; mark each covered, gap, or justified inapplicable"
+            )
+        return self
+
+
 class VerifierPreflightReview(VerifierReview):
+    """Retained policy-10 preflight schema, without joint-condition requirements."""
+
     authority_checks: list[InputAuthorityCheck] = Field(min_length=1, max_length=64)
 
     @model_validator(mode="before")
@@ -260,6 +358,49 @@ class VerifierPreflightReview(VerifierReview):
         if type(value.get("score")) is int:
             value["score"] = min(value["score"], 2)
         return value
+
+
+class VerifierPreflightReviewV11(VerifierPreflightReview):
+    """Current preflight inventory; historical and final admission schemas stay unchanged."""
+
+    condition_matrices: list[ConditionMatrix] = Field(min_length=1, max_length=16)
+
+    @model_validator(mode="before")
+    @classmethod
+    def joint_gaps_are_required_repairs(cls, value):
+        if not isinstance(value, dict):
+            return value
+        matrices = [
+            ConditionMatrix.model_validate(row) for row in value.get("condition_matrices") or []
+        ]
+        if sum(len(matrix.cases) for matrix in matrices) > 64:
+            raise ValueError("Joint condition inventory exceeds 64 total cases")
+        gaps = [
+            (matrix, case) for matrix in matrices for case in matrix.cases if case.result == "gap"
+        ]
+        if not gaps or not isinstance(value.get("repairs"), list):
+            return value
+        value = dict(value)
+        repairs = list(value["repairs"])
+        for matrix, case in gaps:
+            condition = ", ".join(f"{name}={item}" for name, item in sorted(case.values.items()))
+            repair = (
+                f"Joint condition gap [{', '.join(matrix.requirement_ids)}] under {condition}: "
+                f"{case.reason} Add a distinguishing observation for {case.fixture_input}; "
+                f"expected {case.expected_observation}."
+            )
+            if repair not in repairs:
+                repairs.append(repair)
+        value["repairs"] = repairs
+        if type(value.get("score")) is int:
+            value["score"] = min(value["score"], 2)
+        return value
+
+    @property
+    def passed(self) -> bool:
+        return super().passed and not any(
+            case.result == "gap" for matrix in self.condition_matrices for case in matrix.cases
+        )
 
 
 class Review(StrictModel):

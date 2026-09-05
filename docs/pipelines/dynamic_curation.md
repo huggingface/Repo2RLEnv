@@ -158,6 +158,17 @@ within its original turn and cost limits. The premature response stays in the
 trace. This correction checks reading completeness only; a complete quality
 rejection is never rerolled, and exhausted or truncated reviews still fail closed.
 
+Verifier preflight policy 11 also requires a condition matrix for materially
+interacting public conditions. Each mapped requirement receives either grounded
+axes and every feasible Cartesian combination or an explicit cited explanation
+that no interaction is relevant. Covered cases cite concrete fixture inputs and
+protected expected observations; missing cases require repair. Separate marginal
+cases do not establish joint coverage. Invented requirements and arbitrary
+cross-products are outside this check. Each matrix has at most four axes and 32
+cases, with at most 64 cases overall. Host validation checks declared inventory
+and citation linkage; it does not prove semantic independence or runtime behavior.
+Historical authority-only reviews remain readable through versioned repair origins.
+
 This step only guides author repairs. Every admission still requires the trials,
 eight-criterion trajectory review and mandatory gates below.
 
