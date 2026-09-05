@@ -153,6 +153,8 @@ nav:
       - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
       - "cve_patches (experimental)": pipelines/cve_patches.md
       - "dynamic curation (experimental)": pipelines/dynamic_curation.md
+      - "Curation regression corpus": pipelines/curation_regressions.md
+      - "Controlled curation pilot": pipelines/curation_pilot_protocol.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

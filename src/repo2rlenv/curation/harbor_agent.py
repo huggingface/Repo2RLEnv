@@ -32,11 +32,18 @@ class OfflineAgent(BaseAgent):
         oracle_dir: str | None = None,
         budget_scope: str | None = None,
         scope_limit: float | None = None,
+        budget_group: str | None = None,
+        group_limit: float | None = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.budget = Budget(
-            Path(budget_path), budget_limit, scope=budget_scope, scope_limit=scope_limit
+            Path(budget_path),
+            budget_limit,
+            scope=budget_scope,
+            scope_limit=scope_limit,
+            group=budget_group,
+            group_limit=group_limit,
         )
         self.max_turns, self.mode, self.script, self.max_cost = max_turns, mode, script, max_cost
         self.oracle_dir = oracle_dir

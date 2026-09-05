@@ -86,6 +86,7 @@ jobs:
           python-version: '3.12'
       - run: uv sync --group dev --extra curation --frozen
       - run: uv run --extra curation pytest tests/test_curation*.py -q
+      - run: uv run --no-sync --with numpy==2.2.6 pytest tests/test_curation_regressions.py -q
       - run: node --test tests/test_pi_runtime.mjs tests/opencode_runtime.test.mjs
 
   build:

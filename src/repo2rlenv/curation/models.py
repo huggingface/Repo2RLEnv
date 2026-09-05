@@ -215,6 +215,8 @@ class CampaignConfig(StrictModel):
     author_turns: int = Field(default=45, ge=1, le=100)
     solver_turns: int = Field(default=35, ge=1, le=100)
     max_revisions: int = Field(default=3, ge=1, le=8)
+    max_candidate_drafts: int | None = Field(default=None, ge=1, le=8)
+    require_verification_plan: bool = False
     oracle_repeats: int = Field(default=3, ge=2, le=20)
     solver_attempts: int = Field(default=1, ge=1, le=10)
     acceptance_score: float = Field(default=85, ge=0, le=100)

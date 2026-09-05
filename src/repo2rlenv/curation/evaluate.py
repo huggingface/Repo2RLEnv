@@ -71,6 +71,8 @@ async def trial(
         "budget_limit": budget.limit,
         "budget_scope": budget.scope,
         "scope_limit": budget.scope_limit,
+        "budget_group": budget.group,
+        "group_limit": budget.group_limit,
         "max_turns": 15 if adversary else config.solver_turns,
         "max_cost": 3 if adversary else 6,
         "mode": "adversary" if adversary else "solve",

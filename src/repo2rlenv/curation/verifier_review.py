@@ -126,7 +126,7 @@ def _snapshot(task: Path) -> dict[str, str]:
     try:
         _directory(task)
         names = ["instruction.md", "contract.json"]
-        for name in ("task.toml", "environment/Dockerfile"):
+        for name in ("task.toml", "environment/Dockerfile", "verification-plan.json"):
             path = task / name
             if path.exists() or path.is_symlink():
                 names.append(name)

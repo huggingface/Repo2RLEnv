@@ -36,6 +36,11 @@ from repo2rlenv.curation.models import (
     quality_gate_reasons,
 )
 from repo2rlenv.curation.prompts import AUTHOR
+from repo2rlenv.curation.protocol import (
+    PILOT_AUTHOR,
+    DraftTracker,
+    check_verification_plan,
+)
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
 from repo2rlenv.curation.specification_review import SpecificationInputError, review_specification
@@ -490,6 +495,18 @@ async def curate_one(
 ) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     save(root / "source.json", source)
+    drafts = DraftTracker(root / "submitted-drafts.json", config.max_candidate_drafts)
+
+    def submit(task: Path) -> Contract:
+        try:
+            contract = finalize(task, source)
+        except ValueError:
+            drafts.observe(digest_task(task), task)
+            raise
+        drafts.observe(digest_task(task), task)
+        if config.require_verification_plan:
+            check_verification_plan(task, contract)
+        return contract
 
     async def check_specification(task: Path) -> str | None:
         # Timestamped attempts of this candidate share specification findings.
@@ -547,6 +564,15 @@ async def curate_one(
     attempt = 0
     cached = {}
 
+    async def export_submission(task: Path) -> None:
+        try:
+            await sandbox.export(task)
+        except ValueError:
+            # A symlink, size violation or invalid export cannot be hashed safely.
+            # Count each such submission rather than allowing unlimited tool retries.
+            drafts.observe(f"unexportable-{len(drafts.rows) + 1}", task)
+            raise
+
     async def defer_candidate(reason: str) -> str:
         save(root / "deferred.json", {"reason": reason, "source": source["url"]})
         raise CandidateDeferred(reason)
@@ -556,9 +582,9 @@ async def curate_one(
         attempt += 1
         folder = root / "drafts" / str(attempt)
         task = folder / "task"
-        await sandbox.export(task)
+        await export_submission(task)
         try:
-            finalize(task, source)
+            submit(task)
         except ValueError as exc:
             return "Structural validation failed: " + str(exc)
         specification_feedback = await check_specification(task)
@@ -610,7 +636,7 @@ async def curate_one(
             logger.info("%s: author revision %s", source["id"], revision + 1)
             await run_agent(
                 model=config.author_model,
-                system=AUTHOR,
+                system=AUTHOR + (PILOT_AUTHOR if config.require_verification_plan else ""),
                 prompt=feedback,
                 budget=budget,
                 tools=[SHELL_TOOL, VALIDATE_TOOL, DEFER_TOOL],
@@ -626,9 +652,9 @@ async def curate_one(
             )
             folder = root / f"revision-{revision}"
             task = folder / "task"
-            await sandbox.export(task)
+            await export_submission(task)
             try:
-                contract = finalize(task, source)
+                contract = submit(task)
             except ValueError as exc:
                 feedback = "Repair the structural validation failure: " + str(exc)
                 continue

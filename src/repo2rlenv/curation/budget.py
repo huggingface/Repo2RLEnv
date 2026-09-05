@@ -25,11 +25,18 @@ class Budget:
         *,
         scope: str | None = None,
         scope_limit: float | None = None,
+        group: str | None = None,
+        group_limit: float | None = None,
     ):
         if not math.isfinite(limit) or limit <= 0:
             raise ValueError("Budget must be finite and positive")
         self.path, self.limit = Path(path), limit
         self.scope, self.scope_limit = scope, scope_limit
+        self.group, self.group_limit = group, group_limit
+        if group_limit is not None and (
+            not group or not math.isfinite(group_limit) or group_limit <= 0
+        ):
+            raise ValueError("Group limit needs a name and a finite positive limit")
         if scope_limit is not None and (not math.isfinite(scope_limit) or scope_limit <= 0):
             raise ValueError("Scope limit must be finite and positive")
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,10 +82,21 @@ class Budget:
                     raise BudgetExceeded(
                         f"Candidate budget ${self.scope_limit:.2f}: ${scoped:.2f} committed; need ${amount:.2f}"
                     )
+            if self.group_limit is not None:
+                grouped = sum(
+                    e["charged_usd"]
+                    for e in state["entries"].values()
+                    if e.get("group") == self.group
+                )
+                if grouped + amount > self.group_limit:
+                    raise BudgetExceeded(
+                        f"Batch budget ${self.group_limit:.2f}: ${grouped:.2f} committed; need ${amount:.2f}"
+                    )
             key = uuid4().hex
             state["entries"][key] = {
                 "label": label,
                 "scope": self.scope,
+                **({"group": self.group} if self.group is not None else {}),
                 "reserved_usd": amount,
                 "charged_usd": amount,
                 "status": "reserved",

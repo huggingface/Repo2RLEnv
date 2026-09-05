@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "id": "backward_context_storage",
+  "source": {
+    "url": "https://github.com/huggingface/trl/pull/5575",
+    "repo": "huggingface/trl",
+    "number": 5575,
+    "base_sha": "510a6f556c66860369839831f892e3ecb105addf",
+    "head_sha": "d87972c1b8a33322160b7f0f7061af1bd475b41c"
+  },
+  "tasks": [
+    {
+      "role": "before",
+      "path": "workspace/trl-5575-repair/seed-v3/task",
+      "digest": "8587540a2c55ea8b90d80ad503d17d3fc23b26602a164acf5192c8f8874bcee0"
+    },
+    {
+      "role": "after",
+      "path": "workspace/trl-5575-repair/seed-v4/task",
+      "digest": "d99c04b8c5faa3e61763c314c7afe33914eeff32074d044e26eb2ed825d0b207"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/trl-5575-repair/provenance-v4.json",
+      "sha256": "b68e3d0778a334ed38b50abf46e944c5c49279c04b343ac2fe26c86bfc6c9de2",
+      "value": {
+        "trigger": {
+          "result_path": "/Users/adithya/projects/Repo2Reward/workspace/trl-5575-repair/validation-v3/verifier-reviews/72783b1ccf59f08866c491aa98a00fd127319556c9232d264246d58c932b79b8/result.json",
+          "state_path": "/Users/adithya/projects/Repo2Reward/workspace/trl-5575-repair/validation-v3/verifier-reviews/72783b1ccf59f08866c491aa98a00fd127319556c9232d264246d58c932b79b8/state.json",
+          "result_sha256": "461b9a7d2acd203946b46bc02b226898f56c52fa22927903d63a1f60f7354acc",
+          "state_sha256": "4fc5cc2ebc3a381def78b1e044c8b637c05531fd85ca2b4822be0c4f2858ea62",
+          "review_status": "error",
+          "review_error": "review did not read every complete verifier evidence file",
+          "prospective_diagnostic_findings": {
+            "score": 2,
+            "blockers": [
+              "Memory bound is gated only by `saved_tensors_hooks` bytes (tests/test_contract.py RESOURCE_PROBE_CODE `pack`/`retained_activation_bytes`, budget assert at end of test_projection_bounds_...). A concrete violating implementation passes: a per-chunk `torch.autograd.Function` that stores each chunk's logits/log-probs on `ctx.logits = logits` (or appends them to a list held by a returned object) instead of `save_for_backward`. Hooks never see those storages, so retained_bytes stays tiny while O(n_valid*vocab) activations are truly retained, contradicting instruction.md's O(chunk_size*vocab) promise. Row-count asserts do not catch it (chunks are \u2264 chunk_size)."
+            ],
+            "repairs": [
+              "Add an allocation-independent liveness observation in RESOURCE_PROBE_CODE: after forward and while loss/correct/entropy are still live, run `gc.collect()` and census live `torch.Tensor` objects (gc.get_objects) whose element count is >= vocab and which are not the fixture inputs; assert total bytes stay within the same chunk_size*vocab budget. This catches ctx-attribute / list retention that saved_tensors_hooks miss, without requiring any particular checkpoint API.",
+              "Tighten the 128-position budget margin: a non-checkpointed loop that retains only one vocab tensor per chunk uses 14*7*193*4 = 75,656 B vs budget 67,808 B (12% margin). Increase positions/vocab (e.g. drop the 128 case or raise vocab) so retention-vs-checkpointing separation is comfortably >2x in every case, keeping GOLD's few-kB retention far below.",
+              "Resource probe silently discards any mm whose row identities are not all fixture inputs (the `all(value in input_row_ids ...)` filter). Consequently (a) an implementation padding the final chunk with zero rows is rejected via `projected_ids == valid_ids` even though it never projects an ignored token, and (b) a projection mixing ignored rows with unknown rows is dropped rather than flagged. Either record unrecognized-row projections and assert on them explicitly, or state in instruction.md that padded/dummy projection rows are out of scope.",
+              "Optional: assert the returned tensors are 0-d (`loss.dim()==0` etc., promised in instruction.md) and that `loss.requires_grad` is True in a normal (non-degenerate) case; currently only `.item()` is read, so a (1,)-shaped or detached-statistics return is unchecked."
+            ],
+            "evidence": [
+              "instruction.md lines on memory: 'the vocabulary-sized activations retained for backward must occupy O(chunk_size * vocab_size) storage ... CPU checks observe projection row counts and saved activation storage at the end of forward' \u2014 the disclosed measurement is exactly the saved_tensors_hooks census a ctx-attribute implementation bypasses.",
+              "tests/test_contract.py test_projection_bounds_...: budgets = 8*chunk_size*vocab*4 + 8*positions*(width+1)*4 (67,808 B for positions=128, chunk=7, vocab=193); asserts rows<=chunk_size, projected_ids==valid_ids, retained bytes<=budget. This catches mutations retain_all_chunk_activations (>150 kB), single_full_valid_projection (rows=96>7) and project_ignored_positions (ignored identities recorded).",
+              "_np_reference (independent float64 numpy oracle, no call into submitted code) plus test_public_logit_options_precedence_and_batched_gradients cover bias\u2192scale\u2192softcap ordering, softcap-derivative chain rule, batched per-row shifting (hidden[:, :-1] vs labels[:, 1:]), tensor/int denominators and shift_labels precedence with contradictory all -100 labels \u2014 this distinguishes mutations ignore_logit_scale, ignore_final_softcap, labels_override_explicit_shift and any flatten-before-shift bug.",
+              "test_all_ignored_edge_case_...: asserts loss/correct/entropy\u22480, loss_requires_grad True and zero grads on hidden/weight/bias; with mutation ignore_bias_gradient_break, `bias.grad` is None so PROBE_CODE's `bias.grad.tolist()` raises and run_probe fails the test (probe.py raises RuntimeError on nonzero exit).",
+              "Equivalents check out against the assertions: reverse_smaller_checkpointed_chunks (step=chunk_size//2) keeps rows<=chunk_size and identical valid-id coverage; vocabulary_split_checkpointed_projection produces mm operands (rows,5)x(5,97) that still match the first candidate branch of ObserveProjection, so vocabulary splitting is not penalized.",
+              "Runner/gating: tests/runner.py requires exit 0, len(cases)>=contract.min_tests (8) and all contract-required test names present; test_contract.py defines exactly 8 test functions, so there is no slack if any test is renamed or skipped.",
+              "Environment sizing is CPU/offline-appropriate: fixtures are at most 512x5 hidden and 193x5 weight (probe payload well under the 1 MB limit in tests/probe.py), torch 2.5.1 CPU-only wheels in both Dockerfiles, HF_HUB_OFFLINE=1 \u2014 no GPU/pretrained-model claim is made or needed.",
+              "Minor execution uncertainties (not verified statically): solution/solve.sh runs `git apply` after the Dockerfiles delete `.git`, and solution/patch.diff calls `torch.utils.checkpoint.checkpoint` relying on the submodule being imported transitively via transformers; both should be confirmed in the oracle trial."
+            ]
+          },
+          "note": "The review did not read all evidence and its score is not a completed quality verdict. Its specific static counterexamples were independently inspected before repair."
+        },
+        "changes": [
+          "Resource measurement unions live saved-hook storage with a live Python Tensor storage census after gc.collect, while outputs remain live. Original fixture/pre-call storage is excluded and aliases are deduplicated by allocation pointer.",
+          "The census returns only pointer/byte metadata and explicitly clears its temporary object list and loop references. Each fixture uses a separate measurement scope. A 2,000,000-object guard bounds the observation profile.",
+          "Saved-hook handles are weakly observed and counted only while autograd retains them, avoiding historical counts for temporary graphs released during forward.",
+          "Resource positions increase from 128/512 to 512/1024 under the same byte-budget formula. One retained vocabulary matrix per valid token exceeds the threshold by 2.09x/2.47x.",
+          "Projection observations preserve known input identities mixed with padding. Actual input rows count against chunk_size; dummy rows are recorded separately. Ignored rows cannot disappear just because a dummy row shares their projection.",
+          "Added a GOLD-derived custom-autograd negative control that retains log-probabilities directly on ctx and uses those probabilities for an analytic correct backward. Its intended failure is retained memory alone.",
+          "Added an ignored-input-plus-dummy-padding mutation and a dummy-padded checkpointed equivalent. The equivalent adds one dummy row even to chunks already containing chunk_size actual tokens.",
+          "Added a singleton-vector output mutation and a ninth protected test for a tuple of 0-d tensors in normal/all-ignored cases. Resource fixtures also check scalar shapes. Gradient connectivity remains required for trainable inputs.",
+          "Instruction and contract explicitly include direct context/container retention and harmless dummy padding. No universal allocator-peak or GPU-performance requirement added.",
+          "Current finalize additionally refreshes tests/probe.py to the shared v14 bounded stderr helper. No live/frozen task or source file was edited."
+        ]
+      }
+    }
+  ],
+  "snippets": {
+    "before_pack": {
+      "path": "workspace/trl-5575-repair/seed-v3/task/tests/test_contract.py",
+      "sha256": "d8b64f7650beb707713047652af87498e246a136b5bd8d4450df5e40a1d38cec",
+      "selector": "embedded RESOURCE_PROBE_CODE / pack",
+      "text": "def pack(tensor):\n        storage = tensor.untyped_storage()\n        pointer = storage.data_ptr()\n        if pointer and pointer not in original_storage:\n            saved_storage[pointer] = storage.nbytes()\n        return tensor\n",
+      "text_sha256": "828c6461f656ce3679a0b67c32fb6b996b7d278d0debd1a60184c74bcad8a346"
+    },
+    "after_census": {
+      "path": "workspace/trl-5575-repair/seed-v4/task/tests/test_contract.py",
+      "sha256": "11c6818caa2fde6faa736727924d8d479a2a8ec97c2358ab0ec5d2ba435d14b4",
+      "selector": "embedded RESOURCE_PROBE_CODE / live_tensor_storages",
+      "text": "def live_tensor_storages():\n    # Return only allocation metadata. Clearing the temporary object list also\n    # prevents the census itself from extending tensor lifetimes after return.\n    objects = gc.get_objects()\n    storages = {}\n    obj = storage = None\n    try:\n        if len(objects) > 2_000_000:\n            raise RuntimeError(\"Live-object census exceeded its bounded profile\")\n        for obj in objects:\n            if isinstance(obj, torch.Tensor) and obj.layout == torch.strided:\n                storage = obj.untyped_storage()\n                pointer = storage.data_ptr()\n                if pointer:\n                    storages[pointer] = storage.nbytes()\n        return storages\n    finally:\n        obj = storage = None\n        objects.clear()\n",
+      "text_sha256": "09adb3580d02c8178a8d0e194f29849443221e72d5d54f472bb21c2a513a2e06"
+    }
+  },
+  "witness": {
+    "positions": 512,
+    "valid_tokens": 384,
+    "vocab": 193,
+    "hidden_width": 5,
+    "chunk_size": 7,
+    "element_bytes": 4
+  },
+  "local_scope": "Execute exact observer functions with weakly tracked storage-protocol objects. Context-only allocations bypass hooks; census counts them, deduplicates aliases, excludes baseline and does not retain dead objects.",
+  "remote_replay_required": true,
+  "limitation": "Observer-accounting reproduction, not Torch autograd integration, allocator peak memory, or currently passing end-to-end retention policy."
+}

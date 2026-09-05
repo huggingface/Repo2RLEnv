@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "id": "labels_shape_reference",
+  "source": {
+    "url": "https://github.com/huggingface/trl/pull/5407",
+    "repo": "huggingface/trl",
+    "number": 5407,
+    "base_sha": "1e667d8ad991a63bac8e9c8a5d4ed4673ae9aa93",
+    "head_sha": "0f65a7b39ad59d028f0510e23218b97171d477c7"
+  },
+  "tasks": [
+    {
+      "role": "before",
+      "path": "workspace/curation-admission-v8/candidates/huggingface-trl-5407/1788590822718112000/revision-2/task",
+      "digest": "a9977980e1484801dcd8c975025cc9e3c315d7d29d349942c484271f87471ad1"
+    },
+    {
+      "role": "after",
+      "path": "workspace/trl-5407-repair/seed-v1/task",
+      "digest": "c7499113562267de0530954d71882e2844df59347ebe3950f2da29cf9cb8ab70"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/trl-5407-repair/provenance-v1.json",
+      "sha256": "bca6ddbeb17345cf5534df74b6ed7e81427d8ca6b2722bd98032d8a52d45a61a",
+      "value": {
+        "changes": [
+          "Use public CPUfloat32 probe inputs while keeping NumPyfloat64 independent reference.",
+          "Observe explicit prompt precedence and labels-shape rejection even with prompt metadata.",
+          "Add the missing public shape guard to Gold; retain original Gold in original revision.",
+          "Add two targeted negatives and one float32-only positive control."
+        ]
+      }
+    },
+    {
+      "path": "workspace/production-audits/trl-5407-v1-static-check.json",
+      "sha256": "4f6a203765b292c5dc32fb7d4d92d1fa59880927c920c0596e870560bbd08fa5",
+      "value": {
+        "new_gold_change_exactly_unconditional_labels_guard": true
+      }
+    }
+  ],
+  "snippets": {
+    "before": {
+      "path": "workspace/curation-admission-v8/candidates/huggingface-trl-5407/1788590822718112000/revision-2/task/tests/test_contract.py",
+      "sha256": "961ad55a9477486e88603d27fbed1d158b0bcac729372cd7d217a1b3fef13877",
+      "selector": "test_build_teacher_request_inputs_errors",
+      "text": "def test_build_teacher_request_inputs_errors():\n    cases = [\n        # neither prompt_attention_mask nor labels provided\n        {\"input_ids\": [[1, 2]], \"attention_mask\": [[1, 1]]},\n        # shape mismatch between input_ids and attention_mask\n        {\"input_ids\": [[1, 2, 3]], \"attention_mask\": [[1, 1]]},\n        # labels shape mismatch with input_ids\n        {\"input_ids\": [[1, 2, 3]], \"attention_mask\": [[1, 1, 1]], \"labels\": [[-100, 2]]},\n        # computed prompt length (5) exceeds the row's real-token count (4)\n        {\n            \"input_ids\": [[5, 6, 7, 8]],\n            \"attention_mask\": [[1, 1, 1, 1]],\n            \"prompt_attention_mask\": [[1, 1, 1, 1, 1]],\n        },\n        # labels-derived prompt length would be negative: more non--100 (completion)\n        # labels than real (attention_mask==1) tokens.\n        {\n            \"input_ids\": [[1, 2, 3]],\n            \"attention_mask\": [[0, 1, 1]],\n            \"labels\": [[5, 6, 7]],\n        },\n    ]\n    payload = {\"teacher_inputs\": cases}\n    observed = run_probe(PROBE_IMPORT_AND_RUN, payload)\n    result = json.loads(observed) if isinstance(observed, str) else observed\n    assert len(result[\"teacher_inputs\"]) == len(cases)\n    for got in result[\"teacher_inputs\"]:\n        assert got[\"ok\"] is False\n        assert len(got[\"error\"]) > 0\n",
+      "text_sha256": "f5144a48aa0b5bb3ce4b6f83757932742c8e16b0c33c7166b72b716c51a2281a"
+    },
+    "after": {
+      "path": "workspace/trl-5407-repair/seed-v1/task/tests/test_contract.py",
+      "sha256": "98c346b73d77cce7d68939e981d5792c56d809690e58b73f74da643c8bddbfc3",
+      "selector": "test_build_teacher_request_inputs_errors",
+      "text": "def test_build_teacher_request_inputs_errors():\n    cases = [\n        # neither prompt_attention_mask nor labels provided\n        {\"input_ids\": [[1, 2]], \"attention_mask\": [[1, 1]]},\n        # shape mismatch between input_ids and attention_mask\n        {\"input_ids\": [[1, 2, 3]], \"attention_mask\": [[1, 1]]},\n        # labels shape mismatch with input_ids\n        {\"input_ids\": [[1, 2, 3]], \"attention_mask\": [[1, 1, 1]], \"labels\": [[-100, 2]]},\n        # The labels shape promise also applies when prompt metadata is supplied.\n        {\"input_ids\": [[1, 2, 3]], \"attention_mask\": [[1, 1, 1]],\n         \"prompt_attention_mask\": [[1, 0, 0]], \"labels\": [[-100, 2]]},\n        # computed prompt length (5) exceeds the row's real-token count (4)\n        {\n            \"input_ids\": [[5, 6, 7, 8]],\n            \"attention_mask\": [[1, 1, 1, 1]],\n            \"prompt_attention_mask\": [[1, 1, 1, 1, 1]],\n        },\n        # labels-derived prompt length would be negative: more non--100 (completion)\n        # labels than real (attention_mask==1) tokens.\n        {\n            \"input_ids\": [[1, 2, 3]],\n            \"attention_mask\": [[0, 1, 1]],\n            \"labels\": [[5, 6, 7]],\n        },\n    ]\n    payload = {\"teacher_inputs\": cases}\n    observed = run_probe(PROBE_IMPORT_AND_RUN, payload)\n    result = json.loads(observed) if isinstance(observed, str) else observed\n    assert len(result[\"teacher_inputs\"]) == len(cases)\n    for got in result[\"teacher_inputs\"]:\n        assert got[\"ok\"] is False\n        assert len(got[\"error\"]) > 0\n",
+      "text_sha256": "8a5128a15ba64bb560564cd98264ecc80a733f4ca1f7a5f2d795e254720b9083"
+    },
+    "valid": {
+      "path": "workspace/trl-5407-repair/seed-v1/task/tests/test_contract.py",
+      "sha256": "98c346b73d77cce7d68939e981d5792c56d809690e58b73f74da643c8bddbfc3",
+      "selector": "test_build_teacher_request_inputs_with_prompt_attention_mask_right_padded",
+      "text": "def test_build_teacher_request_inputs_with_prompt_attention_mask_right_padded():\n    case = {\n        \"input_ids\": [[5, 6, 7, 8, 0, 0]],\n        \"attention_mask\": [[1, 1, 1, 1, 0, 0]],\n        \"prompt_attention_mask\": [[1, 1, 0, 0, 0, 0]],\n    }\n    payload = {\"teacher_inputs\": [case]}\n    observed = run_probe(PROBE_IMPORT_AND_RUN, payload)\n    result = json.loads(observed) if isinstance(observed, str) else observed\n    got = result[\"teacher_inputs\"][0]\n    assert got[\"ok\"] is True\n    assert got[\"trimmed\"] == [[5, 6, 7, 8]]\n    assert got[\"plens\"] == [2]\n    assert got[\"clens\"] == [2]\n",
+      "text_sha256": "913dbff4ce5eac71456ad1573862db1e2de9926ce519d69ae0eb048a8a92bb22"
+    }
+  },
+  "gold_difference": {
+    "before_solution": {
+      "path": "workspace/curation-admission-v8/candidates/huggingface-trl-5407/1788590822718112000/revision-2/task/solution/solve.sh",
+      "sha256": "bfb26a29973a40cca1edc9401dad733dc2771decb78b3c1d49383415ea36f186"
+    },
+    "after_solution": {
+      "path": "workspace/trl-5407-repair/seed-v1/task/solution/solve.sh",
+      "sha256": "d98d58b80c909920c1355dc0ec904316b20bc54d80571e134a50094b54c492cd"
+    },
+    "before_program_sha256": "763b04dc60a3dbdda7af55c9f816308cb776c8afa58696537902b727dfb3ef67",
+    "after_program_sha256": "348adf6a7b8357fe1a50563bc68dafa710d41d2158acfbdcae88f111b58fe591",
+    "added_guard": "    if labels is not None and labels.shape != input_ids.shape:\n        raise ValueError(\"labels must match input_ids shape.\")\n\n"
+  },
+  "witness": {
+    "input_ids": [
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "attention_mask": [
+      [
+        1,
+        1,
+        1
+      ]
+    ],
+    "prompt_attention_mask": [
+      [
+        1,
+        0,
+        0
+      ]
+    ],
+    "labels": [
+      [
+        -100,
+        2
+      ]
+    ]
+  },
+  "local_scope": "Run retained protected valid/error tests against an independent list-based implementation with and without the unconditional labels-shape guard.",
+  "limitation": "Original Gold lacked the guard. This replays protected assertions with a semantic simulator; it does not execute the target function or prove its Torch behavior."
+}

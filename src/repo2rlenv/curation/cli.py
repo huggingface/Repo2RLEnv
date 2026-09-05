@@ -11,6 +11,21 @@ from repo2rlenv.ui import console
 
 
 def register(subparsers) -> None:
+    audit = subparsers.add_parser(
+        "curation-audit", help="Audit retained curation evidence without paid calls"
+    )
+    audit.add_argument("--workspace", type=Path, required=True)
+    audit.add_argument("--seeds", type=Path, required=True)
+    audit.add_argument("--ledger", type=Path, action="append", default=[])
+    audit.add_argument("--selection", type=Path, action="append", default=[])
+    audit.add_argument("--out", type=Path, required=True)
+    audit.set_defaults(func=cmd_audit)
+    pilot = subparsers.add_parser(
+        "curation-pilot", help="Run a frozen five-PR, $40 controlled pilot"
+    )
+    pilot.add_argument("--protocol", type=Path, required=True)
+    pilot.add_argument("--out", type=Path, required=True)
+    pilot.set_defaults(func=cmd_pilot)
     parser = subparsers.add_parser(
         "curate", help="Build and review PR tasks in cloud sandboxes (requires [curation])"
     )
@@ -44,6 +59,36 @@ def register(subparsers) -> None:
         help="Resolve seed URLs and config without spending or starting sandboxes",
     )
     parser.set_defaults(func=cmd_curate)
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    from repo2rlenv.curation.funnel import audit_funnel, write_report
+
+    report = audit_funnel(
+        args.workspace,
+        seed_paths=(args.seeds,),
+        ledger_paths=tuple(args.ledger),
+        selection_paths=tuple(args.selection),
+    )
+    _, markdown = write_report(report, args.out)
+    console.kv({"report": str(markdown.resolve())}, title="Curation audit")
+    return 0
+
+
+def cmd_pilot(args: argparse.Namespace) -> int:
+    from repo2rlenv.curation.pilot import run_pilot
+
+    result = asyncio.run(run_pilot(args.protocol, args.out))
+    console.kv(
+        {
+            "status": result["status"],
+            "automatic_accepted": result["automatic_accepted"],
+            "selected": "pending independent audit",
+            "charged_or_reserved_usd": result["charged_or_reserved_usd"],
+        },
+        title="Controlled pilot",
+    )
+    return 0
 
 
 def cmd_curate(args: argparse.Namespace) -> int:
