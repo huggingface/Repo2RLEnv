@@ -34,6 +34,9 @@ Required output:
   For a repository with src/ at its root, extract to /workspace, NOT /workspace/src:
   the latter accidentally creates /workspace/src/src. Check each contract source_path
   against the actual extracted location; all are relative to /workspace.
+  Every declared submission path must exist in the untouched image so Harbor can
+  export the baseline. For a new module, declare its existing parent directory or
+  create an empty submission directory at image build time; never seed the solution.
   Use CPU torch wheels from https://download.pytorch.org/whl/cpu when needed. Prefer
   tiny locally constructed model/config fixtures over downloaded weights. Install all
   runtime/test dependencies at image BUILD time: both solver and grader have NO network.
