@@ -109,6 +109,7 @@ class AgentBridge:
     async def tool(self, request):
         self.authenticate(request)
         self.ensure_open()
+        preceding_models = tuple(self._model_tasks)
         task = asyncio.current_task()
         self._tool_tasks.add(task)
         try:
@@ -117,6 +118,14 @@ class AgentBridge:
             if name not in self.handlers or not isinstance(arguments, dict):
                 raise web.HTTPBadRequest(text="Unknown tool or malformed arguments")
             try:
+                # Native runtimes can dispatch tools at message_stop before
+                # provider EOF. Match LangGraph: meter and validate that model
+                # response before allowing any effect. Cancelling a waiting
+                # tool must not cancel a model that still needs settlement.
+                await asyncio.gather(
+                    *(asyncio.shield(model) for model in preceding_models),
+                    return_exceptions=True,
+                )
                 async with self.tool_lock:
                     self.ensure_open()
                     output = await self.handlers[name](**arguments)

@@ -509,3 +509,281 @@ async def test_tool_only_provider_turn_is_usable(tmp_path, local_provider, in_me
         )
         assert bridge.failure is None
         assert bridge.cost == pytest.approx(0.002)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_reason", ["tool_use", "max_tokens"])
+async def test_tool_waits_for_delayed_model_eof_and_validation(
+    tmp_path, local_provider, in_memory_sse, stop_reason
+):
+    local_provider.finish.clear()
+    local_provider.stop_reason = stop_reason
+    local_provider.blocks = [{"type": "tool_use", "id": "tool-1", "name": "shell", "input": {}}]
+    effects, observed_costs = [], []
+    parsed = asyncio.Event()
+
+    async def shell():
+        effects.append("executed")
+        observed_costs.append(bridge.cost)
+        return "done"
+
+    async with make_bridge(tmp_path, handlers={"shell": shell}) as bridge:
+        model = asyncio.create_task(
+            bridge.messages(
+                BridgeRequest(
+                    {"model": "claude-mock", "stream": True},
+                    token=bridge.token,
+                )
+            )
+        )
+        await asyncio.wait_for(local_provider.called.wait(), 2)
+        tool = asyncio.create_task(
+            bridge.tool(
+                BridgeRequest(
+                    {"name": "shell", "arguments": {}},
+                    token=bridge.token,
+                    parsed=parsed,
+                )
+            )
+        )
+        try:
+            await asyncio.wait_for(parsed.wait(), 2)
+            assert effects == []
+            assert not tool.done()
+            assert bridge.cost == 0
+        finally:
+            local_provider.finish.set()
+            replies = await asyncio.wait_for(asyncio.gather(model, tool, return_exceptions=True), 2)
+        assert bridge.cost == pytest.approx(0.002)
+        if stop_reason == "max_tokens":
+            assert effects == []
+            assert isinstance(replies[1], asyncio.CancelledError)
+            assert "truncated" in str(bridge.failure)
+        else:
+            assert effects == ["executed"]
+            assert observed_costs == [pytest.approx(0.002)]
+            assert replies[1].status == 200
+    records = [json.loads(line) for line in bridge.trace.read_text().splitlines()]
+    assert [record["kind"] for record in records] == [
+        "model_request",
+        "model",
+        "runtime_error" if stop_reason == "max_tokens" else "tool",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cancelling_waiting_tool_does_not_cancel_model_settlement(
+    tmp_path, local_provider, in_memory_sse
+):
+    local_provider.finish.clear()
+    parsed = asyncio.Event()
+    effects = []
+
+    async def shell():
+        effects.append("must not execute")
+        return "unexpected"
+
+    async with make_bridge(tmp_path, handlers={"shell": shell}) as bridge:
+        model = asyncio.create_task(
+            bridge.messages(
+                BridgeRequest(
+                    {"model": "claude-mock", "stream": True},
+                    token=bridge.token,
+                )
+            )
+        )
+        await asyncio.wait_for(local_provider.called.wait(), 2)
+        tool = asyncio.create_task(
+            bridge.tool(
+                BridgeRequest(
+                    {"name": "shell", "arguments": {}},
+                    token=bridge.token,
+                    parsed=parsed,
+                )
+            )
+        )
+        try:
+            await asyncio.wait_for(parsed.wait(), 2)
+            tool.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(tool, 2)
+            assert not model.done()
+            assert bridge.failure is None
+        finally:
+            local_provider.finish.set()
+            await asyncio.wait_for(model, 2)
+        assert bridge.cost == pytest.approx(0.002)
+        assert effects == []
+
+
+@pytest.mark.asyncio
+async def test_bridge_shutdown_cancels_model_and_gated_tool_without_deadlock(
+    tmp_path, local_provider, in_memory_sse
+):
+    local_provider.finish.clear()
+    ready, parsed = asyncio.Event(), asyncio.Event()
+    effects = []
+
+    async def shell():
+        effects.append("must not execute")
+        return "unexpected"
+
+    bridge = make_bridge(tmp_path, handlers={"shell": shell})
+
+    async def owner():
+        async with bridge:
+            ready.set()
+            await asyncio.Event().wait()
+
+    owning = asyncio.create_task(owner())
+    await asyncio.wait_for(ready.wait(), 2)
+    model = asyncio.create_task(
+        bridge.messages(
+            BridgeRequest(
+                {"model": "claude-mock", "stream": True},
+                token=bridge.token,
+            )
+        )
+    )
+    await asyncio.wait_for(local_provider.called.wait(), 2)
+    tool = asyncio.create_task(
+        bridge.tool(
+            BridgeRequest(
+                {"name": "shell", "arguments": {}},
+                token=bridge.token,
+                parsed=parsed,
+            )
+        )
+    )
+    try:
+        await asyncio.wait_for(parsed.wait(), 2)
+    finally:
+        owning.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(owning, 2)
+        await asyncio.wait_for(asyncio.gather(model, tool, return_exceptions=True), 2)
+    assert model.cancelled() and tool.cancelled()
+    assert not bridge._model_tasks and not bridge._tool_tasks
+    assert effects == []
+    assert bridge.budget.spent > 0  # Uncertain provider work retains its reservation.
+
+
+@pytest.mark.asyncio
+async def test_actual_opencode_truncated_tool_response_cannot_execute_before_eof(
+    tmp_path, local_provider, monkeypatch
+):
+    try:
+        external_agent.runtime_path("opencode")
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+    local_provider.finish.clear()
+    arrived = asyncio.Event()
+    effects = []
+    bridges = []
+
+    class ObservedBridge(AgentBridge):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            bridges.append(self)
+
+        async def tool(self, request):
+            arrived.set()
+            return await super().tool(request)
+
+    async def stream():
+        events = [
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "message-mock",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-mock",
+                    "content": [],
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 100, "output_tokens": 0},
+                },
+            },
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": "tool-mock",
+                    "name": "shell",
+                    "input": {},
+                },
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {
+                    "type": "input_json_delta",
+                    "partial_json": '{"command":"echo remote-only"}',
+                },
+            },
+            {"type": "content_block_stop", "index": 0},
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "max_tokens", "stop_sequence": None},
+                "usage": {"output_tokens": 50},
+            },
+            {"type": "message_stop"},
+        ]
+        yield "".join(
+            f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events
+        ).encode()
+        await local_provider.finish.wait()
+
+    async def shell(command):
+        effects.append(command)
+        return "must not execute"
+
+    monkeypatch.setattr(local_provider, "iter_any", stream)
+    monkeypatch.setattr(external_agent, "AgentBridge", ObservedBridge)
+    budget = Budget(tmp_path / "budget.json", 10)
+    running = asyncio.create_task(
+        external_agent.run_external_agent(
+            engine="opencode",
+            model="anthropic/claude-mock",
+            system="Use the supplied remote tool.",
+            prompt="Call shell once.",
+            budget=budget,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "shell",
+                        "description": "Run remotely",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"command": {"type": "string"}},
+                            "required": ["command"],
+                        },
+                    },
+                }
+            ],
+            handlers={"shell": shell},
+            trace=tmp_path / "trace.jsonl",
+            max_turns=1,
+        )
+    )
+    try:
+        await asyncio.wait_for(arrived.wait(), 20)
+        assert effects == []
+        assert bridges[0].cost == 0
+    finally:
+        local_provider.finish.set()
+        with pytest.raises(RuntimeError, match="truncated"):
+            await asyncio.wait_for(running, 20)
+    assert effects == []
+    assert budget.spent == pytest.approx(0.002)
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    assert [event["kind"] for event in events] == [
+        "input",
+        "model_request",
+        "model",
+        "runtime_error",
+    ]
+    assert events[2]["cost_usd"] == pytest.approx(0.002)

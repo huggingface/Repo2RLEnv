@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 
 from repo2rlenv.curation.agent import IncompleteModelResponse, run_agent
@@ -290,6 +291,46 @@ def _review_message(message: dict) -> Review:
     return Review.model_validate(parse_json(content))
 
 
+def _close_unexecuted_tools(messages: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Close interrupted tool batches without executing or claiming to read them."""
+    prepared = deepcopy(messages)
+    pending = {}
+    for message in prepared:
+        if message.get("role") == "assistant":
+            pending.update({call["id"]: call for call in message.get("tool_calls", [])})
+        elif message.get("role") == "tool":
+            pending.pop(message.get("tool_call_id"), None)
+    records = []
+    for identity, call in pending.items():
+        output = (
+            "Tool was not executed: the reviewer response was interrupted or truncated. "
+            "No evidence was read by this call; treat the missing observation as uncertainty."
+        )
+        arguments = call["function"].get("arguments", "")
+        try:
+            parsed = json.loads(arguments)
+            if not isinstance(parsed, dict):
+                raise ValueError("Tool arguments must be an object")
+        except (ValueError, TypeError):
+            # The provider cannot accept a partial JSON tool input in history.
+            # Keep its exact original bytes in the explicit error observation,
+            # while using an empty object solely to make the retained call valid.
+            call["function"]["arguments"] = "{}"
+            output += " Original incomplete arguments (not executed): " + str(arguments)
+        prepared.append({"role": "tool", "tool_call_id": identity, "content": output})
+        records.append(
+            {
+                "name": call["function"]["name"],
+                "call_id": identity,
+                "output": output,
+                "executed": False,
+                "original_arguments": arguments,
+                "request_arguments": call["function"].get("arguments", ""),
+            }
+        )
+    return prepared, records
+
+
 async def finalize_review(
     state: dict,
     trace: Path,
@@ -354,6 +395,7 @@ async def finalize_review(
     try:
         if remaining <= 0:
             raise BudgetExceeded(f"Review cost limit reached: ${MAX_REVIEW_COST}")
+        prepared, unexecuted = _close_unexecuted_tools(messages)
         record(
             "review_finalization",
             model=model,
@@ -361,10 +403,12 @@ async def finalize_review(
             start_spend=start_spend,
             max_charge=remaining,
         )
+        for result in unexecuted:
+            record("tool", **result)
         response, cost = await completion(
             budget,
             model,
-            [*messages, request],
+            [*prepared, request],
             tools=tools,
             tool_choice="none",
             max_tokens=MAX_OUTPUT_TOKENS,
@@ -380,7 +424,7 @@ async def finalize_review(
             usage=response.usage.model_dump(),
         )
         state.update(
-            messages=[*messages, request, message],
+            messages=[*prepared, request, message],
             turns=state.get("turns", 0) + 1,
             cost=state.get("cost", 0) + cost,
         )

@@ -390,3 +390,96 @@ async def test_review_saves_complete_state_before_finalization(evidence, monkeyp
     result = await review_module.review(task, root, trials, model="mock", budget=budget)
     assert result == good_review()
     assert Review.model_validate_json((root / "review.json").read_text()) == result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ['{"path":"task/tests/test.sh"}', '{"path":"task/tests/'])
+async def test_finalization_closes_pending_calls_without_reading_and_preserves_thinking(
+    tmp_path, monkeypatch, arguments
+):
+    from litellm.llms.anthropic.chat.transformation import AnthropicConfig
+
+    state = retained_state("")
+    state["messages"][-1] = {
+        "role": "assistant",
+        "content": None,
+        "thinking_blocks": [
+            {"type": "thinking", "thinking": "", "signature": "opaque-signature"},
+            {"type": "redacted_thinking", "data": "opaque-redacted"},
+        ],
+        "tool_calls": [
+            {
+                "id": "pending-1",
+                "type": "function",
+                "function": {"name": "read_evidence", "arguments": arguments},
+            }
+        ],
+    }
+    original = json.loads(json.dumps(state))
+    trace = tmp_path / "judge-trace.jsonl"
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "read_evidence",
+                "description": "Read evidence",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                },
+            },
+        }
+    ]
+
+    async def finalize(received_budget, model, messages, **kwargs):
+        assert state == original
+        assert messages[-2]["role"] == "tool"
+        assert messages[-2]["tool_call_id"] == "pending-1"
+        assert "Tool was not executed" in messages[-2]["content"]
+        assert "missing observation as uncertainty" in messages[-2]["content"]
+        assert messages[-3]["thinking_blocks"] == original["messages"][-1]["thinking_blocks"]
+        assert kwargs["tool_choice"] == "none"
+        native_tool = {
+            "name": "read_evidence",
+            "description": "Read evidence",
+            "input_schema": tools[0]["function"]["parameters"],
+        }
+        wire = AnthropicConfig().transform_request(
+            "claude-sonnet-5",
+            messages,
+            {
+                "max_tokens": 16000,
+                "tools": [native_tool],
+                "tool_choice": {"type": "none"},
+                "thinking": {"type": "adaptive"},
+            },
+            {},
+            {},
+        )
+        assistant, user = wire["messages"][-2:]
+        assert assistant["content"][:2] == original["messages"][-1]["thinking_blocks"]
+        assert user["content"][0]["type"] == "tool_result"
+        assert user["content"][0]["tool_use_id"] == "pending-1"
+        assert "Tool was not executed" in user["content"][0]["content"]
+        if arguments.endswith("/"):
+            assert assistant["content"][-1]["input"] == {}
+            assert arguments in user["content"][0]["content"]
+        else:
+            assert assistant["content"][-1]["input"] == json.loads(arguments)
+        return response(good_review().model_dump_json()), 0.2
+
+    monkeypatch.setattr(review_module, "completion", finalize)
+    result = await review_module.finalize_review(
+        state,
+        trace,
+        "anthropic/claude-sonnet-5",
+        Budget(tmp_path / "budget.json", 20),
+        tools,
+        0,
+    )
+    assert result == good_review()
+    records = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert [record["kind"] for record in records] == ["review_finalization", "tool", "model"]
+    assert records[1]["executed"] is False
+    assert records[1]["original_arguments"] == arguments

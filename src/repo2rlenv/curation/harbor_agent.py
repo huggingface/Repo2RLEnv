@@ -5,7 +5,7 @@ from pathlib import Path
 
 from harbor.agents.base import BaseAgent
 
-from repo2rlenv.curation.agent import SHELL_TOOL, run_agent
+from repo2rlenv.curation.agent import SHELL_TOOL, IncompleteModelResponse, run_agent
 from repo2rlenv.curation.budget import Budget
 
 
@@ -106,16 +106,21 @@ PY"""
                 "Python import hooks, test skipping and process manipulation. Do not fix the task. "
                 "Report concrete attempts and whether they worked. Commands run in /workspace."
             )
-        state = await run_agent(
-            model=self.model_name,
-            system=system,
-            prompt=instruction,
-            budget=self.budget,
-            tools=[SHELL_TOOL],
-            handlers={"shell": shell},
-            trace=self.logs_dir / "trace.jsonl",
-            max_turns=self.max_turns,
-            max_cost=self.max_cost,
-        )
+        try:
+            state = await run_agent(
+                model=self.model_name,
+                system=system,
+                prompt=instruction,
+                budget=self.budget,
+                tools=[SHELL_TOOL],
+                handlers={"shell": shell},
+                trace=self.logs_dir / "trace.jsonl",
+                max_turns=self.max_turns,
+                max_cost=self.max_cost,
+            )
+        except IncompleteModelResponse as exc:
+            context.cost_usd = exc.state["cost"]
+            context.metadata = {"turns": exc.state["turns"], "mode": self.mode}
+            raise
         context.cost_usd = state["cost"]
         context.metadata = {"turns": state["turns"], "mode": self.mode}
