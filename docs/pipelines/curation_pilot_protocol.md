@@ -289,3 +289,16 @@ Never import a live task. For stdlib-only inspection subprocesses use Python
 `-I -B` with `audit_subprocess_env()` and inspect the copy as data. This workflow
 detects changes; it is not an OS sandbox or permission to execute task code.
 Task execution and image builds still belong in remote environments.
+
+### Required specification repairs
+
+Specification preflight policy 2 separates required corrections from optional
+polish. A required repair now prevents passing even with a score of 3 or 4, so
+the campaign returns it to the author before cloud validation. Cosmetic changes,
+extra repetition of established API semantics and unsupported concerns must not
+be promoted into requirements. Historical `SpecificationReview` records retain
+their previous semantics; current preflight uses `SpecificationPreflightReview`
+and a new cache identity. Thresholds, read coverage and six-turn/$2 limits are
+unchanged. This closes a feedback bypass observed in score-3 reviews containing
+material repairs; it does not establish improved conversion yield. Frozen v26
+continues with its original specification policy.

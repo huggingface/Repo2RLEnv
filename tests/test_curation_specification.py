@@ -13,17 +13,22 @@ from pydantic import ValidationError
 from repo2rlenv.curation import campaign
 from repo2rlenv.curation.agent import IncompleteModelResponse
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
-from repo2rlenv.curation.models import CampaignConfig, SpecificationReview
+from repo2rlenv.curation.models import (
+    CampaignConfig,
+    SpecificationPreflightReview,
+    SpecificationReview,
+)
 from repo2rlenv.curation.publish import evidence_snapshot
 
 spec = importlib.import_module("repo2rlenv.curation.specification_review")
 
 
-def result(*, score=4, blockers=None, repairs=None):
-    return SpecificationReview(
+def result(*, score=4, blockers=None, repairs=None, optional_improvements=None):
+    return SpecificationPreflightReview(
         score=score,
         blockers=blockers or [],
         repairs=repairs or [],
+        optional_improvements=optional_improvements or [],
         evidence=[
             "instruction.md declares Widget.update; contract.json requires its observable state"
         ],
@@ -103,10 +108,47 @@ def test_configuration_is_opt_in_and_cpu_first_enables_it():
     [(4, [], True), (3, [], True), (2, [], False), (4, ["recipe"], False)],
 )
 def test_specification_threshold(score, blockers, expected):
+    # Retained historical records do not retroactively reinterpret mixed repair/polish lists.
     assert (
-        result(score=score, blockers=blockers, repairs=["State outcomes instead"]).passed
+        SpecificationReview(
+            score=score,
+            blockers=blockers,
+            repairs=["State outcomes instead"],
+            evidence=["instruction.md describes the public update behavior"],
+        ).passed
         is expected
     )
+
+
+@pytest.mark.parametrize("score", [3, 4])
+def test_current_preflight_required_repairs_block_even_with_high_score(score):
+    assert not result(score=score, repairs=["State the tested input precedence explicitly"]).passed
+    assert result(
+        score=score, optional_improvements=["Shorten a redundant introductory sentence"]
+    ).passed
+
+
+def test_historical_shape_readable_but_not_a_current_preflight():
+    historical = {
+        "score": 3,
+        "blockers": [],
+        "repairs": ["Optional: shorten an introductory sentence"],
+        "evidence": ["instruction.md identifies the public input and output"],
+    }
+    assert SpecificationReview.model_validate(historical).passed
+    with pytest.raises(ValidationError, match="optional_improvements"):
+        SpecificationPreflightReview.model_validate(historical)
+    schema = SpecificationPreflightReview.model_json_schema()
+    assert "optional_improvements" in schema["required"]
+    assert "any entry prevents passing" in schema["properties"]["repairs"]["description"]
+
+
+@pytest.mark.parametrize("optional", [[" "], None, "style"])
+def test_current_optional_feedback_must_be_a_list_of_nonblank_entries(optional):
+    with pytest.raises(ValidationError):
+        SpecificationPreflightReview.model_validate(
+            {**result().model_dump(), "optional_improvements": optional}
+        )
 
 
 @pytest.mark.parametrize(
@@ -122,7 +164,7 @@ def test_specification_threshold(score, blockers, expected):
 )
 def test_incomplete_or_non_actionable_reviews_are_invalid(update):
     with pytest.raises(ValidationError):
-        SpecificationReview.model_validate({**result().model_dump(), **update})
+        SpecificationPreflightReview.model_validate({**result().model_dump(), **update})
 
 
 @pytest.mark.asyncio
@@ -140,6 +182,8 @@ async def test_bounded_independent_review_caches_by_specification_and_policy(set
     assert [t["function"]["name"] for t in call["tools"]] == ["read_evidence"]
     assert "Public interface signatures" in call["system"]
     assert "Treat material leakage as" in call["system"]
+    assert "Any repair prevents passing regardless of the score" in call["system"]
+    assert "do not turn those\ninto required corrections" in call["system"]
     with pytest.raises(ValueError, match="not a listed"):
         await call["handlers"]["read_evidence"]("../secret")
     artifact = json.loads(
@@ -148,6 +192,7 @@ async def test_bounded_independent_review_caches_by_specification_and_policy(set
     assert artifact["status"] == "completed"
     assert artifact["cost_usd"] == artifact["charged_usd"] == 0.15
     assert artifact["identity"]["inference"]["model"] == call["model"]
+    assert artifact["identity"]["policy_version"] == spec.POLICY_VERSION == 2
     assert next((s.root / "specification-reviews").glob("*/input.json")).is_file()
     assert next((s.root / "specification-reviews").glob("*/state.json")).is_file()
     (s.task / "tests").mkdir()
@@ -165,6 +210,83 @@ async def test_bounded_independent_review_caches_by_specification_and_policy(set
     monkeypatch.setattr(spec, "SYSTEM", spec.SYSTEM + "\nUpdated policy.")
     await review(s)
     assert s.agent.await_count == 5
+
+
+@pytest.mark.asyncio
+async def test_policy_change_does_not_reuse_retained_previous_pass(setup, monkeypatch):
+    s = setup
+    current_policy = spec.POLICY_VERSION
+    monkeypatch.setattr(spec, "POLICY_VERSION", current_policy - 1)
+    assert (await review(s)).passed
+    previous_path = next((s.root / "specification-reviews").glob("*/result.json"))
+    previous = json.loads(previous_path.read_text())
+    # Retained policy-1 shape allowed ambiguous mixed repair/polish lists.
+    previous["review"].pop("optional_improvements")
+    previous["review"]["repairs"] = ["Clarify an unstated graded requirement"]
+    previous_path.write_text(json.dumps(previous))
+    retained = previous_path.read_bytes()
+    monkeypatch.setattr(spec, "POLICY_VERSION", current_policy)
+    assert (await review(s)).passed
+    assert s.agent.await_count == 2
+    assert len(list((s.root / "specification-reviews").glob("*/result.json"))) == 2
+    assert previous_path.read_bytes() == retained
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("damage", ["missing", "blank", "wrong_type"])
+async def test_malformed_current_cache_fails_without_reroll(setup, damage):
+    s = setup
+    assert (await review(s)).passed
+    path = next((s.root / "specification-reviews").glob("*/result.json"))
+    cached = json.loads(path.read_text())
+    if damage == "missing":
+        cached["review"].pop("optional_improvements")
+    else:
+        cached["review"]["optional_improvements"] = [" "] if damage == "blank" else None
+    path.write_text(json.dumps(cached))
+    retained = path.read_bytes()
+    with pytest.raises(
+        spec.SpecificationReviewError, match="Cached specification review unavailable"
+    ):
+        await review(s)
+    assert s.agent.await_count == 1
+    assert path.read_bytes() == retained
+
+
+@pytest.mark.asyncio
+async def test_current_model_omitting_classification_fails_without_reroll(setup):
+    s = setup
+
+    async def judge(**kwargs):
+        await read_all(kwargs)
+        old_shape = result().model_dump(exclude={"optional_improvements"})
+        return state(content=json.dumps(old_shape))
+
+    s.agent.side_effect = judge
+    with pytest.raises(spec.SpecificationReviewError, match="optional_improvements"):
+        await review(s)
+    with pytest.raises(
+        spec.SpecificationReviewError, match="Cached specification review unavailable"
+    ):
+        await review(s)
+    assert s.agent.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_high_score_required_repair_is_cached_as_failure_without_reroll(setup):
+    s = setup
+    failed = result(
+        score=3, repairs=["State which input determines matching when both are supplied"]
+    )
+
+    async def judge(**kwargs):
+        await read_all(kwargs)
+        return state(failed)
+
+    s.agent.side_effect = judge
+    assert await review(s) == failed
+    assert not (await review(s)).passed
+    assert s.agent.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -381,6 +503,31 @@ async def test_default_config_does_not_add_a_model_call(author_campaign, monkeyp
     await campaign.curate_one(s.source, s.root, CampaignConfig(max_revisions=1), s.budget)
     specification.assert_not_awaited()
     s.preflight.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_score_three_required_repairs_reach_author_before_remote_validation(
+    author_campaign, monkeypatch
+):
+    s = author_campaign
+    repair = "Declare the required supplied-state authority when configuration disagrees"
+    static = result(score=3, repairs=[repair])
+    monkeypatch.setattr(campaign, "review_specification", AsyncMock(return_value=static))
+    feedback = []
+
+    async def author(**kwargs):
+        feedback.append(await kwargs["handlers"]["validate_candidate"]())
+
+    monkeypatch.setattr(campaign, "run_agent", author)
+    verdict = await campaign.curate_one(
+        s.source, s.root, CampaignConfig(specification_review=True, max_revisions=1), s.budget
+    )
+    assert repair in feedback[0]
+    assert verdict["status"] == "rejected"
+    assert repair in verdict["reasons"][1]
+    s.preflight.assert_not_awaited()
+    s.judge.assert_not_awaited()
+    s.sandbox.stop.assert_awaited_once()
 
 
 @pytest.mark.asyncio

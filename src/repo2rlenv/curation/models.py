@@ -101,7 +101,7 @@ class Criterion(StrictModel):
 
 
 class SpecificationReview(StrictModel):
-    """Static repair feedback, never a substitute for the admission review."""
+    """Historical static feedback; current preflight uses the stricter subclass below."""
 
     score: int = Field(ge=0, le=4, strict=True)
     blockers: list[str]
@@ -119,6 +119,31 @@ class SpecificationReview(StrictModel):
     @property
     def passed(self) -> bool:
         return self.score >= 3 and not self.blockers
+
+
+class SpecificationPreflightReview(SpecificationReview):
+    """Required specification corrections cannot be overridden by a high score."""
+
+    repairs: list[str] = Field(
+        description="Required substantive specification corrections; any entry prevents passing."
+    )
+    optional_improvements: list[str] = Field(
+        description=(
+            "Nonblocking polish only; use an empty list when none. Style preferences or extra "
+            "repetition of already established semantics are optional. Hidden graded behavior, "
+            "material ambiguity, and material solution leakage belong in repairs."
+        )
+    )
+
+    @model_validator(mode="after")
+    def optional_findings_contain_text(self) -> SpecificationPreflightReview:
+        if any(not item.strip() for item in self.optional_improvements):
+            raise ValueError("Optional specification improvements must contain text")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return super().passed and not self.repairs
 
 
 class AuthorityEvidence(StrictModel):
