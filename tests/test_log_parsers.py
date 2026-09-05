@@ -54,11 +54,43 @@ def test_parametrized_test_names_preserved():
     assert status == {"tests/test_p.py::test_x[case-1]": "PASSED"}
 
 
+def test_parametrized_names_with_spaces_preserved_in_both_formats():
+    log = (
+        "tests/test_calc.py::test_eval[1 + 1] PASSED [ 50%]\n"
+        "FAILED tests/test_calc.py::test_eval[2 * 3] - AssertionError: fail\n"
+    )
+    assert parse_pytest(log) == {
+        "tests/test_calc.py::test_eval[1 + 1]": "PASSED",
+        "tests/test_calc.py::test_eval[2 * 3]": "FAILED",
+    }
+
+
+def test_parametrized_names_preserve_dash_and_status_words():
+    log = (
+        "FAILED tests/test_calc.py::test_eval[left - right] - AssertionError: fail\n"
+        "tests/test_calc.py::test_eval[expected PASSED value] FAILED [100%]\n"
+    )
+    assert parse_pytest(log) == {
+        "tests/test_calc.py::test_eval[left - right]": "FAILED",
+        "tests/test_calc.py::test_eval[expected PASSED value]": "FAILED",
+    }
+
+
+def test_parametrized_names_with_shared_prefixes_remain_distinct():
+    log = (
+        "tests/test_calc.py::test_eval[1 + 1] PASSED [ 50%]\n"
+        "tests/test_calc.py::test_eval[1 + 2] FAILED [100%]\n"
+    )
+    assert parse_pytest(log) == {
+        "tests/test_calc.py::test_eval[1 + 1]": "PASSED",
+        "tests/test_calc.py::test_eval[1 + 2]": "FAILED",
+    }
+
+
 def test_skipped_with_count_prefix_skips_bracket_token():
     """Lines like 'SKIPPED [1] tests/foo.py:42' should still record the file token."""
     log = "SKIPPED [1] tests/foo.py:42\n"
     status = parse_pytest(log)
-    # The third token is the actual file location
     assert "tests/foo.py:42" in status
     assert status["tests/foo.py:42"] == "SKIPPED"
 

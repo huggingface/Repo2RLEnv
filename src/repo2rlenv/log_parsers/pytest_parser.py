@@ -29,10 +29,25 @@ TestStatus = Literal["PASSED", "FAILED", "SKIPPED", "ERROR"]
 
 _STATUSES = ("PASSED", "FAILED", "SKIPPED", "ERROR")
 
-# Verbose progress format: `tests/foo.py::test_x PASSED  [12%]` or `... FAILED`
-# Test names contain alphanumerics, _, /, ., ::, [, ], -, +
-# We require AT LEAST ONE non-whitespace token followed by whitespace + STATUS.
-_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
+# Verbose progress format: `tests/foo.py::test_x PASSED  [12%]` or `... FAILED`.
+# Match the status from the right so spaces inside parametrized node IDs survive.
+_VERBOSE_RE = re.compile(
+    r"^(?P<name>.+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)(?:\s+\[\s*\d+%\])?$"
+)
+_COUNT_PREFIX_RE = re.compile(r"^\[\d+\]\s+(?P<name>.+)$")
+
+
+def _strip_summary_diagnostic(name: str) -> str:
+    """Strip pytest's ` - diagnostic` suffix outside parametrization brackets."""
+    depth = 0
+    for i, char in enumerate(name):
+        if char == "[":
+            depth += 1
+        elif char == "]" and depth:
+            depth -= 1
+        elif depth == 0 and name.startswith(" - ", i):
+            return name[:i]
+    return name
 
 
 def parse_pytest(log: str) -> dict[str, TestStatus]:
@@ -42,9 +57,9 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
       - Last-write-wins. A test that appears in both progress AND summary
         ends up as whichever appeared last (typically summary, which is fine).
       - SKIPPED lines like `SKIPPED [1] tests/foo.py:42` have the [N] count
-        prefix stripped so the test name is the third token, not '[1]'.
-      - Lines like `FAILED tests/foo.py::test_x - AssertionError: ...`
-        get the dash chunk stripped to keep the test name clean.
+        prefix stripped.
+      - Summary diagnostics such as ` - AssertionError: ...` are stripped
+        without treating ` - ` inside a parametrized node ID as a boundary.
       - Returns an empty dict for empty/malformed input. Caller decides what
         to do; usually treat as "test suite didn't run, env issue".
     """
@@ -58,27 +73,23 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
 
         # --- format (2): summary lines (STATUS first) ---
         # Has to be checked BEFORE the verbose regex because a summary line
-        # like "PASSED tests/foo.py::test_a" would also match the verbose
-        # pattern (with name="PASSED" — wrong).
+        # like "PASSED tests/foo.py::test_a" would otherwise look name-first.
         leading_status: TestStatus | None = None
         for st in _STATUSES:
             if line.startswith(st + " ") or line == st:
                 leading_status = st  # type: ignore[assignment]
                 break
         if leading_status is not None:
-            work = line
-            if leading_status == "FAILED" and " - " in work:
-                work = work.split(" - ", 1)[0]
-            tokens = work.split()
-            if len(tokens) < 2:
+            test_name = line[len(leading_status) :].strip()
+            if not test_name:
                 continue
-            test_name = tokens[1]
-            # SKIPPED [N] file:line  → the [N] is a count, real name is tokens[2]
-            if test_name.startswith("[") and test_name.endswith("]"):
-                if len(tokens) < 3:
-                    continue
-                test_name = tokens[2]
-            out[test_name] = leading_status
+            count_match = _COUNT_PREFIX_RE.match(test_name)
+            if count_match:
+                test_name = count_match.group("name")
+            if leading_status in ("FAILED", "ERROR"):
+                test_name = _strip_summary_diagnostic(test_name)
+            if test_name:
+                out[test_name] = leading_status
             continue
 
         # --- format (1): verbose progress (NAME first, STATUS after) ---
@@ -86,8 +97,7 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
         if m:
             name = m.group("name")
             # Heuristic: a real test name contains '::' (pytest node id) OR
-            # is a path ending in .py. Avoids matching random lines like
-            # "Some line PASSED something" where "Some" isn't a test.
+            # is a path ending in .py. Avoids matching random output.
             if "::" in name or name.endswith(".py"):
                 out[name] = m.group("status")  # type: ignore[assignment]
             continue

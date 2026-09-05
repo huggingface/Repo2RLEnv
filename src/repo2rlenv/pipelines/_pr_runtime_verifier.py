@@ -71,7 +71,23 @@ ERROR = "ERROR"
 # ---------------------------------------------------------------------------
 
 _PYTEST_STATUSES = (PASSED, FAILED, SKIPPED, ERROR)
-_PYTEST_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
+_PYTEST_VERBOSE_RE = re.compile(
+    r"^(?P<name>.+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)(?:\s+\[\s*\d+%\])?$"
+)
+_PYTEST_COUNT_PREFIX_RE = re.compile(r"^\[\d+\]\s+(?P<name>.+)$")
+
+
+def _strip_pytest_summary_diagnostic(name: str) -> str:
+    """Strip pytest's ` - diagnostic` suffix outside parametrization brackets."""
+    depth = 0
+    for i, char in enumerate(name):
+        if char == "[":
+            depth += 1
+        elif char == "]" and depth:
+            depth -= 1
+        elif depth == 0 and name.startswith(" - ", i):
+            return name[:i]
+    return name
 
 
 def parse_pytest(log: str) -> dict[str, str]:
@@ -91,18 +107,16 @@ def parse_pytest(log: str) -> dict[str, str]:
                 leading = st
                 break
         if leading is not None:
-            work = line
-            if leading == FAILED and " - " in work:
-                work = work.split(" - ", 1)[0]
-            tokens = work.split()
-            if len(tokens) < 2:
+            name = line[len(leading) :].strip()
+            if not name:
                 continue
-            name = tokens[1]
-            if name.startswith("[") and name.endswith("]"):  # SKIPPED [N] file:line
-                if len(tokens) < 3:
-                    continue
-                name = tokens[2]
-            out[name] = leading
+            count_match = _PYTEST_COUNT_PREFIX_RE.match(name)
+            if count_match:
+                name = count_match.group("name")
+            if leading in (FAILED, ERROR):
+                name = _strip_pytest_summary_diagnostic(name)
+            if name:
+                out[name] = leading
             continue
         # Verbose progress (NAME first, STATUS after)
         m = _PYTEST_VERBOSE_RE.match(line)
