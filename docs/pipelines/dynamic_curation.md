@@ -93,6 +93,32 @@ protocols require explicit adapters and matching budget accounting.
 
 ## Admission
 
+### Optional specification preflight
+
+Set `specification_review: true` to run an early independent review with `judge_model`
+before the first baseline/oracle build. The CPU-first production config enables it;
+the default and existing runtime-comparison protocol leave it disabled. The reviewer
+reads only frozen `instruction.md` and `contract.json` snapshots and checks clear
+observable outcomes, solution recipe leakage, public API sufficiency and consistency.
+A score below 3/4 or any blocker returns concrete repair feedback to the author.
+The controller also runs it after authoring if the author skipped `validate_candidate`.
+Recovered checkpoints receive the same preflight before missing trials resume; a
+failed specification returns to the author for repair.
+
+Each distinct specification and judge policy gets at most six reviewer turns and
+a $2 model allowance, charged to the existing candidate/campaign budget. The
+read-only tool serves at most 16,000 characters per page and accepts at most 32,000
+bytes per file; both files must be fully read. Missing, oversized, malformed or
+interrupted evidence cannot pass or start cloud validation. Completed findings,
+including failures, are cached by instruction/contract contents and judge policy.
+Durable inputs, trace, state and results live under each candidate's
+`specification-reviews/`, shared across timestamped attempts and outside the final
+judge's evidence tree. Private evidence publication retains these artifacts.
+Changing tests alone does not rerun this preflight.
+
+This step only guides author repairs. Every admission still requires the trials,
+eight-criterion trajectory review and mandatory gates below.
+
 A score cannot override failed mandatory gates:
 
 1. Validate Harbor configuration, submission paths and requirement-to-test mapping.
@@ -153,6 +179,14 @@ as `repo2rlenv.curation.judge_reward:JudgeRewardVerifier`: configure
 `artifacts`, and `threshold`. Deterministic prechecks run first; the host-side judge
 then grades only the declared artifacts and records its model, cost and rationale.
 These rewards are explicitly nondeterministic and never silently enabled.
+
+Numerical preservation also needs an independent correctness reference. A remote
+PEFT pilot mutation that returned all-one weight norms still earned full reward:
+its tests compared cached and uncached observations from the same submitted math.
+The author and review prompts therefore call for independently derived expectations
+and relevant trained or loaded parameter states, plus a mutation that breaks the
+math while preserving the new API. This is a coverage failure, even when process
+isolation and cache lifecycle checks work correctly.
 
 The JSON interface deliberately limits this first profile. Tests requiring arbitrary
 Python object exchange need an explicit serializable observation contract or should

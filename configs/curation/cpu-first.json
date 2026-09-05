@@ -5,6 +5,7 @@
   "max_candidate_usd": 14,
   "author_model": "anthropic/claude-sonnet-5",
   "judge_model": "anthropic/claude-opus-5",
+  "specification_review": true,
   "solver_models": ["anthropic/claude-sonnet-5", "anthropic/claude-opus-5"],
   "author_turns": 55,
   "solver_turns": 40,

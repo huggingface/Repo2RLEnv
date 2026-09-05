@@ -96,6 +96,27 @@ class Criterion(StrictModel):
     evidence: list[str] = Field(min_length=1)
 
 
+class SpecificationReview(StrictModel):
+    """Static repair feedback, never a substitute for the admission review."""
+
+    score: int = Field(ge=0, le=4, strict=True)
+    blockers: list[str]
+    repairs: list[str]
+    evidence: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def actionable_findings(self) -> SpecificationReview:
+        if any(not item.strip() for item in (*self.blockers, *self.repairs, *self.evidence)):
+            raise ValueError("Specification review entries must contain text")
+        if not self.passed and not self.repairs:
+            raise ValueError("A failed specification review needs concrete repairs")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return self.score >= 3 and not self.blockers
+
+
 class Review(StrictModel):
     criteria: dict[str, Criterion]
     blockers: list[str]
@@ -157,6 +178,7 @@ class CampaignConfig(StrictModel):
     author_model: str = "anthropic/claude-sonnet-4-6"
     author_runtime: Literal["langgraph", "pi", "opencode"] = "langgraph"
     judge_model: str = "anthropic/claude-opus-4-6"
+    specification_review: bool = False
     solver_models: list[str] = Field(
         default_factory=lambda: ["anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4-6"],
         min_length=2,

@@ -208,6 +208,7 @@ class AgentBridge:
             system=body.get("system"),
             messages=body.get("messages", [])[-1:],
             tools=[t.get("name") for t in body.get("tools", [])],
+            tool_choice=body.get("tool_choice"),
             inference=inference_settings(self.model),
             timeout_sec=MODEL_TIMEOUT_SEC,
         )

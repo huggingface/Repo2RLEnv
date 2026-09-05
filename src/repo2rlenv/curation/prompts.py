@@ -68,6 +68,14 @@ Required output:
   Cover each requirement, boundaries, nontrivial combinations and regressions. Include
   seeded randomized/property cases or metamorphic checks when appropriate. Reject
   superficial/constant-output fixes and accept alternative valid implementations.
+  For numerical invariance, cached/uncached or before/after observations from the same
+  submitted implementation are not an independent correctness reference: both can be
+  wrong identically. Anchor representative cases to a small mathematical reference
+  computed in protected pytest from fixed inputs, or independently derived constants.
+  Exercise non-default, trained or loaded parameter states when relevant. Fresh model
+  initialization can hide normalization errors by cancelling the same wrong quantity
+  in numerator and denominator. Include a mutation that breaks the promised math
+  while preserving the new API or cache lifecycle, and ensure the tests reject it.
   No inspecting source strings as a substitute for behavioral testing. The original
   repo conftest/plugins are disabled. Only the worker imports the editable repository.
   Don't write test.sh or probe.py: the harness owns the isolated reward wrapper.
@@ -93,6 +101,8 @@ or subjective grading instead of pretending a CPU mock proves the actual behavio
 Use validate_candidate before finishing, inspect failures and repair. Finish only
 when the task exists and the oracle passes while the baseline fails for its intended
 missing behavior. Do not claim 30 tasks or acceptance: the host decides admission.
+You may finish with a plain text summary; a tool call is not mandatory. defer_candidate
+ends this candidate as unsuitable and must never be used to announce successful work.
 """
 
 JUDGE = """Review an RL environment specification and actual coding-agent traces.
@@ -114,6 +124,10 @@ test_coverage: map EVERY instruction requirement to observed executable tests; p
 edge cases, regressions and alternative correct solutions. Inspect the equivalent
 control script: a no-op or cosmetic-only edit is insufficient fairness evidence.
 min_tests is not coverage.
+For numerical preservation claims, check for an independent numerical anchor and
+nontrivial parameter states. Comparing two paths through the same submitted math can
+pass when both are wrong; fresh initialization may cancel a defective normalization.
+Metamorphic consistency alone does not establish the original numerical contract.
 verifier_integrity: negative controls/mutations/adversary, clean grader, no answer access.
 solvability: oracle succeeds repeatedly AND solution follows from the visible contract.
 reproducibility: pinned, offline, deterministic, no undeclared hardware/services.

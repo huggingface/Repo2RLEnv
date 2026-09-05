@@ -422,6 +422,7 @@ async def test_bridge_overrides_runtime_inference_settings_and_preserves_opaque_
             "model": model,
             "messages": [{"role": "assistant", "content": opaque}],
             "max_tokens": 1,
+            "tool_choice": {"type": "auto"},
             "thinking": {"type": "disabled"},
             "output_config": {"effort": "high"},
             "temperature": 0.3,
@@ -438,6 +439,7 @@ async def test_bridge_overrides_runtime_inference_settings_and_preserves_opaque_
     events = [json.loads(line) for line in bridge.trace.read_text().splitlines()]
     assert events[0]["inference"]["max_tokens"] == MAX_OUTPUT_TOKENS
     assert events[0]["timeout_sec"] == MODEL_TIMEOUT_SEC
+    assert events[0]["tool_choice"] == forwarded["tool_choice"] == {"type": "auto"}
     assert events[0]["inference"].get("thinking") == forwarded.get("thinking")
 
 

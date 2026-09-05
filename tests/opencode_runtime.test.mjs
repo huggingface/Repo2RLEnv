@@ -51,7 +51,7 @@ function streamMessage(response, body, callIndex, alwaysTools = false, validatio
     content: [], stop_reason: null, stop_sequence: null,
     usage: { input_tokens: 20, output_tokens: 0 },
   } });
-  const useTool = !options.badResponse && (alwaysTools || callIndex === 1);
+  const useTool = !options.badResponse && (alwaysTools || callIndex <= (options.toolTurns ?? 1));
   let index = 0;
   if (options.opaqueThinking || options.badResponse === "thinking_only") {
     event("content_block_start", { index, content_block: { type: "thinking", thinking: "", signature: "" } });
@@ -75,7 +75,7 @@ function streamMessage(response, body, callIndex, alwaysTools = false, validatio
   response.end();
 }
 
-async function runMock(t, { alwaysTools = false, cancel = false, apiError = false, validation = false, opaqueThinking = false, badResponse } = {}) {
+async function runMock(t, { alwaysTools = false, cancel = false, apiError = false, validation = false, opaqueThinking = false, badResponse, toolTurns = 1 } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "repo2rlenv-opencode-test-"));
   t.after(async () => { if (!process.env.R2E_KEEP_OPENCODE_TEST_OUTPUT) await rm(directory, { recursive: true, force: true }); });
   const requests = [];
@@ -97,7 +97,7 @@ async function runMock(t, { alwaysTools = false, cancel = false, apiError = fals
       if (apiError) {
         response.writeHead(402, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "mock provider budget exhausted" } }));
-      } else if (!cancel) streamMessage(response, body, requests.length, alwaysTools, validation, { opaqueThinking, badResponse });
+      } else if (!cancel) streamMessage(response, body, requests.length, alwaysTools, validation, { opaqueThinking, badResponse, toolTurns });
     } else if (request.url === "/tool") {
       tools.push(body);
       if (validation) {
@@ -114,7 +114,7 @@ async function runMock(t, { alwaysTools = false, cancel = false, apiError = fals
   await once(server, "listening");
   t.after(() => { server.closeAllConnections(); server.close(); });
   const settings = config(directory, `http://127.0.0.1:${server.address().port}`);
-  settings.max_turns = validation || badResponse ? 1 : alwaysTools ? 2 : 3;
+  settings.max_turns = validation || badResponse ? 1 : alwaysTools ? 2 : toolTurns + 2;
   if (validation) settings.tools = [{ type: "function", function: { name: "validate_candidate", description: "Validate remotely", parameters: { type: "object", properties: {}, additionalProperties: false } } }];
   await writeFile(path.join(directory, "input.json"), JSON.stringify(settings));
   const child = spawn(process.execPath, [adapter, path.join(directory, "input.json")], { stdio: ["ignore", "pipe", "pipe"] });
@@ -184,6 +184,7 @@ test("OpenCode only sees exact remote tools and shared model settings", { skip: 
     assert.deepEqual(body.thinking, settings.inference_options.thinking);
     assert.deepEqual(body.output_config, settings.inference_options.output_config);
     assert.equal(body.stream, true);
+    assert.ok(!body.tool_choice || body.tool_choice.type === "auto", JSON.stringify(body.tool_choice));
     assert.deepEqual(body.tools.map((entry) => entry.name), [tool.function.name]);
     assert.deepEqual(body.tools[0].input_schema, tool.function.parameters);
     assert.deepEqual(body.system.map((part) => part.text), [settings.system]);
@@ -192,6 +193,21 @@ test("OpenCode only sees exact remote tools and shared model settings", { skip: 
   assert.ok(result.messages.some((message) => message.role === "tool" && message.content === "remote-only"));
   assert.match(result.messages.at(-1).content, /remote-only/);
   assert.ok(events.some((event) => event.type === "message.part.updated"));
+});
+
+test("OpenCode permits a text finish after a long sequence of tool calls", { skip: !depsReady, timeout: 60000 }, async (t) => {
+  // A live author claimed it had to call defer_candidate at turn 12 because a
+  // schema forced a tool. Exercise that turn with the actual pinned runtime.
+  const { requests, tools, result } = await runMock(t, { toolTurns: 11 });
+  assert.equal(requests.length, 12);
+  assert.equal(tools.length, 11);
+  assert.equal(result.turns, 12);
+  for (const body of requests) {
+    assert.ok(!body.tool_choice || body.tool_choice.type === "auto", JSON.stringify(body.tool_choice));
+  }
+  assert.equal(result.messages.at(-1).role, "assistant");
+  assert.equal(result.messages.at(-1).tool_calls, undefined);
+  assert.match(result.messages.at(-1).content, /remote-only/);
 });
 
 test("OpenCode stops its loop at the configured turn budget", { skip: !depsReady, timeout: 60000 }, async (t) => {

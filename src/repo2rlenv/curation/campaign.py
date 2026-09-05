@@ -38,6 +38,7 @@ from repo2rlenv.curation.models import (
 from repo2rlenv.curation.prompts import AUTHOR
 from repo2rlenv.curation.review import review
 from repo2rlenv.curation.sources import resolve_pr
+from repo2rlenv.curation.specification_review import review_specification
 
 logger = logging.getLogger(__name__)
 ADMISSION_VERSION = 5
@@ -488,11 +489,35 @@ async def curate_one(
 ) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     save(root / "source.json", source)
+
+    async def check_specification(task: Path) -> str | None:
+        if not config.specification_review:
+            return None
+        # Timestamped attempts of this candidate share specification findings.
+        # Keep prior judge scores outside every final-review revision tree.
+        result = await review_specification(
+            task, root.parent, model=config.judge_model, budget=budget
+        )
+        if not result.passed:
+            return (
+                "Repair this independent specification preflight before remote validation. "
+                "Replace solution recipes with observable requirements and resolve the cited "
+                "ambiguities or contract inconsistencies. Then call validate_candidate again.\n"
+                + result.model_dump_json()
+            )
+        return None
+
     first_revision = 0
+    seed_specification_feedback = None
     if seed_task is not None:
         pending = _prepare_pending_review(seed_task, root, source, config)
         if pending is not None:
-            verdict = await _resume_validation(source, root, config, budget, seed_task, pending)
+            seed_specification_feedback = await check_specification(root / "revision-0/task")
+            verdict = (
+                None
+                if seed_specification_feedback
+                else await _resume_validation(source, root, config, budget, seed_task, pending)
+            )
             if verdict is not None and verdict["status"] != "rejected":
                 return verdict
             # A control failure or quality rejection needs an author repair.
@@ -519,6 +544,9 @@ async def curate_one(
             finalize(task, source)
         except ValueError as exc:
             return "Structural validation failed: " + str(exc)
+        specification_feedback = await check_specification(task)
+        if specification_feedback:
+            return specification_feedback
         digest = digest_task(task)
         if digest not in cached or any(t.error for t in cached[digest]):
             logger.info("%s: remote baseline and oracle, draft %s", source["id"], attempt)
@@ -557,6 +585,8 @@ async def curate_one(
                     "\nPrevious independent review to address:\n"
                     + (previous_review.read_text()[:24000])
                 )
+            if seed_specification_feedback:
+                feedback += "\n" + seed_specification_feedback
         for revision in range(first_revision, first_revision + config.max_revisions):
             last_verdict = None
             execution_errors = []
@@ -584,6 +614,10 @@ async def curate_one(
                 contract = finalize(task, source)
             except ValueError as exc:
                 feedback = "Repair the structural validation failure: " + str(exc)
+                continue
+            specification_feedback = await check_specification(task)
+            if specification_feedback:
+                feedback = specification_feedback
                 continue
             digest = digest_task(task)
             trials = list(
