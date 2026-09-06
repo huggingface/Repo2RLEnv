@@ -344,7 +344,7 @@ def test_dockerfile_supports_private_repo_build_arg() -> None:
     # Build arg declared, empty default (public repos need no arg).
     assert "ARG GITHUB_TOKEN=" in df
     # Authed clone uses the x-access-token form when the arg is set.
-    assert "x-access-token:${GITHUB_TOKEN}@github.com/myorg/private-repo.git" in df
+    assert 'x-access-token:"${GITHUB_TOKEN}"@github.com/myorg/private-repo.git' in df
     # Public fallback clone is the clean URL.
     assert "git clone --filter=blob:none https://github.com/myorg/private-repo.git" in df
     # Remote is reset to the clean URL so the token can't leak via git config.
