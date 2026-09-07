@@ -428,7 +428,7 @@ def push_to_hub(
     """
     from huggingface_hub import HfApi
 
-    from repo2rlenv.registry.integration import prepare_dataset_for_push
+    from repo2rlenv.registry.integration import _list_task_dirs, prepare_dataset_for_push
 
     token = resolve_hf_token(auth)
     if not token:
@@ -470,12 +470,8 @@ def push_to_hub(
     first_metadata: dict[str, Any] = {}
     source_repos: set[str] = set()
     has_environment = False
-    for child in sorted(local_dataset_dir.iterdir()):
-        if not child.is_dir() or child.name.startswith("."):
-            continue
+    for child in _list_task_dirs(local_dataset_dir):
         toml_path = child / "task.toml"
-        if not toml_path.exists():
-            continue
         meta = _read_task_metadata(toml_path)
         if not first_metadata:
             first_metadata = meta
