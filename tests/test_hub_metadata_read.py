@@ -100,6 +100,32 @@ class TestPushAutoReadsMetadata:
         assert captured_card["pipeline"] == "pr_runtime"
         assert captured_card["repo_source"] == "pallets/click"
 
+    def test_nested_tasks_layout_is_discovered(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tasks = tmp_path / "tasks"
+        tasks.mkdir()
+        _make_task(tasks, pipeline="pr_runtime", repo="pallets/click")
+        monkeypatch.setattr("repo2rlenv.hub.resolve_hf_token", lambda _auth: "fake-token")
+
+        captured_card: dict[str, str] = {}
+
+        def fake_build_card(**kwargs: str) -> str:
+            captured_card.update(kwargs)
+            return "fake-card"
+
+        monkeypatch.setattr("repo2rlenv.hub._build_dataset_card", fake_build_card)
+        api = self._mock_hf_api()
+        monkeypatch.setattr("huggingface_hub.HfApi", lambda token=None: api)
+
+        result = push_to_hub(tmp_path, "owner/click-r2e", AuthSpec())
+
+        assert result.task_count == 1
+        assert captured_card["pipeline"] == "pr_runtime"
+        assert captured_card["repo_source"] == "pallets/click"
+
     def test_caller_override_wins(
         self,
         tmp_path: Path,
