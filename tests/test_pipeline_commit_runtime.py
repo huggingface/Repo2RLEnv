@@ -19,6 +19,7 @@ from repo2rlenv.pipelines.commit_runtime import (
     _strip_commit_prefix,
     build_instruction_from_commit,
 )
+from repo2rlenv.sources import SourceKind
 from repo2rlenv.spec.options import CommitRuntimeOptions
 
 
@@ -256,7 +257,7 @@ def test_instruction_reflows_long_body_with_template_noise():
 # -------------------------- _build_task metadata ------------------------------
 
 
-def _stub_pipeline_for_build_task(test_cmds=None, language="python"):
+def _stub_pipeline_for_build_task(test_cmds=None, language="python", source_kind=SourceKind.GITHUB):
     """A pipeline instance with just enough scaffolding to call `_build_task`."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock
@@ -276,6 +277,7 @@ def _stub_pipeline_for_build_task(test_cmds=None, language="python"):
     pipe.input.repo.owner_name = ("o", "r")
     pipe.input.repo.access = "auto"
     pipe.input.repo.url = "https://github.com/o/r"
+    pipe.input.repo.source_kind = source_kind
     pipe.input.output.org = "default"
     pipe.input.llm = None
     pipe.input.bootstrap.platform = "linux/amd64"
@@ -321,6 +323,75 @@ def test_build_task_stamps_reward_calibration_and_difficulty():
     assert cal["difficulty"] in {"trivial", "small", "medium", "large"}
     # The HarborTask's difficulty is set from the bucket, not hard-coded "medium"
     assert task.difficulty == cal["difficulty"]
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "expected_reference"),
+    [
+        (SourceKind.GITHUB, "https://github.com/o/r/commit/deadbeef"),
+        (SourceKind.GITLAB, "https://gitlab.com/o/r/commit/deadbeef"),
+        (SourceKind.LOCAL, None),
+    ],
+)
+def test_build_task_reference_host_matches_source(source_kind, expected_reference):
+    """The 'reference' provenance URL must point at the commit's actual host,
+    not always github.com: commit_runtime works on any source (docstring in
+    sources.py), and a GitLab- or local-sourced task previously got a
+    github.com link that does not resolve."""
+    pipe = _stub_pipeline_for_build_task(source_kind=source_kind)
+    commit = _make_commit(subject="fix: parser crashes on empty input", sha="deadbeef")
+    patch = (
+        "diff --git a/parser.py b/parser.py\n"
+        "--- a/parser.py\n"
+        "+++ b/parser.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-old\n"
+        "+new\n"
+    )
+    task = pipe._build_task(
+        commit,
+        patch,
+        test_patch="",
+        fail_to_pass=[],
+        pass_to_pass=[],
+        validation_status="ok",
+    )
+    if expected_reference is None:
+        # TOML has no null, so a local checkout must drop the key, not null it.
+        assert "reference" not in task.repo2env
+    else:
+        assert task.repo2env["reference"] == expected_reference
+
+
+def test_build_task_local_source_writes_a_loadable_task_toml(tmp_path):
+    """A None reference would crash tomli_w.dumps (TOML has no null) inside
+    write_harbor_task. Drive the real emitter, not just the dict, so a
+    regression here fails loudly instead of only at push time."""
+    import tomllib
+
+    from repo2rlenv.emitter.harbor import write_harbor_task
+
+    pipe = _stub_pipeline_for_build_task(source_kind=SourceKind.LOCAL)
+    commit = _make_commit(subject="fix: parser crashes on empty input", sha="deadbeef")
+    patch = (
+        "diff --git a/parser.py b/parser.py\n"
+        "--- a/parser.py\n"
+        "+++ b/parser.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-old\n"
+        "+new\n"
+    )
+    task = pipe._build_task(
+        commit,
+        patch,
+        test_patch="",
+        fail_to_pass=[],
+        pass_to_pass=[],
+        validation_status="ok",
+    )
+    task_path = write_harbor_task(task, tmp_path)
+    loaded = tomllib.loads((task_path / "task.toml").read_text())
+    assert "reference" not in loaded["metadata"]["repo2env"]
 
 
 # -------------------------- structural filter ---------------------------------
