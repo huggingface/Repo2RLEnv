@@ -13,6 +13,7 @@ from repo2rlenv.curation.models import Contract
 from repo2rlenv.tasksmith.emit import (
     APT_STANZA,
     RUNNER,
+    _validate_episode_cwd,
     collection_inventory,
     emit_task,
     prepared_recipe,
@@ -327,14 +328,5 @@ def test_episode_scripts_reject_literal_private_author_cwd(tmp_path, contract, r
         "python - <<'PY'\ntext = 'cd /workspace/repo'\n# cd /private\nPY\ncd /workspace\n",
     ],
 )
-def test_cwd_lint_preserves_episode_paths_comments_and_quoted_data(tmp_path, contract, script):
-    result = emit_task(
-        tmp_path / "task",
-        SOURCE,
-        DEPENDENCIES,
-        execution_contract=contract,
-        instruction="Preserve tensor values and per-batch metadata through public dispatch.",
-        solution_script=script,
-        protected_tests=TESTS,
-    )
-    assert result["accepted"] is False
+def test_cwd_lint_preserves_episode_paths_comments_and_quoted_data(script):
+    _validate_episode_cwd(script, "Oracle solution")
