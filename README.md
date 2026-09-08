@@ -92,6 +92,11 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
+For interactive PR investigation, cloud-only environment builds and evidence-based
+admission, see the experimental [dynamic curation harness](./docs/pipelines/dynamic_curation.md).
+It uses LangGraph, Modal and Harbor, and reviews both the task contract and real
+Sonnet/Opus trajectories before admitting a task.
+
 A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **three are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
 
 ### Stable

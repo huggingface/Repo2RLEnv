@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "id": "projection_orientation",
+  "source": {
+    "url": "https://github.com/huggingface/peft/pull/2575",
+    "repo": "huggingface/peft",
+    "number": 2575,
+    "base_sha": "6d133307adf28e11d061c20aa1f040c1d26d2012",
+    "head_sha": "8f1d17744a351168d998bba432213e45f59871cc"
+  },
+  "tasks": [
+    {
+      "role": "before",
+      "path": "workspace/peft-2575-repair/seed-v4/task",
+      "digest": "face7f2d622be11babd259e02c4d95cd5a2b368a51e0acbd3c3ed841a1e9dbae"
+    },
+    {
+      "role": "after",
+      "path": "workspace/peft-2575-repair/seed-v5/task",
+      "digest": "2e9e03947f5b9132a7560fc5d23de74b9dc704d81f42b29557d4cbec59a07d48"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/peft-2575-repair/provenance-v5.json",
+      "sha256": "58fb8bf55c708081588baf942db24ae0be6c122a8904251709e3712de64c78b0",
+      "value": {
+        "changes": [
+          "Normalize both (rotated_rows, W.T) and (W, rotated_rows.T) projection operands; preserve all original expected-row and frozen-base assertions.",
+          "Add a transposed-projection equivalent that rotates inputs before projecting with unchanged W; no target/GOLD modifications outside the equivalent control.",
+          "Compact duplicate control rationale prose to fit the bounded review snapshot; existing control scripts and all test counts, thresholds and public semantics remain unchanged."
+        ]
+      }
+    },
+    {
+      "path": "workspace/peft-2575-repair/validation-v4/verifier-reviews/f5c78e97ae7c1773bbfedbc011689a0475a8f14d7f6516b026aa6aff7d554bc8/result.json",
+      "sha256": "b9288502c83d22c715852fc9610c651acdb82111089b05a512f8259ba684f39a",
+      "value": {
+        "score": 3,
+        "blockers": [],
+        "repairs": [],
+        "evidence": [
+          "tests/test_contract.py `_reference_forward`/`_exact_cayley`/`_neumann_cayley` build an independent NumPy oracle (row-major triu -> skew, R=(I+S)^-1(I-S), alternating series). Forward, merge, second-cycle and updated-weight outputs are compared numerically against it, so constant/identity/sign-flipped/transposed-rotation implementations are all rejected; block_size=4 cases distinguish row-major from column-major packing.",
+          "tests/test_contract.py `test_cayley_neumann_convergence` pins n_terms=1 (equals unrotated base output and explicitly not close to exact), n_terms=2/3 elementwise against the truncated series, and n=18 convergence; `test_exact_path_ignores_neumann_terms` proves the exact flag overrides num_terms (with a sanity assert that the 2-term series visibly differs).",
+          "tests/test_contract.py `test_oft_r_weight_is_trainable_with_nonzero_gradient` compares the autograd gradient to a central finite-difference of the independent reference loss over four modes (exact, default Neumann, shared, zero-init), asserts max|expected|>1e-6, and uses `use_defaults` so default config plumbing (patch model.py hunks at lines +134/+157) is exercised; detached or wrong-rotation gradients cannot pass.",
+          "tests/test_contract.py `test_input_rotation_calls_unchanged_frozen_base` uses a TorchDispatchMode in probe BUILD_MODEL_AND_RUN to capture mm/addmm/bmm/linear operands, requires some dense op whose right operand equals the unmodified W.T and whose left rows are exactly the expected rotated inputs (both directions of set inclusion), plus base weight/bias unchanged; the `rotate_weight_instead_of_input` mutation captures rotation rows instead and fails.",
+          "tests/test_contract.py `_assert_merge_cycles` checks forward==merged_out==post_unmerge==second cycle, merged_weight==(Rfull@W.T).T and exact restoration of W and b; the Neumann n_terms=2/3 cases in `test_merge_unmerge_block_share_and_neumann` make transpose-as-inverse unmerge (non-orthogonal truncated R) detectable, matching solution/repair_reference.py's saved-weight unmerge.",
+          "Runner/gating: tests/runner.py requires exit 0, len(cases) >= contract min_tests (17) with no failed/skipped, and all contract-required test names observed; tests/Dockerfile deletes /workspace/src/peft/tuners/oft/{config,layer,model}.py so the submission must supply them, and probe.py runs submitted code as `agent` with -I, rlimits, no network, and forbids asserts inside probes.",
+          "Risk (unmeasured): the suite launches ~27 separate probe subprocesses (merge_share loop 4, input_rotation loop 4, grad loop 4, exact x3, blocksize x2, ...), each re-importing torch+transformers+peft; runner.py caps pytest at 240s and task.toml verifier timeout is 300s on 2 CPUs. Batched helpers (`_run_many`) already exist and are used only twice.",
+          "Uncertainty: solution/patch.diff modifies model.py only to pass the two new kwargs; it does not touch OFTModel.prefix or `_mark_only_adapters_as_trainable`. If the base repo prefix is case-sensitively 'oft_r', the renamed 'oft_R.default.weight' could be frozen, which the strict `trainable_names == [...]` and gradient assertions would flag on the GOLD run."
+        ],
+        "optional_improvements": [
+          "Reduce probe process count/time risk: batch the four-case loops in test_merge_unmerge_block_share_and_neumann, test_input_rotation_calls_unchanged_frozen_base and the grad test through `_run_many`-style single workers, or raise runner.py's pytest timeout, so a slow CPU build does not time out the 240s/300s budgets.",
+          "The dense-op observation in test_input_rotation_calls_unchanged_frozen_base only accepts operands of the form (rows_of_in_features, W.T). A contract-permitted manual projection such as (W @ x_rot.T).T would produce a right operand of shape (in, batch) and yield an empty `rows`, failing with 'Rotated input must be projected by the unchanged base weight'. Consider also accepting the transposed operand pairing (left==W, right==x_rot.T).",
+          "Coverage breadth: every fixture uses exactly in_features // block_size == 2 blocks. One case with 4+ distinct blocks (e.g. in_features=12, block_size=3) would harden against block-ordering/broadcast mistakes that happen to be symmetric with two blocks.",
+          "Confirm on the oracle run that OFTModel's trainability prefix still matches the renamed 'oft_R' parameter (see evidence item on model.py), since GOLD's patch leaves that line untouched in the shown diff.",
+          "test_default_init_is_identity_no_op exercises only the exact, non-shared mode; adding a block_share=True/Neumann default-init case would cover zero-init no-op in the shipped default configuration."
+        ]
+      }
+    }
+  ],
+  "snippets": {
+    "before": {
+      "path": "workspace/peft-2575-repair/seed-v4/task/tests/test_contract.py",
+      "sha256": "28ac9ba79f5aa65eb29b48c3ca0806ce0dd7c5bf5dd6fa4d3d4d08b46b37b0de",
+      "selector": "test_input_rotation_calls_unchanged_frozen_base",
+      "text": "def test_input_rotation_calls_unchanged_frozen_base():\n    for share, neumann in ((False, False), (True, False), (False, True), (True, True)):\n        payload = _small_case(seed=31, block_share=share, use_cayley_neumann=neumann, num_terms=5)\n        payload[\"observe_base\"] = True\n        out = _run(payload)\n        vectors = [np.asarray(v) for v in payload[\"block_params\"]]\n        if share:\n            vectors *= payload[\"in_features\"] // payload[\"block_size\"]\n        cayley = (lambda v, bs: _neumann_cayley(v, bs, 5)) if neumann else _exact_cayley\n        rotation = _block_diag([cayley(v, payload[\"block_size\"]) for v in vectors])\n        expected_input = np.asarray(payload[\"x\"]) @ rotation\n        expected_output = expected_input @ np.asarray(payload[\"W\"]).T + np.asarray(payload[\"b\"])\n        np.testing.assert_allclose(out[\"forward\"], expected_output, rtol=1e-4, atol=1e-4)\n        rows = []\n        base_transpose = np.asarray(payload[\"W\"]).T\n        for operation in out[\"linear_ops\"]:\n            left, right = np.asarray(operation[\"left\"]), np.asarray(operation[\"right\"])\n            if right.ndim < 2 or right.shape[-2:] != base_transpose.shape:\n                continue\n            matrices = right.reshape(-1, *base_transpose.shape)\n            if all(np.allclose(matrix, base_transpose, rtol=1e-6, atol=1e-6) for matrix in matrices):\n                rows.extend(left.reshape(-1, payload[\"in_features\"]))\n        assert rows, \"Rotated input must be projected by the unchanged base weight\"\n        # Permit functional projection and splitting/reordering the batch across dense ops.\n        assert all(any(np.allclose(row, wanted, rtol=1e-5, atol=1e-5)\n                       for wanted in expected_input) for row in rows)\n        assert all(any(np.allclose(row, wanted, rtol=1e-5, atol=1e-5)\n                       for row in rows) for wanted in expected_input)\n        np.testing.assert_allclose(out[\"base_weight_after_forward\"], payload[\"W\"], rtol=1e-6, atol=1e-6)\n        np.testing.assert_allclose(out[\"base_bias_after_forward\"], payload[\"b\"], rtol=1e-6, atol=1e-6)\n        assert out[\"trainable_names\"] == [\"base_model.model.proj.oft_R.default.weight\"]\n",
+      "text_sha256": "241ab0062f179f7d922a42d3a25f6137cc0c12bfa61d8a52847b0691f95df221"
+    },
+    "after": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "test_input_rotation_calls_unchanged_frozen_base",
+      "text": "def test_input_rotation_calls_unchanged_frozen_base():\n    for share, neumann in ((False, False), (True, False), (False, True), (True, True)):\n        payload = _small_case(seed=31, block_share=share, use_cayley_neumann=neumann, num_terms=5)\n        payload[\"observe_base\"] = True\n        out = _run(payload)\n        vectors = [np.asarray(v) for v in payload[\"block_params\"]]\n        if share:\n            vectors *= payload[\"in_features\"] // payload[\"block_size\"]\n        cayley = (lambda v, bs: _neumann_cayley(v, bs, 5)) if neumann else _exact_cayley\n        rotation = _block_diag([cayley(v, payload[\"block_size\"]) for v in vectors])\n        expected_input = np.asarray(payload[\"x\"]) @ rotation\n        expected_output = expected_input @ np.asarray(payload[\"W\"]).T + np.asarray(payload[\"b\"])\n        np.testing.assert_allclose(out[\"forward\"], expected_output, rtol=1e-4, atol=1e-4)\n        rows = []\n        base_transpose = np.asarray(payload[\"W\"]).T\n        for operation in out[\"linear_ops\"]:\n            left, right = np.asarray(operation[\"left\"]), np.asarray(operation[\"right\"])\n            orientations = [(left, right)]\n            if left.ndim >= 2 and right.ndim >= 2:\n                orientations.append((np.swapaxes(right, -2, -1), np.swapaxes(left, -2, -1)))\n            for inputs, weights in orientations:\n                if weights.ndim < 2 or weights.shape[-2:] != base_transpose.shape:\n                    continue\n                matrices = weights.reshape(-1, *base_transpose.shape)\n                if all(np.allclose(matrix, base_transpose, rtol=1e-6, atol=1e-6) for matrix in matrices):\n                    rows.extend(inputs.reshape(-1, payload[\"in_features\"]))\n        assert rows, \"Rotated input must be projected by the unchanged base weight\"\n        # Permit either multiplication orientation and splitting/reordering batch rows.\n        assert all(any(np.allclose(row, wanted, rtol=1e-5, atol=1e-5)\n                       for wanted in expected_input) for row in rows)\n        assert all(any(np.allclose(row, wanted, rtol=1e-5, atol=1e-5)\n                       for row in rows) for wanted in expected_input)\n        np.testing.assert_allclose(out[\"base_weight_after_forward\"], payload[\"W\"], rtol=1e-6, atol=1e-6)\n        np.testing.assert_allclose(out[\"base_bias_after_forward\"], payload[\"b\"], rtol=1e-6, atol=1e-6)\n        assert out[\"trainable_names\"] == [\"base_model.model.proj.oft_R.default.weight\"]\n",
+      "text_sha256": "f50b92e894bfeac561d4128079345028f9c378d60c12a2961d4b31be8601187b"
+    },
+    "_small_case": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "_small_case",
+      "text": "def _small_case(seed, block_share, use_cayley_neumann, num_terms, check_merge=False,\n                 in_features=4, out_features=3, block_size=2, init_weights=False,\n                 set_block_params=True, check_base_no_op=False, check_merge_no_op=False):\n    rng = np.random.default_rng(seed)\n    num_blocks_param = 1 if block_share else in_features // block_size\n    n_elements = block_size * (block_size - 1) // 2\n    block_params = None\n    if set_block_params:\n        block_params = (rng.uniform(-0.4, 0.4, size=(num_blocks_param, n_elements))).tolist()\n    W = rng.normal(size=(out_features, in_features)).tolist()\n    b = rng.normal(size=(out_features,)).tolist()\n    x = rng.normal(size=(5, in_features)).tolist()\n    payload = {\n        \"seed\": seed,\n        \"in_features\": in_features,\n        \"out_features\": out_features,\n        \"block_size\": block_size,\n        \"block_share\": block_share,\n        \"use_cayley_neumann\": use_cayley_neumann,\n        \"num_cayley_neumann_terms\": num_terms,\n        \"block_params\": block_params,\n        \"W\": W,\n        \"b\": b,\n        \"x\": x,\n        \"check_merge\": check_merge,\n        \"init_weights\": init_weights,\n        \"check_base_no_op\": check_base_no_op,\n        \"check_merge_no_op\": check_merge_no_op,\n    }\n    return payload\n",
+      "text_sha256": "22802f5f91a277673e04504a0d772c403f22e304e812f8c5065536b733039085"
+    },
+    "_exact_cayley": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "_exact_cayley",
+      "text": "def _exact_cayley(vec, block_size):\n    S = _skew_from_vec(vec, block_size)\n    I = np.eye(block_size)\n    return np.linalg.inv(I + S) @ (I - S)\n",
+      "text_sha256": "b71cb37bc624a7f101105db465facfad13478e913cc83af022409d11e7e25be3"
+    },
+    "_neumann_cayley": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "_neumann_cayley",
+      "text": "def _neumann_cayley(vec, block_size, n_terms):\n    S = _skew_from_vec(vec, block_size)\n    R = np.eye(block_size)\n    sign = -1.0\n    power = np.eye(block_size)\n    for _ in range(1, n_terms):\n        power = power @ S\n        R = R + (2.0 * sign) * power\n        sign = -sign\n    return R\n",
+      "text_sha256": "d5a59f8d1b8e09811f133fcb82920132722b8bd5b0f5b8b58075b3e05b7955e3"
+    },
+    "_block_diag": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "_block_diag",
+      "text": "def _block_diag(blocks):\n    n = len(blocks)\n    bs = blocks[0].shape[0]\n    full = np.zeros((n * bs, n * bs))\n    for i, b in enumerate(blocks):\n        full[i * bs:(i + 1) * bs, i * bs:(i + 1) * bs] = b\n    return full\n",
+      "text_sha256": "6a6cc8ac18317b0476672dda066655b78724b4d6f1206cbdfb7f5b1228889f37"
+    },
+    "_skew_from_vec": {
+      "path": "workspace/peft-2575-repair/seed-v5/task/tests/test_contract.py",
+      "sha256": "b40239ed9e25008ff5f6740f51bea278fc226a06cbddc9b4cddaf4daf4f228c0",
+      "selector": "_skew_from_vec",
+      "text": "def _skew_from_vec(vec, block_size):\n    # Strict upper-triangular positions (i, j) with i < j, in row-major order.\n    rows, cols = np.triu_indices(block_size, k=1)\n    m = np.zeros((block_size, block_size))\n    m[rows, cols] = vec\n    m = m - m.T\n    return m\n",
+      "text_sha256": "1c4c1d6eb46b5d5062304960d2d5a424c5c06838b88a24af1f07a623ffcec7e5"
+    }
+  },
+  "local_scope": "Run the exact old/new protected test and NumPy helpers with algebraically equal row-first and weight-first projection observations; keep a wrong-weight negative.",
+  "limitation": "This proves the old assertion rejects a valid operand layout mechanically, not execution of the Torch equivalent control."
+}

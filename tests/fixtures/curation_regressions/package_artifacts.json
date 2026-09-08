@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "id": "package_artifacts",
+  "source": {
+    "url": "https://github.com/huggingface/peft/pull/2575",
+    "repo": "huggingface/peft",
+    "number": 2575,
+    "base_sha": "6d133307adf28e11d061c20aa1f040c1d26d2012",
+    "head_sha": "8f1d17744a351168d998bba432213e45f59871cc"
+  },
+  "tasks": [
+    {
+      "role": "before",
+      "path": "workspace/peft-2575-repair/seed-v5/task",
+      "digest": "2e9e03947f5b9132a7560fc5d23de74b9dc704d81f42b29557d4cbec59a07d48"
+    },
+    {
+      "role": "after",
+      "path": "workspace/peft-2575-repair/seed-v6/task",
+      "digest": "9d62d6ef7c9699df53f19105706a867cb75cfc94e8211bae94ad339553b13f25"
+    }
+  ],
+  "provenance": [
+    {
+      "path": "workspace/peft-2575-repair/provenance-v6.json",
+      "sha256": "b8d2e081351bda25ca194a90b319546b33d3aa660dd6603c3848dd469ee8a7d1",
+      "value": {
+        "changes": [
+          "Collect the entire already-permitted src/peft/tuners/oft package, retaining __init__.py and any submitted sibling helpers. Canonical finalization updates Harbor artifacts and deletes the full baseline package before import.",
+          "Add an equivalent that moves OFTRotationModule byte-for-byte into rotation.py and imports it from layer.py; methods, registration paths and arithmetic remain unchanged.",
+          "Compact four duplicate control rationales to stay within the bounded reviewer input. All existing test code, thresholds, public requirements, control scripts and Gold remain unchanged."
+        ],
+        "limitations": [
+          "No target/Torch/probe/control/Gold execution, paid calls or launch.",
+          "Fresh remote validation remains necessary; static transfer checks do not claim execution evidence."
+        ]
+      }
+    },
+    {
+      "path": "workspace/peft-2575-repair/validation-v5/result.json",
+      "sha256": "ac473f2059e52cc2ac80725dec4d7057f2c4811dab5647348574391fcdbe07f7",
+      "value": {
+        "score": 2,
+        "blockers": [
+          "Artifact collection can silently drop a permitted submission layout. instruction.md says \"Submit your changes under `src/peft/tuners/oft/` (at least `config.py`, `layer.py`, and ... `model.py`)\", i.e. extra helper modules in that package are allowed, but task.toml lists only those three files as [[artifacts]] and tests/Dockerfile deletes exactly those three from the image. A correct solution that factors, e.g., the rotation module into `src/peft/tuners/oft/rotation.py` imported by layer.py would have that file absent in the verifier image; every probe would raise ImportError and score 0 despite satisfying the public contract."
+        ],
+        "repairs": [
+          "Close the artifact/instruction gap: either add an [[artifacts]] entry for the whole `/workspace/src/peft/tuners/oft/` directory (runner.py already rglobs directory sources) and delete the whole package dir in tests/Dockerfile before copying, or state explicitly in instruction.md that only config.py, layer.py and model.py are graded and no new modules may be added."
+        ],
+        "evidence": [
+          "task.toml artifacts list only .../oft/config.py, layer.py, model.py; tests/Dockerfile `RUN rm -rf /workspace/src/peft/tuners/oft/{config,layer,model}.py` \u2014 any additional submitted module in that package is never transferred.",
+          "tests/test_contract.py `_reference_forward`/`_exact_cayley`/`_neumann_cayley` are independent NumPy oracles; forward tests compare probe output to them at rtol/atol 1e-4 for exact, shared, 2/3/18-term Neumann, block_size 3 and 4 (row-major triu ordering), so wrong sign, wrong series truncation, transposed R or ignored `use_cayley_neumann` are all detected.",
+          "test_input_rotation_calls_unchanged_frozen_base uses TorchDispatchMode to capture mm/addmm/linear operands, requires a projection whose weight equals unchanged W.T and whose left rows are exactly the rotated inputs (both orientations permitted) \u2014 rejects the rotate_weight mutation while admitting the F.linear and (W @ rows.T).T equivalents.",
+          "test_oft_r_weight_is_trainable_with_nonzero_gradient checks grad against central finite differences of the independent reference (rtol 2e-3), for exact/Neumann, shared and zero-init cases, and asserts max|expected|>1e-6, so detach/no_grad and constant-rotation implementations fail; `trainable_names == [\"base_model.model.proj.oft_R.default.weight\"]` keeps base weight/bias frozen and forbids a surviving scale parameter (frozen auxiliary params remain permitted).",
+          "_assert_merge_cycles checks forward==merged_out==post-unmerge==second cycle plus restored weight/bias == fixed W/b, and merged_weight == (Rfull @ W.T).T; test_merge_unmerge_block_share_and_neumann includes num_terms=2 where R is visibly non-orthogonal, so transpose-as-inverse unmerge is caught (consistent with instruction.md item 4 'unmerging exactly restores').",
+          "test_three_dimensional_inputs_rotate_only_last_dimension asserts shape (2,3,4) and reassigns `updated_block_params` after all merge observations, giving a genuine post-update state check that defeats rotation caching and 2D-only rotation.",
+          "solution/patch.diff Linear.__init__ defaults `use_cayley_neumann: bool = False` while OFTConfig defaults True; model.py always forwards the config value, so peft-path behavior matches the spec (CONFIG_PROBE checks the config defaults 0/32/True/5)."
+        ],
+        "optional_improvements": [
+          "Runtime risk: the suite spawns ~27 separate run_probe subprocesses (3+2 parametrizations, 4 each in merge/grad/input-rotation, 2 rank-only), each re-importing torch+peft, against a 240 s pytest timeout in runner.py on 2 CPUs. Consider batching more cases with _run_many/_batch_worker to avoid flaky timeouts; actual wall time is unmeasured here.",
+          "Align Linear.__init__'s `use_cayley_neumann=False` default with the config default True in GOLD to avoid confusing direct-construction semantics (untested either way).",
+          "The payload keys `check_base_no_op`/`check_merge_no_op` are set by _small_case but never read in BUILD_MODEL_AND_RUN; remove them or implement the intended observation to avoid a false sense of coverage.",
+          "Zero-init no-op is only exercised with use_cayley_neumann=False; adding the Neumann/shared variants to test_default_init_is_identity_no_op would broaden the identity check cheaply."
+        ]
+      }
+    }
+  ],
+  "before_contract": {
+    "title": "OFT adapter: compact skew-symmetric parametrization with exact/Cayley-Neumann rotation",
+    "rationale": "The PEFT OFT tuner was reworked to store only the free parameters of each block's skew-symmetric generator, drop the separate per-channel scale, apply the resulting orthogonal rotation directly to the layer input instead of rebuilding a rotated weight matrix every forward pass, and support both the exact Cayley transform and a cheaper truncated Cayley-Neumann series approximation. This task isolates that behavior for torch.nn.Linear-based OFT adapters.",
+    "source_paths": [
+      "src/peft/tuners/oft/config.py",
+      "src/peft/tuners/oft/layer.py",
+      "src/peft/tuners/oft/model.py"
+    ],
+    "requirements": [
+      {
+        "id": "compact-parametrization",
+        "behavior": "The OFT adapter for a Linear layer stores its trainable parameters as oft_R[<adapter>].weight of shape (num_blocks, block_size*(block_size-1)//2), with num_blocks==1 when block_share=True. named_parameters() on a get_peft_model-wrapped model expose the parameter as '...oft_R.default.weight' and never 'oft_r'/'oft_s'. The vec->skew mapping follows the row-major strict-upper-triangle convention. Only the compact weight is trainable; additional frozen auxiliary parameters are permitted.",
+        "tests": [
+          "test_parameter_shape_and_names",
+          "test_forward_matches_reference_exact_block_size_3",
+          "test_input_rotation_calls_unchanged_frozen_base"
+        ]
+      },
+      {
+        "id": "config-fields-and-validation",
+        "behavior": "OFTConfig exposes use_cayley_neumann (default True) and num_cayley_neumann_terms (default 5); r defaults to 0 and oft_block_size defaults to 32; specifying both r!=0 and oft_block_size!=0 (or neither) raises ValueError.",
+        "tests": [
+          "test_config_defaults_and_validation",
+          "test_rank_only_configuration_executes_derived_block_size"
+        ]
+      },
+      {
+        "id": "forward-matches-linear-algebra-reference",
+        "behavior": "forward() rotates the input features block-by-block with the exact Cayley rotation R=(I+S)^-1(I-S) of each block's skew-symmetric generator (no per-channel scale) and passes the result through the frozen base layer; the output matches a NumPy reference computed from the same generator values, for both block_share=False and block_share=True, and use_cayley_neumann=False always uses the exact transform regardless of num_cayley_neumann_terms. Direct functional linear projection of rotated input by unchanged frozen base parameters is also valid; module invocation is not required. Preserve all leading input axes and rotate only the final feature axis for 3D inputs, in exact/Neumann and shared/unshared modes. A subsequent forward reflects a newly assigned compact weight in all four modes. Either multiplication orientation of unchanged W and rotated input is valid.",
+        "tests": [
+          "test_forward_matches_reference_exact",
+          "test_forward_block_share",
+          "test_exact_path_ignores_neumann_terms",
+          "test_input_rotation_calls_unchanged_frozen_base",
+          "test_rank_only_configuration_executes_derived_block_size",
+          "test_three_dimensional_inputs_rotate_only_last_dimension"
+        ]
+      },
+      {
+        "id": "default-init-is-noop",
+        "behavior": "A freshly initialized adapter (default init_weights=True) has oft_R[\"default\"].weight all zeros, so S=0, R=I, and forward/merge exactly reproduce the unwrapped base_layer's output.",
+        "tests": [
+          "test_default_init_is_identity_no_op"
+        ]
+      },
+      {
+        "id": "cayley-neumann-convergence",
+        "behavior": "With use_cayley_neumann=True, num_cayley_neumann_terms=1 gives R=I (forward equals the unrotated base-layer output) and num_cayley_neumann_terms=2/3 give the exact truncated-series value I-2S(+2S^2); increasing num_cayley_neumann_terms further makes the forward output converge to the exact-Cayley output for small-norm generators.",
+        "tests": [
+          "test_cayley_neumann_convergence",
+          "test_three_dimensional_inputs_rotate_only_last_dimension"
+        ]
+      },
+      {
+        "id": "merge-unmerge-consistency",
+        "behavior": "merge() folds the block rotation into base_layer.weight so that the merged base layer alone reproduces the pre-merge adapted forward output; unmerge() exactly restores the original base_layer weight and bias; this holds for block_share=True and for use_cayley_neumann=True as well as the default exact/non-shared path. Adapted forwarding remains correct after unmerge and after a second complete merge/unmerge cycle.",
+        "tests": [
+          "test_merge_unmerge_consistency",
+          "test_merge_unmerge_block_share_and_neumann",
+          "test_three_dimensional_inputs_rotate_only_last_dimension"
+        ]
+      },
+      {
+        "id": "trainable-gradient",
+        "behavior": "Exact and default Neumann transforms preserve mathematically correct finite gradients on the compact trainable tensor, including shared blocks and zero initialization; base weight and bias stay frozen.",
+        "tests": [
+          "test_oft_r_weight_is_trainable_with_nonzero_gradient"
+        ]
+      }
+    ],
+    "mutations": [
+      {
+        "name": "keep_scale_factor",
+        "rationale": "Reintroduce per-output scaling; the independent forward and merged-weight references reject it.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\nimport re\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '            result = self.base_layer(x.to(previous_dtype), *args, **kwargs)\\n\\n        result = result.to(previous_dtype)\\n        return result\\n\\n    def __repr__(self) -> str:\\n        rep = super().__repr__()\\n        return \"oft.\" + rep\\n\\n\\nclass Conv2d'\nnew = '            result = self.base_layer(x.to(previous_dtype), *args, **kwargs)\\n            result = result * 1.1\\n\\n        result = result.to(previous_dtype)\\n        return result\\n\\n    def __repr__(self) -> str:\\n        rep = super().__repr__()\\n        return \"oft.\" + rep\\n\\n\\nclass Conv2d'\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "wrong_neumann_sign",
+        "rationale": "Use positive signs in the truncated Neumann series; independently expected alternating-sign outputs reject it.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '            sign = -1.0\\n            for _ in range(1, num_neumann_terms):\\n                skew_power = torch.bmm(skew_power, skew)\\n                R = R + (2.0 * sign) * skew_power\\n                sign = -sign'\nnew = '            sign = 1.0\\n            for _ in range(1, num_neumann_terms):\\n                skew_power = torch.bmm(skew_power, skew)\\n                R = R + (2.0 * sign) * skew_power\\n                sign = sign'\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "detach_rotation_weight",
+        "rationale": "Detach the compact rotation weight in forward; independent gradient assertions reject lost trainability.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '        orth_rotate = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r\\n        batch_dims = x.shape[:-1]\\n        x_reshaped = x.reshape(*batch_dims, rank, self.block_size)\\n\\n        if self.block_share:\\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\\n\\n        x_rotated = torch.einsum(\\\"...rk,rkc->...rc\\\", x_reshaped, orth_rotate)'\nnew = '        with torch.no_grad():\\n            orth_rotate = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r\\n        batch_dims = x.shape[:-1]\\n        x_reshaped = x.reshape(*batch_dims, rank, self.block_size)\\n\\n        if self.block_share:\\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\\n\\n        x_rotated = torch.einsum(\\\"...rk,rkc->...rc\\\", x_reshaped, orth_rotate)'\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "nonzero_default_init",
+        "rationale": "Initialize the compact weight nonzero; fresh-adapter zero-weight and base-output parity checks reject it.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '                # initialize oft_R to zero, i.e., the rotation starts out as the identity\\n                nn.init.zeros_(self.oft_R[adapter_name].weight)'\nnew = '                # initialize oft_R to zero, i.e., the rotation starts out as the identity\\n                nn.init.normal_(self.oft_R[adapter_name].weight, mean=0.0, std=0.05)'\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "shared_rotation_replaced_by_identity",
+        "rationale": "Only shared rotations are replaced by identity, so known nonzero shared parameters must disagree with the independent output/input reference.",
+        "script": "cd /workspace && python3 - <<'PY'\nfrom pathlib import Path\np=Path('src/peft/tuners/oft/layer.py')\ns=p.read_text()\nold='        if self.block_share:\\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\\n\\n        x_rotated = torch.einsum(\"...rk,rkc->...rc\", x_reshaped, orth_rotate)'\nnew='        if self.block_share:\\n            orth_rotate = torch.eye(self.block_size, device=orth_rotate.device, dtype=orth_rotate.dtype).unsqueeze(0).expand(rank, -1, -1)\\n\\n        x_rotated = torch.einsum(\"...rk,rkc->...rc\", x_reshaped, orth_rotate)'\nassert s.count(old)==1, 'expected unique repaired GOLD anchor'\np.write_text(s.replace(old,new,1))\nPY\n"
+      },
+      {
+        "name": "detach_default_neumann_rotation",
+        "rationale": "Preserve exact-mode training and every forward value but detach default Neumann rotation, violating learnable default adapter behavior.",
+        "script": "cd /workspace && python3 - <<'PY'\nfrom pathlib import Path\np=Path('src/peft/tuners/oft/layer.py')\ns=p.read_text()\nold='        orth_rotate = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r\\n        batch_dims = x.shape[:-1]'\nnew='        orth_rotate = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n        if self.use_cayley_neumann:\\n            orth_rotate = orth_rotate.detach()\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r\\n        batch_dims = x.shape[:-1]'\nassert s.count(old)==1, 'expected unique repaired GOLD anchor'\np.write_text(s.replace(old,new,1))\nPY\n"
+      },
+      {
+        "name": "transpose_unmerge_of_truncated_series",
+        "rationale": "Reintroduce transpose-as-inverse unmerge; short Neumann rotations are not orthogonal and must fail original-weight restoration.",
+        "script": "cd /workspace && python3 - <<'PY'\nfrom pathlib import Path\np=Path('src/peft/tuners/oft/layer.py')\ns=p.read_text()\nold='                base_layer.weight.data = self._oft_saved_weights.pop(active_adapter).to(orig_dtype)'\nnew='                self._oft_saved_weights.pop(active_adapter)\\n                oft_mat = self.get_delta_weight(active_adapter)\\n                base_layer.weight.data = (base_layer.weight.data.to(oft_mat.dtype) @ oft_mat).to(orig_dtype)'\nassert s.count(old)==1, 'expected unique repaired GOLD anchor'\np.write_text(s.replace(old,new,1))\nPY\n"
+      },
+      {
+        "name": "rotate_weight_instead_of_input",
+        "rationale": "Materialize a rotated base weight instead of rotating input. Numerical outputs agree, but observed operands violate the input-rotation constraint.",
+        "script": "cd /workspace && python3 - <<'PY'\nfrom pathlib import Path\np=Path('src/peft/tuners/oft/layer.py')\ns=p.read_text()\nold='                x = self._cast_input_dtype(x, oft_R.weight.dtype)\\n                x = oft_R(x)\\n\\n            result = self.base_layer(x.to(previous_dtype), *args, **kwargs)'\nnew='                rotation = oft_R.get_weight()\\n                rotated_weight = (rotation @ self.base_layer.weight.to(rotation.dtype).T).T\\n\\n            result = F.linear(x.to(rotated_weight.dtype), rotated_weight, self.base_layer.bias)'\nassert s.count(old)==1, 'expected unique repaired GOLD anchor'\np.write_text(s.replace(old,new,1))\nPY\n"
+      },
+      {
+        "name": "rotation_handles_only_2d_input",
+        "rationale": "Keep all existing 2D rotation behavior, but silently return a 3D sequence input unchanged. Output shape, base projection and merge remain valid, so the independent 3D numeric assertions detect omitted rotation rather than a setup error.",
+        "script": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('src/peft/tuners/oft/layer.py')\ns = p.read_text()\nold = '        batch_dims = x.shape[:-1]'\nnew = '        if x.ndim != 2:\\n            return x  # BUG: silently skip OFT rotation for sequence batches\\n        batch_dims = x.shape[:-1]'\nassert s.count(old) == 1, 'expected unique input-rotation anchor'\np.write_text(s.replace(old, new, 1))\nPY\n"
+      },
+      {
+        "name": "stale_rotation_after_weight_update",
+        "rationale": "Cache the first forward rotation without invalidating it after weight updates. Initial outputs, one-pass gradients and both pre-update merge cycles remain correct; the fixed second-state NumPy comparison detects stale outputs in exact/Neumann and shared/unshared modes.",
+        "script": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('src/peft/tuners/oft/layer.py')\ns = p.read_text()\nold = '        orth_rotate = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r'\nnew = '        if not hasattr(self, \"_cached_rotation\"):\\n            self._cached_rotation = self._cayley_batch(weight, self.block_size, self.use_cayley_neumann, self.num_cayley_neumann_terms)\\n        orth_rotate = self._cached_rotation\\n\\n        rank = self.in_features // self.block_size if self.block_share else self.r'\nassert s.count(old) == 1, 'expected unique Gold anchor'\np.write_text(s.replace(old, new, 1))\nPY\n"
+      }
+    ],
+    "equivalents": [
+      {
+        "name": "explicit_loop_block_diagonal",
+        "rationale": "Build the identical block-diagonal rotation by explicit block placement instead of torch.block_diag.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '''        if self.block_share:\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\n\n        x_rotated = torch.einsum(\"...rk,rkc->...rc\", x_reshaped, orth_rotate)\n        x_rotated = x_rotated.reshape(*x.shape)'''\nnew = '''        if self.block_share:\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\n\n        # Equivalent to the einsum contraction, computed one block at a time.\n        rotated_blocks = [\n            torch.matmul(x_reshaped[..., i, :], orth_rotate[i]) for i in range(orth_rotate.shape[0])\n        ]\n        x_rotated = torch.stack(rotated_blocks, dim=-2)\n        x_rotated = x_rotated.reshape(*x.shape)'''\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "singleton_shared_broadcast",
+        "rationale": "Broadcast one shared rotation block in einsum instead of explicitly repeating it; output and gradients agree.",
+        "script": "cd /workspace && python3 - <<'PYEOF'\npath = 'src/peft/tuners/oft/layer.py'\ns = open(path).read()\nold = '        if self.block_share:\\n            orth_rotate = orth_rotate.repeat(rank, 1, 1)\\n\\n        x_rotated = torch.einsum(\"...rk,rkc->...rc\", x_reshaped, orth_rotate)'\nnew = '        x_rotated = torch.einsum(\"...rk,rkc->...rc\", x_reshaped, orth_rotate)'\nassert old in s, 'anchor not found'\ns = s.replace(old, new, 1)\nopen(path, 'w').write(s)\nPYEOF\n"
+      },
+      {
+        "name": "functional_projection_of_rotated_input",
+        "rationale": "Use F.linear on rotated inputs and unchanged frozen base parameters; no nn.Module invocation is required.",
+        "script": "cd /workspace && python3 - <<'PY'\nfrom pathlib import Path\np=Path('src/peft/tuners/oft/layer.py')\ns=p.read_text()\nold='            result = self.base_layer(x.to(previous_dtype), *args, **kwargs)\\n\\n        result = result.to(previous_dtype)\\n        return result\\n\\n    def __repr__(self) -> str:\\n        rep = super().__repr__()\\n        return \"oft.\" + rep\\n\\n\\nclass Conv2d'\nnew='            result = F.linear(x.to(previous_dtype), self.base_layer.weight, self.base_layer.bias)\\n\\n        result = result.to(previous_dtype)\\n        return result\\n\\n    def __repr__(self) -> str:\\n        rep = super().__repr__()\\n        return \"oft.\" + rep\\n\\n\\nclass Conv2d'\nassert s.count(old)==1, \"expected unique GOLD Linear forward tail\"\np.write_text(s.replace(old,new,1))\nPY\n"
+      },
+      {
+        "name": "frozen_auxiliary_parameter",
+        "rationale": "Add unused frozen oft_aux on OFTLayer, outside oft_R. PEFT set_adapter toggles only oft_R children, and OFT's trainability pass does not enable this parameter. Numerics and the sole trainable compact weight are unchanged; frozen metadata must not cause rejection.",
+        "script": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('src/peft/tuners/oft/layer.py')\ns = p.read_text()\nold = '        self.oft_R = nn.ModuleDict({})'\nnew = '        self.oft_R = nn.ModuleDict({})\\n        self.oft_aux = nn.Parameter(torch.zeros(1), requires_grad=False)'\nassert s.count(old) == 1, 'expected unique Gold anchor'\np.write_text(s.replace(old, new, 1))\nPY\n"
+      },
+      {
+        "name": "transposed_projection_of_rotated_input",
+        "rationale": "Project already-rotated inputs as (W @ rows.T).T, restore leading dimensions, then add bias. Frozen W, values and gradients are unchanged; a rotated weight is never materialized.",
+        "script": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('src/peft/tuners/oft/layer.py')\ns = p.read_text()\nold = '                x = oft_R(x)\\n\\n            result = self.base_layer(x.to(previous_dtype), *args, **kwargs)'\nnew = '                x = oft_R(x)\\n\\n            rotated = x.to(previous_dtype)\\n            flat = rotated.reshape(-1, self.base_layer.in_features)\\n            result = (self.base_layer.weight @ flat.T).T.reshape(*rotated.shape[:-1], self.base_layer.out_features)\\n            if self.base_layer.bias is not None:\\n                result = result + self.base_layer.bias'\nassert s.count(old) == 1, 'expected unique Gold anchor'\np.write_text(s.replace(old, new, 1))\nPY\n"
+      }
+    ],
+    "min_tests": 17,
+    "reward_mode": "deterministic"
+  },
+  "after_source_paths": [
+    "src/peft/tuners/oft"
+  ],
+  "source_records": [
+    {
+      "path": "workspace/peft-2575-repair/seed-v5/task/contract.json",
+      "sha256": "1bf611f431764ec8cc887de892660f537733e5a569cabdabfa25e4a240b27172"
+    },
+    {
+      "path": "workspace/peft-2575-repair/seed-v6/task/contract.json",
+      "sha256": "d3873e5284ec6e89b7893030e281dc00a9d2985f218fbf2d77519b0c94fda60b"
+    },
+    {
+      "path": "workspace/peft-2575-repair/seed-v6/task/environment/Dockerfile",
+      "sha256": "1ee9f6558b930d423849d23ca385c0b097f4dbe0b6918aa8acdd61dc571870f8"
+    }
+  ],
+  "pinned_recipe": "FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea\n\nRUN apt-get update && apt-get install -y --no-install-recommends \\\n    git curl ca-certificates build-essential \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /workspace\n\n# Fetch the peft source at the base commit as a release archive tarball\nRUN curl -fsSL -o /tmp/repo.tar.gz \\\n    https://github.com/huggingface/peft/archive/6d133307adf28e11d061c20aa1f040c1d26d2012.tar.gz \\\n    && mkdir -p /workspace \\\n    && tar -xzf /tmp/repo.tar.gz -C /workspace --strip-components=1 \\\n    && rm /tmp/repo.tar.gz\n\n# Pinned CPU-only dependencies\nRUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.4.1\nRUN pip install --no-cache-dir \\\n    numpy==1.26.4 \\\n    packaging==24.1 \\\n    psutil==6.0.0 \\\n    pyyaml==6.0.2 \\\n    tqdm==4.66.5 \\\n    accelerate==1.0.1 \\\n    safetensors==0.4.5 \\\n    huggingface_hub==0.26.2 \\\n    transformers==4.46.0 \\\n    parameterized==0.9.0 \\\n    pytest==8.4.2\n\n# Install peft (editable) without touching pinned deps above\nRUN pip install --no-cache-dir --no-deps --no-build-isolation -e .\n\nWORKDIR /workspace\n",
+  "helper_path": "src/peft/tuners/oft/rotation.py",
+  "positive_control": {
+    "name": "rotation_in_sibling_module",
+    "rationale": "Move the unchanged rotation class into rotation.py; relative import preserves behavior and parameter paths. The permitted package helper must reach the verifier.",
+    "script": "cd /workspace && python3 - <<'PY'\nimport ast\nfrom pathlib import Path\np = Path('src/peft/tuners/oft/layer.py')\ns = p.read_text()\nnodes = [n for n in ast.parse(s).body if isinstance(n, ast.ClassDef) and n.name == 'OFTRotationModule']\nassert len(nodes) == 1\nn = nodes[0]\nlines = s.splitlines(keepends=True)\nblock = ''.join(lines[n.lineno - 1:n.end_lineno])\nhelper = p.with_name('rotation.py')\nassert not helper.exists()\nhelper.write_text('from __future__ import annotations\\nimport torch\\nimport torch.nn as nn\\n\\n' + block)\np.write_text(''.join(lines[:n.lineno - 1]) + 'from .rotation import OFTRotationModule\\n' + ''.join(lines[n.end_lineno:]))\nPY\n"
+  },
+  "local_scope": "Validate a real historical Contract, finalize temporary tasks, and inspect emitted artifact sources and grading-image deletion scope for a sibling helper.",
+  "limitation": "Static collection omission; no historical paid helper-trial failure is claimed. Temporary tests/solution are inert stand-ins used only to exercise finalization."
+}

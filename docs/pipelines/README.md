@@ -2,6 +2,10 @@
 
 A pipeline is a synthesis method that takes a repo and emits Harbor-shaped tasks. They share the same input shape (`GenerationInput`) and output shape (Harbor task dirs); they differ in **how** they manufacture verifiable tasks.
 
+[Tasksmith](tasksmith.md) is a separate experimental PR construction command with
+persistent stage recovery and exact-revision admission. Its five-PR proof of concept
+is pending; the six registered `generate` pipelines below retain their existing interfaces.
+
 ## Common shape
 
 Every pipeline follows the same skeleton — only the box labelled "synthesize" varies.
