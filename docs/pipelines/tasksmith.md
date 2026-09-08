@@ -183,6 +183,28 @@ Coding workers do not inherit the outer workflow's checkpoint namespace. Worker
 artifacts and explicitly supplied continuation state govern their recovery; an old
 nested checkpoint cannot substitute for a fresh artifact validation callback.
 
+`tasksmith.finalize.prepare_finalization` provides a separate recovery path when
+all trials finished but the final review did not. It verifies the committed dossier,
+task bytes, collection inventories, source witness, provider cleanup and original
+cost/deadline receipts without executing trials. `finalize_review_only` owns one
+linked review operation and retains the unfinished parent record. Explicit
+publication holds remain binding even if the model gives a passing score.
+
+The recovery reviewer can receive a complete dossier in one request using
+`tasksmith.inline_review.final_review_inline`. A reversible projection shares repeated
+text and source edits while retaining raw artifacts and exact reconstruction hashes.
+Length-framed evidence avoids another layer of JSON escaping. Delivery receipts
+identify the complete supplied text; they do not establish reasoning quality. All
+eight criterion names are explicit in the tool schema. A truncated, malformed or
+wrong-rubric response remains incomplete. Previous review charges still count toward
+the same allowance. The ordinary validation path currently retains its paged review;
+this recovery API is not an automatic retry or a replacement for missing trials.
+
+CPU/GPU capability errors now stop with a profile-mismatch receipt instead of
+triggering package-version changes. Dependency repair requires successful collection
+of every selected test module from clean pinned source before the final rebuild;
+the fresh dependency image must still pass the original complete readiness commands.
+
 If a controller defect is diagnosed after a candidate has stopped, the Python
 `Candidate.run(revision_request=...)` interface records the current task digest,
 concrete diagnosis, retained evidence and repair feedback before scheduling a new

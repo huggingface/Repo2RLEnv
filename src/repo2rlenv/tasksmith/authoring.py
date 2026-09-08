@@ -238,6 +238,10 @@ tails. Expected-value calculations, comparisons and assertions stay OUTSIDE that
 string in protected tests. When full values are promised, check every element and
 any promised order; shapes, means, counts or first elements alone can hide permutations and
 corrupted tails. Use small fixtures so complete observations remain bounded.
+Turn every literal public input/output example into a protected regression case;
+do not substitute representative string/bool leaves for an explicit integer-list
+example. For every promised tensor axis, use nonuniform values and compare the
+complete ordered result, including axes whose shape or sum a permutation preserves.
 No assert in probe code, no eval/exec/open in protected code. Probe worker defaults
 to /workspace; editable source is installed and imports should resolve into it.
 Protected expected values must be justified independently (math, independent simple

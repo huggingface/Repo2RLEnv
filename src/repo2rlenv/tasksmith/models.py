@@ -412,11 +412,23 @@ class TrialRequirement(StrictModel):
     model: Nonempty | None = None
 
 
+def _quality_criteria_schema(schema: dict) -> None:
+    # A Python field validator cannot communicate allowed dictionary keys to the
+    # model. Reuse Pydantic's generated criterion reference so custom ref templates
+    # and enclosing schemas keep their usual definition handling.
+    criterion = schema["additionalProperties"]
+    schema.update(
+        properties={name: dict(criterion) for name in QUALITY_DIMENSIONS},
+        required=list(QUALITY_DIMENSIONS),
+        additionalProperties=False,
+    )
+
+
 class QualityReport(StrictModel):
     pr: PRIdentity
     revision_digest: Digest
     policy_version: Literal[1] = 1
-    criteria: dict[str, QualityCriterion]
+    criteria: dict[str, QualityCriterion] = Field(json_schema_extra=_quality_criteria_schema)
     findings: list[Finding] = Field(default_factory=list)
     difficulty: str | None = None
     expert_review: Literal["not_reviewed", "reviewed"] = "not_reviewed"
