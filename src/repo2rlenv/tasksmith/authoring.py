@@ -198,6 +198,8 @@ Write these two outputs:
 /output/task/solution/solve.sh — apply the scoped PR reference changes OFFLINE to
 the base in /workspace, with set -eu. Embed the needed patch/source directly; never
 fetch the PR or rely on /private at trial time. It must not change hidden tests.
+The target is already installed in editable mode. Patch its collected source;
+do not run pip/setup.py or reinstall dependencies in the oracle or controls.
 /output/task/tests/test_contract.py — protected pytest assertions using run_probe.
 
 The Construction artifact contains the execution contract, controls and evidence map.
