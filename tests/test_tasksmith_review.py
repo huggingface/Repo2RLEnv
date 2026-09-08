@@ -316,7 +316,8 @@ def test_unicode_partial_gaps_and_delivery_bound(tmp_path):
             )
         )
     )
-    assert sum(len(page["text"]) for page in result["pages"]) == 24000
+    assert len(json.dumps(result, ensure_ascii=False)) <= review.MAX_READ_CHARACTERS
+    assert 0 < sum(len(page["text"]) for page in result["pages"]) < 24000
     assert "a: [0,12000)" in reader.missing()
     assert "a: [24000,30000)" in reader.missing()
     with pytest.raises(ValueError, match="Read all"):
@@ -324,6 +325,7 @@ def test_unicode_partial_gaps_and_delivery_bound(tmp_path):
     for key, start, length in [
         ("a", 0, 12000),
         ("a", 24000, 6000),
+        ("b", result["pages"][1]["next_offset"], 12000),
         ("b", 12000, 12000),
         ("b", 24000, 6000),
     ]:

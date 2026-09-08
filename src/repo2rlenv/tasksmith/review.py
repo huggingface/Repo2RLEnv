@@ -31,10 +31,13 @@ from repo2rlenv.tasksmith.models import (
 )
 from repo2rlenv.tasksmith.worker import artifact_stage, canonical_digest, save_json
 
-POLICY_VERSION = 1
+# Version 1 credited raw page lengths before transport could truncate their JSON
+# envelope. Its coverage receipts cannot certify delivery under this policy.
+POLICY_VERSION = 2
 MAX_EVIDENCE_CHARACTERS = 512_000
 MAX_EVIDENCE_FILES = 64
 MAX_READ_CHARACTERS = 24_000
+READ_PROGRESS_RESERVE = 2_048
 MAX_TURNS = 16
 FINAL_REQUIRED_EVIDENCE = frozenset(
     {
@@ -212,8 +215,7 @@ class _EvidenceReader:
             return (
                 "Provide 1–8 read requests: evidence_id, offset, length. Offsets count characters."
             )
-        remaining = MAX_READ_CHARACTERS
-        pages = []
+        checked = []
         for request in requests:
             if not isinstance(request, dict) or set(request) - {"evidence_id", "offset", "length"}:
                 return "Invalid read request fields."
@@ -231,22 +233,65 @@ class _EvidenceReader:
                 or not 1 <= length <= 12000
             ):
                 return "Invalid request: use a listed evidence_id, valid character offset and length1–12000."
-            end = min(start + length, len(self.evidence[key]), start + remaining)
-            if end == start:
-                break
-            pages.append(
+            checked.append((key, start, min(start + length, len(self.evidence[key]))))
+
+        def serialize(pages, missing, count, truncated):
+            return json.dumps(
                 {
+                    "pages": pages,
+                    "missing": missing,
+                    "missing_count": count,
+                    "missing_list_truncated": truncated,
+                },
+                ensure_ascii=False,
+            )
+
+        pages = []
+        # Bound the exact string agent.act will deliver, not the unescaped source
+        # text. Leave room for useful progress; it may be shortened, never evidence.
+        content_limit = MAX_READ_CHARACTERS - READ_PROGRESS_RESERVE
+        for key, start, requested_end in checked:
+
+            def page_at(end, key=key, start=start):
+                return {
                     "evidence_id": key,
                     "offset": start,
                     "next_offset": end,
                     "total_characters": len(self.evidence[key]),
                     "text": self.evidence[key][start:end],
                 }
-            )
-            remaining -= end - start
-        # Credit only pages actually returned, including on batch mistakes.
+
+            low, high = start, requested_end
+            while low < high:
+                end = (low + high + 1) // 2
+                # Missing intervals cannot outnumber the evidence characters.
+                wire = serialize([*pages, page_at(end)], [], MAX_EVIDENCE_CHARACTERS, False)
+                if len(wire) <= content_limit:
+                    low = end
+                else:
+                    high = end - 1
+            if low == start:
+                break
+            pages.append(page_at(low))
+            if low < requested_end:
+                break
+        if not pages:
+            return "Evidence page metadata exceeds the bounded response size; no read was credited."
+
+        # Build progress using tentative spans. Credit only after the entire
+        # serialized response, including progress metadata, fits the transport.
+        previous = {key: list(spans) for key, spans in self.spans.items()}
         for page in pages:
             self.spans[page["evidence_id"]].append([page["offset"], page["next_offset"]])
+        missing = self.missing()
+        shown = missing[:16]
+        answer = serialize(pages, shown, len(missing), len(shown) < len(missing))
+        while len(answer) > MAX_READ_CHARACTERS and shown:
+            shown.pop()
+            answer = serialize(pages, shown, len(missing), True)
+        if len(answer) > MAX_READ_CHARACTERS:
+            self.spans = previous
+            return "Evidence response exceeds the delivery bound; no read was credited."
         save_json(
             self.path,
             {
@@ -255,7 +300,7 @@ class _EvidenceReader:
                 "spans": self.spans,
             },
         )
-        return json.dumps({"pages": pages, "missing": self.missing()[:16]}, ensure_ascii=False)
+        return answer
 
     @property
     def tool(self) -> dict:
@@ -263,7 +308,7 @@ class _EvidenceReader:
             "type": "function",
             "function": {
                 "name": "read_evidence",
-                "description": "Read captured evidence only. All files must be completely read before submission. Batch up to8 pages;24k characters total. Offsets count characters, not bytes.",
+                "description": "Read captured evidence only. All files must be completely read before submission. Batch up to8 pages; the entire serialized response is capped at24k characters, including JSON escaping and progress. Pages may be shorter than requested: continue from each returned next_offset. Offsets count source characters, not bytes. missing_count includes gaps omitted from the bounded missing list.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -379,7 +424,11 @@ async def _paged(
 ):
     evidence = _snapshot(evidence)
     reader = _EvidenceReader(evidence, root)
-    read_turns = (sum(map(len, evidence.values())) + MAX_READ_CHARACTERS - 1) // MAX_READ_CHARACTERS
+    encoded_characters = sum(
+        len(json.dumps(text, ensure_ascii=False)) for text in evidence.values()
+    )
+    page_capacity = MAX_READ_CHARACTERS - READ_PROGRESS_RESERVE
+    read_turns = (encoded_characters + page_capacity - 1) // page_capacity + len(evidence)
 
     async def checked(value):
         reader.require_complete()
