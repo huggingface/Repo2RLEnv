@@ -701,6 +701,8 @@ def cpu_setup(setup, monkeypatch):
     s.cpu_bad_transfer = False
     s.cpu_capture_error = False
     s.cpu_reports = []
+    s.installed_version = "4.57.6"
+    s.version_result = None
     s.cpu_sources = {
         "tests/test_batches.py": "from trl import DPOConfig\nfrom .helpers import config_fixture\n"
         "def test_complete():\n    args = DPOConfig(output_dir='tmp')\n    assert args.seed == 42\n",
@@ -718,6 +720,17 @@ def cpu_setup(setup, monkeypatch):
             shell = remote.shell
 
             async def cpu_shell(command, timeout_sec=120):
+                if command == build.cpu_fixture.VERSION_COMMAND:
+                    assert not s.cpu_reviews
+                    return s.version_result or json.dumps(
+                        {
+                            "exit_code": 0,
+                            "stdout": json.dumps(
+                                {"distribution": "transformers", "version": s.installed_version}
+                            ),
+                            "stderr": "",
+                        }
+                    )
                 if "tasksmith-selector-source-capture" in command:
                     ast.parse(shlex.split(command)[-2])
                     capture = json.loads(shlex.split(command)[-1])
@@ -799,11 +812,19 @@ def cpu_setup(setup, monkeypatch):
 
     monkeypatch.setattr(build, "budgeted_workspace", cpu_workspace)
 
-    async def assess(**kwargs):
-        s.cpu_reviews.append(kwargs)
+    async def assess(budget, model, messages, **kwargs):
+        from tests.test_tasksmith_cpu_fixture import delivered_evidence, structured_response
+
+        inputs = json.loads((s.root / "bootstrap-cpu-fixture-1/approval/inputs.json").read_text())
+        evidence = build.cpu_fixture.restore_dossier(
+            delivered_evidence(messages[1]["content"]), inputs["projection_receipt"]
+        )
+        s.cpu_reviews.append(
+            dict(budget=budget, model=model, messages=messages, evidence=evidence, **kwargs)
+        )
         if s.cpu_incomplete:
             raise TimeoutError("Independent review interrupted")
-        request = json.loads(kwargs["evidence"]["request"])
+        request = json.loads(evidence["request"])
         source_quote = build.cpu_fixture.Citation(
             evidence_id="source/tests/test_batches.py", quote="args = DPOConfig(output_dir='tmp')"
         )
@@ -825,10 +846,9 @@ def cpu_setup(setup, monkeypatch):
                 {"evidence_id": "failure", "quote": "Your setup doesn't support bf16/gpu."},
             ],
         )
-        await kwargs["validate"](result)
-        return result
+        return structured_response(result), 0.0
 
-    monkeypatch.setattr(build.cpu_fixture.review, "_paged", assess)
+    monkeypatch.setattr(build.cpu_fixture, "completion", assess)
     return s
 
 
@@ -839,7 +859,9 @@ async def test_cpu_adaptation_reviews_source_then_runs_full_checks_same_image(cp
     async with ready(s) as (discovered, wc, evidence, remote):
         assert evidence["passed"] and remote.index == 0
         assert discovered.model_dump(mode="json") == original
-        assert s.cpu_reviews[0]["deadline"] == wc.deadline == s.deadline
+        inputs = json.loads((s.root / "bootstrap-cpu-fixture-1/approval/inputs.json").read_text())
+        assert inputs["deadline"] == wc.deadline == s.deadline
+        assert inputs["request"]["transformers_version"] == "4.57.6"
         assert s.cpu_reviews[0]["budget"] is s.workspaces[0][2]
         assert "source/tests/helpers.py" in s.cpu_reviews[0]["evidence"]
         assert "source/tests/__init__.py" in s.cpu_reviews[0]["evidence"]
@@ -1059,3 +1081,38 @@ async def test_gpu_failure_during_full_module_collection_stops_dependency_phase(
     assert list(
         (s.root / "bootstrap-repair-1").glob("dependency-collection/*/profile-mismatch.json")
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["unsupported", "nonzero", "timeout", "truncated", "oversized"])
+async def test_cpu_installed_version_is_captured_before_review_and_failure_is_terminal(
+    cpu_setup, mode
+):
+    s = cpu_setup
+    if mode == "unsupported":
+        s.installed_version = "4.99.0"
+    else:
+        result = {
+            "exit_code": 0,
+            "stdout": json.dumps({"distribution": "transformers", "version": "4.57.6"}),
+        }
+        if mode == "nonzero":
+            result["exit_code"] = 1
+        elif mode == "timeout":
+            result["timed_out"] = True
+        elif mode == "truncated":
+            result["stdout"] = '{"version":'
+        else:
+            result["stdout"] = "x" * 4100
+        s.version_result = json.dumps(result)
+    with pytest.raises(ValueError):
+        async with ready(s):
+            pytest.fail("Unknown image version advanced")
+    assert not s.cpu_reviews and not s.repair_calls and len(s.workspaces) == 1
+    receipt = s.root / "bootstrap-cpu-fixture-1/installed-transformers.json"
+    assert receipt.exists()
+    before = receipt.read_bytes()
+    with pytest.raises(build.BootstrapReadinessError, match="Retained CPU fixture"):
+        async with ready(s):
+            pytest.fail("Invalid version capture retried")
+    assert receipt.read_bytes() == before and not s.cpu_reviews

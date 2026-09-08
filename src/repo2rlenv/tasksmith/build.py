@@ -772,6 +772,19 @@ async def _cpu_fixture_readiness(
             raise TimeoutError("Original bootstrap deadline exhausted")
         return await remote.shell(command, min(timeout_sec, remaining))
 
+    # This tiny stdlib-only observation is parsed as a complete bounded JSON
+    # object, never inferred from requested pins or a default SDK version. Keep
+    # even failed output before refusing unsupported metadata, before model cost.
+    raw_version = await shell(cpu_fixture.VERSION_COMMAND, 30)
+    save_json(
+        root / "installed-transformers.json",
+        {"command": cpu_fixture.VERSION_COMMAND, "response": raw_version},
+    )
+    observed_version = cpu_fixture.InstalledVersion(
+        command=cpu_fixture.VERSION_COMMAND,
+        response=raw_version,
+        sha256=hashlib.sha256(raw_version.encode()).hexdigest(),
+    )
     files, transfers, constructors = {}, {}, set()
     modules = sorted(
         {
@@ -897,6 +910,8 @@ async def _cpu_fixture_readiness(
         base_sha=source["base_sha"],
         head_sha=source["head_sha"],
         discovery=discovered,
+        transformers_version=observed_version.version,
+        version_observation=observed_version,
         constructors=sorted(constructors),
         readiness=failed,
         source_files=[

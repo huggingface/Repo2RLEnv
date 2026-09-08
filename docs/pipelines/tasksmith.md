@@ -212,6 +212,21 @@ every changed test anchor and unchanged readiness command must still pass. A fai
 adaptation stops before another dependency attempt. This path has controller tests,
 but has not yet been validated against the live TRL candidates.
 
+Before that review, a fixed remote command captures the installed Transformers
+distribution version. The request must match this observation and a source-reviewed
+version; a requested dependency pin or default version cannot substitute for it.
+The reviewer receives all captured source, failure evidence and the documented API
+in one structured request, using the same reversible evidence projection as final
+review. Exact source citations and coverage of every unchanged command are required.
+Raw evidence, projected delivery, responses and charges are retained even when the
+assessment is invalid or incomplete.
+
+An explicit CPU-review recovery must also retain earlier readable review evidence
+and deduct earlier charges from the original review allowance. Complete evidence
+must fit the input bound and the remaining reservation allowance. Neither this API
+nor a controller code fix extends an expired bootstrap deadline, discards prior
+costs, or turns an incomplete assessment into an approval.
+
 Dependency repair requires successful collection
 of every selected test module from clean pinned source before the final rebuild;
 the fresh dependency image must still pass the original complete readiness commands.

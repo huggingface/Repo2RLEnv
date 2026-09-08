@@ -18,6 +18,52 @@ from repo2rlenv.tasksmith.authoring import Discovery
 from repo2rlenv.tasksmith.config import TasksmithConfig
 
 
+def version_observation(version="4.56.2", **changes):
+    result = {
+        "exit_code": 0,
+        "stdout": json.dumps({"distribution": "transformers", "version": version}),
+        "stderr": "",
+    }
+    result.update(changes)
+    raw = json.dumps(result)
+    return {
+        "command": cpu.VERSION_COMMAND,
+        "response": raw,
+        "sha256": hashlib.sha256(raw.encode()).hexdigest(),
+    }
+
+
+def structured_response(assessment, finish="tool_calls", name="emit_cpu_assessment"):
+    raw = {
+        "choices": [
+            {
+                "finish_reason": finish,
+                "message": {
+                    "tool_calls": [
+                        {"function": {"name": name, "arguments": assessment.model_dump_json()}}
+                    ]
+                },
+            }
+        ]
+    }
+    return SimpleNamespace(model_dump=lambda **kwargs: raw)
+
+
+def delivered_evidence(prompt):
+    cursor = prompt.index("\nEVIDENCE ") + 1
+    result = {}
+    while cursor < len(prompt):
+        assert prompt.startswith("EVIDENCE ", cursor)
+        end = prompt.index("\n", cursor)
+        header = json.loads(prompt[cursor + len("EVIDENCE ") : end])
+        start = end + 1
+        cursor = start + header["characters"]
+        result[header["id"]] = prompt[start:cursor]
+        assert prompt[cursor] == "\n"
+        cursor += 1
+    return result
+
+
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     """All source texts/classes in this file are trusted synthetic fixtures."""
@@ -50,6 +96,8 @@ def setup(tmp_path, monkeypatch):
         base_sha="a" * 40,
         head_sha="b" * 40,
         discovery=discovery,
+        transformers_version="4.56.2",
+        version_observation=version_observation("4.56.2"),
         constructors=["DPOConfig"],
         source_files=[
             {
@@ -111,12 +159,11 @@ def setup(tmp_path, monkeypatch):
         calls=[],
     )
 
-    async def judge(**kwargs):
-        s.calls.append(kwargs)
-        await kwargs["validate"](s.assessment)
-        return s.assessment
+    async def judge(budget, model, messages, **kwargs):
+        s.calls.append(dict(budget=budget, model=model, messages=messages, **kwargs))
+        return structured_response(s.assessment), 0.0
 
-    monkeypatch.setattr(cpu.review, "_paged", judge)
+    monkeypatch.setattr(cpu, "completion", judge)
     return s
 
 
@@ -131,10 +178,12 @@ async def test_review_is_bound_and_does_not_claim_readiness(setup):
     assert result["reference_readiness_passed"] is False
     assert result["requires_full_reference_rerun"] is True
     assert s.calls[0]["budget"] is s.budget
-    assert s.calls[0]["deadline"] == s.deadline
-    assert s.calls[0]["config"] is s.config
-    assert set(s.calls[0]["evidence"]) >= {"failure", "source/tests/test_cpu.py", "documented_api"}
-    assert not s.budget.path.exists()  # Mocked judge performs no reservation or effects.
+    inputs = json.loads((s.root / "inputs.json").read_text())
+    assert inputs["deadline"] == s.deadline
+    assert inputs["config"] == s.config.model_dump(mode="json")
+    delivered = delivered_evidence(s.calls[0]["messages"][1]["content"])
+    assert cpu.restore_dossier(delivered, inputs["projection_receipt"]) == cpu._evidence(s.request)
+    assert s.budget.spent == 0  # Mocked transport performs no reservation.
     again = await cpu.review_cpu_fixture(s.request, **arguments(s))
     assert again == result and len(s.calls) == 1
 
@@ -155,10 +204,10 @@ async def test_completed_rejection_is_not_rerolled(setup):
 async def test_interrupted_review_requires_reconciliation(setup, monkeypatch):
     s = setup
 
-    async def failed(**kwargs):
+    async def failed(*args, **kwargs):
         raise TimeoutError("original phase stopped")
 
-    monkeypatch.setattr(cpu.review, "_paged", failed)
+    monkeypatch.setattr(cpu, "completion", failed)
     with pytest.raises(TimeoutError):
         await cpu.review_cpu_fixture(s.request, **arguments(s))
     with pytest.raises(cpu.CpuFixtureUnsupported, match="reconciliation"):
@@ -340,14 +389,22 @@ def test_unsupported_signature_restores_prior_patch(fake_class):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("version", ["4.56.2", "4.57.6"])
 @pytest.mark.parametrize(
     "mode, expected",
     [("normal", 0), ("failure", 1), ("explicit", 78), ("source-change", 78), ("wrong-import", 78)],
 )
 async def test_trusted_runner_with_fake_pytest_and_no_target_imports(
-    setup, monkeypatch, fake_class, mode, expected
+    setup, monkeypatch, fake_class, mode, expected, version
 ):
     s = setup
+    s.request = cpu.CpuFixtureRequest.model_validate(
+        {
+            **s.request.model_dump(mode="json"),
+            "transformers_version": version,
+            "version_observation": version_observation(version),
+        }
+    )
     await cpu.review_cpu_fixture(s.request, **arguments(s))
     runner = cpu.render_cpu_pytest(s.request, 0, **arguments(s))
     repository = s.root.parent / "synthetic-repo"
@@ -361,7 +418,7 @@ async def test_trusted_runner_with_fake_pytest_and_no_target_imports(
     monkeypatch.setattr(sys, "argv", ["trusted-runner.py", str(receipt)])
     monkeypatch.setattr(sys, "dont_write_bytecode", True)
     monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
-    monkeypatch.setattr(importlib.metadata, "version", lambda _: "4.56.2")
+    monkeypatch.setattr(importlib.metadata, "version", lambda _: version)
     monkeypatch.setattr(importlib, "import_module", lambda _: SimpleNamespace(DPOConfig=fake_class))
     monkeypatch.setattr(
         inspect,
