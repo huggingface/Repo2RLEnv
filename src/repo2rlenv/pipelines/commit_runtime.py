@@ -65,7 +65,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     targeted_test_cmds_for_pr,
 )
 from repo2rlenv.provider import provider_for
-from repo2rlenv.sources import Capability, capabilities_for
+from repo2rlenv.sources import Capability, SourceKind, capabilities_for
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CommitRuntimeOptions
 
@@ -545,6 +545,13 @@ class CommitRuntimePipeline:
         # commit_runtime task ID convention: <owner>__<repo>-<sha12>
         # (analogous to pr_runtime's <owner>__<repo>-<pr_number>)
         task_id = f"{owner}__{name}-{commit.sha[:12]}"
+        source_kind = self.input.repo.source_kind
+        commit_reference = (
+            f"https://{'gitlab.com' if source_kind is SourceKind.GITLAB else 'github.com'}"
+            f"/{owner}/{name}/commit/{commit.sha}"
+            if source_kind is not SourceKind.LOCAL
+            else None
+        )
 
         eval_script = build_eval_script(
             base_commit=commit.parent_sha,
@@ -577,7 +584,9 @@ class CommitRuntimePipeline:
             "pipeline_version": "0.8.3",
             "repo": f"{owner}/{name}",
             "ref": commit.parent_sha,
-            "reference": f"https://github.com/{owner}/{name}/commit/{commit.sha}",
+            # Omitted, not None, for a local checkout: TOML has no null and
+            # tomli_w rejects it outright.
+            **({"reference": commit_reference} if commit_reference is not None else {}),
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
             **({"synthesis_llm": self.input.llm.qualified_name} if self.input.llm else {}),
