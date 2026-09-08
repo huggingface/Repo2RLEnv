@@ -174,6 +174,10 @@ useful PR outcome. Identify what is included/omitted, independent expected outco
 wrong implementations that should fail and valid different approaches that pass.
 The task_request must already be suitable for a human solver. Keep implementation
 recipes out of it even when a literal recipe would make the reference easier to match.
+Prefer a concise issue-style request with enough observable examples to resolve real
+ambiguity. Preserve necessary behavioral detail and permit equivalent implementations;
+do not prescribe internal control flow or prohibit harmless refactoring without an
+observable compatibility reason.
 Choose the strongest faithful framing before comparing cost. If one natural request
 exists, explain why fewer proposals are appropriate. Explicitly resolve conflicts
 between stale upstream prose and the intended change from cited source evidence.
@@ -220,8 +224,13 @@ Protected tests may import only stdlib math/collections/etc, pytest, numpy and
 `from probe import run_probe`. NEVER import torch/target packages in the protected
 interpreter; import those inside run_probe code strings. run_probe(code,payload,
 timeout=60) runs code as the unprivileged agent and parses its one JSON stdout value.
-The string has json, sys and payload available. Compute observations there; all
-expected-value calculations/assertions stay OUTSIDE that string in protected tests.
+The string has json, sys and payload available. Return raw observations there;
+never compute expected results, compare against them, or aggregate pass/fail booleans
+inside run_probe. Return small complete tensor/list values, preserving order and
+tails. Expected-value calculations, comparisons and assertions stay OUTSIDE that
+string in protected tests. When full values are promised, check every element and
+any promised order; shapes, means, counts or first elements alone can hide permutations and
+corrupted tails. Use small fixtures so complete observations remain bounded.
 No assert in probe code, no eval/exec/open in protected code. Probe worker defaults
 to /workspace; editable source is installed and imports should resolve into it.
 Protected expected values must be justified independently (math, independent simple

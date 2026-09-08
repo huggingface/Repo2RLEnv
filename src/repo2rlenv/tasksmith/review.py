@@ -323,7 +323,18 @@ async def comprehension_review(
         for issue in [*value.required_repairs, *value.advisory]:
             _references(issue.evidence_ids, evidence)
 
-    public_system = "\nYou see only the public instruction and file inventory. State the outcome a developer would infer; identify ambiguity or actual answer leakage. Required API names, observable outcomes and input/output examples are not answer leakage. A step-by-step reconstruction of private implementation choices (assignments, intermediate buffers, sentinels or loop logic) is a material answer leak even without a pasted diff; request a behavioral rewrite that preserves scope and implementation freedom. Scanner flags are leads, and prohibitions may be benign."
+    public_system = """
+You see only the public instruction and file inventory. State the outcome a
+developer would infer; identify ambiguity or actual answer leakage. Required API
+names, observable outcomes and input/output examples are not answer leakage.
+A step-by-step reconstruction of private implementation choices (assignments,
+intermediate buffers, sentinels or loop logic) is a material answer leak even
+without a pasted diff; request a behavioral rewrite that preserves scope and
+implementation freedom. Also identify internal control-flow prescriptions or
+prohibitions on equivalent refactoring that lack an observable compatibility reason.
+Distinguish those from legitimate API requirements and editable-path boundaries.
+Scanner flags are leads, and prohibitions may be benign.
+"""
     if sum(map(len, evidence.values())) > 32_000:
         return await _paged(
             schema=ComprehensionReview,
@@ -450,7 +461,37 @@ async def verifier_critic(
         deadline=deadline,
         evidence=evidence,
         context={"requirement_ids": sorted(requirements)},
-        system="""\nAudit instruction/test agreement, independent numerical expectations, valid alternatives and meaningful interacting inputs. Audit runtime contracts too: oracle_script must work offline from /workspace, which is the episode repository root; /workspace/repo and /private exist only in the private author sandbox and are absent from episodes. Every control is an executable shell script in /workspace, so raw Python without an explicit interpreter is invalid; edits must check anchors and actually alter reachable behavior. The source_origin_probe in provenance runs BEFORE tests on both base and reference and must exit zero and print JSON in both cases: expected baseline missing-feature/behavioral exceptions must be captured as observation data, not crash the witness. The protected tests establish reward. Construct one NEW bounded realistic negative mutation, applied AFTER the gold solution in /workspace. Use an executable shell script (wrap Python in a quoted heredoc when needed). It must change actual submitted behavior without touching protected tests/rewards, installing dependencies or using network. Explain concrete inputs and independent expected observations for every challenged requirement. Do not merely reword an author mutation or select an arbitrary implementation preference. Its expected reward is0 if the verifier distinguishes the promised behavior; an actual reward1 would expose a gap to diagnose, not automatically a bad PR. Return material required repairs separately from advisory observations.""",
+        system="""
+Audit instruction/test agreement, independent numerical expectations, valid
+alternatives and meaningful interacting inputs. Trace each required case from raw
+run_probe observations to protected comparisons: the worker must not compute
+expectations, compare against them, or aggregate pass/fail booleans. For promised
+tensor/list values, check that small complete values and any required order/tails
+are compared outside the worker.
+Identify required compatibility cases checked only through shapes, means, counts
+or first elements; consider permutations or corrupted tails that preserve those
+summaries. Judge coverage against the public promise, not an arbitrary test style.
+
+Audit runtime contracts too: oracle_script must work offline from /workspace,
+which is the episode repository root; /workspace/repo and /private exist only in
+the private author sandbox and are absent from episodes. Every control is an
+executable shell script in /workspace, so raw Python without an explicit interpreter
+is invalid; edits must check anchors and actually alter reachable behavior. The
+source_origin_probe in provenance runs BEFORE tests on both base and reference and
+must exit zero and print JSON in both cases: expected baseline missing-feature or
+behavioral exceptions must be captured as observation data, not crash the witness.
+The protected tests establish reward.
+
+Construct one NEW bounded realistic negative mutation, applied AFTER the gold
+solution in /workspace. Use an executable shell script (wrap Python in a quoted
+heredoc when needed). It must change actual submitted behavior without touching
+protected tests/rewards, installing dependencies or using network. Explain concrete
+inputs and independent expected observations for every challenged requirement. Do
+not merely reword an author mutation or select an arbitrary implementation
+preference. Its expected reward is 0 if the verifier distinguishes the promised
+behavior; an actual reward 1 would expose a gap to diagnose, not automatically a
+bad PR. Return material required repairs separately from advisory observations.
+""",
         validate=validate,
     )
 
