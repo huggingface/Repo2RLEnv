@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path, PurePosixPath
 
+from repo2rlenv.tasksmith import cpu_fixture
 from repo2rlenv.tasksmith.authoring import (
     CONSTRUCT,
     DISCOVER,
@@ -292,13 +293,17 @@ def _test_definitions(text, module):
     return found
 
 
-async def _pytest_observation(shell, source, command, *, collect_only, read=None):
+async def _pytest_observation(shell, source, command, *, collect_only, read=None, cpu_context=None):
     if read is None:
         raise BootstrapReadinessError("Pytest observation needs bounded remote file transfer")
     args, _ = _pytest_command(command)
     if collect_only:
         args = [*args, "--collect-only"]
-    identity = canonical_digest({"source": source, "args": args, "capture_policy": 2})
+    cpu_runtime = cpu_fixture.approved_runtime(**cpu_context) if cpu_context else None
+    inputs = {"source": source, "args": args, "capture_policy": 2}
+    if cpu_runtime is not None:
+        inputs.update(capture_policy=3, cpu_fixture=cpu_runtime)
+    identity = canonical_digest(inputs)
     prefix = "/private/tasksmith-pytest-observations/" + canonical_digest(
         {"input_digest": identity, "created_ns": time.time_ns()}
     )
@@ -309,6 +314,8 @@ async def _pytest_observation(shell, source, command, *, collect_only, read=None
         "data_path": prefix + ".json",
         "receipt_path": prefix + ".receipt.json",
     }
+    if cpu_runtime is not None:
+        capture["cpu_fixture"] = cpu_runtime
     # Trusted observation wrapper runs remotely. No target/test imports occur on the controller.
     script = """# tasksmith-pytest-observation-capture
 import contextlib,hashlib,io,json,pathlib,sys,pytest
@@ -329,11 +336,27 @@ if len(data)<=arg['limit']: pathlib.Path(arg['data_path']).write_bytes(data)
 path.write_text(json.dumps(receipt,allow_nan=False))
 sys.exit(code)
 """
+    if cpu_runtime is not None:
+        # The same fixed constructor context surrounds collection AND execution.
+        # Its source checks and receipt are included in the complete hashed report.
+        script = (
+            cpu_fixture.runtime_source()
+            + "\n"
+            + script.replace(
+                "    code=int(pytest.main(arg['args'],plugins=[p]))",
+                "    code,cpu_report=_cpu_observe(arg['cpu_fixture'],arg['args'],lambda args: pytest.main(args,plugins=[p]))",
+            ).replace(
+                "data=json.dumps(report,allow_nan=False).encode()",
+                "report['cpu_fixture']=cpu_report\ndata=json.dumps(report,allow_nan=False).encode()",
+            )
+        )
     observed = json.loads(
         await shell(
             "cd /workspace/repo && git reset --hard "
             + shlex.quote(source["head_sha"])
-            + " && git clean -fd && python -c "
+            + " && git clean -fd && python "
+            + ("-I " if cpu_runtime else "")
+            + "-c "
             + shlex.quote(script)
             + " "
             + shlex.quote(json.dumps(capture)),
@@ -363,6 +386,17 @@ sys.exit(code)
     if len(data) != receipt["size"] or hashlib.sha256(data).hexdigest() != receipt.get("sha256"):
         raise BootstrapReadinessError("Pytest observation transfer size or SHA256 differs")
     report = json.loads(data)
+    if cpu_runtime is not None:
+        save_json(
+            cpu_context["root"].parent / "observations" / (prefix.rsplit("/", 1)[-1] + ".json"),
+            {
+                "input_digest": identity,
+                "capture": capture,
+                "transport": observed,
+                "receipt": receipt,
+                "report": report,
+            },
+        )
     if (
         report.get("exit_code") != observed.get("exit_code")
         or not isinstance(report.get("collected"), list)
@@ -373,6 +407,21 @@ sys.exit(code)
         )
     ):
         raise BootstrapReadinessError("Pytest observation report is inconsistent")
+    if cpu_runtime is not None:
+        cpu_report = report.get("cpu_fixture", {})
+        if (
+            cpu_report.get("input_digest") != cpu_runtime["input_digest"]
+            or cpu_report.get("argv") != args
+            or cpu_report.get("source_unchanged") is not True
+            or cpu_report.get("refused")
+            or cpu_report.get("error")
+            or cpu_report.get("source_error")
+            or cpu_report.get("exit_code") != report["exit_code"]
+        ):
+            raise BootstrapReadinessError(
+                "CPU fixture observation unsupported or source preservation unproven: "
+                + json.dumps(cpu_report)
+            )
     return {**report, "transfer": {"size": receipt["size"], "sha256": receipt["sha256"]}}
 
 
@@ -455,7 +504,7 @@ path.write_text(json.dumps(receipt,allow_nan=False))
     return data.decode(), receipt
 
 
-async def _selector_sources(shell, source, discovered, root, *, read=None):
+async def _selector_sources(shell, source, discovered, root, *, read=None, cpu_context=None):
     path = root / "source-and-collection.json"
     modules = sorted(
         {
@@ -464,7 +513,10 @@ async def _selector_sources(shell, source, discovered, root, *, read=None):
             for module in _pytest_command(command)[1]
         }
     )
-    identity = canonical_digest({"source": source, "modules": modules, "capture_policy": 2})
+    inputs = {"source": source, "modules": modules, "capture_policy": 2}
+    if cpu_context:
+        inputs["cpu_fixture"] = cpu_fixture.approved_runtime(**cpu_context)
+    identity = canonical_digest(inputs)
     if path.exists():
         evidence = json.loads(path.read_text())
         if evidence.get("input_digest") != identity:
@@ -484,11 +536,12 @@ async def _selector_sources(shell, source, discovered, root, *, read=None):
     if len(modules) > 8:
         raise BootstrapReadinessError("Selector repair exceeds the bounded eight-module inspection")
     files, transfers, changed, total = {}, {}, set(), 0
+    source_limit = 2 * cpu_fixture.MAX_INPUT_BYTES if cpu_context else 128_000
     for module in modules:
         versions, receipts = {}, {}
         for label, commit in (("before", source["base_sha"]), ("head", source["head_sha"])):
             versions[label], receipts[label] = await _pinned_test_source(
-                shell, read, commit, module, label, 128_000 - total
+                shell, read, commit, module, label, source_limit - total
             )
             total += len(versions[label].encode())
         old, new = (_test_definitions(versions[label], module) for label in ("before", "head"))
@@ -501,6 +554,7 @@ async def _selector_sources(shell, source, discovered, root, *, read=None):
         "python -m pytest " + shlex.join(modules) + " -q",
         collect_only=True,
         read=read,
+        cpu_context=cpu_context,
     )
     available = {node.split("[", 1)[0] for node in collection["collected"]}
     evidence = {
@@ -520,7 +574,9 @@ async def _selector_sources(shell, source, discovered, root, *, read=None):
     return evidence
 
 
-async def _selector_collection(shell, source, corrected, evidence, root, *, read=None):
+async def _selector_collection(
+    shell, source, corrected, evidence, root, *, read=None, cpu_context=None
+):
     path = root / "selection-proof.json"
     identity = canonical_digest(
         {"source_evidence": evidence, "commands": corrected.upstream_test_commands}
@@ -534,7 +590,9 @@ async def _selector_collection(shell, source, corrected, evidence, root, *, read
     reports = []
     check_path = root / "selection-checks" / f"{identity}.json"
     for command in corrected.upstream_test_commands:
-        report = await _pytest_observation(shell, source, command, collect_only=True, read=read)
+        report = await _pytest_observation(
+            shell, source, command, collect_only=True, read=read, cpu_context=cpu_context
+        )
         reports.append({"command": command, **report})
         if report["exit_code"] or not report["collected"]:
             save_json(
@@ -567,7 +625,9 @@ async def _selector_collection(shell, source, corrected, evidence, root, *, read
     return proof
 
 
-def _readiness_inputs(source, discovered, key, selector_proof=None, smoke_proof=None):
+def _readiness_inputs(
+    source, discovered, key, selector_proof=None, smoke_proof=None, cpu_proof=None
+):
     commands = [
         "git checkout --detach "
         + source["head_sha"]
@@ -580,13 +640,32 @@ def _readiness_inputs(source, discovered, key, selector_proof=None, smoke_proof=
         inputs["selector_proof"] = selector_proof
     if smoke_proof is not None:
         inputs["smoke_proof"] = smoke_proof
+    if cpu_proof is not None:
+        inputs["cpu_fixture_proof"] = cpu_proof
     return inputs
 
 
 async def _reference_readiness(
-    remote, source, discovered, root, *, key, cached, selector_proof=None, smoke_proof=None
+    remote,
+    source,
+    discovered,
+    root,
+    *,
+    key,
+    cached,
+    selector_proof=None,
+    smoke_proof=None,
+    cpu_context=None,
+    cpu_proof=None,
 ):
-    inputs = _readiness_inputs(source, discovered, key, selector_proof, smoke_proof)
+    if (cpu_context is None) != (cpu_proof is None) or (cpu_context and selector_proof is None):
+        raise BootstrapReadinessError("CPU readiness requires approval and full coverage proof")
+    if (
+        cpu_context
+        and cpu_fixture.approved_runtime(**cpu_context)["input_digest"] != cpu_proof["input_digest"]
+    ):
+        raise BootstrapReadinessError("CPU approval differs from readiness proof")
+    inputs = _readiness_inputs(source, discovered, key, selector_proof, smoke_proof, cpu_proof)
     commands, identity = inputs["commands"], canonical_digest(inputs)
     path = root / "readiness.json"
     if path.exists():
@@ -600,7 +679,12 @@ async def _reference_readiness(
     for command in commands:
         if selector_proof is not None and command in discovered.upstream_test_commands:
             observed = await _pytest_observation(
-                remote.shell, source, command, collect_only=False, read=remote.read
+                remote.shell,
+                source,
+                command,
+                collect_only=False,
+                read=remote.read,
+                cpu_context=cpu_context,
             )
             executed.update(node.split("[", 1)[0] for node in observed["executed"])
             if not observed["executed"]:
@@ -638,7 +722,250 @@ async def _reference_readiness(
         readiness["execution_errors"] = execution_errors
     if smoke_proof is not None:
         readiness["smoke_proof"] = smoke_proof
+    if cpu_proof is not None:
+        readiness["cpu_fixture_proof"] = cpu_proof
     save_json(path, readiness)
+    return readiness
+
+
+async def _cpu_fixture_readiness(
+    remote,
+    source,
+    discovered,
+    failed,
+    root,
+    *,
+    config,
+    budget,
+    deadline,
+    key,
+    cached,
+    selector_proof=None,
+    smoke_proof=None,
+):
+    """One reviewed resource choice, followed by unchanged full reference checks.
+
+    No image is built here. Any error remains terminal for this bootstrap phase;
+    partial/rejected approvals cannot authorize another dependency attempt.
+    """
+    if root.exists():
+        raise BootstrapReadinessError(
+            "Retained CPU fixture attempt requires reconciliation; no adaptation reroll"
+        )
+    if source.get("repo") != "huggingface/trl":
+        raise BootstrapReadinessError("CPU fixture adapter only supports reviewed TRL configs")
+    root.mkdir(parents=True)
+    save_json(
+        root / "attempt.json",
+        {
+            "source": source,
+            "discovery": discovered.model_dump(mode="json"),
+            "failure": failed,
+            "deadline": deadline,
+            "cache_key": key,
+        },
+    )
+
+    async def shell(command, timeout_sec=120):
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            raise TimeoutError("Original bootstrap deadline exhausted")
+        return await remote.shell(command, min(timeout_sec, remaining))
+
+    files, transfers, constructors = {}, {}, set()
+    modules = sorted(
+        {
+            module
+            for command in discovered.upstream_test_commands
+            for module in _pytest_command(command)[1]
+        }
+    )
+    if not modules or len(modules) > 8:
+        raise BootstrapReadinessError("CPU fixture inspection requires 1–8 complete test modules")
+    pending = [(module, True) for module in modules]
+    # Pytest's implicit local fixtures are review inputs too. Missing files have
+    # explicit pinned-tree absence receipts, never inferred from clipped stdout.
+    for module in modules:
+        pending.extend(
+            (str(parent / "conftest.py"), False) for parent in PurePosixPath(module).parents
+        )
+        pending.extend(
+            (str(parent / "__init__.py"), False)
+            for parent in PurePosixPath(module).parents
+            if str(parent) != "."
+        )
+    seen = set()
+    while pending:
+        path, required = pending.pop(0)
+        if path in seen:
+            continue
+        seen.add(path)
+        safe_relative(path)
+        if len(seen) > 32:
+            raise BootstrapReadinessError("CPU fixture support-source inspection exceeds bound")
+        text, receipt = await _pinned_test_source(
+            shell,
+            remote.read,
+            source["head_sha"],
+            path,
+            "head" if required else "support",
+            192_000,
+        )
+        transfers[path] = receipt
+        save_json(root / "source-transfers.json", transfers)
+        if receipt["status"] == "missing":
+            continue
+        files[path] = text
+        save_json(root / "captured-sources.json", files)
+        if (
+            len(files) > 24
+            or sum(len(text.encode()) for text in files.values()) > cpu_fixture.MAX_INPUT_BYTES
+        ):
+            raise BootstrapReadinessError("Complete CPU fixture source exceeds approval bounds")
+        tree = ast.parse(text)
+        constructors.update(
+            name
+            for node in ast.walk(tree)
+            if (
+                name := (
+                    node.id
+                    if isinstance(node, ast.Name)
+                    else node.attr
+                    if isinstance(node, ast.Attribute)
+                    else node.name
+                    if isinstance(node, ast.alias)
+                    else None
+                )
+            )
+            in cpu_fixture.CONFIG_MODULES
+        )
+        # Capture local test helper imports; do not import target/test code on the
+        # controller or recursively collect the entire third-party dependency tree.
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names if alias.name.startswith("tests.")]
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    parents = PurePosixPath(path).parent.parts
+                    if node.level <= len(parents):
+                        prefix = ".".join(parents[: len(parents) - node.level + 1])
+                        names = (
+                            [prefix + "." + node.module]
+                            if node.module
+                            else [
+                                prefix + "." + alias.name
+                                for alias in node.names
+                                if alias.name != "*"
+                            ]
+                        )
+                elif node.module and (node.module == "tests" or node.module.startswith("tests.")):
+                    names = [node.module]
+                    if node.module == "tests":
+                        names.extend(
+                            "tests." + alias.name for alias in node.names if alias.name != "*"
+                        )
+            for name in names:
+                if name == "tests" or name.startswith("tests."):
+                    pending.extend(
+                        [
+                            (name.replace(".", "/") + ".py", False),
+                            (name.replace(".", "/") + "/__init__.py", False),
+                        ]
+                    )
+    if not constructors:
+        raise BootstrapReadinessError("No source-supported allowlisted TRL constructor found")
+    for path in sorted(
+        {
+            "trl/trainer/base_config.py",
+            *(cpu_fixture.CONFIG_MODULES[name].replace(".", "/") + ".py" for name in constructors),
+        }
+    ):
+        text, receipt = await _pinned_test_source(
+            shell,
+            remote.read,
+            source["head_sha"],
+            path,
+            "head",
+            192_000,
+        )
+        files[path], transfers[path] = text, receipt
+    save_json(root / "source-transfers.json", transfers)
+    save_json(root / "captured-sources.json", files)
+    request = cpu_fixture.CpuFixtureRequest(
+        source=cpu_fixture.PRIdentity.from_url(source["url"]),
+        base_sha=source["base_sha"],
+        head_sha=source["head_sha"],
+        discovery=discovered,
+        constructors=sorted(constructors),
+        readiness=failed,
+        source_files=[
+            cpu_fixture.CapturedSource(
+                path=path,
+                text=text,
+                size=len(text.encode()),
+                sha256=hashlib.sha256(text.encode()).hexdigest(),
+            )
+            for path, text in sorted(files.items())
+        ],
+    )
+    context = {
+        "request": request,
+        "config": config,
+        "budget": budget,
+        "deadline": deadline,
+        "root": root / "approval",
+    }
+    await cpu_fixture.review_cpu_fixture(**context)
+    proof_path = context["root"] / "result.json"
+    raw_proof = proof_path.read_bytes()
+    result = json.loads(raw_proof)
+    proof = {
+        "result_path": str(proof_path),
+        "sha256": hashlib.sha256(raw_proof).hexdigest(),
+        "input_digest": result["input_digest"],
+        "assessment": result["assessment"],
+    }
+    evidence = await _selector_sources(
+        shell,
+        source,
+        discovered,
+        root / "coverage",
+        read=remote.read,
+        cpu_context=context,
+    )
+    if selector_proof:
+        evidence["required_changed_anchors"] = sorted(
+            set(evidence["required_changed_anchors"])
+            | set(selector_proof["required_changed_anchors"])
+        )
+    coverage = await _selector_collection(
+        shell,
+        source,
+        discovered,
+        evidence,
+        root / "coverage",
+        read=remote.read,
+        cpu_context=context,
+    )
+    readiness = await _reference_readiness(
+        remote,
+        source,
+        discovered,
+        root,
+        key=key,
+        cached=cached,
+        selector_proof=coverage,
+        smoke_proof=smoke_proof,
+        cpu_context=context,
+        cpu_proof=proof,
+    )
+    if not readiness["passed"]:
+        raise BootstrapReadinessError(
+            "Approved CPU fixture still failed complete unchanged readiness; no additional "
+            "dependency attempt or adaptation is authorized; inspect "
+            + str(root / "readiness.json")
+        )
     return readiness
 
 
@@ -893,7 +1220,7 @@ async def _correct_discovery(
 
 @asynccontextmanager
 async def bootstrap_ready(config, source, discovered, root, cache_root, deadline, budget):
-    """At most two builds, one smoke diagnosis and one selector correction."""
+    """At most two builds, one smoke/selector correction and one CPU adaptation."""
     policy_path = root / "bootstrap-policy.json"
     identity = canonical_digest({"source": source, "discovery": discovered.model_dump(mode="json")})
     if policy_path.exists():
@@ -909,6 +1236,11 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
         }
         save_json(policy_path, policy)
     bootstrap_deadline = policy["deadline"]
+    cpu_root = root / "bootstrap-cpu-fixture-1"
+    if cpu_root.exists():
+        raise BootstrapReadinessError(
+            "Retained CPU fixture attempt requires reconciliation; cannot reopen or reroll"
+        )
     cache = BootstrapCache(cache_root)
     selector_proof = None
     smoke_root = root / "bootstrap-smoke-repair-1"
@@ -1033,7 +1365,12 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                     selector_proof=selector_proof,
                     smoke_proof=smoke_proof,
                 )
-                _require_compatible_profile(source, discovered, readiness, attempt_root)
+                mismatch = _profile_failure(discovered, readiness)
+                if mismatch and (
+                    source.get("repo") != "huggingface/trl"
+                    or mismatch["command"] not in discovered.upstream_test_commands
+                ):
+                    _require_compatible_profile(source, discovered, readiness, attempt_root)
                 if generated_smoke_failure(discovered, readiness) is not None:
                     if smoke_attempted:
                         raise BootstrapReadinessError(
@@ -1079,9 +1416,14 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                             smoke_proof=smoke_proof,
                         )
                         failed_path = smoke_readiness_root / "readiness.json"
-                        _require_compatible_profile(
-                            source, discovered, readiness, smoke_readiness_root
-                        )
+                        mismatch = _profile_failure(discovered, readiness)
+                        if mismatch and (
+                            source.get("repo") != "huggingface/trl"
+                            or mismatch["command"] not in discovered.upstream_test_commands
+                        ):
+                            _require_compatible_profile(
+                                source, discovered, readiness, smoke_readiness_root
+                            )
                         if generated_smoke_failure(discovered, readiness) is not None:
                             raise BootstrapReadinessError(
                                 "Corrected generated smoke still failed full reference readiness; "
@@ -1119,7 +1461,31 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                         smoke_proof=smoke_proof,
                     )
                     failed_path = selection_root / "readiness.json"
-                    _require_compatible_profile(source, discovered, readiness, selection_root)
+                if _profile_failure(discovered, readiness):
+                    # Retain the genuine failed invocation before considering the
+                    # one fixed runtime-resource adaptation. No pin/selector edits.
+                    try:
+                        _require_compatible_profile(
+                            source, discovered, readiness, failed_path.parent
+                        )
+                    except BootstrapReadinessError:
+                        if source.get("repo") != "huggingface/trl":
+                            raise
+                    readiness = await _cpu_fixture_readiness(
+                        remote,
+                        source,
+                        discovered,
+                        readiness,
+                        cpu_root,
+                        config=config,
+                        budget=budget,
+                        deadline=bootstrap_deadline,
+                        key=key,
+                        cached=cached,
+                        selector_proof=selector_proof,
+                        smoke_proof=smoke_proof,
+                    )
+                    failed_path = cpu_root / "readiness.json"
                 save_json(
                     root / "bootstrap-status.json",
                     {

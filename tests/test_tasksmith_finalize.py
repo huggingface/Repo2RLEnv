@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import sqlite3
@@ -10,8 +11,11 @@ import pytest
 
 from repo2rlenv.curation.artifacts import digest_task
 from repo2rlenv.tasksmith import finalize as f
+from repo2rlenv.tasksmith import inline_review, validation
 from repo2rlenv.tasksmith.authoring import Construction
 from repo2rlenv.tasksmith.emit import emit_task, verify_collection
+from repo2rlenv.tasksmith.evidence_projection import project_dossier
+from repo2rlenv.tasksmith.inline_review import render_prompt
 from repo2rlenv.tasksmith.models import (
     QUALITY_DIMENSIONS,
     Deadline,
@@ -22,6 +26,7 @@ from repo2rlenv.tasksmith.models import (
 )
 from repo2rlenv.tasksmith.state import Journal, ReconciliationRequired
 from repo2rlenv.tasksmith.worker import save_json
+from tests.test_tasksmith_inline_review import response, transport
 from tests.test_tasksmith_validation import binding_inputs as _binding_inputs
 
 
@@ -31,7 +36,7 @@ def write(path, text):
 
 
 @pytest.fixture
-def retained(tmp_path):
+def retained(tmp_path, request):
     """Entirely synthetic controller receipts; no artifact or provider code runs."""
     pytest.importorskip("harbor")
     config, source, construction, _ = _binding_inputs.__wrapped__(tmp_path)
@@ -351,13 +356,7 @@ def retained(tmp_path):
     )
     reservation = budget.reserve(0.8, "Retained interrupted review")
     budget.settle(reservation, 0.8)
-    journal.mark_uncertain(
-        lease,
-        key.operation_id,
-        reason="BudgetExceeded during final review",
-        receipt={"stage_root": str(parent_root)},
-    )
-    return SimpleNamespace(
+    retained = SimpleNamespace(
         config=config,
         source=source,
         journal=journal,
@@ -368,7 +367,126 @@ def retained(tmp_path):
         now=now,
         deadline=deadline,
         budget=budget,
+        raw_texts={name: texts[name] for name in f.FINAL_REQUIRED_EVIDENCE},
     )
+    if getattr(request, "param", None):
+        _inline_attempt(retained, **request.param)
+    journal.mark_uncertain(
+        lease,
+        key.operation_id,
+        reason="BudgetExceeded during final review",
+        receipt={"stage_root": str(parent_root)},
+    )
+    return retained
+
+
+def _inline_attempt(s, *, delivery=True, cost=0.8, defect=None):
+    """Retain mock inline transport exactly as the normal validation producer does."""
+    root = s.validation / "final-review"
+    (root / "trace.jsonl").unlink()
+    projected, receipt = project_dossier(s.raw_texts)
+    saved = {
+        "policy": f.INLINE_POLICY,
+        "raw_sha256": {
+            name: hashlib.sha256(text.encode()).hexdigest() for name, text in s.raw_texts.items()
+        },
+        "projected_evidence": projected,
+        "projection_receipt": receipt,
+    }
+    if defect == "raw_hash":
+        saved["raw_sha256"]["instruction"] = "a" * 64
+    elif defect == "restored":
+        projected, receipt = project_dossier({**s.raw_texts, "instruction": "Changed public task"})
+        saved.update(projected_evidence=projected, projection_receipt=receipt)
+    prompt = render_prompt(
+        PRIdentity.from_url(s.source["url"]), s.key.revision_digest, dict(sorted(projected.items()))
+    )
+    inputs = {
+        "policy": f.INLINE_POLICY,
+        "config": s.config.model_dump(mode="json"),
+        "budget": {
+            "path": str(s.config.ledger_path.resolve()),
+            "limit": s.config.ledger_limit_usd,
+            "scope": s.budget.scope,
+            "scope_limit": s.budget.scope_limit,
+            "group": s.budget.group,
+            "group_limit": s.budget.group_limit,
+        },
+        "deadline": s.deadline,
+        "root": str(root),
+        "projection_receipt": receipt,
+        "prior_review_charge_usd": 0,
+        "inference": {"model": s.config.reviewer_model},
+        "messages": [
+            {"role": "system", "content": "Read the exact full captured evidence."},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    if defect == "config":
+        inputs["config"]["candidate_limit_usd"] += 1
+    elif defect == "budget":
+        inputs["budget"]["scope"] = "reset-costs"
+    elif defect == "deadline":
+        inputs["deadline"] += 1
+    elif defect == "prompt":
+        inputs["messages"][1]["content"] += "extra unbound evidence"
+    elif defect == "model":
+        inputs["inference"]["model"] = "different-model"
+    identity = f.canonical_digest(inputs)
+    operation = {
+        "status": "incomplete",
+        "input_digest": identity,
+        "prior_review_charge_usd": 0,
+        "charged_or_reserved_usd": cost,
+    }
+    files = {"inputs.json": inputs}
+    if cost and defect != "unknown_charge":
+        files["response.json"] = {
+            "choices": [
+                {"finish_reason": "length", "message": {"content": "Retained incomplete report"}}
+            ]
+        }
+        files["delivery.json"] = {
+            "input_digest": identity,
+            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+            "prompt_utf8_bytes": len(prompt.encode()),
+            "evidence_sha256": {
+                name: hashlib.sha256(text.encode()).hexdigest() for name, text in projected.items()
+            },
+            "observed_model_cost_usd": cost if defect != "cost" else cost + 0.2,
+        }
+    if defect in {"active", "completed"}:
+        operation["status"] = "running" if defect == "active" else "completed"
+    elif defect == "identity":
+        operation["input_digest"] = "a" * 64
+    elif defect == "report":
+        files["quality-report.json"] = {"retained": "completed verdict needs reconciliation"}
+    for name, value in files.items():
+        save_json(root / name, value)
+    save_json(root / "operation.json", operation)
+    if defect != "missing_input":
+        s.journal.commit_artifact(
+            s.lease, s.key.operation_id, name="final_review_input", data=json.dumps(saved).encode()
+        )
+    if delivery:
+        captured = {
+            "operation": operation,
+            "files": {
+                name: {
+                    "sha256": hashlib.sha256((root / name).read_bytes()).hexdigest(),
+                    "text": (root / name).read_text(),
+                }
+                for name in files
+            },
+        }
+        if defect == "delivery_hash":
+            captured["files"]["inputs.json"]["sha256"] = "a" * 64
+        s.journal.commit_artifact(
+            s.lease,
+            s.key.operation_id,
+            name="final_review_delivery",
+            data=json.dumps(captured).encode(),
+        )
 
 
 def prepare(s):
@@ -736,3 +854,129 @@ async def test_invalid_publication_holds_fail_before_preparation(holds):
             review_callback=None,
             review_policy={"publication_holds": holds},
         )
+
+
+@pytest.mark.parametrize(
+    "retained",
+    [{"delivery": False}, {"delivery": True}, {"delivery": True, "cost": 0}],
+    indirect=True,
+)
+def test_prepare_accepts_exact_inline_metadata_without_a_paged_trace(retained):
+    s = retained
+    prior_ledger = s.config.ledger_path.read_bytes()
+    parent = s.journal.get_operation(s.key.operation_id)
+    prepared = prepare(s)
+    assert prepared.evidence == s.raw_texts
+    assert (
+        prepared.prior_review_charge_usd
+        == json.loads((s.validation / "final-review/operation.json").read_text())[
+            "charged_or_reserved_usd"
+        ]
+    )
+    assert "final_review_input" in prepared.context.evidence
+    assert prepared.proof["review_metadata"]["final_review_input"]["raw_sha256"] == {
+        name: hashlib.sha256(text.encode()).hexdigest() for name, text in s.raw_texts.items()
+    }
+    assert not (s.validation / "final-review/trace.jsonl").exists()
+    assert s.config.ledger_path.read_bytes() == prior_ledger
+    assert s.journal.get_operation(s.key.operation_id) == parent
+    assert prepare(s).digest == prepared.digest
+
+
+@pytest.mark.parametrize(
+    "retained",
+    [
+        {"defect": defect}
+        for defect in (
+            "raw_hash",
+            "restored",
+            "config",
+            "budget",
+            "deadline",
+            "prompt",
+            "model",
+            "identity",
+            "cost",
+            "unknown_charge",
+            "active",
+            "completed",
+            "report",
+            "missing_input",
+            "delivery_hash",
+        )
+    ],
+    indirect=True,
+)
+def test_inline_metadata_cannot_hide_changed_inputs_missing_charge_proof_or_a_verdict(retained):
+    with pytest.raises(f.FinalizationError):
+        prepare(retained)
+
+
+@pytest.mark.parametrize("retained", [{"delivery": True}], indirect=True)
+def test_inline_retained_response_tampering_is_detected_against_journal_delivery(retained):
+    prepare(retained)
+    write(retained.validation / "final-review/response.json", '{"changed":true}')
+    with pytest.raises(f.FinalizationError, match="Committed inline delivery"):
+        prepare(retained)
+
+
+@pytest.mark.parametrize("outcome", ["invalid_response", "completed_report", "before_operation"])
+def test_actual_normal_inline_producer_and_recovery_reader_agree(retained, monkeypatch, outcome):
+    """Exercise producer -> actual inline/budget transport -> real journal -> reader."""
+    s = retained
+    root = s.validation / "final-review"
+    # Replace the fixture's synthetic paged attempt before exercising the normal
+    # producer. Only this temporary fixture is changed; no task code is executed.
+    for path in root.iterdir():
+        path.unlink()
+    before = s.budget.spent
+    original_parent = s.journal.get_operation(s.key.operation_id)
+    kwargs = dict(
+        config=s.config,
+        budget=s.budget,
+        root=root,
+        deadline=s.deadline,
+        pr=PRIdentity.from_url(s.source["url"]),
+        revision_digest=s.key.revision_digest,
+    )
+    calls = transport(
+        monkeypatch,
+        response(kwargs, finish="length" if outcome == "invalid_response" else "tool_calls"),
+    )
+    monkeypatch.setattr(
+        inline_review.time,
+        "time",
+        lambda: s.deadline + 1 if outcome == "before_operation" else s.now[0],
+    )
+
+    def commit(name, text):
+        return s.journal.commit_artifact(
+            s.lease, s.key.operation_id, name=name, data=text.encode(), media_type="text/plain"
+        )
+
+    run = validation._review_dossier(**kwargs, texts=s.raw_texts, evidence=commit)
+    if outcome == "completed_report":
+        returned = asyncio.run(run)
+        assert set(returned.criteria) == set(QUALITY_DIMENSIONS)
+        with pytest.raises(f.FinalizationError, match="verdict cannot be rerolled"):
+            prepare(s)
+    elif outcome == "before_operation":
+        with pytest.raises(TimeoutError, match="Original candidate deadline"):
+            asyncio.run(run)
+        assert not (root / "operation.json").exists()
+        with pytest.raises(FileNotFoundError):
+            prepare(s)
+        assert calls == [] and s.budget.spent == before
+    else:
+        with pytest.raises(ValueError, match="complete structured"):
+            asyncio.run(run)
+        prepared = prepare(s)
+        assert prepared.prior_review_charge_usd == pytest.approx(0.11)
+        assert prepared.evidence == s.raw_texts
+        assert set(prepared.proof["review_metadata"]) == f.INLINE_METADATA
+        delivery = prepared.proof["review_metadata"]["final_review_delivery"]
+        assert set(delivery["files"]) == {"inputs.json", "response.json", "delivery.json"}
+        assert delivery["operation"]["prior_review_charge_usd"] == 0
+        assert s.budget.spent - before == pytest.approx(0.11)
+        assert len(calls) == 1
+    assert s.journal.get_operation(s.key.operation_id) == original_parent

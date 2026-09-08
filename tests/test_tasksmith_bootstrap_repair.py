@@ -685,6 +685,246 @@ async def test_profile_failure_preserves_checks_and_stops_before_any_repair_or_r
     assert len(s.workspaces) == 1 and not s.collections
 
 
+@pytest.fixture
+def cpu_setup(setup, monkeypatch):
+    """Captured source and reports are synthetic data; no TRL/pytest target runs."""
+    s = setup
+    s.source.update(repo="huggingface/trl", url="https://github.com/huggingface/trl/pull/6206")
+    s.failures = [False]
+    s.cpu_reviews = []
+    s.cpu_approved = True
+    s.cpu_incomplete = False
+    s.cpu_exit_code = 0
+    s.cpu_zero_execution = False
+    s.cpu_missing_anchor = False
+    s.cpu_bad_source = False
+    s.cpu_bad_transfer = False
+    s.cpu_capture_error = False
+    s.cpu_reports = []
+    s.cpu_sources = {
+        "tests/test_batches.py": "from trl import DPOConfig\nfrom .helpers import config_fixture\n"
+        "def test_complete():\n    args = DPOConfig(output_dir='tmp')\n    assert args.seed == 42\n",
+        "tests/helpers.py": "def config_fixture():\n    return 'unchanged fixture'\n",
+        "tests/__init__.py": "",
+        "trl/trainer/base_config.py": "class BaseConfig:\n    bf16 = True\n",
+        "trl/trainer/dpo_config.py": "class DPOConfig:\n    use_cpu = False\n    bf16 = True\n",
+    }
+    s.before = "def test_complete():\n    assert True\n"
+    workspace = build.budgeted_workspace
+
+    @asynccontextmanager
+    async def cpu_workspace(*args):
+        async with workspace(*args) as remote:
+            shell = remote.shell
+
+            async def cpu_shell(command, timeout_sec=120):
+                if "tasksmith-selector-source-capture" in command:
+                    ast.parse(shlex.split(command)[-2])
+                    capture = json.loads(shlex.split(command)[-1])
+                    text = s.cpu_sources.get(capture["module"])
+                    if capture["commit"] == s.source["base_sha"]:
+                        text = s.before
+                    data = b"" if text is None else text.encode()
+                    receipt = {
+                        "commit": capture["commit"],
+                        "module": capture["module"],
+                        "status": "present" if text is not None else "missing",
+                        "size": len(data),
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                    }
+                    if len(data) > capture["limit"] or s.cpu_capture_error:
+                        receipt.update(
+                            status="error", reason="Pinned source transfer exceeds bound"
+                        )
+                    s.remote_files[capture["receipt_path"]] = json.dumps(receipt).encode()
+                    s.remote_files[capture["data_path"]] = data
+                    return json.dumps(
+                        {"exit_code": 0, "stdout": data[-20_000:].decode(), "stderr": ""}
+                    )
+                if "tasksmith-pytest-observation-capture" in command:
+                    ast.parse(shlex.split(command)[-2])
+                    capture = json.loads(shlex.split(command)[-1])
+                    assert "cpu_fixture" in capture
+                    s.cpu_reports.append(capture)
+                    collected = "--collect-only" in capture["args"]
+                    nodes = ["tests/test_batches.py::test_complete"]
+                    # Distinguish first full collection from subsequent selected runs.
+                    if (
+                        s.cpu_missing_anchor
+                        and capture["args"][0].startswith("tests/")
+                        and len(s.cpu_reports) > 1
+                    ):
+                        nodes = ["tests/test_batches.py::test_other"]
+                    code = 0 if collected else s.cpu_exit_code
+                    report = {
+                        "exit_code": code,
+                        "collected": nodes,
+                        "executed": [] if collected or s.cpu_zero_execution else nodes,
+                        "stdout": "",
+                        "stderr": "",
+                        "cpu_fixture": {
+                            "input_digest": capture["cpu_fixture"]["input_digest"],
+                            "argv": capture["args"],
+                            "source_unchanged": not s.cpu_bad_source,
+                            "refused": [],
+                            "calls": {"DPOConfig": {"injected": 1}},
+                            "exit_code": code,
+                        },
+                    }
+                    data = json.dumps(report).encode()
+                    s.remote_files[capture["receipt_path"]] = json.dumps(
+                        {
+                            "input_digest": capture["input_digest"],
+                            "status": "present",
+                            "size": len(data),
+                            "sha256": hashlib.sha256(data).hexdigest(),
+                        }
+                    ).encode()
+                    s.remote_files[capture["data_path"]] = data + (
+                        b"corrupt" if s.cpu_bad_transfer else b""
+                    )
+                    return json.dumps({"exit_code": code, "stdout": "tail only", "stderr": ""})
+                if s.original.upstream_test_commands[0] in command:
+                    return json.dumps(
+                        {
+                            "exit_code": 1,
+                            "stdout": "",
+                            "stderr": "ValueError: Your setup doesn't support bf16/gpu.",
+                        }
+                    )
+                return await shell(command, timeout_sec)
+
+            remote.shell = cpu_shell
+            yield remote
+
+    monkeypatch.setattr(build, "budgeted_workspace", cpu_workspace)
+
+    async def assess(**kwargs):
+        s.cpu_reviews.append(kwargs)
+        if s.cpu_incomplete:
+            raise TimeoutError("Independent review interrupted")
+        request = json.loads(kwargs["evidence"]["request"])
+        source_quote = build.cpu_fixture.Citation(
+            evidence_id="source/tests/test_batches.py", quote="args = DPOConfig(output_dir='tmp')"
+        )
+        result = build.cpu_fixture.CpuFixtureAssessment(
+            approved=s.cpu_approved,
+            essential_gpu_semantics=not s.cpu_approved,
+            explanation="The complete fixture checks CPU-compatible behavior without GPU claims.",
+            commands=[
+                {
+                    "command": command,
+                    "cpu_semantics_preserved": s.cpu_approved,
+                    "explanation": "This command retains its complete source assertions on CPU.",
+                    "evidence": [source_quote],
+                }
+                for command in request["discovery"]["upstream_test_commands"]
+            ],
+            evidence=[
+                source_quote,
+                {"evidence_id": "failure", "quote": "Your setup doesn't support bf16/gpu."},
+            ],
+        )
+        await kwargs["validate"](result)
+        return result
+
+    monkeypatch.setattr(build.cpu_fixture.review, "_paged", assess)
+    return s
+
+
+@pytest.mark.asyncio
+async def test_cpu_adaptation_reviews_source_then_runs_full_checks_same_image(cpu_setup):
+    s = cpu_setup
+    original = s.original.model_dump(mode="json")
+    async with ready(s) as (discovered, wc, evidence, remote):
+        assert evidence["passed"] and remote.index == 0
+        assert discovered.model_dump(mode="json") == original
+        assert s.cpu_reviews[0]["deadline"] == wc.deadline == s.deadline
+        assert s.cpu_reviews[0]["budget"] is s.workspaces[0][2]
+        assert "source/tests/helpers.py" in s.cpu_reviews[0]["evidence"]
+        assert "source/tests/__init__.py" in s.cpu_reviews[0]["evidence"]
+        assert [row["command"] for row in evidence["checks"]] == build._readiness_inputs(
+            s.source, s.original, evidence["cache_key"]
+        )["commands"]
+        assert evidence["selector_proof"]["required_changed_anchors"] == [
+            "tests/test_batches.py::test_complete"
+        ]
+        assert evidence["checks"][-1]["executed"] == ["tests/test_batches.py::test_complete"]
+        assert evidence["cpu_fixture_proof"]["assessment"]["approved"] is True
+    assert len(s.workspaces) == len(s.cpu_reviews) == 1 and not s.repair_calls
+    assert len(s.cpu_reports) == 3  # Full modules, original selection, actual execution.
+    assert all(c["cpu_fixture"]["head_sha"] == s.source["head_sha"] for c in s.cpu_reports)
+    initial = json.loads((s.root / "readiness.json").read_text())
+    assert initial["passed"] is False and "bf16/gpu" in initial["checks"][-1]["stderr"]
+    assert (
+        len([e for e in s.events if isinstance(e, tuple) and "python -c 'import library'" in e[1]])
+        == 2
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mode",
+    ["rejected", "incomplete", "failed", "zero", "missing_anchor", "source", "transfer", "capture"],
+)
+async def test_cpu_adaptation_failure_never_rebuilds_or_rerolls(cpu_setup, mode):
+    s = cpu_setup
+    if mode == "rejected":
+        s.cpu_approved = False
+    elif mode == "incomplete":
+        s.cpu_incomplete = True
+    elif mode == "failed":
+        s.cpu_exit_code = 1
+    elif mode == "zero":
+        s.cpu_zero_execution = True
+    elif mode == "missing_anchor":
+        s.cpu_missing_anchor = True
+    elif mode == "source":
+        s.cpu_bad_source = True
+    elif mode == "transfer":
+        s.cpu_bad_transfer = True
+    else:
+        s.cpu_capture_error = True
+    with pytest.raises(
+        (
+            build.BootstrapReadinessError,
+            build.cpu_fixture.CpuFixtureUnsupported,
+            TimeoutError,
+            ValueError,
+        )
+    ):
+        async with ready(s):
+            pytest.fail("Unproven adapted readiness advanced")
+    assert len(s.workspaces) == 1 and not s.repair_calls
+    before = {str(p.relative_to(s.root)): p.read_bytes() for p in s.root.rglob("*") if p.is_file()}
+    with pytest.raises(build.BootstrapReadinessError, match="Retained CPU fixture"):
+        async with ready(s):
+            pytest.fail("Persisted CPU attempt restarted")
+    assert len(s.workspaces) == 1 and len(s.cpu_reviews) <= 1
+    assert before == {
+        str(p.relative_to(s.root)): p.read_bytes() for p in s.root.rglob("*") if p.is_file()
+    }
+    if mode == "source":
+        observations = list((s.root / "bootstrap-cpu-fixture-1/observations").glob("*.json"))
+        assert (
+            observations
+            and json.loads(observations[0].read_text())["report"]["cpu_fixture"]["source_unchanged"]
+            is False
+        )
+
+
+@pytest.mark.asyncio
+async def test_cpu_source_capture_does_not_read_shell_tail(cpu_setup):
+    s = cpu_setup
+    s.cpu_sources["tests/test_batches.py"] += "# trusted synthetic padding\n" * 1000
+    async with ready(s):
+        assert (
+            s.cpu_reviews[0]["evidence"]["source/tests/test_batches.py"]
+            == s.cpu_sources["tests/test_batches.py"]
+        )
+    assert not s.repair_calls
+
+
 @pytest.mark.asyncio
 async def test_dependency_submission_requires_all_modules_not_just_first_missing_package(
     setup, monkeypatch

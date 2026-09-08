@@ -190,18 +190,29 @@ cost/deadline receipts without executing trials. `finalize_review_only` owns one
 linked review operation and retains the unfinished parent record. Explicit
 publication holds remain binding even if the model gives a passing score.
 
-The recovery reviewer can receive a complete dossier in one request using
+Normal validation and review-only recovery deliver a complete dossier in one request using
 `tasksmith.inline_review.final_review_inline`. A reversible projection shares repeated
 text and source edits while retaining raw artifacts and exact reconstruction hashes.
 Length-framed evidence avoids another layer of JSON escaping. Delivery receipts
 identify the complete supplied text; they do not establish reasoning quality. All
 eight criterion names are explicit in the tool schema. A truncated, malformed or
 wrong-rubric response remains incomplete. Previous review charges still count toward
-the same allowance. The ordinary validation path currently retains its paged review;
-this recovery API is not an automatic retry or a replacement for missing trials.
+the same allowance. Normal validation commits the original fourteen evidence roles,
+their reversible delivery projection, and the exact request/response receipts even
+when the reviewer fails. Recovery checks those additional receipts when present;
+older paged-review records remain supported. A completed review requires reconciliation,
+not another model call. This API does not retry trials or replace missing evidence.
 
-CPU/GPU capability errors now stop with a profile-mismatch receipt instead of
-triggering package-version changes. Dependency repair requires successful collection
+CPU/GPU capability errors retain a profile-mismatch receipt. For the supported TRL
+configuration API, one independent source review can authorize CPU selection only
+when the upstream constructor omitted `use_cpu`. This preserves precision, assertions,
+source, dependencies and test commands. Explicit GPU choices or essential GPU semantics
+stop the attempt. Approval permits full collection and execution on the same image;
+every changed test anchor and unchanged readiness command must still pass. A failed
+adaptation stops before another dependency attempt. This path has controller tests,
+but has not yet been validated against the live TRL candidates.
+
+Dependency repair requires successful collection
 of every selected test module from clean pinned source before the final rebuild;
 the fresh dependency image must still pass the original complete readiness commands.
 

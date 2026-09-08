@@ -20,6 +20,7 @@ from repo2rlenv.curation.evaluate import TAMPER, inspect_execution
 from repo2rlenv.curation.inference import inference_digest
 from repo2rlenv.tasksmith.authoring import Construction
 from repo2rlenv.tasksmith.contracts import bind_contracts
+from repo2rlenv.tasksmith.evidence_projection import restore_dossier
 from repo2rlenv.tasksmith.models import (
     AdmissionContext,
     ArtifactRef,
@@ -50,6 +51,9 @@ from repo2rlenv.tasksmith.validation import _trial_text, paired_witness, submiss
 from repo2rlenv.tasksmith.worker import canonical_digest
 
 POLICY_VERSION = 1
+INLINE_POLICY = "complete-inline-final-review-v1"
+INLINE_METADATA = frozenset({"final_review_input", "final_review_delivery"})
+INLINE_FILES = frozenset({"inputs.json", "response.json", "delivery.json", "quality-report.json"})
 
 
 class FinalizationError(ValueError):
@@ -246,6 +250,116 @@ def _review_delivery(root, report, prepared, config, policy):
     }
 
 
+def _prior_inline_review(*, texts, root, config, source, deadline, revision_digest, hashes):
+    """Authenticate normal validation's retained projection and stopped inline attempt."""
+    from repo2rlenv.tasksmith.inline_review import render_prompt
+
+    metadata = {name: json.loads(texts[name]) for name in INLINE_METADATA if name in texts}
+    if "final_review_input" not in metadata:
+        raise FinalizationError("Inline delivery requires its committed projected input")
+    saved = metadata["final_review_input"]
+    raw = {name: texts[name] for name in FINAL_REQUIRED_EVIDENCE}
+    if (
+        set(saved) != {"policy", "raw_sha256", "projected_evidence", "projection_receipt"}
+        or saved["policy"] != INLINE_POLICY
+        or saved["raw_sha256"]
+        != {name: hashlib.sha256(text.encode()).hexdigest() for name, text in raw.items()}
+        or restore_dossier(saved["projected_evidence"], saved["projection_receipt"]) != raw
+    ):
+        raise FinalizationError("Inline projection does not restore the exact fourteen raw roles")
+    operation = _json(root / "operation.json", hashes)
+    if operation.get("status") != "incomplete":
+        raise FinalizationError(
+            "Completed or active inline review requires separate reconciliation"
+        )
+    present = {name for name in INLINE_FILES if (root / name).exists()}
+    if "quality-report.json" in present:
+        raise FinalizationError("A retained inline quality verdict cannot be rerolled")
+    if "inputs.json" not in present:
+        raise FinalizationError("Retained inline request is missing")
+    files = {}
+    for name in present:
+        data = _read(root / name, hashes)
+        files[name] = {"sha256": hashlib.sha256(data).hexdigest(), "text": data.decode()}
+    if "final_review_delivery" in metadata and metadata["final_review_delivery"] != {
+        "operation": operation,
+        "files": files,
+    }:
+        raise FinalizationError("Committed inline delivery differs from retained operation/files")
+    declared = operation.get("files", {})
+    if not isinstance(declared, dict) or any(
+        name not in files or files[name]["sha256"] != sha for name, sha in declared.items()
+    ):
+        raise FinalizationError("Inline operation file hashes differ")
+    inputs = json.loads(files["inputs.json"]["text"])
+    budget = {
+        "path": str(config.ledger_path.resolve()),
+        "limit": config.ledger_limit_usd,
+        "scope": f"{config.campaign_id}:{source['id']}",
+        "scope_limit": config.candidate_limit_usd,
+        "group": config.campaign_id,
+        "group_limit": config.campaign_limit_usd,
+    }
+    prompt = render_prompt(
+        PRIdentity.from_url(source["url"]),
+        revision_digest,
+        # final_review_inline freezes roles through review._snapshot before
+        # rendering. Match its order without changing the saved raw/projection data.
+        dict(sorted(saved["projected_evidence"].items())),
+    )
+    messages = inputs.get("messages")
+    if (
+        inputs.get("policy") != INLINE_POLICY
+        or inputs.get("config") != config.model_dump(mode="json")
+        or inputs.get("budget") != budget
+        or inputs.get("deadline") != deadline
+        or inputs.get("root") != str(root)
+        or inputs.get("projection_receipt") != saved["projection_receipt"]
+        or inputs.get("prior_review_charge_usd") != 0
+        or operation.get("prior_review_charge_usd") != 0
+        or inputs.get("inference", {}).get("model") != config.reviewer_model
+        or not isinstance(messages, list)
+        or len(messages) != 2
+        or messages[0].get("role") != "system"
+        or not messages[0].get("content")
+        or messages[1] != {"role": "user", "content": prompt}
+        or operation.get("input_digest") != canonical_digest(inputs)
+        or ("deadline" in operation and operation["deadline"] != deadline)
+    ):
+        raise FinalizationError(
+            "Inline request identity/config/budget/deadline or evidence changed"
+        )
+    cost = operation.get("charged_or_reserved_usd")
+    if type(cost) not in (int, float) or not math.isfinite(cost) or cost < 0:
+        raise FinalizationError("Invalid retained inline review charge")
+    if "delivery.json" in files:
+        delivery = json.loads(files["delivery.json"]["text"])
+        observed = delivery.get("observed_model_cost_usd")
+        if (
+            "response.json" not in files
+            or delivery.get("input_digest") != operation["input_digest"]
+            or delivery.get("prompt_sha256") != hashlib.sha256(prompt.encode()).hexdigest()
+            or delivery.get("prompt_utf8_bytes") != len(prompt.encode())
+            or delivery.get("evidence_sha256")
+            != {
+                name: hashlib.sha256(text.encode()).hexdigest()
+                for name, text in saved["projected_evidence"].items()
+            }
+            or type(observed) not in (int, float)
+            or not math.isfinite(observed)
+            or observed < 0
+            or not math.isclose(observed, cost, abs_tol=1e-8)
+        ):
+            raise FinalizationError("Retained inline response/delivery charges are inconsistent")
+        # Preserve even an invalid or truncated response as counterevidence. Parsing
+        # the receipt is not permission to reuse a model verdict.
+        if not isinstance(json.loads(files["response.json"]["text"]), dict):
+            raise FinalizationError("Malformed retained inline response")
+    elif cost != 0 or "response.json" in files:
+        raise FinalizationError("Nonzero or observed inline request lacks complete charge proof")
+    return cost, metadata
+
+
 def prepare_finalization(
     *, config, source: dict, journal_path: Path, parent_operation_id: str, validation_root: Path
 ) -> PreparedFinalization:
@@ -342,7 +456,12 @@ def prepare_finalization(
                     raise FinalizationError("Retained dossier exceeds recovery bounds")
     if any(
         (validation_root / p).exists()
-        for p in ("accepted.json", "quality-report.json", "final-review/artifact.json")
+        for p in (
+            "accepted.json",
+            "quality-report.json",
+            "final-review/artifact.json",
+            "final-review/quality-report.json",
+        )
     ):
         raise FinalizationError("A retained quality verdict cannot be rerolled")
     texts = {name: _blob(journal_path, ref, hashes).decode() for name, ref in refs.items()}
@@ -374,7 +493,7 @@ def prepare_finalization(
     expected_refs = (
         set(FINAL_REQUIRED_EVIDENCE) | {"source_patch"} | {"trial_" + r.id for r in required}
     )
-    if set(refs) != expected_refs:
+    if set(refs) - INLINE_METADATA != expected_refs:
         raise FinalizationError("Missing or unexpected journal trial inventory")
     inventory = _json(validation_root / "trial-inventory.json", hashes)
     if inventory["required"] != [r.model_dump(mode="json") for r in required] or set(
@@ -536,24 +655,36 @@ def prepare_finalization(
             raise FinalizationError(
                 f"{name}: retained evidence differs from exact source/trial receipts"
             )
-    old_review = _json(validation_root / "final-review/operation.json", hashes)
-    if old_review.get("status") != "incomplete" or old_review.get("deadline") != deadline:
-        raise FinalizationError("Prior review is not a stopped incomplete operation")
-    cost = old_review.get("charged_or_reserved_usd")
-    trace = [
-        json.loads(line)
-        for line in _read(validation_root / "final-review/trace.jsonl", hashes)
-        .decode()
-        .splitlines()
-    ]
-    recorded = sum(row.get("cost_usd", 0) for row in trace if row.get("kind") == "model")
-    if (
-        type(cost) not in (int, float)
-        or not math.isfinite(cost)
-        or cost < 0
-        or not math.isclose(recorded, cost, abs_tol=1e-8)
-    ):
-        raise FinalizationError("Prior review charges are incomplete or inconsistent")
+    review_metadata = {}
+    if INLINE_METADATA & texts.keys():
+        cost, review_metadata = _prior_inline_review(
+            texts=texts,
+            root=validation_root / "final-review",
+            config=config,
+            source=source,
+            deadline=deadline,
+            revision_digest=digest,
+            hashes=hashes,
+        )
+    else:
+        old_review = _json(validation_root / "final-review/operation.json", hashes)
+        if old_review.get("status") != "incomplete" or old_review.get("deadline") != deadline:
+            raise FinalizationError("Prior review is not a stopped incomplete operation")
+        cost = old_review.get("charged_or_reserved_usd")
+        trace = [
+            json.loads(line)
+            for line in _read(validation_root / "final-review/trace.jsonl", hashes)
+            .decode()
+            .splitlines()
+        ]
+        recorded = sum(row.get("cost_usd", 0) for row in trace if row.get("kind") == "model")
+        if (
+            type(cost) not in (int, float)
+            or not math.isfinite(cost)
+            or cost < 0
+            or not math.isclose(recorded, cost, abs_tol=1e-8)
+        ):
+            raise FinalizationError("Prior review charges are incomplete or inconsistent")
     records = [
         TrialRecord(
             id=name,
@@ -596,6 +727,8 @@ def prepare_finalization(
         "reservations": retained_reservations,
         "context": context.model_dump(mode="json"),
     }
+    if review_metadata:
+        proof["review_metadata"] = review_metadata
     return PreparedFinalization(
         journal_path,
         parent_operation_id,

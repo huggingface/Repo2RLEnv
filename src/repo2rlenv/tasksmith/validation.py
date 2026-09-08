@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,6 +13,9 @@ from repo2rlenv.curation.review_evidence import project_trace
 from repo2rlenv.tasksmith.authoring import Construction
 from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.contracts import bind_contracts
+from repo2rlenv.tasksmith.evidence_projection import project_dossier, restore_dossier
+from repo2rlenv.tasksmith.inline_review import POLICY as INLINE_REVIEW_POLICY
+from repo2rlenv.tasksmith.inline_review import final_review_inline
 from repo2rlenv.tasksmith.models import (
     AdmissionContext,
     EvidenceRef,
@@ -20,7 +24,11 @@ from repo2rlenv.tasksmith.models import (
     TrialRequirement,
     admission_reasons,
 )
-from repo2rlenv.tasksmith.review import comprehension_review, final_review, verifier_critic
+from repo2rlenv.tasksmith.review import (
+    FINAL_REQUIRED_EVIDENCE,
+    comprehension_review,
+    verifier_critic,
+)
 from repo2rlenv.tasksmith.trials import TrialOutcome, run_trial
 from repo2rlenv.tasksmith.worker import save_json
 from repo2rlenv.ui import console
@@ -145,6 +153,57 @@ def submission_changes(baseline: TrialOutcome, outcomes: dict[str, TrialOutcome]
             "Complete submission evidence exceeds review profile; explicit profile revision required"
         )
     return text
+
+
+async def _review_dossier(*, config, budget, root, deadline, pr, revision_digest, texts, evidence):
+    """Deliver the full dossier once and retain recovery evidence even on failure.
+
+    The caller has already committed the fourteen raw roles. Projection is only a
+    reversible delivery format; it neither replaces raw evidence nor changes the
+    admission checks after the review.
+    """
+    if set(texts) != FINAL_REQUIRED_EVIDENCE:
+        raise ValueError("Final review requires exactly the fourteen raw evidence roles")
+    projected, receipt = project_dossier(texts)
+    if restore_dossier(projected, receipt) != texts:
+        raise ValueError("Final-review projection changed raw evidence")
+    evidence(
+        "final_review_input",
+        json.dumps(
+            {
+                "policy": INLINE_REVIEW_POLICY,
+                "raw_sha256": {
+                    name: hashlib.sha256(text.encode()).hexdigest() for name, text in texts.items()
+                },
+                "projected_evidence": projected,
+                "projection_receipt": receipt,
+            }
+        ),
+    )
+    try:
+        return await final_review_inline(
+            config=config,
+            budget=budget,
+            root=root,
+            deadline=deadline,
+            pr=pr,
+            revision_digest=revision_digest,
+            evidence=projected,
+            projection_receipt=receipt,
+        )
+    finally:
+        operation_path = root / "operation.json"
+        if operation_path.is_file():
+            files = {}
+            for name in ("inputs.json", "response.json", "delivery.json", "quality-report.json"):
+                path = root / name
+                if path.is_file():
+                    raw = path.read_bytes()
+                    files[name] = {"sha256": hashlib.sha256(raw).hexdigest(), "text": raw.decode()}
+            evidence(
+                "final_review_delivery",
+                json.dumps({"operation": json.loads(operation_path.read_bytes()), "files": files}),
+            )
 
 
 async def validate_candidate(
@@ -399,14 +458,15 @@ async def validate_candidate(
                 model=outcome.model,
             )
         )
-    report = await final_review(
+    report = await _review_dossier(
         config=config,
         budget=budget,
         root=root / "final-review",
         deadline=deadline,
         pr=PRIdentity.from_url(source["url"]),
         revision_digest=revision_digest,
-        evidence=texts,
+        texts=texts,
+        evidence=evidence,
     )
     context = AdmissionContext(
         pr=PRIdentity.from_url(source["url"]),
