@@ -8,11 +8,12 @@ import hashlib
 import json
 import re
 import shlex
+import stat
 import tempfile
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from repo2rlenv.tasksmith.authoring import (
     CONSTRUCT,
@@ -715,6 +716,114 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
             )
 
 
+def load_recovery(root: Path, source: dict) -> dict | None:
+    """Read a controller-authorized construction handoff as bounded, untrusted data.
+
+    This restores partial author work; it never establishes task validity or
+    authorizes retry of an unreconciled journal operation.
+    """
+    match = re.fullmatch(r"revision-(\d+)-attempt-([1-9]\d*)", root.name)
+    if match is None:
+        return None
+    if any(p.is_symlink() for p in (root, *root.parents)):
+        raise ValueError("Construction recovery target must not contain symlinks")
+    path = root.parent / f"recovery-construction-attempt-{match[2]}.json"
+
+    def regular_bytes(file: Path, limit: int) -> bytes:
+        if any(p.is_symlink() for p in (file, *file.parents)):
+            raise ValueError("Construction recovery paths must not contain symlinks")
+        info = file.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ValueError("Construction recovery file is nonregular or oversized")
+        with file.open("rb") as stream:
+            data = stream.read(limit + 1)
+        if len(data) != info.st_size or len(data) > limit:
+            raise ValueError("Construction recovery file changed or exceeds its bound")
+        return data
+
+    if not path.exists() and not path.is_symlink():
+        return None
+    receipt = json.loads(regular_bytes(path, 1_000_000))
+    required = {
+        "source_digest",
+        "target_root_name",
+        "original_stage_root",
+        "files",
+        "last_submission",
+        "design",
+        "reason",
+    }
+    if not isinstance(receipt, dict) or not required.issubset(receipt):
+        raise ValueError("Incomplete construction recovery receipt")
+    if (
+        receipt["source_digest"] != canonical_digest(source)
+        or receipt["target_root_name"] != root.name
+    ):
+        raise ValueError("Construction recovery source or target identity differs")
+    original = Path(receipt["original_stage_root"])
+    original_match = re.fullmatch(r"revision-(\d+)(?:-attempt-([1-9]\d*))?", original.name)
+    if (
+        not original.is_absolute()
+        or original.parent != root.absolute().parent
+        or any(p.is_symlink() for p in (original, *original.parents))
+        or not original.is_dir()
+        or original_match is None
+        or original_match[1] != match[1]
+        or int(original_match[2] or 0) >= int(match[2])
+    ):
+        raise ValueError("Construction recovery must name an earlier stage of this revision")
+    if (
+        not isinstance(receipt["last_submission"], dict)
+        or not isinstance(receipt["reason"], str)
+        or not receipt["reason"].strip()
+    ):
+        raise ValueError("Construction recovery needs the failed submission and causal reason")
+    design = Design.model_validate(receipt["design"])
+    if "bootstrap_discovery" in receipt:
+        Discovery.model_validate(receipt["bootstrap_discovery"])
+    rows = receipt["files"]
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 150:
+        raise ValueError("Construction recovery requires 1 to 150 bounded files")
+    files, names, total = [], set(), 0
+    for row in rows:
+        if not isinstance(row, dict) or not {"path", "local_path", "sha256", "size"}.issubset(row):
+            raise ValueError("Incomplete construction recovery file entry")
+        name = row["path"]
+        if not isinstance(name, str) or not name or "\\" in name or any(ord(c) < 32 for c in name):
+            raise ValueError("Unsafe construction recovery relative path")
+        relative = PurePosixPath(name)
+        if (
+            relative.is_absolute()
+            or str(relative) != name
+            or any(part in {".", ".."} for part in relative.parts)
+            or name == "."
+        ):
+            raise ValueError("Unsafe construction recovery relative path")
+        if name in names:
+            raise ValueError("Duplicate construction recovery file path")
+        names.add(name)
+        if type(row["size"]) is not int or not 0 <= row["size"] <= 2_000_000:
+            raise ValueError("Construction recovery file exceeds 2 MB")
+        total += row["size"]
+        if total > 20_000_000:
+            raise ValueError("Construction recovery exceeds 20 MB")
+        local = Path(row["local_path"])
+        if not local.is_absolute():
+            raise ValueError("Construction recovery local paths must be absolute")
+        data = regular_bytes(local, 2_000_000)
+        if len(data) != row["size"] or hashlib.sha256(data).hexdigest() != row["sha256"]:
+            raise ValueError("Construction recovery file size or SHA256 differs")
+        files.append((name, data))
+    if any(str(parent) in names for name in names for parent in PurePosixPath(name).parents):
+        raise ValueError("Overlapping construction recovery file paths")
+    return {
+        "receipt": receipt,
+        "receipt_digest": canonical_digest(receipt),
+        "files": files,
+        "design": design,
+    }
+
+
 async def construct(
     config: TasksmithConfig,
     source: dict,
@@ -724,11 +833,19 @@ async def construct(
     deadline: float,
     repair: dict | None = None,
 ) -> dict:
+    recovery = load_recovery(root, source)
     result_path = root / "construction.json"
     if result_path.exists():
-        return json.loads(result_path.read_text())
+        result = json.loads(result_path.read_text())
+        if result.get("recovery_receipt_digest") != (
+            recovery["receipt_digest"] if recovery else None
+        ):
+            raise ValueError("Retained construction recovery receipt changed")
+        return result
     root.mkdir(parents=True, exist_ok=True)
     discovered = Discovery.model_validate(discovery["artifact"])
+    if recovery and "bootstrap_discovery" in recovery["receipt"]:
+        discovered = Discovery.model_validate(recovery["receipt"]["bootstrap_discovery"])
     budget = config.budget(source["id"])
     async with bootstrap_ready(
         config, source, discovered, root, cache_root, deadline, budget
@@ -741,21 +858,34 @@ async def construct(
             "bootstrap": readiness,
             "repair": repair,
         }
-        design = await artifact_stage(
-            schema=Design,
-            stage="design",
-            inputs=stage_inputs,
-            system=PROPOSE,
-            prompt=json.dumps(stage_inputs),
-            root=root / "design",
-            budget=budget,
-            model=config.author_model,
-            runtime=config.author_runtime,
-            max_cost=config.author_stage_limit_usd,
-            max_turns=config.author_turns,
-            deadline=wc.deadline,
-            shell=remote.shell,
-        )
+        if recovery:
+            stage_inputs["construction_recovery"] = {
+                "receipt_digest": recovery["receipt_digest"],
+                "original_stage_root": recovery["receipt"]["original_stage_root"],
+                "restored_files": [name for name, _ in recovery["files"]],
+                "last_submission": recovery["receipt"]["last_submission"],
+                "reason": recovery["receipt"]["reason"],
+                "status": "Unvalidated partial author output. Reuse the retained design, fix the submitted metadata and public instruction, and run the checks. Previous files/submissions are not accepted evidence; submit a complete corrected Construction through the normal validator.",
+            }
+            for name, data in recovery["files"]:
+                await remote.write("/output/task/" + name, data)
+            design = recovery["design"]
+        else:
+            design = await artifact_stage(
+                schema=Design,
+                stage="design",
+                inputs=stage_inputs,
+                system=PROPOSE,
+                prompt=json.dumps(stage_inputs),
+                root=root / "design",
+                budget=budget,
+                model=config.author_model,
+                runtime=config.author_runtime,
+                max_cost=config.author_stage_limit_usd,
+                max_turns=config.author_turns,
+                deadline=wc.deadline,
+                shell=remote.shell,
+            )
 
         async def validate(value: Construction):
             payload = {}
@@ -825,6 +955,8 @@ async def construct(
             "readiness": readiness,
             "bootstrap_discovery": discovered.model_dump(mode="json"),
             "source_receipt": discovery["source_receipt"],
+            "public_instruction": payload["instruction.md"],
+            "recovery_receipt_digest": recovery["receipt_digest"] if recovery else None,
         }
         save_json(result_path, result)
     return result

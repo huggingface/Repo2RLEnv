@@ -167,6 +167,8 @@ async def validate_candidate(
     bundle = bind_contracts(config, source, construction, patch)
     save_json(root / "contracts.json", bundle.model_dump(mode="json"))
     instruction = (task / "instruction.md").read_text()
+    if instruction != bundle.task.useful_outcome:
+        raise ValueError("Public contract differs from the emitted task instruction")
     tests = (task / "tests/test_contract.py").read_text()
     # A path-only inventory is intentionally sufficient for the public-only pass.
     # Public content review may be added without exposing private gold/tests.
@@ -196,6 +198,7 @@ async def validate_candidate(
         artifacts={
             "instruction": instruction,
             "protected_tests": tests,
+            "oracle_script": (task / "solution/solve.sh").read_text(),
             "source_excerpts": patch_path.read_text(),
             "provenance": value.model_dump_json(indent=2),
         },

@@ -160,6 +160,7 @@ def binding_inputs(tmp_path):
     }
     patch = ArtifactRef(path="gold.patch", sha256="e" * 64, size_bytes=123)
     construction = {
+        "public_instruction": "Distribute whole batches while preserving order and incomplete tails.",
         "source_receipt": {
             "source": dict(source),
             "patch_digest": patch.sha256,
@@ -236,6 +237,16 @@ def test_bind_contracts_freezes_source_patch_and_collection(binding_inputs):
     assert result.task.revision == 0 and result.task.parent_digest is None
     assert construction == original
     assert not config.ledger_path.exists()
+
+
+def test_bind_contracts_uses_emitted_instruction_over_private_design(binding_inputs):
+    config, source, construction, patch = binding_inputs
+    construction["design"]["proposals"][0]["task_request"] = (
+        "Private analysis: use an implementation-specific sentinel and loop."
+    )
+    result = bind_contracts(config, source, construction, patch)
+    assert result.task.useful_outcome == construction["public_instruction"]
+    assert "sentinel" not in result.task.useful_outcome
 
 
 def test_bind_contracts_rejects_reference_patch_substitution(binding_inputs):

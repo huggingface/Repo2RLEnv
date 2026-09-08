@@ -84,7 +84,10 @@ class Construction(AuthorArtifact):
         min_length=1,
         description="Keys must be exactly contract.requirements[*].id. Values cite public instruction sections or visible source supporting that requirement. Do not use test names as keys.",
     )
-    source_origin_probe: str = Field(min_length=10)
+    source_origin_probe: str = Field(
+        min_length=10,
+        description="Python source run on both base and reference. It must exit successfully and print one JSON observation in both cases. Catch expected missing-feature or behavioral exceptions and report their type as data, so the baseline can produce a valid reward of zero. Do not assert reference behavior here.",
+    )
     reference_explanation: str = Field(min_length=30)
     reference_adaptations: list[str] = Field(default_factory=list)
 
@@ -202,6 +205,10 @@ not permit new files outside collected roots. Mutation/equivalent scripts run AF
 the reference solution in /workspace; mutations introduce realistic wrong behavior,
 equivalents implement a meaningfully different correct approach. Each must actually
 edit/exercise the solution; no no-op controls or edits only to unreachable code.
+Controls are SHELL scripts. Wrap any Python editing code in an explicit
+python - <<'PY' heredoc and use set -eu. Assert replacement anchors exist and edits
+change the intended reachable behavior; successful no-op string replacements do
+not establish mutation coverage. Check shell syntax and execution privately.
 
 Protected tests may import only stdlib math/collections/etc, pytest, numpy and
 `from probe import run_probe`. NEVER import torch/target packages in the protected
@@ -220,6 +227,10 @@ do not run the protected tests via ordinary unprivileged pytest and call that fi
 validation. The controller runs baseline/oracle/controls through Harbor afterward.
 The source_origin_probe must print JSON with imported package/module origin paths
 and a small behavior observation, suitable for checking changed source is executed.
+Run this probe privately on BOTH base and reference: it must exit successfully and
+print one JSON value on each. Catch expected missing-feature/behavioral exceptions
+and encode their type as data; do not assert reference behavior or let the known
+baseline failure crash the observation. The protected tests determine the reward.
 Every named test in contract.requirements needs cases and ExpectedValue provenance.
 Every public requirement needs instruction/code evidence. Do not assert that tests
 passed merely because the files exist. Missing tests, reference errors and setup

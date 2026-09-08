@@ -60,7 +60,7 @@ def bind_contracts(
                 patch_digest=receipt["patch_digest"],
                 captured_at=receipt["captured_at"],
             ),
-            useful_outcome=design.selected.task_request,
+            useful_outcome=construction["public_instruction"],
             requirements=[
                 Requirement(
                     id=r.id, statement=r.behavior, public_evidence=value.public_evidence[r.id]

@@ -22,7 +22,9 @@ class Requirement(StrictModel):
 class Mutation(StrictModel):
     name: str
     rationale: str
-    script: str
+    script: str = Field(
+        description="Executable shell script run in /workspace after the reference solution. For Python edits, invoke python explicitly with a quoted heredoc; raw Python is not a shell script. Check replacement anchors so a missing match cannot silently become a no-op."
+    )
 
 
 class JudgeRewardSpec(StrictModel):
