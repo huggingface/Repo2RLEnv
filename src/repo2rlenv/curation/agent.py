@@ -249,4 +249,9 @@ async def run_agent(
     if initial_state is not None:
         record("continuation", {"prior_turns": initial["turns"], "prior_cost_usd": prior_cost})
     record("input", {"system": system, "prompt": prompt, "model": model})
-    return await graph.compile().ainvoke(initial, {"recursion_limit": max_turns * 2 + 5})
+    # A caller's checkpoint may contain a completed inner graph from an earlier
+    # attempt. Replaying it would skip this invocation's tool-handler closures.
+    # Durable stage artifacts and explicit initial_state own agent recovery.
+    return await graph.compile(checkpointer=False).ainvoke(
+        initial, {"recursion_limit": max_turns * 2 + 5}
+    )
