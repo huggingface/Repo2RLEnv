@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ from repo2rlenv.tasksmith import build
 from repo2rlenv.tasksmith.authoring import Design, Discovery
 from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.emit import APT_STANZA
+from repo2rlenv.tasksmith.readiness_repair import SmokeRepairError
 from repo2rlenv.tasksmith.worker import save_json
 
 
@@ -75,6 +77,13 @@ def setup(tmp_path, monkeypatch):
         return receipt
 
     monkeypatch.setattr(build, "prepare_checked", prepare)
+
+    async def dependency_diagnosis(*args, **kwargs):
+        # These tests isolate the existing dependency rebuild policy. The real
+        # independent smoke diagnosis and its evidence are tested separately.
+        raise build.SmokeDependencyFailure("Independent assessment: dependency failure")
+
+    monkeypatch.setattr(build, "correct_generated_smoke", dependency_diagnosis)
 
     @asynccontextmanager
     async def workspace(wc, root, budget, allowance):
@@ -330,3 +339,203 @@ async def test_construct_design_receives_only_repaired_successful_readiness(setu
             s.deadline,
         )
     assert len(s.workspaces) == 2 and s.events[-1] == "cleanup-1"
+
+
+@pytest.mark.asyncio
+async def test_approved_generated_smoke_reruns_complete_readiness_in_same_workspace(
+    setup, monkeypatch
+):
+    s = setup
+    s.original = s.original.model_copy(
+        update={
+            "readiness_commands": [
+                "python -c 'import sys'",
+                *s.original.readiness_commands,
+                "python -c 'assert 2 + 2 == 4'",
+            ],
+        }
+    )
+    replacement = "python -c 'import library; assert library.correct_api()'"
+    corrected = s.original.model_copy(
+        update={
+            "readiness_commands": [
+                s.original.readiness_commands[0],
+                replacement,
+                s.original.readiness_commands[-1],
+            ],
+        }
+    )
+    calls = []
+
+    async def approve(config, source, discovered, readiness, root, **kwargs):
+        assert discovered == s.original and readiness["checks"][-1]["exit_code"] == 1
+        assert config is s.config and source == s.source
+        if (root / "phase.json").exists():
+            with pytest.raises(build.BootstrapReadinessError, match="cannot execute remote"):
+                await kwargs["shell"]("any command")
+            return corrected
+        assert kwargs["deadline"] == s.deadline and kwargs["budget"] is s.workspaces[0][2]
+        assert kwargs["shell"] is not None
+        calls.append(root)
+        save_json(root / "phase.json", {"status": "completed"})
+        save_json(
+            root / "result.json",
+            {
+                "input_digest": "a" * 64,
+                "assessment": {"approved": True, "classification": "invalid_generated_smoke"},
+            },
+        )
+        return corrected
+
+    monkeypatch.setattr(build, "correct_generated_smoke", approve)
+    async with ready(s) as (discovered, _, readiness, remote):
+        assert discovered == corrected and readiness["passed"] and remote.index == 0
+    assert len(calls) == len(s.workspaces) == 1 and not s.repair_calls
+    old = json.loads((s.root / "readiness.json").read_text())
+    new = json.loads((s.root / "generated-smoke-readiness-1/readiness.json").read_text())
+    assert old["passed"] is False and new["passed"] is True
+    assert [row["command"] for row in new["checks"]][1:] == [
+        *corrected.readiness_commands,
+        *s.original.upstream_test_commands,
+    ]
+    assert s.source["head_sha"] in new["checks"][0]["command"]
+    assert old["cache_key"] == new["cache_key"]
+    proof = calls[0] / "result.json"
+    assert new["smoke_proof"]["sha256"] == hashlib.sha256(proof.read_bytes()).hexdigest()
+    assert new["smoke_proof"]["assessment"]["approved"] is True
+    for field in Discovery.model_fields:
+        if field != "readiness_commands":
+            assert getattr(corrected, field) == getattr(s.original, field)
+    # A terminal workspace cannot be silently reopened to repeat an approved phase.
+    before = (s.root / "readiness.json").read_bytes()
+    with pytest.raises(build.BootstrapReadinessError, match="explicit workspace reconciliation"):
+        async with ready(s):
+            pytest.fail("Approved old smoke was reopened")
+    assert len(s.workspaces) == 1 and (s.root / "readiness.json").read_bytes() == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["unknown", "reference_failure", "incomplete"])
+async def test_unapproved_smoke_diagnosis_cannot_fallback_or_reroll(setup, monkeypatch, reason):
+    s = setup
+    paid_diagnoses = []
+
+    async def reject(config, source, discovered, readiness, root, **kwargs):
+        phase = root / "phase.json"
+        if not phase.exists():
+            paid_diagnoses.append(reason)
+            save_json(phase, {"status": "incomplete" if reason == "incomplete" else "completed"})
+            if reason != "incomplete":
+                save_json(root / "result.json", {"classification": reason})
+        raise SmokeRepairError("Retained smoke diagnosis: " + reason)
+
+    monkeypatch.setattr(build, "correct_generated_smoke", reject)
+    for _ in range(2):
+        with pytest.raises((SmokeRepairError, build.BootstrapReadinessError), match=reason):
+            async with ready(s):
+                pytest.fail("Unapproved command correction advanced")
+    assert len(s.workspaces) == len(paid_diagnoses) == 1
+    assert not s.repair_calls and not (s.root / "construction.json").exists()
+    assert not (s.root / "generated-smoke-readiness-1").exists()
+
+
+@pytest.mark.asyncio
+async def test_retained_dependency_diagnosis_preserves_enabled_identity_without_remote_effects(
+    setup, monkeypatch
+):
+    s = setup
+    s.interrupt_after_first = True
+    fresh = []
+
+    async def diagnose(config, source, discovered, readiness, root, **kwargs):
+        phase = root / "phase.json"
+        assert kwargs["shell"] is not None
+        if phase.exists():
+            with pytest.raises(build.BootstrapReadinessError, match="cannot execute remote"):
+                await kwargs["shell"]("must refuse")
+        else:
+            fresh.append(root)
+            save_json(phase, {"status": "completed"})
+            save_json(root / "result.json", {"classification": "dependency_failure"})
+        raise build.SmokeDependencyFailure("Independently classified dependency failure")
+
+    monkeypatch.setattr(build, "correct_generated_smoke", diagnose)
+    with pytest.raises(KeyboardInterrupt):
+        async with ready(s):
+            pytest.fail("Interrupted first image advanced")
+    async with ready(s) as (_, _, readiness, remote):
+        assert readiness["passed"] and remote.index == 1
+    assert len(fresh) == s.model_calls == 1 and len(s.workspaces) == 2
+
+
+@pytest.mark.asyncio
+async def test_approved_smoke_that_still_fails_cannot_trigger_more_command_or_dependency_repair(
+    setup, monkeypatch
+):
+    s = setup
+    calls = []
+
+    async def approve(config, source, discovered, readiness, root, **kwargs):
+        calls.append(root)
+        save_json(
+            root / "result.json",
+            {
+                "input_digest": "a" * 64,
+                "assessment": {"approved": True, "classification": "invalid_generated_smoke"},
+            },
+        )
+        return discovered.model_copy(
+            update={
+                "readiness_commands": [discovered.readiness_commands[0] + " # still fails"],
+            }
+        )
+
+    monkeypatch.setattr(build, "correct_generated_smoke", approve)
+    with pytest.raises(
+        build.BootstrapReadinessError, match="Corrected generated smoke still failed"
+    ):
+        async with ready(s):
+            pytest.fail("Failed corrected command advanced")
+    assert len(calls) == len(s.workspaces) == 1 and not s.repair_calls
+    assert not json.loads((s.root / "generated-smoke-readiness-1/readiness.json").read_text())[
+        "passed"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_upstream_scipy_import_failure_routes_only_to_dependency_repair(setup, monkeypatch):
+    s = setup
+    s.failures = [False, False]
+    workspace = build.budgeted_workspace
+
+    @asynccontextmanager
+    async def failing_upstream(*args):
+        async with workspace(*args) as remote:
+            shell = remote.shell
+
+            async def upstream_shell(command, timeout_sec=120):
+                if remote.index == 0 and s.original.upstream_test_commands[0] in command:
+                    return json.dumps(
+                        {
+                            "exit_code": 4,
+                            "stdout": "ERROR collecting tests/test_initialization.py\n"
+                            "ImportError while importing test module\nfrom scipy import stats\n"
+                            "E ModuleNotFoundError: No module named 'scipy'",
+                            "stderr": "ERROR: found no collectors for tests/test_initialization.py::test_init",
+                        }
+                    )
+                return await shell(command, timeout_sec)
+
+            remote.shell = upstream_shell
+            yield remote
+
+    async def unexpected_smoke(*args, **kwargs):
+        pytest.fail("Upstream failure entered generated-smoke repair")
+
+    monkeypatch.setattr(build, "budgeted_workspace", failing_upstream)
+    monkeypatch.setattr(build, "correct_generated_smoke", unexpected_smoke)
+    async with ready(s) as (discovered, _, readiness, remote):
+        assert readiness["passed"] and discovered == s.corrected and remote.index == 1
+    assert len(s.repair_calls) == 1
+    assert s.repair_calls[0]["stage"] == "bootstrap-repair-1"
+    assert not (s.root / "bootstrap-selector-repair-1").exists()

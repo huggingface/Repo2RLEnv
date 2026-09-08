@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import shlex
 from contextlib import asynccontextmanager
@@ -59,29 +60,42 @@ def case(tmp_path, monkeypatch):
         workspaces=[],
         zero_execution=False,
         empty_selection=False,
+        remote_files={},
+        reads=[],
+        parameter_count=1,
     )
     monkeypatch.setattr(build.time, "time", lambda: 1000)
 
     async def shell(command, timeout_sec=120):
         c.events.append(command)
         result = {"exit_code": 0, "stdout": "success", "stderr": ""}
-        if "git show " in command:
-            result["stdout"] = c.before if c.source["base_sha"] in command else c.head
-        elif "__TASKSMITH_PYTEST__" in command:
+        if "tasksmith-selector-source-capture" in command:
+            ast.parse(shlex.split(command)[-2])
+            args = json.loads(shlex.split(command)[-1])
+            text = c.before if args["commit"] == c.source["base_sha"] else c.head
+            data = b"" if text is None else text.encode()
+            receipt = {
+                "commit": args["commit"],
+                "module": args["module"],
+                "status": "missing" if text is None else "present",
+                "size": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
+            if len(data) > args["limit"]:
+                receipt.update(status="error", reason="Pinned test source exceeds transfer bound")
+            c.remote_files[args["receipt_path"]] = json.dumps(receipt).encode()
+            c.remote_files[args["data_path"]] = data
+            # Model the provider's actual stdout tail: source transfer must ignore it.
+            result["stdout"] = data[-20_000:].decode()
+        elif "tasksmith-pytest-observation-capture" in command:
             # Parse the trusted remote observer as data; never run pytest or target code here.
-            script = shlex.split(command)[-1]
-            tree = ast.parse(script)
-            call = next(
-                node
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "main"
-            )
-            args = ast.literal_eval(call.args[0])
+            ast.parse(shlex.split(command)[-2])
+            capture = json.loads(shlex.split(command)[-1])
+            args = capture["args"]
             targeted = "::" in args[0]
             names = ["test_existing", "test_dynamic"] if not targeted else [args[0].split("::")[1]]
-            nodes = [f"{module}::{name}[small]" for name in names]
+            parameters = ["small"] if c.parameter_count == 1 else map(str, range(c.parameter_count))
+            nodes = [f"{module}::{name}[{parameter}]" for parameter in parameters for name in names]
             if targeted and c.empty_selection:
                 nodes = []
             report = {
@@ -91,7 +105,17 @@ def case(tmp_path, monkeypatch):
                 "stdout": "",
                 "stderr": "",
             }
-            result["stdout"] = "__TASKSMITH_PYTEST__" + json.dumps(report) + "\n"
+            data = json.dumps(report).encode()
+            c.remote_files[capture["receipt_path"]] = json.dumps(
+                {
+                    "input_digest": capture["input_digest"],
+                    "size": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "status": "present" if len(data) <= capture["limit"] else "oversized",
+                }
+            ).encode()
+            c.remote_files[capture["data_path"]] = data
+            result["stdout"] = data[-20_000:].decode()
         elif "test_invented" in command:
             result.update(
                 exit_code=4,
@@ -102,13 +126,19 @@ def case(tmp_path, monkeypatch):
 
     c.shell = shell
 
+    async def read(path):
+        c.reads.append(path)
+        return c.remote_files[path]
+
+    c.read = read
+
     @asynccontextmanager
     async def workspace(wc, root, budget, allowance):
         c.workspaces.append((wc, budget))
         receipt = {"status": "running", "image_id": "image-existing", "resource_id": "sandbox"}
         save_json(root / "resource.json", receipt)
         try:
-            yield SimpleNamespace(shell=shell)
+            yield SimpleNamespace(shell=shell, read=read)
         finally:
             save_json(root / "resource.json", {**receipt, "status": "terminated"})
 
@@ -158,7 +188,7 @@ async def test_invented_selector_corrected_in_same_workspace_with_real_source_an
     assert "bootstrap-attempt-2" not in str(c.workspaces)
     # Full-module collection, corrected collection, and actual execution; cached validation
     # does not repeat the corrected collection or spend another worker invocation.
-    assert sum("__TASKSMITH_PYTEST__" in event for event in c.events) == 3
+    assert sum("tasksmith-pytest-observation-capture" in event for event in c.events) == 3
 
 
 @pytest.mark.asyncio
@@ -240,6 +270,13 @@ async def test_retained_selector_failure_does_not_rebuild_or_reset_repair(case):
         (1, "AssertionError: expected no tests collected", False),
         (2, "ImportError: package unavailable", False),
         (0, "no tests collected", False),
+        (4, "ERROR: found no collectors for tests/test_batches.py::test_dynamic", False),
+        (
+            5,
+            "collected 0 items\nERROR collecting tests/test_batches.py\nRuntimeError: broken",
+            False,
+        ),
+        (4, "SyntaxError: invalid syntax\nERROR: not found: tests/test_batches.py", False),
     ],
 )
 def test_selector_repair_trigger_is_explicit_selection_failure(case, code, output, expected):
@@ -276,9 +313,12 @@ async def test_remote_observer_missing_report_fails_closed(case):
     async def shell(*args):
         return json.dumps({"exit_code": 0, "stdout": "truncated output", "stderr": ""})
 
+    async def read(path):
+        raise FileNotFoundError(path)
+
     with pytest.raises(build.BootstrapReadinessError, match="report missing"):
         await build._pytest_observation(
-            shell, case.source, f"pytest {case.module}", collect_only=False
+            shell, case.source, f"pytest {case.module}", collect_only=False, read=read
         )
 
 
@@ -299,7 +339,7 @@ async def test_selector_source_evidence_cache_is_bound_and_preserves_failed_coll
 
     monkeypatch.setattr(build, "_pytest_observation", empty_collection)
     with pytest.raises(build.BootstrapReadinessError, match="did not collect successfully"):
-        await build._selector_sources(c.shell, c.source, c.original, c.root)
+        await build._selector_sources(c.shell, c.source, c.original, c.root, read=c.read)
     saved = json.loads((c.root / "source-and-collection.json").read_text())
     assert saved["full_collection"]["exit_code"] == 5
     assert saved["source_files"][c.module]["head"] == c.head
@@ -309,3 +349,157 @@ async def test_selector_source_evidence_cache_is_bound_and_preserves_failed_coll
         await build._selector_sources(None, c.source, c.original, c.root)
     with pytest.raises(build.BootstrapReadinessError, match="different source/modules"):
         await build._selector_sources(None, {**c.source, "head_sha": "d" * 40}, c.original, c.root)
+
+
+def test_dependency_import_failure_with_pytest_no_collectors_is_not_selector_repair(case):
+    readiness = {
+        "passed": False,
+        "checks": [
+            {
+                "command": case.original.upstream_test_commands[0],
+                "exit_code": 4,
+                "stdout": "ERROR collecting tests/test_initialization.py\n"
+                "ImportError while importing test module 'tests/test_initialization.py'.\n"
+                "    from scipy import stats\nE   ModuleNotFoundError: No module named 'scipy'\n",
+                "stderr": "ERROR: found no collectors for tests/test_initialization.py::TestLoraInitialization::test_init\n",
+            }
+        ],
+    }
+    assert not build._selector_failure(case.original, readiness)
+
+
+@pytest.mark.asyncio
+async def test_large_module_is_transferred_completely_before_ast_analysis(case):
+    c = case
+    c.before = (
+        "def test_existing():\n    values = [\n"
+        + "        1,\n" * 3_000
+        + "    ]\n    assert values\n"
+    )
+    c.head = c.before + "\ndef test_dynamic():\n    assert True\n"
+    assert len(c.head.encode()) > 20_000
+    with pytest.raises(SyntaxError):
+        ast.parse(c.head[-20_000:])
+    evidence = await build._selector_sources(c.shell, c.source, c.original, c.root, read=c.read)
+    assert evidence["source_files"][c.module] == {"before": c.before, "head": c.head}
+    assert evidence["required_changed_anchors"] == [f"{c.module}::test_dynamic"]
+    for label in ("before", "head"):
+        data = getattr(c, label).encode()
+        receipt = evidence["source_transfers"][c.module][label]
+        assert receipt["size"] == len(data)
+        assert receipt["sha256"] == hashlib.sha256(data).hexdigest()
+    assert len(c.reads) == 6
+
+
+@pytest.mark.asyncio
+async def test_explicitly_absent_base_module_is_a_new_file(case):
+    c = case
+    c.before = None
+    evidence = await build._selector_sources(c.shell, c.source, c.original, c.root, read=c.read)
+    assert evidence["source_files"][c.module]["before"] == ""
+    assert evidence["source_transfers"][c.module]["before"]["status"] == "missing"
+    assert evidence["required_changed_anchors"] == [
+        f"{c.module}::test_dynamic",
+        f"{c.module}::test_existing",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_absent_head_module_fails_before_collection(case):
+    c = case
+    c.head = None
+    with pytest.raises(build.BootstrapReadinessError, match="module is unavailable"):
+        await build._selector_sources(c.shell, c.source, c.original, c.root, read=c.read)
+    assert not any("tasksmith-pytest-observation-capture" in event for event in c.events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing_commit", "truncated", "identity", "read_bound"])
+async def test_source_transfer_failures_cannot_become_empty_base_or_partial_ast(case, failure):
+    c = case
+
+    async def read(path):
+        data = await c.read(path)
+        if path.endswith(".json"):
+            receipt = json.loads(data)
+            if failure == "missing_commit":
+                receipt.update(status="error", reason="Pinned commit unavailable")
+            elif failure == "identity":
+                receipt["commit"] = "d" * 40
+            return json.dumps(receipt).encode()
+        if failure == "read_bound":
+            raise ValueError("Remote file exceeds configured read bound")
+        return data[1:] if failure == "truncated" else data
+
+    with pytest.raises(
+        (build.BootstrapReadinessError, ValueError), match=r"unavailable|differs|bound"
+    ):
+        await build._selector_sources(c.shell, c.source, c.original, c.root, read=read)
+    assert not any("tasksmith-pytest-observation-capture" in event for event in c.events)
+
+
+@pytest.mark.asyncio
+async def test_aggregate_source_bound_is_checked_before_reading_second_blob(case):
+    c = case
+    c.before = "#" + "x" * 65_000 + "\n"
+    c.head = c.before + "def test_dynamic():\n    assert True\n"
+    with pytest.raises(build.BootstrapReadinessError, match="transfer bound"):
+        await build._selector_sources(c.shell, c.source, c.original, c.root, read=c.read)
+    assert len([path for path in c.reads if path.endswith(".source")]) == 1
+    assert not any("tasksmith-pytest-observation-capture" in event for event in c.events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("collect_only", [True, False])
+async def test_large_collection_and_execution_reports_do_not_use_stdout(case, collect_only):
+    c = case
+    c.parameter_count = 700
+    report = await build._pytest_observation(
+        c.shell,
+        c.source,
+        f"pytest {c.module}::test_dynamic",
+        collect_only=collect_only,
+        read=c.read,
+    )
+    assert report["transfer"]["size"] > 20_000
+    assert len(report["collected"]) == 700
+    assert report["collected"][-1] == f"{c.module}::test_dynamic[699]"
+    assert report["executed"] == ([] if collect_only else report["collected"])
+
+
+@pytest.mark.asyncio
+async def test_oversized_pytest_report_fails_explicitly_without_partial_nodes(case):
+    c = case
+    c.parameter_count = 4_000
+    with pytest.raises(build.BootstrapReadinessError, match="128 KB transfer bound"):
+        await build._pytest_observation(
+            c.shell, c.source, f"pytest {c.module}", collect_only=True, read=c.read
+        )
+    assert len(c.reads) == 1 and c.reads[0].endswith(".receipt.json")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["truncated", "wrong_identity", "wrong_exit", "timed_out"])
+async def test_pytest_report_transfer_integrity_is_required(case, failure):
+    c = case
+
+    async def shell(command, timeout_sec):
+        observed = json.loads(await c.shell(command, timeout_sec))
+        if failure == "wrong_exit":
+            observed["exit_code"] = 1
+        if failure == "timed_out":
+            observed["timed_out"] = True
+        return json.dumps(observed)
+
+    async def read(path):
+        data = await c.read(path)
+        if failure == "wrong_identity" and path.endswith(".receipt.json"):
+            return json.dumps({**json.loads(data), "input_digest": "wrong"}).encode()
+        if failure == "truncated" and not path.endswith(".receipt.json"):
+            return data[1:]
+        return data
+
+    with pytest.raises(build.BootstrapReadinessError, match=r"differs|inconsistent|timed out"):
+        await build._pytest_observation(
+            shell, c.source, f"pytest {c.module}", collect_only=True, read=read
+        )

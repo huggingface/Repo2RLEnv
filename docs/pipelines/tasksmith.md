@@ -111,6 +111,20 @@ source-based Python on a CPU in a single remote container. Native source rebuild
 GPU, multi-service and performance profiles need additional conformance evidence;
 the presence of fields describing those modes does not establish support.
 
+Bootstrap failures have separate repair paths. Missing dependencies preserve the
+checks while allowing one dependency rebuild. A demonstrated pytest selector error
+allows one selector correction after complete pinned-source and collection capture;
+an import failure cannot be reclassified merely because pytest also reports no
+collectors. Source files and collection reports use bounded file transfers verified
+by size and SHA256, so clipped shell output is never parsed as complete evidence.
+
+A faulty generated Python smoke can receive one independently reviewed correction.
+The author must cite the failed command and source observations, and the reviewer
+must establish that the replacement tests the intended capability. The controller
+changes only that command and reruns all readiness checks on the same dependency
+image and pinned reference. Rejected, uncertain or genuine reference failures
+remain failures; they cannot authorize weaker tests or another diagnosis attempt.
+
 The selected developer request is reviewed before verifier construction. A
 separate editor can make at most two corrections using only public text, the
 pinned base file inventory and required review feedback. It has no shell, reference
@@ -164,6 +178,10 @@ write intents. A per-PR lease prevents competing controllers from starting the
 same work. Lease expiry makes unfinished effects uncertain; it does not terminate
 their remote resources. Reconcile those IDs and cleanup obligations before another
 attempt. An absolute original deadline still applies after recovery.
+
+Coding workers do not inherit the outer workflow's checkpoint namespace. Worker
+artifacts and explicitly supplied continuation state govern their recovery; an old
+nested checkpoint cannot substitute for a fresh artifact validation callback.
 
 If a controller defect is diagnosed after a candidate has stopped, the Python
 `Candidate.run(revision_request=...)` interface records the current task digest,

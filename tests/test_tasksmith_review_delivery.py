@@ -22,6 +22,7 @@ class Delivered(BaseModel):
 async def test_escaped_evidence_survives_real_agent_transport_and_credits_only_delivered_ranges(
     tmp_path, monkeypatch
 ):
+    pytest.importorskip("langgraph")
     # Each source character may occupy up to six characters in the tool's JSON.
     evidence = {"quoted": '"\\\n\t\x00' * 9000, "unicode": "αβγ\n" * 6000}
     reader = review._EvidenceReader(evidence, tmp_path)

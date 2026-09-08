@@ -33,6 +33,11 @@ from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.emit import APT_STANZA, emit_task, prepared_recipe
 from repo2rlenv.tasksmith.models import safe_relative
 from repo2rlenv.tasksmith.providers import BuildSpec, WorkspaceConfig
+from repo2rlenv.tasksmith.readiness_repair import (
+    SmokeDependencyFailure,
+    correct_generated_smoke,
+    generated_smoke_failure,
+)
 from repo2rlenv.tasksmith.specification import approve_instruction
 from repo2rlenv.tasksmith.worker import artifact_stage, canonical_digest, save_json
 
@@ -194,18 +199,26 @@ def _pytest_command(command):
 def _selector_failure(discovered, readiness):
     if readiness.get("passed"):
         return False
+    selection = False
     for row in readiness.get("checks", []):
-        if row.get("command") not in discovered.upstream_test_commands or row.get(
-            "exit_code"
-        ) not in {4, 5}:
+        if row.get("command") not in discovered.upstream_test_commands:
             continue
         output = str(row.get("stdout", "")) + "\n" + str(row.get("stderr", ""))
-        if re.search(
-            r"(?i)(ERROR:\s*(?:not found|file or directory not found)|no tests (?:ran|collected)|collected 0 items|found no collectors)",
+        # Pytest also reports "found no collectors" after an import fails.
+        # Collection/dependency errors cannot authorize changing test selectors.
+        if row.get("timed_out") or re.search(
+            r"(?i)(\b(?:ModuleNotFoundError|ImportError|SyntaxError|ConftestImportFailure|INTERNALERROR)\b|ERROR collecting|while importing test module|Traceback \(most recent call last\))",
             output,
         ):
-            return True
-    return False
+            return False
+        if row.get("exit_code") not in {4, 5}:
+            continue
+        if re.search(
+            r"(?i)(ERROR:\s*(?:not found|file or directory not found)|no tests (?:ran|collected)|collected 0 items)",
+            output,
+        ):
+            selection = True
+    return selection
 
 
 def _test_definitions(text, module):
@@ -226,12 +239,27 @@ def _test_definitions(text, module):
     return found
 
 
-async def _pytest_observation(shell, source, command, *, collect_only):
+async def _pytest_observation(shell, source, command, *, collect_only, read=None):
+    if read is None:
+        raise BootstrapReadinessError("Pytest observation needs bounded remote file transfer")
     args, _ = _pytest_command(command)
     if collect_only:
         args = [*args, "--collect-only"]
+    identity = canonical_digest({"source": source, "args": args, "capture_policy": 2})
+    prefix = "/private/tasksmith-pytest-observations/" + canonical_digest(
+        {"input_digest": identity, "created_ns": time.time_ns()}
+    )
+    capture = {
+        "args": args,
+        "input_digest": identity,
+        "limit": 128_000,
+        "data_path": prefix + ".json",
+        "receipt_path": prefix + ".receipt.json",
+    }
     # Trusted observation wrapper runs remotely. No target/test imports occur on the controller.
-    script = """import contextlib,io,json,sys,pytest
+    script = """# tasksmith-pytest-observation-capture
+import contextlib,hashlib,io,json,pathlib,sys,pytest
+arg=json.loads(sys.argv[1])
 class Observe:
     def __init__(self): self.collected=[]; self.executed=[]
     def pytest_collection_finish(self,session): self.collected=[item.nodeid for item in session.items]
@@ -239,30 +267,49 @@ class Observe:
         if report.when == 'call' and not report.skipped: self.executed.append(report.nodeid)
 p=Observe(); out=io.StringIO(); err=io.StringIO()
 with contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
-    code=int(pytest.main(ARGS,plugins=[p]))
-print('__TASKSMITH_PYTEST__'+json.dumps({'exit_code':code,'collected':p.collected,'executed':p.executed,'stdout':out.getvalue()[-12000:],'stderr':err.getvalue()[-12000:]}))
+    code=int(pytest.main(arg['args'],plugins=[p]))
+report={'exit_code':code,'collected':p.collected,'executed':p.executed,'stdout':out.getvalue()[-12000:],'stderr':err.getvalue()[-12000:]}
+data=json.dumps(report,allow_nan=False).encode()
+path=pathlib.Path(arg['receipt_path']); path.parent.mkdir(parents=True,exist_ok=True)
+receipt={'input_digest':arg['input_digest'],'size':len(data),'sha256':hashlib.sha256(data).hexdigest(),'status':'present' if len(data)<=arg['limit'] else 'oversized'}
+if len(data)<=arg['limit']: pathlib.Path(arg['data_path']).write_bytes(data)
+path.write_text(json.dumps(receipt,allow_nan=False))
 sys.exit(code)
-""".replace("ARGS", repr(args))
+"""
     observed = json.loads(
         await shell(
             "cd /workspace/repo && git reset --hard "
             + shlex.quote(source["head_sha"])
             + " && git clean -fd && python -c "
-            + shlex.quote(script),
+            + shlex.quote(script)
+            + " "
+            + shlex.quote(json.dumps(capture)),
             300,
         )
     )
-    marker = "__TASKSMITH_PYTEST__"
-    lines = [
-        line[len(marker) :]
-        for line in observed.get("stdout", "").splitlines()
-        if line.startswith(marker)
-    ]
-    if len(lines) != 1:
+    if observed.get("timed_out"):
+        raise BootstrapReadinessError("Pytest observation timed out; execution is unproven")
+    try:
+        raw_receipt = await read(capture["receipt_path"])
+    except (OSError, ValueError) as exc:
         raise BootstrapReadinessError(
             "Pytest observation report missing; collection/execution is unproven"
-        )
-    report = json.loads(lines[0])
+        ) from exc
+    if len(raw_receipt) > 16_000:
+        raise BootstrapReadinessError("Pytest observation transfer receipt exceeds bound")
+    receipt = json.loads(raw_receipt)
+    if receipt.get("input_digest") != identity:
+        raise BootstrapReadinessError("Pytest observation transfer identity differs")
+    if (
+        receipt.get("status") != "present"
+        or type(receipt.get("size")) is not int
+        or not 0 <= receipt["size"] <= capture["limit"]
+    ):
+        raise BootstrapReadinessError("Pytest observation exceeds the 128 KB transfer bound")
+    data = await read(capture["data_path"])
+    if len(data) != receipt["size"] or hashlib.sha256(data).hexdigest() != receipt.get("sha256"):
+        raise BootstrapReadinessError("Pytest observation transfer size or SHA256 differs")
+    report = json.loads(data)
     if (
         report.get("exit_code") != observed.get("exit_code")
         or not isinstance(report.get("collected"), list)
@@ -273,10 +320,89 @@ sys.exit(code)
         )
     ):
         raise BootstrapReadinessError("Pytest observation report is inconsistent")
-    return report
+    return {**report, "transfer": {"size": receipt["size"], "sha256": receipt["sha256"]}}
 
 
-async def _selector_sources(shell, source, discovered, root):
+async def _pinned_test_source(shell, read, commit, module, label, limit):
+    """Capture a regular pinned Git blob without transporting code in clipped stdout."""
+    key = canonical_digest({"commit": commit, "module": module})
+    prefix = "/private/tasksmith-selector-sources/" + key
+    args = {
+        "commit": commit,
+        "module": module,
+        "limit": limit,
+        "data_path": prefix + ".source",
+        "receipt_path": prefix + ".json",
+    }
+    script = r"""# tasksmith-selector-source-capture
+import hashlib,json,pathlib,subprocess,sys
+arg=json.loads(sys.argv[1]); receipt={"commit":arg["commit"],"module":arg["module"]}
+path=pathlib.Path(arg["receipt_path"]); path.parent.mkdir(parents=True,exist_ok=True)
+data_path=pathlib.Path(arg["data_path"]); data_path.unlink(missing_ok=True)
+def git(*words):
+    return subprocess.run(["git","-C","/workspace/repo",*words],capture_output=True)
+try:
+    commit=git("cat-file","-e",arg["commit"]+"^{commit}")
+    if commit.returncode: raise ValueError("Pinned commit unavailable")
+    tree=git("ls-tree","-z",arg["commit"],"--",arg["module"])
+    if tree.returncode: raise ValueError("Pinned tree lookup failed")
+    if not tree.stdout:
+        receipt.update(status="missing",size=0,sha256=hashlib.sha256(b"").hexdigest())
+    else:
+        rows=tree.stdout.split(b"\0")
+        if len(rows)!=2 or rows[1]: raise ValueError("Ambiguous pinned tree entry")
+        metadata,name=rows[0].split(b"\t",1); mode,kind,oid=metadata.decode().split()
+        if name.decode()!=arg["module"] or mode not in ("100644","100755") or kind!="blob":
+            raise ValueError("Pinned test module is not a regular file")
+        size=git("cat-file","-s",oid)
+        if size.returncode: raise ValueError("Pinned blob size unavailable")
+        count=int(size.stdout)
+        if count<0 or count>arg["limit"]: raise ValueError("Pinned test source exceeds transfer bound")
+        blob=git("cat-file","blob",oid)
+        if blob.returncode or len(blob.stdout)!=count: raise ValueError("Pinned blob capture incomplete")
+        data_path.write_bytes(blob.stdout)
+        receipt.update(status="present",size=count,sha256=hashlib.sha256(blob.stdout).hexdigest(),git_blob_id=oid)
+except Exception as exc:
+    receipt.update(status="error",reason=type(exc).__name__+": "+str(exc))
+path.write_text(json.dumps(receipt,allow_nan=False))
+"""
+    observed = json.loads(
+        await shell(
+            "python -I -c " + shlex.quote(script) + " " + shlex.quote(json.dumps(args)), 120
+        )
+    )
+    if observed.get("exit_code") != 0:
+        raise BootstrapReadinessError(f"Pinned source capture failed: {module} ({label})")
+    raw_receipt = await read(args["receipt_path"])
+    if len(raw_receipt) > 16_000:
+        raise BootstrapReadinessError("Pinned source transfer receipt exceeds bound")
+    receipt = json.loads(raw_receipt)
+    if receipt.get("commit") != commit or receipt.get("module") != module:
+        raise BootstrapReadinessError("Pinned source transfer receipt identity differs")
+    if receipt.get("status") == "error":
+        raise BootstrapReadinessError(str(receipt.get("reason", "Pinned source capture failed")))
+    if receipt.get("status") == "missing":
+        if label == "head":
+            raise BootstrapReadinessError(f"Pinned upstream module is unavailable: {module}")
+        data = b""  # Only an explicitly absent base-tree entry represents a new test file.
+    elif receipt.get("status") == "present":
+        if type(receipt.get("size")) is not int or not 0 <= receipt["size"] <= limit:
+            raise BootstrapReadinessError(
+                "Pinned source exceeds the remaining 128 KB transfer bound"
+            )
+        data = await read(args["data_path"])
+    else:
+        raise BootstrapReadinessError("Pinned source transfer status is incomplete")
+    if (
+        len(data) > limit
+        or len(data) != receipt.get("size")
+        or hashlib.sha256(data).hexdigest() != receipt.get("sha256")
+    ):
+        raise BootstrapReadinessError("Pinned source transfer size or SHA256 differs")
+    return data.decode(), receipt
+
+
+async def _selector_sources(shell, source, discovered, root, *, read=None):
     path = root / "source-and-collection.json"
     modules = sorted(
         {
@@ -285,7 +411,7 @@ async def _selector_sources(shell, source, discovered, root):
             for module in _pytest_command(command)[1]
         }
     )
-    identity = canonical_digest({"source": source, "modules": modules})
+    identity = canonical_digest({"source": source, "modules": modules, "capture_policy": 2})
     if path.exists():
         evidence = json.loads(path.read_text())
         if evidence.get("input_digest") != identity:
@@ -298,40 +424,37 @@ async def _selector_sources(shell, source, discovered, root):
                 "Retained full-module collection failed; inspect " + str(path)
             )
         return evidence
-    if shell is None:
+    if shell is None or read is None:
         raise BootstrapReadinessError(
             "Selector correction needs remote source and collection observations"
         )
     if len(modules) > 8:
         raise BootstrapReadinessError("Selector repair exceeds the bounded eight-module inspection")
-    files, changed, total = {}, set(), 0
+    files, transfers, changed, total = {}, {}, set(), 0
     for module in modules:
-        versions = {}
+        versions, receipts = {}, {}
         for label, commit in (("before", source["base_sha"]), ("head", source["head_sha"])):
-            observed = json.loads(
-                await shell(
-                    "cd /workspace/repo && git show " + shlex.quote(commit + ":" + module), 120
-                )
+            versions[label], receipts[label] = await _pinned_test_source(
+                shell, read, commit, module, label, 128_000 - total
             )
-            if observed["exit_code"] and label == "head":
-                raise BootstrapReadinessError(f"Pinned upstream module is unavailable: {module}")
-            versions[label] = observed["stdout"] if observed["exit_code"] == 0 else ""
-        total += sum(len(value.encode()) for value in versions.values())
-        if total > 128_000:
-            raise BootstrapReadinessError(
-                "Selector source inspection exceeds 128 KB; no evidence was silently dropped"
-            )
+            total += len(versions[label].encode())
         old, new = (_test_definitions(versions[label], module) for label in ("before", "head"))
         changed.update(name for name, value in new.items() if old.get(name) != value)
         files[module] = versions
+        transfers[module] = receipts
     collection = await _pytest_observation(
-        shell, source, "python -m pytest " + shlex.join(modules) + " -q", collect_only=True
+        shell,
+        source,
+        "python -m pytest " + shlex.join(modules) + " -q",
+        collect_only=True,
+        read=read,
     )
     available = {node.split("[", 1)[0] for node in collection["collected"]}
     evidence = {
         "input_digest": identity,
         "modules": modules,
         "source_files": files,
+        "source_transfers": transfers,
         "full_collection": collection,
         "required_changed_anchors": sorted(changed & available),
     }
@@ -344,7 +467,7 @@ async def _selector_sources(shell, source, discovered, root):
     return evidence
 
 
-async def _selector_collection(shell, source, corrected, evidence, root):
+async def _selector_collection(shell, source, corrected, evidence, root, *, read=None):
     path = root / "selection-proof.json"
     identity = canonical_digest(
         {"source_evidence": evidence, "commands": corrected.upstream_test_commands}
@@ -358,7 +481,7 @@ async def _selector_collection(shell, source, corrected, evidence, root):
     reports = []
     check_path = root / "selection-checks" / f"{identity}.json"
     for command in corrected.upstream_test_commands:
-        report = await _pytest_observation(shell, source, command, collect_only=True)
+        report = await _pytest_observation(shell, source, command, collect_only=True, read=read)
         reports.append({"command": command, **report})
         if report["exit_code"] or not report["collected"]:
             save_json(
@@ -391,7 +514,7 @@ async def _selector_collection(shell, source, corrected, evidence, root):
     return proof
 
 
-def _readiness_inputs(source, discovered, key, selector_proof=None):
+def _readiness_inputs(source, discovered, key, selector_proof=None, smoke_proof=None):
     commands = [
         "git checkout --detach "
         + source["head_sha"]
@@ -402,13 +525,15 @@ def _readiness_inputs(source, discovered, key, selector_proof=None):
     inputs = {"source": source, "commands": commands, "cache_key": key}
     if selector_proof is not None:
         inputs["selector_proof"] = selector_proof
+    if smoke_proof is not None:
+        inputs["smoke_proof"] = smoke_proof
     return inputs
 
 
 async def _reference_readiness(
-    remote, source, discovered, root, *, key, cached, selector_proof=None
+    remote, source, discovered, root, *, key, cached, selector_proof=None, smoke_proof=None
 ):
-    inputs = _readiness_inputs(source, discovered, key, selector_proof)
+    inputs = _readiness_inputs(source, discovered, key, selector_proof, smoke_proof)
     commands, identity = inputs["commands"], canonical_digest(inputs)
     path = root / "readiness.json"
     if path.exists():
@@ -421,7 +546,9 @@ async def _reference_readiness(
     outputs, execution_errors, executed = [], [], set()
     for command in commands:
         if selector_proof is not None and command in discovered.upstream_test_commands:
-            observed = await _pytest_observation(remote.shell, source, command, collect_only=False)
+            observed = await _pytest_observation(
+                remote.shell, source, command, collect_only=False, read=remote.read
+            )
             executed.update(node.split("[", 1)[0] for node in observed["executed"])
             if not observed["executed"]:
                 execution_errors.append(
@@ -456,12 +583,24 @@ async def _reference_readiness(
     if selector_proof is not None:
         readiness["selector_proof"] = selector_proof
         readiness["execution_errors"] = execution_errors
+    if smoke_proof is not None:
+        readiness["smoke_proof"] = smoke_proof
     save_json(path, readiness)
     return readiness
 
 
 async def _correct_discovery(
-    config, source, discovered, readiness, root, *, budget, deadline, shell, selector=False
+    config,
+    source,
+    discovered,
+    readiness,
+    root,
+    *,
+    budget,
+    deadline,
+    shell,
+    selector=False,
+    read=None,
 ):
     original = discovered.model_dump(mode="json")
     inputs = {"source": source, "discovery": original, "failed_readiness": readiness}
@@ -471,7 +610,7 @@ async def _correct_discovery(
             raise BootstrapReadinessError(
                 "Selector repair requires explicit pytest selection failure"
             )
-        evidence = await _selector_sources(shell, source, discovered, root / stage)
+        evidence = await _selector_sources(shell, source, discovered, root / stage, read=read)
         inputs["upstream_source_and_collection"] = evidence
 
     async def validate(value: Discovery):
@@ -498,7 +637,7 @@ async def _correct_discovery(
                 raise ValueError(
                     "Selector repair must preserve exactly the same upstream module files"
                 )
-            await _selector_collection(shell, source, value, evidence, root / stage)
+            await _selector_collection(shell, source, value, evidence, root / stage, read=read)
             return
         if (
             value.dependency_dockerfile.splitlines()[0]
@@ -556,7 +695,7 @@ async def _correct_discovery(
 
 @asynccontextmanager
 async def bootstrap_ready(config, source, discovered, root, cache_root, deadline, budget):
-    """At most two builds and one in-place selector correction, retaining every failed check."""
+    """At most two builds, one smoke diagnosis and one selector correction."""
     policy_path = root / "bootstrap-policy.json"
     identity = canonical_digest({"source": source, "discovery": discovered.model_dump(mode="json")})
     if policy_path.exists():
@@ -574,6 +713,9 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
     bootstrap_deadline = policy["deadline"]
     cache = BootstrapCache(cache_root)
     selector_proof = None
+    smoke_root = root / "bootstrap-smoke-repair-1"
+    smoke_attempted = False
+    smoke_proof = None
     for attempt in range(2):
         if time.time() >= bootstrap_deadline:
             raise TimeoutError(
@@ -588,7 +730,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
         retained = json.loads(failed_path.read_text()) if failed_path.exists() else None
         if retained and not retained.get("passed"):
             if retained.get("input_digest") != canonical_digest(
-                _readiness_inputs(source, discovered, key, selector_proof)
+                _readiness_inputs(source, discovered, key, selector_proof, smoke_proof)
             ):
                 raise BootstrapReadinessError("Retained failed readiness belongs to changed inputs")
             if _selector_failure(discovered, retained):
@@ -602,6 +744,53 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                 raise BootstrapReadinessError(
                     "Previous failed bootstrap workspace cleanup is unconfirmed; reconcile before rebuilding"
                 )
+            if generated_smoke_failure(discovered, retained) is not None:
+                if smoke_root.exists():
+                    # Only a completed, independently classified dependency failure
+                    # can recover the unchanged-command dependency correction below.
+                    # The helper validates cached identity/evidence and never rerolls it.
+                    if not (smoke_root / "phase.json").is_file():
+                        raise BootstrapReadinessError(
+                            "Unclaimed smoke evidence needs explicit workspace reconciliation"
+                        )
+                    smoke_phase = json.loads((smoke_root / "phase.json").read_text())
+                    if (
+                        smoke_phase.get("status") != "completed"
+                        or not (smoke_root / "result.json").is_file()
+                    ):
+                        raise BootstrapReadinessError(
+                            "Retained smoke diagnosis is incomplete; explicit reconciliation is required"
+                        )
+
+                    async def retained_source_read(*args, **kwargs):
+                        raise BootstrapReadinessError(
+                            "Retained smoke diagnosis cannot execute remote diagnostics"
+                        )
+
+                    try:
+                        await correct_generated_smoke(
+                            config,
+                            source,
+                            discovered,
+                            retained,
+                            smoke_root,
+                            budget=budget,
+                            deadline=bootstrap_deadline,
+                            # Preserve the original diagnostics-enabled identity. The
+                            # completed cache path never calls this refusing sentinel.
+                            shell=retained_source_read,
+                        )
+                    except SmokeDependencyFailure:
+                        smoke_attempted = True
+                    else:
+                        raise BootstrapReadinessError(
+                            "Retained smoke correction needs explicit workspace reconciliation; "
+                            "it cannot reopen the old workspace or reset the correction attempt"
+                        )
+                elif not (root / "bootstrap-repair-1/artifact.json").exists():
+                    raise BootstrapReadinessError(
+                        "Retained generated readiness failure needs explicit workspace reconciliation"
+                    )
             if attempt:
                 raise BootstrapReadinessError(
                     f"Reference readiness still failed after two bootstrap attempts; inspect {failed_path}"
@@ -643,7 +832,58 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                     key=key,
                     cached=cached,
                     selector_proof=selector_proof,
+                    smoke_proof=smoke_proof,
                 )
+                if generated_smoke_failure(discovered, readiness) is not None:
+                    if smoke_attempted:
+                        raise BootstrapReadinessError(
+                            "Reference readiness still failed after two bootstrap attempts; "
+                            "the one generated-smoke diagnosis is exhausted; retain the failed checks"
+                        )
+                    smoke_attempted = True
+                    try:
+                        corrected = await correct_generated_smoke(
+                            config,
+                            source,
+                            discovered,
+                            readiness,
+                            smoke_root,
+                            budget=budget,
+                            deadline=bootstrap_deadline,
+                            shell=remote.shell,
+                        )
+                    except SmokeDependencyFailure:
+                        # An invalid import may be an author mistake or a real dependency
+                        # problem. Only the independent assessment selects this fallback.
+                        pass
+                    else:
+                        discovered = corrected
+                        proof_path = smoke_root / "result.json"
+                        proof_bytes = proof_path.read_bytes()
+                        proof = json.loads(proof_bytes)
+                        smoke_proof = {
+                            "result_path": str(proof_path),
+                            "sha256": hashlib.sha256(proof_bytes).hexdigest(),
+                            "input_digest": proof["input_digest"],
+                            "assessment": proof["assessment"],
+                        }
+                        smoke_readiness_root = attempt_root / "generated-smoke-readiness-1"
+                        readiness = await _reference_readiness(
+                            remote,
+                            source,
+                            discovered,
+                            smoke_readiness_root,
+                            key=key,
+                            cached=cached,
+                            selector_proof=selector_proof,
+                            smoke_proof=smoke_proof,
+                        )
+                        failed_path = smoke_readiness_root / "readiness.json"
+                        if generated_smoke_failure(discovered, readiness) is not None:
+                            raise BootstrapReadinessError(
+                                "Corrected generated smoke still failed full reference readiness; "
+                                "inspect " + str(failed_path)
+                            )
                 if _selector_failure(discovered, readiness):
                     if selector_proof is not None:
                         raise BootstrapReadinessError(
@@ -659,6 +899,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                         deadline=bootstrap_deadline,
                         shell=remote.shell,
                         selector=True,
+                        read=remote.read,
                     )
                     selector_proof = json.loads(
                         (root / "bootstrap-selector-repair-1/selection-proof.json").read_text()
@@ -672,6 +913,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                         key=key,
                         cached=cached,
                         selector_proof=selector_proof,
+                        smoke_proof=smoke_proof,
                     )
                     failed_path = selection_root / "readiness.json"
                 save_json(
