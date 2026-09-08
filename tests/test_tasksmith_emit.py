@@ -281,3 +281,60 @@ def test_incomplete_runner_does_not_write_zero_reward():
     assert "controller_collection_comparison_required" in RUNNER
     assert "'submission_failure'" in RUNNER
     assert hashlib.sha256(RUNNER.encode()).hexdigest()
+
+
+@pytest.mark.parametrize("role", ["oracle", "negative", "positive"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd /workspace/repo",
+        "cd '/workspace/repo'",
+        'cd -- "/private"',
+        "set -eu; cd /private/gold && true",
+        "(cd /workspace/repo/subdir && true)",
+    ],
+)
+def test_episode_scripts_reject_literal_private_author_cwd(tmp_path, contract, role, command):
+    contract = contract.model_copy(deep=True)
+    script = "#!/bin/sh\nset -eu\n" + command + "\n"
+    if role == "negative":
+        contract.mutations[0].script = script
+    if role == "positive":
+        contract.equivalents[0].script = script
+    with pytest.raises(
+        ValueError, match=r"private author path.*Episode scripts run from /workspace"
+    ):
+        emit_task(
+            tmp_path / "task",
+            SOURCE,
+            DEPENDENCIES,
+            execution_contract=contract,
+            instruction="Preserve tensor values and per-batch metadata through public dispatch.",
+            solution_script=script if role == "oracle" else "true",
+            protected_tests=TESTS,
+        )
+    assert not (tmp_path / "task").exists()
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "cd /workspace\ntrue\n",
+        "cd .\ntrue\n",
+        "cd src/accelerate\ntrue\n",
+        "# cd /private\necho 'cd /workspace/repo'\ntrue\n",
+        "echo '&&' cd /private\ntrue\n",
+        "python - <<'PY'\ntext = 'cd /workspace/repo'\n# cd /private\nPY\ncd /workspace\n",
+    ],
+)
+def test_cwd_lint_preserves_episode_paths_comments_and_quoted_data(tmp_path, contract, script):
+    result = emit_task(
+        tmp_path / "task",
+        SOURCE,
+        DEPENDENCIES,
+        execution_contract=contract,
+        instruction="Preserve tensor values and per-batch metadata through public dispatch.",
+        solution_script=script,
+        protected_tests=TESTS,
+    )
+    assert result["accepted"] is False

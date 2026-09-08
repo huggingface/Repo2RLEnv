@@ -93,6 +93,7 @@ PY"""
                     source_dir=Path(self.oracle_dir), target_dir="/solution"
                 )
                 result = json.loads(await shell("bash /solution/solve.sh", 300))
+                (self.logs_dir / "oracle-setup.json").write_text(json.dumps(result))
                 if result["exit_code"]:
                     raise RuntimeError(f"Mutation oracle setup failed: {result}")
             output = await shell(self.script, 120)

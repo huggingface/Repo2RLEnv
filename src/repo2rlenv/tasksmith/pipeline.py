@@ -318,7 +318,75 @@ class Candidate:
             "status": "repairing",
         }
 
-    async def run(self):
+    async def _request_revision(self, app, cfg, snapshot, request: dict):
+        """Record new repair evidence without replacing a completed stage result.
+
+        Used when a controller defect is diagnosed after a candidate has stopped.
+        The fresh revision still traverses every admission gate, under the same
+        deadline and budget. Replaying the same request only resumes its work.
+        """
+        if set(request) != {"parent_task_digest", "reason", "evidence", "feedback"}:
+            raise ValueError("Revision request needs parent digest, reason, evidence and feedback")
+        if not all(
+            isinstance(request[k], str) and request[k].strip() for k in ("reason", "evidence")
+        ):
+            raise ValueError("Revision request needs concrete diagnosis and retained evidence")
+        if (
+            not isinstance(request["feedback"], dict)
+            or request["feedback"].get("repairable") is not True
+        ):
+            raise ValueError("Revision request must contain repairable feedback")
+        if request["feedback"].get("status") != "needs_repair":
+            raise ValueError("Revision requests can only ask for repair, never acceptance")
+        digest = canonical_digest(request)
+        state = snapshot.values
+        if (state.get("repair") or {}).get("revision_request_digest") == digest:
+            return
+        # A crash after checkpointing the feedback but before repair_node runs
+        # must resume that exact request rather than schedule a second revision.
+        if state.get("validation", {}).get("revision_request_digest") == digest:
+            return
+        if snapshot.next or not state.get("construction"):
+            raise ReconciliationRequired(
+                "Finish or reconcile the active stage before requesting a revision"
+            )
+        if any(
+            record.status in {"claimed", "submitted", "uncertain"}
+            for record in self.journal.operations(self.pr.key)
+        ):
+            raise ReconciliationRequired(
+                "Reconcile unfinished child operations before requesting a revision"
+            )
+        if state.get("status") == "accepted":
+            raise ValueError("An accepted candidate cannot be rerolled by a repair request")
+        if request["parent_task_digest"] != state.get("revision_digest"):
+            raise ValueError("Revision request does not name the current immutable task")
+        previous_validation = state.get("validation", {})
+        prior_trials = list(previous_validation.get("all_trials", {}).values())
+        if previous_validation.get("outcome"):
+            prior_trials.append(previous_validation["outcome"])
+        if any(row.get("cleanup_confirmed") is not True for row in prior_trials):
+            raise ReconciliationRequired(
+                "Reconcile prior trial resources before requesting a revision"
+            )
+        feedback = {
+            **request["feedback"],
+            "revision_request_digest": digest,
+            "diagnosis": request["reason"],
+            "retained_evidence": request["evidence"],
+        }
+        if self.route({**state, "status": "needs_repair", "validation": feedback}) != "repair":
+            raise ValueError("Original revision, deadline or budget limit prevents another repair")
+
+        async def retain_request():
+            return request
+
+        await self.effect(state, "revision_request", request, retain_request)
+        await app.aupdate_state(
+            cfg, {"validation": feedback, "status": "needs_repair"}, as_node="validate"
+        )
+
+    async def run(self, *, revision_request: dict | None = None):
         self.lease = self.journal.acquire_lease(
             self.pr.key, owner=f"{os.getpid()}:{uuid4().hex}", ttl_seconds=300
         )
@@ -351,6 +419,9 @@ class Candidate:
                 app = graph.compile(checkpointer=saver)
                 cfg = {"configurable": {"thread_id": self.pr.key}, "recursion_limit": 30}
                 snapshot = await app.aget_state(cfg)
+                if revision_request is not None:
+                    await self._request_revision(app, cfg, snapshot, revision_request)
+                    snapshot = await app.aget_state(cfg)
                 inputs = (
                     None
                     if snapshot.values

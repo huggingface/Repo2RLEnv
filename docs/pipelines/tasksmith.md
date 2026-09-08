@@ -121,7 +121,14 @@ Episode reward and environment admission are separate:
 - Completed protected behavioral success earns reward 1.
 - Demonstrated submission failure earns reward 0 only with healthy environment,
   complete collection and verified materialization evidence. Invalid submitted
-  source can fail its declared build without invalidating the environment.
+  source can fail protected behavioral checks without invalidating the environment.
+- A learner's failed observation probe is retained as diagnostic evidence while
+  the complete protected test suite still determines reward. Successful, differing
+  baseline/reference observations remain mandatory for environment admission.
+- An author oracle or control script that exits unsuccessfully produces a
+  repairable construction error when its execution receipt and cleanup are
+  verified. It earns no behavioral reward. Literal shell changes into private
+  author directories are rejected during emission; episode scripts use `/workspace`.
 - Provider, missing-transfer, stale-origin, harness and incomplete-review failures
   are incomplete evidence, not training negatives.
 
@@ -149,6 +156,14 @@ write intents. A per-PR lease prevents competing controllers from starting the
 same work. Lease expiry makes unfinished effects uncertain; it does not terminate
 their remote resources. Reconcile those IDs and cleanup obligations before another
 attempt. An absolute original deadline still applies after recovery.
+
+If a controller defect is diagnosed after a candidate has stopped, the Python
+`Candidate.run(revision_request=...)` interface records the current task digest,
+concrete diagnosis, retained evidence and repair feedback before scheduling a new
+revision. It preserves the old validation result and does not rerun an accepted
+candidate. Outstanding stages/resources must be reconciled first; original
+revision, time and budget limits still apply. Replaying the same request resumes
+that repair. Every new revision must pass the full validation sequence.
 
 Artifacts are published under content-derived paths without overwriting existing
 bytes. Interrupted writes recover only their recorded hash-bound intent. Reusing a

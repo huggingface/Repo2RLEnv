@@ -74,7 +74,7 @@ def config(tmp_path):
     )
 
 
-def install_trial(monkeypatch, *, reward=1, broken=None):
+def install_trial(monkeypatch, *, reward=1, broken=None, script_failure=None):
     from harbor.trial.hooks import TrialEvent
     from harbor.trial.trial import Trial
 
@@ -111,7 +111,7 @@ def install_trial(monkeypatch, *, reward=1, broken=None):
         async def run():
             folder.mkdir(parents=True, exist_ok=True)
             for role in ("solver", "grader"):
-                if broken == "missing-role" and role == "grader":
+                if (broken == "missing-role" or script_failure) and role == "grader":
                     continue
                 save_json(
                     resource_dir / (role + ".json"),
@@ -120,15 +120,45 @@ def install_trial(monkeypatch, *, reward=1, broken=None):
                         "role": role,
                         "resource_id": role + "-id",
                         "status": "uncertain"
-                        if broken == "cleanup" and role == "grader"
+                        if broken == "cleanup" and (role == "grader" or script_failure)
                         else "stopped",
-                        "cleanup_confirmed": not (broken == "cleanup" and role == "grader"),
+                        "cleanup_confirmed": not (
+                            broken == "cleanup" and (role == "grader" or script_failure)
+                        ),
                         "build_digest": t.BuildSpec.from_directory(
                             cfg.task.path / ("tests" if role == "grader" else "environment"),
                             role=role,
                         ).digest,
                         "deadline": cfg.environment.kwargs["absolute_deadline"],
                     },
+                )
+            if script_failure:
+                phase, code = script_failure
+                agent_dir = folder / "agent"
+                agent_dir.mkdir()
+                if phase == "oracle":
+                    (agent_dir / "exit-code.txt").write_text(str(code))
+                    exception = None
+                else:
+                    record = {
+                        "exit_code": code,
+                        "stdout": "",
+                        "stderr": "cd: /workspace/repo: No such file",
+                    }
+                    filename = "control.json" if phase == "control" else "oracle-setup.json"
+                    (agent_dir / filename).write_text(json.dumps(record))
+                    exception = SimpleNamespace(
+                        exception_type="RuntimeError",
+                        exception_message=("Control did not execute: " + json.dumps(record))
+                        if phase == "control"
+                        else f"Mutation oracle setup failed: {record}",
+                    )
+                if broken == "exception":
+                    exception = SimpleNamespace(
+                        exception_type="AgentTimeoutError", exception_message="Transport uncertain"
+                    )
+                return SimpleNamespace(
+                    agent_result=None, verifier_result=None, exception_info=exception
                 )
             await hook(None)
             target = folder / "artifacts/workspace/src/example/__init__.py"
@@ -516,3 +546,146 @@ async def test_tracked_create_does_not_use_harbor_outer_retry(monkeypatch, provi
     with pytest.raises(OSError, match="lost create"):
         await env._create_sandbox()
     assert calls == [True]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["oracle", "control", "oracle_setup"])
+async def test_confirmed_script_failure_is_repairable_without_behavioral_reward(
+    task, config, tmp_path, monkeypatch, phase
+):
+    from repo2rlenv.tasksmith.validation import _failure_route
+
+    install_trial(monkeypatch, script_failure=(phase, 1))
+    root = tmp_path / "failed-script"
+    outcome = await t.run_trial(
+        task,
+        config,
+        config.budget("pr1"),
+        root,
+        "oracle" if phase == "oracle" else "negative_control",
+        script=None if phase == "oracle" else "cd /workspace/repo && false",
+        oracle=True,
+        deadline=time.time() + 300,
+    )
+    assert outcome.reward is None and outcome.observed_reward is None
+    assert not outcome.collection_verified
+    assert outcome.cleanup_confirmed
+    assert outcome.error
+    receipt = outcome.construction_error
+    assert receipt["phase"] == phase and receipt["exit_code"] == 1
+    assert receipt["task_digest"] == outcome.task_digest
+    assert receipt["profile_digest"] == outcome.profile_digest
+    executed = (
+        (task / "solution/solve.sh").read_bytes()
+        if phase != "control"
+        else b"cd /workspace/repo && false"
+    )
+    assert receipt["script_sha256"] == hashlib.sha256(executed).hexdigest()
+    assert (
+        receipt["receipt_sha256"]
+        == hashlib.sha256(Path(receipt["receipt_path"]).read_bytes()).hexdigest()
+    )
+    assert _failure_route(outcome) == {
+        "status": "needs_repair",
+        "repairable": True,
+        "stage": "construction",
+    }
+    assert json.loads((root / "operation.json").read_text())["status"] == "construction_error"
+    assert json.loads((root / "reservation.json").read_text())["status"] == "estimated"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "broken,code", [("cleanup", 1), ("exception", 1), (None, -1), (None, 124), (None, 137)]
+)
+async def test_uncertain_script_or_cleanup_failure_remains_incomplete(
+    task, config, tmp_path, monkeypatch, broken, code
+):
+    from repo2rlenv.tasksmith.validation import _failure_route
+
+    install_trial(monkeypatch, broken=broken, script_failure=("control", code))
+    outcome = await t.run_trial(
+        task,
+        config,
+        config.budget("pr1"),
+        tmp_path / "unknown",
+        "negative_control",
+        script="false",
+        oracle=True,
+        deadline=time.time() + 300,
+    )
+    assert outcome.reward is None
+    assert outcome.construction_error is None
+    assert _failure_route(outcome) == {
+        "status": "incomplete",
+        "repairable": False,
+        "stage": "infrastructure",
+    }
+
+
+@pytest.mark.asyncio
+async def test_offline_agent_records_failed_oracle_setup_before_control(tmp_path):
+    from repo2rlenv.curation.harbor_agent import OfflineAgent
+
+    environment = SimpleNamespace(
+        exec=AsyncMock(
+            return_value=SimpleNamespace(return_code=2, stdout="", stderr="patch failed")
+        ),
+        upload_dir=AsyncMock(),
+    )
+    agent = SimpleNamespace(
+        mode="script",
+        oracle_dir=str(tmp_path / "solution"),
+        logs_dir=tmp_path,
+        script="must not execute",
+    )
+    with pytest.raises(RuntimeError, match="Mutation oracle setup failed"):
+        await OfflineAgent.run(agent, "", environment, SimpleNamespace())
+    assert json.loads((tmp_path / "oracle-setup.json").read_text()) == {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "patch failed",
+    }
+    assert not (tmp_path / "control.json").exists()
+    environment.exec.assert_awaited_once_with(
+        command="bash /solution/solve.sh", cwd="/workspace", timeout_sec=300
+    )
+
+
+@pytest.mark.parametrize(
+    "receipt", [None, {"exit_code": True}, {"exit_code": "1"}, {"exit_code": 0}]
+)
+def test_exception_text_without_normal_exit_receipt_cannot_establish_construction_error(
+    tmp_path, receipt
+):
+    message = 'Control did not execute: {"exit_code": 1}'
+    if receipt is not None:
+        save_json(tmp_path / "agent/control.json", receipt)
+        message = "Control did not execute: " + (tmp_path / "agent/control.json").read_text()
+    assert (
+        t._script_failure(
+            tmp_path,
+            kind="negative_control",
+            script="false",
+            oracle=False,
+            model=None,
+            exception_type="RuntimeError",
+            exception_message=message,
+        )
+        is None
+    )
+
+
+def test_script_receipt_cannot_reclassify_model_or_controller_trial(tmp_path):
+    record = {"exit_code": 1, "stdout": "", "stderr": "failed"}
+    save_json(tmp_path / "agent/control.json", record)
+    kwargs = dict(
+        script="false",
+        oracle=False,
+        exception_type="RuntimeError",
+        exception_message="Control did not execute: "
+        + (tmp_path / "agent/control.json").read_text(),
+    )
+    assert t._script_failure(tmp_path, kind="solver", model="provider/model", **kwargs) is None
+    assert t._script_failure(tmp_path, kind="baseline", model=None, **kwargs) is None
+    assert t._script_failure(tmp_path, kind="tamper", model=None, **kwargs) is None

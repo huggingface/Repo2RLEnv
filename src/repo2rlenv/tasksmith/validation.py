@@ -68,10 +68,31 @@ def paired_witness(baseline: TrialOutcome, oracle: TrialOutcome) -> dict:
     }
 
 
+def _failure_route(row: TrialOutcome) -> dict:
+    """Construction diagnostics are repairable, but never become behavioral rewards."""
+    construction = row.construction_error is not None
+    incomplete = not construction and (row.error is not None or row.reward is None)
+    return {
+        "status": "incomplete" if incomplete else "needs_repair",
+        "repairable": not incomplete,
+        "stage": "construction"
+        if construction
+        else ("infrastructure" if incomplete else "execution"),
+    }
+
+
 def _trial_text(outcome: TrialOutcome, *, trace=False) -> str:
     folder = Path(outcome.path)
     chunks = [json.dumps(outcome.model_dump(), indent=2)]
-    for file in ("verifier/details.json", "verifier/pytest-output.txt", "agent/oracle.txt"):
+    for file in (
+        "verifier/details.json",
+        "verifier/pytest-output.txt",
+        "verifier/source-observation-error.json",
+        "agent/oracle.txt",
+        "agent/oracle-setup.json",
+        "agent/control.json",
+        "agent/exit-code.txt",
+    ):
         path = folder / file
         if path.is_file():
             chunks.append(file + "\n" + path.read_text())
@@ -246,11 +267,8 @@ async def validate_candidate(
         return row.error or row.reward is None or (expected is not None and row.reward != expected)
 
     def repair(name):
-        incomplete = outcomes[name].error is not None or outcomes[name].reward is None
         return {
-            "status": "incomplete" if incomplete else "needs_repair",
-            "repairable": not incomplete,
-            "stage": "infrastructure" if incomplete else "execution",
+            **_failure_route(outcomes[name]),
             "failed_trial": name,
             "outcome": outcomes[name].model_dump(),
             "evidence": _trial_text(outcomes[name]),

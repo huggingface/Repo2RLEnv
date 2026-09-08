@@ -10,6 +10,7 @@ paired source-change witness is still required by the campaign.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import math
 import os
@@ -52,6 +53,7 @@ class TrialOutcome:
     reservation_id: str | None = None
     cloud_cost_estimated_usd: float | None = None
     model_cost_usd: float | None = None
+    construction_error: dict | None = None
 
     def model_dump(self):
         return asdict(self)
@@ -195,6 +197,75 @@ def _cleanup_receipts(
         for r in receipts
     )
     return bool(okay), receipts
+
+
+def _script_failure(
+    output: Path,
+    *,
+    kind: str,
+    script: str | None,
+    oracle: bool,
+    model: str | None,
+    exception_type: str | None,
+    exception_message: str | None,
+) -> dict | None:
+    """Recognize host-written execution receipts, never infer failure from logs alone."""
+    if model is not None:
+        return None
+    if oracle and script is None:
+        path = output / "agent/exit-code.txt"
+        if exception_type is not None:
+            return None
+        phase = "oracle"
+    elif script is not None and kind in {
+        "negative_control",
+        "positive_control",
+        "independent_challenge",
+    }:
+        if oracle and (output / "agent/oracle-setup.json").is_file():
+            setup = _read_json(output / "agent/oracle-setup.json")
+            if setup.get("exit_code") != 0:
+                path = output / "agent/oracle-setup.json"
+                phase = "oracle_setup"
+            else:
+                path = output / "agent/control.json"
+                phase = "control"
+        else:
+            path = output / "agent/control.json"
+            phase = "control"
+    else:
+        return None
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 100000:
+        return None
+    raw = path.read_bytes()
+    try:
+        text = raw.decode()
+        if phase in {"control", "oracle_setup"}:
+            record = json.loads(text)
+            code = record["exit_code"]
+            if exception_type != "RuntimeError" or exception_message != (
+                "Control did not execute: " + text
+                if phase == "control"
+                else f"Mutation oracle setup failed: {record}"
+            ):
+                return None
+        else:
+            code = int(text.strip())
+    except (ValueError, KeyError, TypeError):
+        return None
+    # Negative/unknown, timeout wrapper codes, and signal exits do not establish
+    # an ordinary author-script failure. Keep these infrastructure-incomplete.
+    if type(code) is not int or not 1 <= code < 128 or code in {124, 125}:
+        return None
+    return {
+        "phase": phase,
+        "exit_code": code,
+        "receipt_path": str(path),
+        "receipt_sha256": hashlib.sha256(raw).hexdigest(),
+        "script_sha256": hashlib.sha256(script.encode()).hexdigest()
+        if phase == "control" and script is not None
+        else None,
+    }
 
 
 def _inspect_collection(folder: Path, expected: dict, contract: Contract) -> tuple[str, dict]:
@@ -366,6 +437,7 @@ async def run_trial(
     expected = None
     started = time.monotonic()
     cancellation = None
+    script_failure = None
     try:
         runtime = await Trial.create(cfg)
 
@@ -404,6 +476,21 @@ async def run_trial(
             raw_reward = rewards.get("reward")
             if type(raw_reward) in (int, float) and math.isfinite(raw_reward):
                 outcome.observed_reward = float(raw_reward)
+        script_failure = _script_failure(
+            output,
+            kind=kind,
+            script=script,
+            oracle=oracle,
+            model=model,
+            exception_type=result.exception_info.exception_type if result.exception_info else None,
+            exception_message=result.exception_info.exception_message
+            if result.exception_info
+            else None,
+        )
+        if script_failure and script_failure["phase"] in {"oracle", "oracle_setup"}:
+            script_failure["script_sha256"] = hashlib.sha256(
+                (task_path / "solution/solve.sh").read_bytes()
+            ).hexdigest()
         if result.exception_info:
             raise RuntimeError(
                 result.exception_info.exception_type
@@ -445,11 +532,13 @@ async def run_trial(
         outcome.error = type(exc).__name__ + ": " + str(exc)
         outcome.reward = None
     finally:
+        settlement_complete = True
         if runtime is not None:
             try:
                 async with asyncio.timeout(65):
                     await asyncio.shield(runtime.agent_environment.stop(delete=True))
             except BaseException as exc:
+                settlement_complete = False
                 outcome.error = (outcome.error or "") + f"; cleanup: {type(exc).__name__}"
         try:
             outcome.cleanup_confirmed, resource_records = _cleanup_receipts(
@@ -471,19 +560,38 @@ async def run_trial(
                     },
                 )
             else:
+                settlement_complete = False
                 outcome.error = (
                     outcome.error or ""
                 ) + "; provider cleanup unconfirmed; reservation retained"
-            if {r.get("role") for r in resource_records} != {"solver", "grader"}:
+            roles = {r.get("role") for r in resource_records}
+            if roles != {"solver", "grader"} and not (script_failure and roles == {"solver"}):
+                settlement_complete = False
                 outcome.error = (
                     outcome.error or ""
                 ) + "; complete solver/grader lifecycle evidence missing"
             if digest_task(task_path) != task_digest:
+                settlement_complete = False
                 outcome.error = (outcome.error or "") + "; immutable task changed during execution"
         except Exception as exc:
+            settlement_complete = False
             outcome.error = (outcome.error or "") + "; evidence settlement: " + str(exc)
         if outcome.error:
             outcome.reward = None
+        if (
+            script_failure
+            and outcome.cleanup_confirmed
+            and settlement_complete
+            and cancellation is None
+        ):
+            outcome.reward = None
+            outcome.construction_error = {
+                **script_failure,
+                "task_digest": task_digest,
+                "profile_digest": profile_digest,
+                "config_digest": config.digest(),
+                "cleanup_confirmed": True,
+            }
         save_json(root / "outcome.json", asdict(outcome))
         save_json(
             root / "operation.json",
@@ -493,7 +601,9 @@ async def run_trial(
                 "trial": name,
                 "deadline": deadline,
                 "kind": kind,
-                "status": "completed" if outcome.error is None else "incomplete",
+                "status": "construction_error"
+                if outcome.construction_error
+                else ("completed" if outcome.error is None else "incomplete"),
                 "outcome_path": str(root / "outcome.json"),
             },
         )

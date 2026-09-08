@@ -986,7 +986,7 @@ async def construct(
             design = recovery["design"]
         elif (
             previous
-            and repair.get("stage") == "execution"
+            and repair.get("stage") in {"execution", "construction"}
             and repair.get("status") == "needs_repair"
             and not repair.get("review")
             and not repair.get("scope_change_required")

@@ -15,7 +15,7 @@ import tomli_w
 from repo2rlenv.curation.artifacts import digest_task, finalize, validate_dependency_pins
 from repo2rlenv.curation.models import Contract
 
-POLICY_VERSION = 1
+POLICY_VERSION = 2
 APT_STANZA = (
     "RUN apt-get update && apt-get install -y --no-install-recommends "
     "git curl ca-certificates build-essential ripgrep && rm -rf /var/lib/apt/lists/*"
@@ -201,7 +201,14 @@ out.mkdir(parents=True, exist_ok=True)
 reward = out / 'reward.txt'
 reward.unlink(missing_ok=True)
 (out / 'reward.json').unlink(missing_ok=True)
+(out / 'source-observation.json').unlink(missing_ok=True)
+(out / 'source-observation-error.json').unlink(missing_ok=True)
 details = {'valid': False, 'outcome': 'incomplete', 'reason': 'not executed'}
+def observation_excerpt(value):
+    if isinstance(value, bytes):
+        value = value.decode(errors='replace')
+    value = value or ''
+    return value if len(value) <= 16000 else value[:4000] + '\n[output middle omitted]\n' + value[-12000:]
 try:
     contract = json.loads(pathlib.Path('/tests/contract.json').read_text())
     materialization = json.loads(pathlib.Path('/tests/materialization.json').read_text())
@@ -236,12 +243,35 @@ try:
     if not any(origin.is_relative_to(pathlib.Path('/workspace') / p) or origin == pathlib.Path('/workspace') / p for p in contract['source_paths']):
         raise ValueError('Package origin is outside declared collection')
     witness = pathlib.Path('/tests/source_origin_probe.py')
+    observation_status = 'absent'
     if witness.is_file():
-        observation = subprocess.run(['/usr/sbin/runuser','-u','agent','--','/usr/local/bin/python','-I','-c',witness.read_text()], cwd='/workspace', capture_output=True, text=True, timeout=60)
-        if observation.returncode or len(observation.stdout) > 1000000:
-            raise ValueError('Source observation did not execute')
-        value = json.loads(observation.stdout)
-        (out / 'source-observation.json').write_text(json.dumps({'value':value,'package_origin':str(origin),'origin_sha256':hashlib.sha256(origin.read_bytes()).hexdigest()}, allow_nan=False))
+        # The target can fail to import or return invalid data while transport
+        # and the protected grader remain healthy. Keep that observation as a
+        # diagnostic; pytest must still exercise all required checks. OSError
+        # from launching the worker is infrastructure and deliberately escapes.
+        observation_error = None
+        try:
+            observation = subprocess.run(['/usr/sbin/runuser','-u','agent','--','/usr/local/bin/python','-I','-c',witness.read_text()], cwd='/workspace', capture_output=True, text=True, errors='replace', timeout=60)
+        except subprocess.TimeoutExpired as exc:
+            observation_error = {'kind':'timeout','timeout_sec':60,'stdout':observation_excerpt(exc.stdout),'stderr':observation_excerpt(exc.stderr)}
+        else:
+            if observation.returncode:
+                observation_error = {'kind':'nonzero_exit','returncode':observation.returncode}
+            elif len(observation.stdout) > 1000000:
+                observation_error = {'kind':'output_limit','limit':1000000}
+            else:
+                try:
+                    value = json.loads(observation.stdout)
+                    encoded = json.dumps({'value':value,'package_origin':str(origin),'origin_sha256':hashlib.sha256(origin.read_bytes()).hexdigest()}, allow_nan=False)
+                except (ValueError, UnicodeError) as exc:
+                    observation_error = {'kind':'invalid_json','reason':str(exc)[:2000]}
+                else:
+                    (out / 'source-observation.json').write_text(encoded)
+            if observation_error is not None:
+                observation_error.update(stdout=observation_excerpt(observation.stdout),stderr=observation_excerpt(observation.stderr))
+        observation_status = 'failed' if observation_error is not None else 'passed'
+        if observation_error is not None:
+            (out / 'source-observation-error.json').write_text(json.dumps(observation_error,allow_nan=False))
     report = pathlib.Path('/tmp/tasksmith-pytest/junit.xml')
     report.parent.mkdir(mode=0o700, exist_ok=True)
     report.unlink(missing_ok=True)
@@ -261,6 +291,7 @@ try:
     passed = result.returncode == 0 and not failed
     details = {'valid': True, 'outcome': 'passed' if passed else 'submission_failure',
                'reward': int(passed), 'n_tests':len(cases), 'failed':failed,
+               'source_observation':observation_status,
                'origin':str(origin), 'collection_digest':hashlib.sha256(json.dumps(inventory,sort_keys=True).encode()).hexdigest(),
                'controller_collection_comparison_required':True}
     reward.write_text(str(int(passed))+'\n')
@@ -270,6 +301,53 @@ except Exception as exc:
 if not details['valid']:
     sys.exit(2)
 """
+
+
+def _validate_episode_cwd(script: str, label: str) -> None:
+    """Bounded lint for literal shell cd operands, not shell/security validation."""
+    heredocs = []
+    for line in script.replace("\\\n", "").splitlines():
+        if heredocs:
+            delimiter, tabs = heredocs[0]
+            if (line.lstrip("\t") if tabs else line) == delimiter:
+                heredocs.pop(0)
+            continue
+        # Preserve quotes so an echoed '&&' cannot become a command separator.
+        lexer = shlex.shlex(line, posix=False, punctuation_chars=";&|()<")
+        lexer.whitespace_split = True
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            continue  # Multiline quoting is outside this intentionally narrow lint.
+        command = True
+        for index, token in enumerate(tokens):
+            if token == "<<" and index + 1 < len(tokens):
+                delimiter = tokens[index + 1]
+                tabs = delimiter.startswith("-")
+                delimiter = delimiter[1:] if tabs else delimiter
+                try:
+                    decoded = shlex.split(delimiter)
+                except ValueError:
+                    decoded = []
+                if len(decoded) == 1:
+                    heredocs.append((decoded[0], tabs))
+            if command and token == "cd":
+                operands = tokens[index + 1 :]
+                while operands and operands[0] in {"--", "-L", "-P", "-e"}:
+                    operands = operands[1:]
+                if operands:
+                    try:
+                        decoded = shlex.split(operands[0])
+                    except ValueError:
+                        decoded = []
+                    if len(decoded) == 1 and re.match(
+                        r"^/(?:workspace/repo|private)(?:/|$)", decoded[0]
+                    ):
+                        raise ValueError(
+                            f"{label}: cd {decoded[0]!r} uses a private author path. "
+                            "Episode scripts run from /workspace; use cd /workspace or an appropriate relative repository path."
+                        )
+            command = token in {";", "&&", "||", "|", "(", ")", "then", "do", "else"}
 
 
 def emit_task(
@@ -294,6 +372,13 @@ def emit_task(
     recipe = prepared_recipe(dependency_recipe, source)
     if not instruction.strip() or not solution_script.strip():
         raise ValueError("Instruction and solution must be nonempty")
+    _validate_episode_cwd(solution_script, "Oracle solution")
+    for label, controls in (
+        ("Negative control", execution_contract.mutations),
+        ("Positive control", execution_contract.equivalents),
+    ):
+        for control in controls:
+            _validate_episode_cwd(control.script, f"{label} {control.name}")
     # Source-only supports Python package directories and declared Python helpers,
     # not changes to build/install metadata that an editable seed could ignore.
     for name in execution_contract.source_paths:
