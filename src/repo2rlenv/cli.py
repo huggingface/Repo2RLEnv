@@ -850,8 +850,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     from repo2rlenv.curation.cli import register as register_curation
+    from repo2rlenv.tasksmith.cli import register as register_tasksmith
 
     register_curation(sub)
+    register_tasksmith(sub)
 
     # generate
     g = sub.add_parser("generate", help="Run a synthesis pipeline against a repo")

@@ -155,6 +155,7 @@ nav:
       - "dynamic curation (experimental)": pipelines/dynamic_curation.md
       - "Curation regression corpus": pipelines/curation_regressions.md
       - "Controlled curation pilot": pipelines/curation_pilot_protocol.md
+      - "Tasksmith (experimental)": pipelines/tasksmith.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md
@@ -168,6 +169,7 @@ nav:
       - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
       - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
       - "0011 — dynamic curation": rfcs/0011-dynamic-curation.md
+      - "0012 — Tasksmith": rfcs/0012-tasksmith.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

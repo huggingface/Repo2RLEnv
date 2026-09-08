@@ -1,0 +1,830 @@
+"""PR comprehension and construction inside remote author workspaces."""
+
+from __future__ import annotations
+
+import ast
+import asyncio
+import hashlib
+import json
+import re
+import shlex
+import tempfile
+import time
+from contextlib import asynccontextmanager
+from dataclasses import asdict
+from pathlib import Path
+
+from repo2rlenv.tasksmith.authoring import (
+    CONSTRUCT,
+    DISCOVER,
+    PROPOSE,
+    Construction,
+    Design,
+    Discovery,
+)
+from repo2rlenv.tasksmith.bootstrap import (
+    BootstrapCache,
+    budgeted_workspace,
+    dependency_build,
+    foundation_recipe,
+)
+from repo2rlenv.tasksmith.config import TasksmithConfig
+from repo2rlenv.tasksmith.emit import APT_STANZA, emit_task, prepared_recipe
+from repo2rlenv.tasksmith.providers import BuildSpec, WorkspaceConfig
+from repo2rlenv.tasksmith.worker import artifact_stage, canonical_digest, save_json
+
+
+def workspace_config(path: Path, **kwargs) -> WorkspaceConfig:
+    """Keep the original resource identity and deadline across recovery."""
+    if path.exists():
+        data = json.loads(path.read_text())
+        files = tuple((p, bytes.fromhex(b)) for p, b in data["build"]["files"])
+        data["build"]["files"] = files
+        data["build"] = BuildSpec(**data["build"])
+        retained = WorkspaceConfig(**data)
+        # A freshly computed relative workspace timeout must not extend an
+        # existing resource's lifetime. Every other configuration field is an
+        # immutable identity, including actual build bytes and resource limits.
+        if kwargs["deadline"] < retained.deadline:
+            raise ValueError("Retained workspace exceeds the requested deadline")
+        requested = WorkspaceConfig(**{**kwargs, "deadline": retained.deadline})
+        if requested.digest != retained.digest:
+            raise ValueError("Workspace identity changed")
+        return retained
+    config = WorkspaceConfig(**kwargs)
+    data = asdict(config)
+    data["build"]["files"] = [(p, b.hex()) for p, b in config.build.files]
+    save_json(path, data)
+    return config
+
+
+async def prepare_checked(remote, source: dict, root: Path) -> dict:
+    path = root / "source-receipt.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    await remote.prepare(source)
+    result = json.loads(
+        await remote.shell(
+            "cd /workspace/repo && git rev-parse "
+            + source["base_sha"]
+            + "^{tree} "
+            + source["head_sha"]
+            + "^{tree}"
+            + " && git merge-base "
+            + source["base_sha"]
+            + " "
+            + source["head_sha"]
+        )
+    )
+    expected = [source["base_tree_sha"], source["head_tree_sha"], source["base_sha"]]
+    if result["exit_code"] or result["stdout"].split() != expected:
+        raise ValueError("Remote source trees differ from frozen PR evidence")
+    patch = await remote.read("/private/gold.patch")
+    (root / "gold.patch").write_bytes(patch)
+    receipt = {
+        "source": source,
+        "trees": expected,
+        "patch_digest": hashlib.sha256(patch).hexdigest(),
+        "captured_at": time.time(),
+    }
+    save_json(path, receipt)
+    return receipt
+
+
+async def discover(config: TasksmithConfig, source: dict, root: Path, deadline: float) -> dict:
+    result_path = root / "discovery.json"
+    if result_path.exists():
+        return json.loads(result_path.read_text())
+    recipe_path = root / "foundation.Dockerfile"
+    root.mkdir(parents=True, exist_ok=True)
+    if not recipe_path.exists():
+        recipe_path.write_text(await asyncio.to_thread(foundation_recipe))
+    recipe = recipe_path.read_text()
+    wc = workspace_config(
+        root / "workspace-config.json",
+        provider=config.provider,
+        operation_id=f"{config.campaign_id}:{source['id']}:discover",
+        deadline=min(deadline, time.time() + config.workspace_timeout_sec),
+        build=BuildSpec(kind="recipe", role="author", files=(("Dockerfile", recipe.encode()),)),
+        network="public",
+        cpus=2,
+        memory_mib=8192,
+    )
+    async with budgeted_workspace(
+        wc, root / "workspace", config.budget(source["id"]), config.cloud_reservation_usd
+    ) as remote:
+        receipt = await prepare_checked(remote, source, root)
+
+        async def validate(value: Discovery):
+            prepared_recipe(value.dependency_dockerfile, source)
+            if not value.dependency_dockerfile.startswith(recipe.splitlines()[0]):
+                raise ValueError("Use the supplied immutable official Python base")
+
+        artifact = await artifact_stage(
+            schema=Discovery,
+            stage="discovery",
+            inputs=source,
+            system=DISCOVER,
+            prompt=json.dumps(
+                {
+                    "source": source,
+                    "foundation": recipe,
+                    "dependency_recipe_grammar": "Keep FROM, then the exact apt stanza below; remaining lines must be RUN python -m pip install --no-cache-dir name==version ... . CPU torch may use --index-url https://download.pytorch.org/whl/cpu. No other RUN or Docker instructions.",
+                    "apt_stanza": APT_STANZA,
+                }
+            ),
+            root=root / "worker",
+            budget=config.budget(source["id"]),
+            model=config.author_model,
+            runtime=config.author_runtime,
+            max_cost=config.author_stage_limit_usd,
+            max_turns=config.author_turns,
+            deadline=wc.deadline,
+            shell=remote.shell,
+            validate=validate,
+        )
+        result = {"artifact": artifact.model_dump(mode="json"), "source_receipt": receipt}
+        save_json(result_path, result)
+    return result
+
+
+class BootstrapReadinessError(RuntimeError):
+    """Retained readiness failure: constructing on this image is not authorized."""
+
+
+def _pytest_command(command):
+    tokens = shlex.split(command)
+    if tokens[:3] in (["python", "-m", "pytest"], ["python3", "-m", "pytest"]):
+        args = tokens[3:]
+    elif tokens[:1] == ["pytest"]:
+        args = tokens[1:]
+    else:
+        raise ValueError("Selector correction requires a direct python -m pytest/pytest command")
+    modules, index = set(), 0
+    flags = {"-q", "-v", "-vv", "-s", "-x", "--disable-warnings", "--strict-markers"}
+    valued = {"-k", "-m", "--maxfail", "--tb", "--capture"}
+    while index < len(args):
+        token = args[index]
+        if token in valued:
+            index += 1
+            if index >= len(args):
+                raise ValueError("Pytest option requires a value")
+        elif token in flags or any(token.startswith(flag + "=") for flag in valued):
+            pass
+        elif not token.startswith("-"):
+            module = token.split("::", 1)[0]
+            if not re.fullmatch(r"[A-Za-z0-9_./-]+\.py", module) or any(
+                part in {"", ".", ".."} for part in module.split("/")
+            ):
+                raise ValueError(
+                    "Selector correction requires explicit relative Python test modules"
+                )
+            modules.add(module)
+        else:
+            raise ValueError(f"Unsupported selector-repair pytest option: {token}")
+        index += 1
+    if not modules:
+        raise ValueError("Selector correction must retain explicit upstream module files")
+    return args, modules
+
+
+def _selector_failure(discovered, readiness):
+    if readiness.get("passed"):
+        return False
+    for row in readiness.get("checks", []):
+        if row.get("command") not in discovered.upstream_test_commands or row.get(
+            "exit_code"
+        ) not in {4, 5}:
+            continue
+        output = str(row.get("stdout", "")) + "\n" + str(row.get("stderr", ""))
+        if re.search(
+            r"(?i)(ERROR:\s*(?:not found|file or directory not found)|no tests (?:ran|collected)|collected 0 items|found no collectors)",
+            output,
+        ):
+            return True
+    return False
+
+
+def _test_definitions(text, module):
+    tree, found = ast.parse(text), {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+            "test"
+        ):
+            found[f"{module}::{node.name}"] = ast.dump(node, include_attributes=False)
+        elif isinstance(node, ast.ClassDef):
+            for method in node.body:
+                if isinstance(
+                    method, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and method.name.startswith("test"):
+                    found[f"{module}::{node.name}::{method.name}"] = ast.dump(
+                        method, include_attributes=False
+                    )
+    return found
+
+
+async def _pytest_observation(shell, source, command, *, collect_only):
+    args, _ = _pytest_command(command)
+    if collect_only:
+        args = [*args, "--collect-only"]
+    # Trusted observation wrapper runs remotely. No target/test imports occur on the controller.
+    script = """import contextlib,io,json,sys,pytest
+class Observe:
+    def __init__(self): self.collected=[]; self.executed=[]
+    def pytest_collection_finish(self,session): self.collected=[item.nodeid for item in session.items]
+    def pytest_runtest_logreport(self,report):
+        if report.when == 'call' and not report.skipped: self.executed.append(report.nodeid)
+p=Observe(); out=io.StringIO(); err=io.StringIO()
+with contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+    code=int(pytest.main(ARGS,plugins=[p]))
+print('__TASKSMITH_PYTEST__'+json.dumps({'exit_code':code,'collected':p.collected,'executed':p.executed,'stdout':out.getvalue()[-12000:],'stderr':err.getvalue()[-12000:]}))
+sys.exit(code)
+""".replace("ARGS", repr(args))
+    observed = json.loads(
+        await shell(
+            "cd /workspace/repo && git reset --hard "
+            + shlex.quote(source["head_sha"])
+            + " && git clean -fd && python -c "
+            + shlex.quote(script),
+            300,
+        )
+    )
+    marker = "__TASKSMITH_PYTEST__"
+    lines = [
+        line[len(marker) :]
+        for line in observed.get("stdout", "").splitlines()
+        if line.startswith(marker)
+    ]
+    if len(lines) != 1:
+        raise BootstrapReadinessError(
+            "Pytest observation report missing; collection/execution is unproven"
+        )
+    report = json.loads(lines[0])
+    if (
+        report.get("exit_code") != observed.get("exit_code")
+        or not isinstance(report.get("collected"), list)
+        or not isinstance(report.get("executed"), list)
+        or any(
+            not isinstance(node, str) or not node
+            for node in report["collected"] + report["executed"]
+        )
+    ):
+        raise BootstrapReadinessError("Pytest observation report is inconsistent")
+    return report
+
+
+async def _selector_sources(shell, source, discovered, root):
+    path = root / "source-and-collection.json"
+    modules = sorted(
+        {
+            module
+            for command in discovered.upstream_test_commands
+            for module in _pytest_command(command)[1]
+        }
+    )
+    identity = canonical_digest({"source": source, "modules": modules})
+    if path.exists():
+        evidence = json.loads(path.read_text())
+        if evidence.get("input_digest") != identity:
+            raise BootstrapReadinessError(
+                "Selector source evidence belongs to different source/modules"
+            )
+        collection = evidence.get("full_collection", {})
+        if collection.get("exit_code") != 0 or not collection.get("collected"):
+            raise BootstrapReadinessError(
+                "Retained full-module collection failed; inspect " + str(path)
+            )
+        return evidence
+    if shell is None:
+        raise BootstrapReadinessError(
+            "Selector correction needs remote source and collection observations"
+        )
+    if len(modules) > 8:
+        raise BootstrapReadinessError("Selector repair exceeds the bounded eight-module inspection")
+    files, changed, total = {}, set(), 0
+    for module in modules:
+        versions = {}
+        for label, commit in (("before", source["base_sha"]), ("head", source["head_sha"])):
+            observed = json.loads(
+                await shell(
+                    "cd /workspace/repo && git show " + shlex.quote(commit + ":" + module), 120
+                )
+            )
+            if observed["exit_code"] and label == "head":
+                raise BootstrapReadinessError(f"Pinned upstream module is unavailable: {module}")
+            versions[label] = observed["stdout"] if observed["exit_code"] == 0 else ""
+        total += sum(len(value.encode()) for value in versions.values())
+        if total > 128_000:
+            raise BootstrapReadinessError(
+                "Selector source inspection exceeds 128 KB; no evidence was silently dropped"
+            )
+        old, new = (_test_definitions(versions[label], module) for label in ("before", "head"))
+        changed.update(name for name, value in new.items() if old.get(name) != value)
+        files[module] = versions
+    collection = await _pytest_observation(
+        shell, source, "python -m pytest " + shlex.join(modules) + " -q", collect_only=True
+    )
+    available = {node.split("[", 1)[0] for node in collection["collected"]}
+    evidence = {
+        "input_digest": identity,
+        "modules": modules,
+        "source_files": files,
+        "full_collection": collection,
+        "required_changed_anchors": sorted(changed & available),
+    }
+    save_json(path, evidence)
+    if collection["exit_code"] or not collection["collected"]:
+        raise BootstrapReadinessError(
+            "Full upstream modules did not collect successfully; selector repair cannot establish coverage; "
+            "inspect " + str(path)
+        )
+    return evidence
+
+
+async def _selector_collection(shell, source, corrected, evidence, root):
+    path = root / "selection-proof.json"
+    identity = canonical_digest(
+        {"source_evidence": evidence, "commands": corrected.upstream_test_commands}
+    )
+    if path.exists():
+        proof = json.loads(path.read_text())
+        if proof.get("input_digest") == identity:
+            return proof
+    if shell is None:
+        raise BootstrapReadinessError("Corrected selectors lack retained collection proof")
+    reports = []
+    check_path = root / "selection-checks" / f"{identity}.json"
+    for command in corrected.upstream_test_commands:
+        report = await _pytest_observation(shell, source, command, collect_only=True)
+        reports.append({"command": command, **report})
+        if report["exit_code"] or not report["collected"]:
+            save_json(
+                check_path, {"input_digest": identity, "collections": reports, "passed": False}
+            )
+            raise ValueError("Corrected upstream command must collect nonzero tests successfully")
+    selected = {node.split("[", 1)[0] for report in reports for node in report["collected"]}
+    missing = set(evidence["required_changed_anchors"]) - selected
+    if missing:
+        save_json(
+            check_path,
+            {
+                "input_digest": identity,
+                "collections": reports,
+                "passed": False,
+                "missing_changed_anchors": sorted(missing),
+            },
+        )
+        raise ValueError(
+            f"Corrected selectors omit changed collectable upstream tests: {sorted(missing)}"
+        )
+    proof = {
+        "input_digest": identity,
+        "commands": corrected.upstream_test_commands,
+        "required_changed_anchors": evidence["required_changed_anchors"],
+        "collections": reports,
+    }
+    save_json(check_path, {**proof, "passed": True})
+    save_json(path, proof)
+    return proof
+
+
+def _readiness_inputs(source, discovered, key, selector_proof=None):
+    commands = [
+        "git checkout --detach "
+        + source["head_sha"]
+        + " && python -m pip install --no-index --no-deps --no-build-isolation -e .",
+        *discovered.readiness_commands,
+        *discovered.upstream_test_commands,
+    ]
+    inputs = {"source": source, "commands": commands, "cache_key": key}
+    if selector_proof is not None:
+        inputs["selector_proof"] = selector_proof
+    return inputs
+
+
+async def _reference_readiness(
+    remote, source, discovered, root, *, key, cached, selector_proof=None
+):
+    inputs = _readiness_inputs(source, discovered, key, selector_proof)
+    commands, identity = inputs["commands"], canonical_digest(inputs)
+    path = root / "readiness.json"
+    if path.exists():
+        readiness = json.loads(path.read_text())
+        if readiness.get("input_digest") != identity:
+            raise BootstrapReadinessError(
+                "Retained readiness belongs to different source, commands or dependencies"
+            )
+        return readiness
+    outputs, execution_errors, executed = [], [], set()
+    for command in commands:
+        if selector_proof is not None and command in discovered.upstream_test_commands:
+            observed = await _pytest_observation(remote.shell, source, command, collect_only=False)
+            executed.update(node.split("[", 1)[0] for node in observed["executed"])
+            if not observed["executed"]:
+                execution_errors.append(
+                    f"Corrected command executed no non-skipped tests: {command}"
+                )
+        else:
+            observed = json.loads(await remote.shell("cd /workspace/repo && " + command, 300))
+        outputs.append({"command": command, **observed})
+        if observed["exit_code"] or execution_errors:
+            break
+    if selector_proof is not None:
+        missing = set(selector_proof["required_changed_anchors"]) - executed
+        if missing:
+            execution_errors.append(f"Changed upstream tests were not executed: {sorted(missing)}")
+    reset = json.loads(
+        await remote.shell(
+            "cd /workspace/repo && git reset --hard " + source["base_sha"] + " && git clean -fd",
+            120,
+        )
+    )
+    readiness = {
+        "input_digest": identity,
+        "checks": outputs,
+        "reset": reset,
+        "passed": len(outputs) == len(commands)
+        and all(row["exit_code"] == 0 for row in outputs)
+        and not execution_errors
+        and reset["exit_code"] == 0,
+        "cache_key": key,
+        "cache_hit": bool(cached),
+    }
+    if selector_proof is not None:
+        readiness["selector_proof"] = selector_proof
+        readiness["execution_errors"] = execution_errors
+    save_json(path, readiness)
+    return readiness
+
+
+async def _correct_discovery(
+    config, source, discovered, readiness, root, *, budget, deadline, shell, selector=False
+):
+    original = discovered.model_dump(mode="json")
+    inputs = {"source": source, "discovery": original, "failed_readiness": readiness}
+    stage = "bootstrap-selector-repair-1" if selector else "bootstrap-repair-1"
+    if selector:
+        if not _selector_failure(discovered, readiness):
+            raise BootstrapReadinessError(
+                "Selector repair requires explicit pytest selection failure"
+            )
+        evidence = await _selector_sources(shell, source, discovered, root / stage)
+        inputs["upstream_source_and_collection"] = evidence
+
+    async def validate(value: Discovery):
+        prepared_recipe(value.dependency_dockerfile, source)
+        if selector:
+            for field in (
+                "dependency_dockerfile",
+                "dependency_inputs",
+                "useful_outcome",
+                "behaviors",
+                "readiness_commands",
+                "upstream_tests",
+            ):
+                if value.model_dump(mode="json")[field] != original[field]:
+                    raise ValueError(f"Selector repair cannot weaken or replace {field}")
+            if value.upstream_test_commands == discovered.upstream_test_commands:
+                raise ValueError("Selector repair must correct the failed upstream command")
+            modules = {
+                module
+                for command in value.upstream_test_commands
+                for module in _pytest_command(command)[1]
+            }
+            if modules != set(evidence["modules"]):
+                raise ValueError(
+                    "Selector repair must preserve exactly the same upstream module files"
+                )
+            await _selector_collection(shell, source, value, evidence, root / stage)
+            return
+        if (
+            value.dependency_dockerfile.splitlines()[0]
+            != discovered.dependency_dockerfile.splitlines()[0]
+        ):
+            raise ValueError("Dependency repair must preserve the original immutable Python base")
+        if value.dependency_dockerfile == discovered.dependency_dockerfile:
+            raise ValueError(
+                "Dependency repair must change the reproducible recipe, not only the live shell"
+            )
+        for field in (
+            "useful_outcome",
+            "behaviors",
+            "readiness_commands",
+            "upstream_test_commands",
+            "upstream_tests",
+        ):
+            if value.model_dump(mode="json")[field] != original[field]:
+                raise ValueError(f"Dependency repair cannot weaken or replace {field}")
+
+    guidance = (
+        "\nCorrect only the pytest selectors from the explicit retained selection failure. "
+        "Use the pinned upstream module source and actual collection node IDs supplied below. "
+        "Preserve the useful outcome, behaviors, readiness commands, dependency recipe and inputs, "
+        "and exactly the same upstream module files. Include every changed collectable test anchor "
+        "in those modules; selecting unrelated or only older tests is not a correction. Return a "
+        "complete Discovery with corrected upstream_test_commands. The host will collect the "
+        "selection and then execute nonzero tests in this same workspace before proceeding. "
+        "No shell-only installation, source edit, new image or claimed pass is part of this repair."
+        if selector
+        else "\nRepair only the dependency bootstrap from the retained failure. Preserve the useful outcome, behaviors, exact readiness and upstream test commands. Return a complete corrected Discovery. Preserve the immutable base and dependency-only grammar. Explain changed pins/build support through dependency_inputs. Shell-only installations are diagnostic, never the repair: a fresh image must pass the same checks. Do not claim reference success before the controller rebuilds and reruns it."
+    )
+    correction = await artifact_stage(
+        schema=Discovery,
+        stage=stage,
+        inputs=inputs,
+        system=DISCOVER + guidance,
+        prompt=json.dumps({**inputs, "apt_stanza": APT_STANZA, "attempt_limit": 2}),
+        root=root / stage,
+        budget=budget,
+        model=config.author_model,
+        runtime=config.author_runtime,
+        max_cost=config.author_stage_limit_usd,
+        max_turns=config.author_turns,
+        deadline=deadline,
+        # Host observations supply the exact source and collection. A selector-only
+        # correction must not mutate the otherwise valid dependency environment.
+        shell=None if selector else shell,
+        validate=validate,
+    )
+    # artifact_stage's retained-output path parses the schema but does not rerun callbacks.
+    await validate(correction)
+    return correction
+
+
+@asynccontextmanager
+async def bootstrap_ready(config, source, discovered, root, cache_root, deadline, budget):
+    """At most two builds and one in-place selector correction, retaining every failed check."""
+    policy_path = root / "bootstrap-policy.json"
+    identity = canonical_digest({"source": source, "discovery": discovered.model_dump(mode="json")})
+    if policy_path.exists():
+        policy = json.loads(policy_path.read_text())
+        if policy.get("input_digest") != identity or policy.get("candidate_deadline") != deadline:
+            raise BootstrapReadinessError("Bootstrap inputs or original candidate deadline changed")
+    else:
+        policy = {
+            "input_digest": identity,
+            "candidate_deadline": deadline,
+            "deadline": min(deadline, time.time() + config.workspace_timeout_sec),
+            "attempt_limit": 2,
+        }
+        save_json(policy_path, policy)
+    bootstrap_deadline = policy["deadline"]
+    cache = BootstrapCache(cache_root)
+    selector_proof = None
+    for attempt in range(2):
+        if time.time() >= bootstrap_deadline:
+            raise TimeoutError(
+                "Original bootstrap deadline exhausted; retained attempts cannot reset it"
+            )
+        attempt_root = root if attempt == 0 else root / "bootstrap-attempt-2"
+        attempt_root.mkdir(parents=True, exist_ok=True)
+        recipe = discovered.dependency_dockerfile
+        prepared_recipe(recipe, source)
+        key = cache.identity(recipe, discovered.dependency_inputs)
+        failed_path = attempt_root / "readiness.json"
+        retained = json.loads(failed_path.read_text()) if failed_path.exists() else None
+        if retained and not retained.get("passed"):
+            if retained.get("input_digest") != canonical_digest(
+                _readiness_inputs(source, discovered, key, selector_proof)
+            ):
+                raise BootstrapReadinessError("Retained failed readiness belongs to changed inputs")
+            if _selector_failure(discovered, retained):
+                raise BootstrapReadinessError(
+                    "Retained selector failure needs explicit workspace reconciliation; "
+                    "it cannot authorize a dependency rebuild or reset the selector attempt"
+                )
+            resource_path = attempt_root / "workspace/resource.json"
+            resource = json.loads(resource_path.read_text()) if resource_path.exists() else {}
+            if resource.get("status") != "terminated":
+                raise BootstrapReadinessError(
+                    "Previous failed bootstrap workspace cleanup is unconfirmed; reconcile before rebuilding"
+                )
+            if attempt:
+                raise BootstrapReadinessError(
+                    f"Reference readiness still failed after two bootstrap attempts; inspect {failed_path}"
+                )
+            # No second sandbox is needed to recover an already committed correction.
+            discovered = await _correct_discovery(
+                config,
+                source,
+                discovered,
+                retained,
+                root,
+                budget=budget,
+                deadline=bootstrap_deadline,
+                shell=None,
+            )
+            continue
+        async with cache.claim(key):
+            cached = cache.lookup(key, config.provider)
+            wc = workspace_config(
+                attempt_root / "workspace-config.json",
+                provider=config.provider,
+                operation_id=f"{config.campaign_id}:{source['id']}:{root.name}"
+                + (":bootstrap-2" if attempt else ""),
+                deadline=bootstrap_deadline,
+                build=dependency_build(recipe, cached, config.provider),
+                network="public",
+                cpus=2,
+                memory_mib=8192,
+            )
+            async with budgeted_workspace(
+                wc, attempt_root / "workspace", budget, config.cloud_reservation_usd
+            ) as remote:
+                await prepare_checked(remote, source, attempt_root)
+                readiness = await _reference_readiness(
+                    remote,
+                    source,
+                    discovered,
+                    attempt_root,
+                    key=key,
+                    cached=cached,
+                    selector_proof=selector_proof,
+                )
+                if _selector_failure(discovered, readiness):
+                    if selector_proof is not None:
+                        raise BootstrapReadinessError(
+                            "The one corrected selector attempt still failed"
+                        )
+                    discovered = await _correct_discovery(
+                        config,
+                        source,
+                        discovered,
+                        readiness,
+                        root,
+                        budget=budget,
+                        deadline=bootstrap_deadline,
+                        shell=remote.shell,
+                        selector=True,
+                    )
+                    selector_proof = json.loads(
+                        (root / "bootstrap-selector-repair-1/selection-proof.json").read_text()
+                    )
+                    selection_root = attempt_root / "selector-readiness-1"
+                    readiness = await _reference_readiness(
+                        remote,
+                        source,
+                        discovered,
+                        selection_root,
+                        key=key,
+                        cached=cached,
+                        selector_proof=selector_proof,
+                    )
+                    failed_path = selection_root / "readiness.json"
+                save_json(
+                    root / "bootstrap-status.json",
+                    {
+                        "attempt": attempt + 1,
+                        "passed": readiness["passed"],
+                        "readiness_path": str(failed_path),
+                        "cache_key": key,
+                    },
+                )
+                if readiness["passed"]:
+                    if not cached:
+                        current = json.loads((attempt_root / "workspace/resource.json").read_text())
+                        cache.save(
+                            key, config.provider, recipe, discovered.dependency_inputs, current
+                        )
+                    yield discovered, wc, readiness, remote
+                    return
+                if _selector_failure(discovered, readiness) or readiness.get("execution_errors"):
+                    raise BootstrapReadinessError(
+                        f"Corrected upstream selection did not execute required tests; inspect {failed_path}"
+                    )
+                if attempt == 0:
+                    discovered = await _correct_discovery(
+                        config,
+                        source,
+                        discovered,
+                        readiness,
+                        root,
+                        budget=budget,
+                        deadline=bootstrap_deadline,
+                        shell=remote.shell,
+                    )
+            # budgeted_workspace confirms previous cleanup before another image is built.
+        resource = json.loads((attempt_root / "workspace/resource.json").read_text())
+        if resource.get("status") != "terminated":
+            raise BootstrapReadinessError(
+                "Failed bootstrap workspace cleanup is unconfirmed; no rebuild"
+            )
+        if attempt:
+            raise BootstrapReadinessError(
+                f"Reference readiness still failed after two bootstrap attempts; inspect {failed_path}"
+            )
+
+
+async def construct(
+    config: TasksmithConfig,
+    source: dict,
+    discovery: dict,
+    root: Path,
+    cache_root: Path,
+    deadline: float,
+    repair: dict | None = None,
+) -> dict:
+    result_path = root / "construction.json"
+    if result_path.exists():
+        return json.loads(result_path.read_text())
+    root.mkdir(parents=True, exist_ok=True)
+    discovered = Discovery.model_validate(discovery["artifact"])
+    budget = config.budget(source["id"])
+    async with bootstrap_ready(
+        config, source, discovered, root, cache_root, deadline, budget
+    ) as ready:
+        discovered, wc, readiness, remote = ready
+        recipe = discovered.dependency_dockerfile
+        stage_inputs = {
+            "source": source,
+            "discovery": discovered.model_dump(mode="json"),
+            "bootstrap": readiness,
+            "repair": repair,
+        }
+        design = await artifact_stage(
+            schema=Design,
+            stage="design",
+            inputs=stage_inputs,
+            system=PROPOSE,
+            prompt=json.dumps(stage_inputs),
+            root=root / "design",
+            budget=budget,
+            model=config.author_model,
+            runtime=config.author_runtime,
+            max_cost=config.author_stage_limit_usd,
+            max_turns=config.author_turns,
+            deadline=wc.deadline,
+            shell=remote.shell,
+        )
+
+        async def validate(value: Construction):
+            payload = {}
+            for file in ("instruction.md", "solution/solve.sh", "tests/test_contract.py"):
+                payload[file] = (await remote.read("/output/task/" + file)).decode()
+            # Static syntax/schema checks only. Generated code is never imported locally.
+            with tempfile.TemporaryDirectory(prefix="tasksmith-static-") as temporary:
+                emit_task(
+                    Path(temporary) / "task",
+                    source,
+                    recipe,
+                    execution_contract=value.contract,
+                    instruction=payload["instruction.md"],
+                    solution_script=payload["solution/solve.sh"],
+                    protected_tests=payload["tests/test_contract.py"],
+                    source_origin_probe=value.source_origin_probe,
+                )
+            save_json(root / "payload.json", payload)
+
+        construction = await artifact_stage(
+            schema=Construction,
+            stage="construction",
+            inputs={**stage_inputs, "design": design.model_dump(mode="json")},
+            system=CONSTRUCT,
+            prompt=json.dumps(
+                {
+                    **stage_inputs,
+                    "selected": design.selected.model_dump(mode="json"),
+                    "bootstrap_note": "Reference readiness passed on this exact dependency recipe. Preserve these installed dependencies; any further dependency change requires another construction revision and fresh readiness. Shell-only installs will not exist in Harbor.",
+                }
+            ),
+            root=root / "author",
+            budget=budget,
+            model=config.author_model,
+            runtime=config.author_runtime,
+            max_cost=config.author_stage_limit_usd,
+            max_turns=config.author_turns,
+            deadline=wc.deadline,
+            shell=remote.shell,
+            validate=validate,
+        )
+        payload = json.loads((root / "payload.json").read_text())
+        task_path = root / "task"
+        if task_path.exists():
+            from repo2rlenv.curation.artifacts import digest_task
+
+            receipt = json.loads((root / "emitter.json").read_text())
+            if digest_task(task_path) != receipt["task_digest"]:
+                raise ValueError("Retained package changed after emission")
+        else:
+            receipt = emit_task(
+                task_path,
+                source,
+                recipe,
+                execution_contract=construction.contract,
+                instruction=payload["instruction.md"],
+                solution_script=payload["solution/solve.sh"],
+                protected_tests=payload["tests/test_contract.py"],
+                source_origin_probe=construction.source_origin_probe,
+            )
+            save_json(root / "emitter.json", receipt)
+        result = {
+            "artifact": construction.model_dump(mode="json"),
+            "design": design.model_dump(mode="json"),
+            "emitter": receipt,
+            "task_path": str(task_path),
+            "readiness": readiness,
+            "bootstrap_discovery": discovered.model_dump(mode="json"),
+            "source_receipt": discovery["source_receipt"],
+        }
+        save_json(result_path, result)
+    return result

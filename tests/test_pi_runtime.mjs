@@ -152,6 +152,54 @@ test("Pi uses the exact model, prompt, and remote tool and persists its transcri
   }
 });
 
+test("Pi preserves nested JSON schema definitions and constraints at the Anthropic boundary", { timeout: 30000 }, async () => {
+  const parameters = {
+    type: "object",
+    title: "Discovery",
+    additionalProperties: false,
+    $defs: {
+      Behavior: {
+        type: "object", additionalProperties: false,
+        properties: {
+          id: { type: "string", pattern: "^[a-z][a-z0-9_-]+$" },
+          outcome: { type: "string", minLength: 10 },
+          source_evidence: { type: "array", items: { type: "string" }, minItems: 1 },
+        },
+        required: ["id", "outcome", "source_evidence"],
+      },
+    },
+    properties: {
+      behaviors: { type: "array", items: { $ref: "#/$defs/Behavior" }, minItems: 1 },
+      dependency_inputs: { type: "object", additionalProperties: { type: "string" } },
+    },
+    required: ["behaviors", "dependency_inputs"],
+  };
+  const toolArgs = {
+    behaviors: [{ id: "dynamic_batches", outcome: "Distribute variable batches", source_evidence: ["src/data_loader.py"] }],
+    dependency_inputs: { "requirements.txt": "numpy==2.0.0" },
+  };
+  const run = await scenario({
+    tools: [{ type: "function", function: { name: "submit_artifact", description: "Commit discovery", parameters } }],
+    toolArgs,
+  });
+  assert.equal(run.exitCode, 0, JSON.stringify(run.result));
+  for (const request of run.requests) assert.deepEqual(request.tools[0].input_schema, parameters);
+  assert.deepEqual(run.effects, [{ name: "submit_artifact", arguments: toolArgs }]);
+  for (const [behavior, error] of [
+    [{ ...toolArgs.behaviors[0], description: "extra field" }, /additional properties/],
+    [{ id: "dynamic_batches", outcome: "Distribute variable batches" }, /source_evidence/],
+    [{ ...toolArgs.behaviors[0], source_evidence: "src/data_loader.py" }, /must be array/],
+  ]) {
+    const invalid = await scenario({
+      tools: [{ type: "function", function: { name: "submit_artifact", description: "Commit discovery", parameters } }],
+      toolArgs: { ...toolArgs, behaviors: [behavior] },
+    });
+    assert.equal(invalid.exitCode, 0, JSON.stringify(invalid.result));
+    assert.deepEqual(invalid.effects, [], "Invalid nested arguments reached the bridge");
+    assert.match(invalid.result.messages.find((message) => message.role === "tool").content, error);
+  }
+});
+
 test("Pi honors max_turns after executing the last remote tool batch", { timeout: 30000 }, async () => {
   const run = await scenario({ repeatTools: true, maxTurns: 2 });
   assert.equal(run.exitCode, 0, JSON.stringify(run.result));

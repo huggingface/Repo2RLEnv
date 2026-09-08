@@ -222,6 +222,16 @@ export async function runPi(config) {
         onPayload: (payload) => {
           for (const key of ["thinking", "temperature", "top_p", "top_k", "output_config"]) delete payload[key];
           Object.assign(payload, inference, { max_tokens: maxTokens });
+          // Pi 0.85.0's non-strict Anthropic converter retains only type,
+          // properties and required. That leaves Pydantic's nested $refs
+          // unresolved and hides root constraints from the model, although
+          // Pi's local validator still enforces them. Preserve the supplied
+          // schema without enabling strict sampling or rewriting its meaning.
+          for (const tool of payload.tools ?? []) {
+            const definition = config.tools.find(({ function: fn }) => fn.name === tool.name);
+            if (!definition) throw new Error(`Pi emitted an unregistered tool: ${tool.name}`);
+            tool.input_schema = structuredClone(definition.function.parameters);
+          }
           return payload;
         },
       });
