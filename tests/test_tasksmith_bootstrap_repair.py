@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import shlex
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
@@ -66,6 +68,11 @@ def setup(tmp_path, monkeypatch):
         model_calls=0,
         interrupt_after_first=False,
         uncertain_cleanup=False,
+        remote_files={},
+        collection_failures={},
+        collections=[],
+        source_dirty=False,
+        dirty_after_collection=False,
     )
     s.root.mkdir()
     monkeypatch.setattr(build.time, "time", lambda: s.now)
@@ -98,6 +105,37 @@ def setup(tmp_path, monkeypatch):
 
         async def shell(command, timeout_sec=120):
             s.events.append((index, command))
+            if "tasksmith-dependency-source-check" in command:
+                ast.parse(shlex.split(command)[-2])
+                return json.dumps(
+                    {"exit_code": 42 if s.source_dirty else 0, "stdout": "", "stderr": ""}
+                )
+            if "tasksmith-pytest-observation-capture" in command:
+                ast.parse(shlex.split(command)[-2])
+                capture = json.loads(shlex.split(command)[-1])
+                module = capture["args"][0]
+                s.collections.append((module, capture["args"], timeout_sec))
+                if s.dirty_after_collection:
+                    s.source_dirty = True
+                failure = s.collection_failures.get(module)
+                report = {
+                    "exit_code": 2 if failure else 0,
+                    "collected": [] if failure else [module + "::test_complete"],
+                    "executed": [],
+                    "stdout": failure or "",
+                    "stderr": "",
+                }
+                data = json.dumps(report).encode()
+                s.remote_files[capture["data_path"]] = data
+                s.remote_files[capture["receipt_path"]] = json.dumps(
+                    {
+                        "input_digest": capture["input_digest"],
+                        "status": "present",
+                        "size": len(data),
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                    }
+                ).encode()
+                return json.dumps({"exit_code": report["exit_code"], "stdout": "", "stderr": ""})
             fails = s.failures[index] and "python -c 'import library'" in command
             return json.dumps(
                 {
@@ -107,7 +145,10 @@ def setup(tmp_path, monkeypatch):
                 }
             )
 
-        remote = SimpleNamespace(index=index, shell=shell)
+        async def read(path):
+            return s.remote_files[path]
+
+        remote = SimpleNamespace(index=index, shell=shell, read=read)
         try:
             yield remote
         finally:
@@ -539,3 +580,242 @@ async def test_upstream_scipy_import_failure_routes_only_to_dependency_repair(se
     assert len(s.repair_calls) == 1
     assert s.repair_calls[0]["stage"] == "bootstrap-repair-1"
     assert not (s.root / "bootstrap-selector-repair-1").exists()
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "E   ValueError: Your setup doesn't support bf16/gpu.",
+        "RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU.",
+        "AssertionError: Torch not compiled with CUDA enabled",
+    ],
+)
+def test_observed_gpu_requirement_is_a_cpu_profile_failure(setup, message):
+    s = setup
+    evidence = {
+        "passed": False,
+        "checks": [
+            {
+                "command": s.original.upstream_test_commands[0],
+                "exit_code": 1,
+                "stdout": message,
+            }
+        ],
+    }
+    failure = build._profile_failure(s.original, evidence)
+    assert failure["profile"] == "cpu-direct" and failure["exception"] == message
+
+
+@pytest.mark.parametrize(
+    "output,code,passed",
+    [
+        ('    raise ValueError("Your setup doesn\'t support bf16/gpu.")', 1, False),
+        ("GPU warning: bf16 unavailable; continuing on CPU", 1, False),
+        ("E   ModuleNotFoundError: No module named 'attr'", 4, False),
+        ("ValueError: Your setup doesn't support bf16/gpu.", 0, True),
+    ],
+)
+def test_profile_classifier_requires_a_failed_capability_exception(setup, output, code, passed):
+    s = setup
+    assert (
+        build._profile_failure(
+            s.original,
+            {
+                "passed": passed,
+                "checks": [
+                    {
+                        "command": s.original.upstream_test_commands[0],
+                        "exit_code": code,
+                        "stdout": output,
+                    }
+                ],
+            },
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_profile_failure_preserves_checks_and_stops_before_any_repair_or_rebuild(
+    setup, monkeypatch
+):
+    s = setup
+    s.failures = [False]
+    workspace = build.budgeted_workspace
+
+    @asynccontextmanager
+    async def gpu_test(*args):
+        async with workspace(*args) as remote:
+            shell = remote.shell
+
+            async def gpu_shell(command, timeout_sec=120):
+                if s.original.upstream_test_commands[0] in command:
+                    return json.dumps(
+                        {
+                            "exit_code": 1,
+                            "stdout": "tests/test_batches.py:226: in test_evaluate\n"
+                            "    config = DPOConfig()\n"
+                            "training_args.py:1739: ValueError\n"
+                            "E   ValueError: Your setup doesn't support bf16/gpu.\n",
+                            "stderr": "",
+                        }
+                    )
+                return await shell(command, timeout_sec)
+
+            remote.shell = gpu_shell
+            yield remote
+
+    async def no_repair(*args, **kwargs):
+        pytest.fail("Profile mismatch entered model repair")
+
+    monkeypatch.setattr(build, "budgeted_workspace", gpu_test)
+    monkeypatch.setattr(build, "correct_generated_smoke", no_repair)
+    monkeypatch.setattr(build, "artifact_stage", no_repair)
+    with pytest.raises(build.BootstrapReadinessError, match="CPU profile/configuration mismatch"):
+        async with ready(s):
+            pytest.fail("GPU-only invocation advanced")
+    old = (s.root / "readiness.json").read_bytes()
+    mismatch = json.loads((s.root / "profile-mismatch.json").read_text())
+    assert mismatch["readiness_digest"] == build.canonical_digest(json.loads(old))
+    assert mismatch["source"]["head_sha"] == s.source["head_sha"]
+    with pytest.raises(build.BootstrapReadinessError, match="CPU profile/configuration mismatch"):
+        async with ready(s):
+            pytest.fail("Retained profile failure rerolled")
+    assert (s.root / "readiness.json").read_bytes() == old
+    assert len(s.workspaces) == 1 and not s.collections
+
+
+@pytest.mark.asyncio
+async def test_dependency_submission_requires_all_modules_not_just_first_missing_package(
+    setup, monkeypatch
+):
+    s = setup
+    commands = [
+        "pytest tests/test_batches.py::test_selected -k selected -q",
+        "pytest tests/test_serialization.py::TestState::test_round_trip --no-header -q",
+    ]
+    s.original = s.original.model_copy(update={"upstream_test_commands": commands})
+    s.corrected = s.corrected.model_copy(update={"upstream_test_commands": commands})
+    s.collection_failures["tests/test_serialization.py"] = (
+        "E ModuleNotFoundError: No module named 'attr'"
+    )
+
+    async def repairing_phase(**kwargs):
+        s.repair_calls.append(kwargs)
+        assert kwargs["inputs"]["dependency_collection_policy"] == 1
+        with pytest.raises(ValueError, match="No module named 'attr'"):
+            await kwargs["validate"](s.corrected)
+        assert len(s.workspaces) == 1
+        failed = list(kwargs["root"].glob("dependency-collection/*/attempt-0.json"))
+        assert len(failed) == 1
+        prior_bytes = failed[0].read_bytes()
+        proof = json.loads(prior_bytes)
+        assert proof["passed"] is False and proof["reports"][-1]["exit_code"] == 2
+        # Model a diagnostic install in the existing remote environment. The
+        # final recipe includes that same pin; no target code executes locally.
+        s.collection_failures.clear()
+        s.corrected = s.corrected.model_copy(
+            update={
+                "dependency_dockerfile": s.corrected.dependency_dockerfile
+                + "RUN python -m pip install --no-cache-dir attrs==25.3.0\n",
+            }
+        )
+        await kwargs["validate"](s.corrected)
+        assert failed[0].read_bytes() == prior_bytes
+        save_json(kwargs["root"] / "artifact.json", {"artifact": s.corrected.model_dump()})
+        return s.corrected
+
+    monkeypatch.setattr(build, "artifact_stage", repairing_phase)
+    async with ready(s) as (discovered, _, readiness, remote):
+        assert readiness["passed"] and remote.index == 1 and discovered == s.corrected
+    assert len(s.workspaces) == 2 and len(s.repair_calls) == 1
+    assert [module for module, _, _ in s.collections] == [
+        "tests/test_batches.py",
+        "tests/test_serialization.py",
+        "tests/test_batches.py",
+        "tests/test_serialization.py",
+    ]
+    assert all(args == [module, "-q", "--collect-only"] for module, args, _ in s.collections)
+    assert discovered.upstream_test_commands == commands
+    retained_proofs = list(
+        (s.root / "bootstrap-repair-1").glob("dependency-collection/*/proof.json")
+    )
+    assert (
+        len(retained_proofs) == 1
+        and json.loads(retained_proofs[0].read_text())["fresh_image_required"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_source_changes_cannot_supply_dependency_collection_proof(setup):
+    s = setup
+    s.source_dirty = True
+    with pytest.raises(ValueError, match="changed source/tests"):
+        async with ready(s):
+            pytest.fail("Modified source was accepted as a dependency fix")
+    assert len(s.workspaces) == 1 and not s.collections
+    evidence = next((s.root / "bootstrap-repair-1").glob("dependency-collection/*/attempt-0.json"))
+    assert json.loads(evidence.read_text())["source_check"]["exit_code"] == 42
+
+
+@pytest.mark.asyncio
+async def test_collection_cannot_change_source_then_supply_successful_proof(setup):
+    s = setup
+    s.dirty_after_collection = True
+    with pytest.raises(ValueError, match="collection changed the pinned source/tests"):
+        async with ready(s):
+            pytest.fail("Collection-time source mutation advanced")
+    record = next((s.root / "bootstrap-repair-1").glob("dependency-collection/*/attempt-0.json"))
+    evidence = json.loads(record.read_text())
+    assert evidence["source_check"]["exit_code"] == 0
+    assert evidence["source_after"]["exit_code"] == 42 and not evidence["passed"]
+    assert evidence["reset"]["exit_code"] == 0 and len(s.workspaces) == 1
+
+
+@pytest.mark.asyncio
+async def test_dependency_proof_missing_on_resume_does_not_rebuild_or_repeat_diagnosis(setup):
+    s = setup
+    s.interrupt_after_first = True
+    with pytest.raises(KeyboardInterrupt):
+        async with ready(s):
+            pytest.fail("Interrupted bootstrap advanced")
+    proof = next((s.root / "bootstrap-repair-1").glob("dependency-collection/*/proof.json"))
+    proof.unlink()  # Tamper only with this test's temporary fixture.
+    count = len(s.collections)
+    with pytest.raises(
+        build.BootstrapReadinessError, match="lacks complete retained module collection"
+    ):
+        async with ready(s):
+            pytest.fail("Missing collection proof was ignored")
+    assert len(s.workspaces) == s.model_calls == 1 and len(s.collections) == count
+
+
+@pytest.mark.asyncio
+async def test_dependency_collection_obeys_original_deadline(setup):
+    s = setup
+
+    async def no_effect(*args, **kwargs):
+        pytest.fail("Expired collection executed a remote effect")
+
+    with pytest.raises(TimeoutError, match="Original dependency diagnosis deadline"):
+        await build._dependency_collection(
+            no_effect,
+            no_effect,
+            s.source,
+            s.corrected,
+            s.root,
+            s.now,
+        )
+
+
+@pytest.mark.asyncio
+async def test_gpu_failure_during_full_module_collection_stops_dependency_phase(setup):
+    s = setup
+    s.collection_failures["tests/test_batches.py"] = "RuntimeError: No CUDA GPUs are available"
+    with pytest.raises(build.BootstrapReadinessError, match="CPU profile/configuration mismatch"):
+        async with ready(s):
+            pytest.fail("GPU-only module accepted as missing dependency")
+    assert len(s.workspaces) == 1
+    assert list(
+        (s.root / "bootstrap-repair-1").glob("dependency-collection/*/profile-mismatch.json")
+    )

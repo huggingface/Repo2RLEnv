@@ -159,6 +159,13 @@ can establish the actual behavior. Do not replace essential GPU semantics with m
 This initial profile supports CPU Python source tasks; report resource conflicts.
 
 List cheap readiness commands and relevant upstream pytest commands if available.
+Inspect the selected tests' constructors, default configs and shared fixtures:
+their actual device/precision settings must support this CPU profile. Pure-Python
+PR logic alone does not establish that a trainer test's default configuration runs
+on CPU. Inspect module-level imports, conftest/test helpers, transitive imports and
+declared test extras when choosing dependency pins; importing the public package
+alone does not establish test collection. Report unsupported profile/configuration
+requirements explicitly rather than selecting unrelated easier checks.
 Use an explicit no_relevant_tests route if needed; zero collection is not a pass.
 You may run cheap exploration now; the selected dependency image is built next.
 """

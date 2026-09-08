@@ -169,7 +169,7 @@ def _pytest_command(command):
     else:
         raise ValueError("Selector correction requires a direct python -m pytest/pytest command")
     modules, index = set(), 0
-    flags = {"-q", "-v", "-vv", "-s", "-x", "--disable-warnings", "--strict-markers"}
+    flags = {"-q", "-v", "-vv", "-s", "-x", "--disable-warnings", "--strict-markers", "--no-header"}
     valued = {"-k", "-m", "--maxfail", "--tb", "--capture"}
     while index < len(args):
         token = args[index]
@@ -219,6 +219,59 @@ def _selector_failure(discovered, readiness):
         ):
             selection = True
     return selection
+
+
+def _profile_failure(discovered, readiness):
+    """Recognize actual GPU capability exceptions in the supported CPU-only profile.
+
+    A mention in source, a warning, or a successful expected-exception test is not
+    sufficient. This identifies the failing invocation, not PR unsuitability.
+    """
+    if readiness.get("passed"):
+        return None
+    commands = set(discovered.readiness_commands + discovered.upstream_test_commands)
+    for index, row in enumerate(readiness.get("checks", [])):
+        if row.get("command") not in commands or not row.get("exit_code") or row.get("timed_out"):
+            continue
+        output = str(row.get("stdout", "")) + "\n" + str(row.get("stderr", ""))
+        match = re.search(
+            r"(?m)^(?:E\s+)?(?:ValueError|RuntimeError|AssertionError): "
+            r"(?:Your setup doesn't support bf16/gpu\.|Torch not compiled with CUDA enabled|"
+            r"Found no NVIDIA driver on your system|No CUDA GPUs are available)[^\n]*$",
+            output,
+        )
+        if match:
+            return {
+                "profile": "cpu-direct",
+                "check_index": index,
+                "command": row["command"],
+                "exception": match.group(0),
+            }
+    return None
+
+
+def _require_compatible_profile(source, discovered, readiness, root):
+    failure = _profile_failure(discovered, readiness)
+    if failure is None:
+        return
+    path = root / "profile-mismatch.json"
+    save_json(
+        path,
+        {
+            "classification": "profile_configuration_mismatch",
+            "source": {key: source[key] for key in ("base_sha", "head_sha")},
+            "readiness_digest": canonical_digest(readiness),
+            **failure,
+        },
+    )
+    raise BootstrapReadinessError(
+        "CPU profile/configuration mismatch: "
+        + failure["exception"]
+        + ". The selected invocation requires a supported CPU configuration or a different "
+        "resource profile; dependency pin changes or weaker tests do not resolve this evidence. "
+        "Keep the failed checks and obtain an explicit profile/fixture decision; inspect "
+        + str(path)
+    )
 
 
 def _test_definitions(text, module):
@@ -589,6 +642,147 @@ async def _reference_readiness(
     return readiness
 
 
+async def _dependency_collection(shell, read, source, corrected, root, deadline):
+    """Prove the selected modules import and collect before the final image rebuild."""
+    modules = sorted(
+        {
+            module
+            for command in corrected.upstream_test_commands
+            for module in _pytest_command(command)[1]
+        }
+    )
+    if not modules:
+        return  # Explicit no-relevant-tests route still needs all original readiness checks.
+    if len(modules) > 8:
+        raise ValueError("Dependency correction exceeds bounded eight-module collection")
+    identity = canonical_digest(
+        {
+            "policy": 1,
+            "source": source,
+            "discovery": corrected.model_dump(mode="json"),
+            "modules": modules,
+        }
+    )
+    directory = root / "dependency-collection" / identity
+    proof_path = directory / "proof.json"
+    if proof_path.exists():
+        proof = json.loads(proof_path.read_text())
+        if (
+            proof.get("input_digest") != identity
+            or proof.get("modules") != modules
+            or not proof.get("passed")
+            or proof.get("source_check", {}).get("exit_code") != 0
+            or proof.get("source_after", {}).get("exit_code") != 0
+            or proof.get("reset", {}).get("exit_code") != 0
+            or len(proof.get("reports", [])) != len(modules)
+            or any(
+                report.get("exit_code") != 0
+                or not report.get("collected")
+                or report.get("module") != module
+                for module, report in zip(modules, proof["reports"], strict=True)
+            )
+        ):
+            raise BootstrapReadinessError("Retained dependency collection proof is incomplete")
+        return
+    if shell is None or read is None:
+        raise BootstrapReadinessError(
+            "Dependency correction lacks complete retained module collection; reconcile before rebuilding"
+        )
+
+    async def bounded_shell(command, timeout_sec=120):
+        remaining = int(deadline - time.time())
+        if remaining <= 0:
+            raise TimeoutError("Original dependency diagnosis deadline exhausted")
+        return await shell(command, min(timeout_sec, remaining))
+
+    # Installation may alter the dependency environment, never tracked source,
+    # tests, or a local test plugin. Require a clean original base/head checkout.
+    script = """# tasksmith-dependency-source-check
+import json,subprocess,sys
+allowed=json.loads(sys.argv[1])
+def git(*args): return subprocess.run(['git','-C','/workspace/repo',*args],capture_output=True)
+head=git('rev-parse','HEAD'); status=git('status','--porcelain','--untracked-files=all')
+sys.exit(0 if head.returncode==status.returncode==0 and head.stdout.decode().strip() in allowed and not status.stdout else 42)
+"""
+    source_command = (
+        "python -I -c "
+        + shlex.quote(script)
+        + " "
+        + shlex.quote(json.dumps([source["base_sha"], source["head_sha"]]))
+    )
+    source_check = json.loads(await bounded_shell(source_command))
+    directory.mkdir(parents=True, exist_ok=True)
+    attempt_path = directory / f"attempt-{len(list(directory.glob('attempt-*.json')))}.json"
+    proof = {
+        "input_digest": identity,
+        "modules": modules,
+        "source_check": source_check,
+        "reports": [],
+        "passed": False,
+        "fresh_image_required": True,
+    }
+    save_json(attempt_path, proof)
+    if source_check.get("exit_code") != 0 or source_check.get("timed_out"):
+        raise ValueError(
+            "Dependency diagnosis changed source/tests or left untracked repository files; "
+            "restore the pinned checkout before collecting. Inspect " + str(attempt_path)
+        )
+    try:
+        for module in modules:
+            report = await _pytest_observation(
+                bounded_shell,
+                source,
+                "python -m pytest " + shlex.quote(module) + " -q",
+                collect_only=True,
+                read=read,
+            )
+            proof["reports"].append({"module": module, **report})
+            save_json(attempt_path, proof)
+            _require_compatible_profile(
+                source,
+                corrected.model_copy(update={"upstream_test_commands": ["pytest " + module]}),
+                {"passed": False, "checks": [{"command": "pytest " + module, **report}]},
+                directory,
+            )
+            if report["exit_code"] or not any(
+                node.startswith(module + "::") for node in report["collected"]
+            ):
+                raise ValueError(
+                    "Dependency correction needs successful full-module collection for every "
+                    "selected module. Diagnose remaining imports/test extras in this workspace, "
+                    "install diagnostic pins and resubmit the complete recipe; do not edit source "
+                    "or remove checks. Failed module "
+                    + module
+                    + "; inspect "
+                    + str(attempt_path)
+                    + "\nObserved collection:\n"
+                    + (str(report.get("stdout", "")) + "\n" + str(report.get("stderr", "")))[-6000:]
+                )
+        proof["source_after"] = json.loads(await bounded_shell(source_command))
+        save_json(attempt_path, proof)
+        if proof["source_after"].get("exit_code") or proof["source_after"].get("timed_out"):
+            raise ValueError(
+                "Module collection changed the pinned source/tests; collection proof rejected"
+            )
+    finally:
+        proof["reset"] = json.loads(
+            await bounded_shell(
+                "cd /workspace/repo && git reset --hard "
+                + shlex.quote(source["base_sha"])
+                + " && git clean -fd",
+                120,
+            )
+        )
+        save_json(attempt_path, proof)
+        if proof["reset"].get("exit_code") or proof["reset"].get("timed_out"):
+            raise BootstrapReadinessError(
+                "Dependency collection could not restore the pinned source"
+            )
+    proof["passed"] = True
+    save_json(attempt_path, proof)
+    save_json(proof_path, proof)
+
+
 async def _correct_discovery(
     config,
     source,
@@ -605,6 +799,7 @@ async def _correct_discovery(
     original = discovered.model_dump(mode="json")
     inputs = {"source": source, "discovery": original, "failed_readiness": readiness}
     stage = "bootstrap-selector-repair-1" if selector else "bootstrap-repair-1"
+    _require_compatible_profile(source, discovered, readiness, root)
     if selector:
         if not _selector_failure(discovered, readiness):
             raise BootstrapReadinessError(
@@ -612,6 +807,8 @@ async def _correct_discovery(
             )
         evidence = await _selector_sources(shell, source, discovered, root / stage, read=read)
         inputs["upstream_source_and_collection"] = evidence
+    else:
+        inputs["dependency_collection_policy"] = 1
 
     async def validate(value: Discovery):
         prepared_recipe(value.dependency_dockerfile, source)
@@ -657,6 +854,7 @@ async def _correct_discovery(
         ):
             if value.model_dump(mode="json")[field] != original[field]:
                 raise ValueError(f"Dependency repair cannot weaken or replace {field}")
+        await _dependency_collection(shell, read, source, value, root / stage, deadline)
 
     guidance = (
         "\nCorrect only the pytest selectors from the explicit retained selection failure. "
@@ -668,7 +866,7 @@ async def _correct_discovery(
         "selection and then execute nonzero tests in this same workspace before proceeding. "
         "No shell-only installation, source edit, new image or claimed pass is part of this repair."
         if selector
-        else "\nRepair only the dependency bootstrap from the retained failure. Preserve the useful outcome, behaviors, exact readiness and upstream test commands. Return a complete corrected Discovery. Preserve the immutable base and dependency-only grammar. Explain changed pins/build support through dependency_inputs. Shell-only installations are diagnostic, never the repair: a fresh image must pass the same checks. Do not claim reference success before the controller rebuilds and reruns it."
+        else "\nRepair only the dependency bootstrap from the retained failure. Preserve the useful outcome, behaviors, exact readiness and upstream test commands. Inspect selected modules, conftest/test helpers and their transitive imports plus declared test extras. Diagnose the complete import/collection closure in this existing sandbox, not only the first missing package. You may install pinned dependencies diagnostically; preserve source and tests. Before committing, full selected modules must collect successfully at pinned HEAD; the host enforces this and returns remaining import failures. Record all required pins in the reproducible dependency-only Dockerfile, preserving its immutable base, and explain the evidence in dependency_inputs. GPU/configuration conflicts require an explicit profile decision, not dependency churn or weaker tests. A fresh second image must still pass every original readiness and upstream check; diagnostic collection alone is not reference success."
     )
     correction = await artifact_stage(
         schema=Discovery,
@@ -733,6 +931,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                 _readiness_inputs(source, discovered, key, selector_proof, smoke_proof)
             ):
                 raise BootstrapReadinessError("Retained failed readiness belongs to changed inputs")
+            _require_compatible_profile(source, discovered, retained, attempt_root)
             if _selector_failure(discovered, retained):
                 raise BootstrapReadinessError(
                     "Retained selector failure needs explicit workspace reconciliation; "
@@ -834,6 +1033,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                     selector_proof=selector_proof,
                     smoke_proof=smoke_proof,
                 )
+                _require_compatible_profile(source, discovered, readiness, attempt_root)
                 if generated_smoke_failure(discovered, readiness) is not None:
                     if smoke_attempted:
                         raise BootstrapReadinessError(
@@ -879,6 +1079,9 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                             smoke_proof=smoke_proof,
                         )
                         failed_path = smoke_readiness_root / "readiness.json"
+                        _require_compatible_profile(
+                            source, discovered, readiness, smoke_readiness_root
+                        )
                         if generated_smoke_failure(discovered, readiness) is not None:
                             raise BootstrapReadinessError(
                                 "Corrected generated smoke still failed full reference readiness; "
@@ -916,6 +1119,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                         smoke_proof=smoke_proof,
                     )
                     failed_path = selection_root / "readiness.json"
+                    _require_compatible_profile(source, discovered, readiness, selection_root)
                 save_json(
                     root / "bootstrap-status.json",
                     {
@@ -947,6 +1151,7 @@ async def bootstrap_ready(config, source, discovered, root, cache_root, deadline
                         budget=budget,
                         deadline=bootstrap_deadline,
                         shell=remote.shell,
+                        read=remote.read,
                     )
             # budgeted_workspace confirms previous cleanup before another image is built.
         resource = json.loads((attempt_root / "workspace/resource.json").read_text())
