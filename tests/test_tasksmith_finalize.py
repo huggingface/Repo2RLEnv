@@ -683,3 +683,56 @@ async def test_required_delivery_cannot_be_omitted_by_callback(retained, tmp_pat
         )
     with sqlite3.connect(s.journal.path) as c:
         assert c.execute("SELECT COUNT(*) FROM selections").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_passing_report_with_publication_holds_is_unselected_and_cannot_reroll(
+    retained, tmp_path
+):
+    s = retained
+    prepared = prepare(s)
+    passing = report(prepared)
+    holds = [
+        "Public integer-list example is untested.",
+        "Dimension-one comparison observes only a sum.",
+    ]
+    calls = []
+
+    async def callback(**kwargs):
+        calls.append(kwargs)
+        return passing
+
+    args = dict(
+        config=s.config,
+        journal=s.journal,
+        lease=s.lease,
+        root=tmp_path / "held-review",
+        review_callback=callback,
+        review_policy={"publication_holds": holds},
+    )
+    result = await f.finalize_review_only(prepared, **args)
+    assert result["status"] == "needs_repair"
+    assert result["reasons"] == holds
+    assert result["review"] == passing.model_dump(mode="json")
+    assert await f.finalize_review_only(prepared, **args) == result
+    for changed_policy in ({}, {"publication_holds": ["A different finding."]}):
+        with pytest.raises(ReconciliationRequired, match="differently bound"):
+            await f.finalize_review_only(prepared, **{**args, "review_policy": changed_policy})
+    assert len(calls) == 1
+    with sqlite3.connect(s.journal.path) as c:
+        assert c.execute("SELECT COUNT(*) FROM selections").fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("holds", [[], None, "not a list", [""], [" \n"], [42]])
+async def test_invalid_publication_holds_fail_before_preparation(holds):
+    with pytest.raises(f.FinalizationError, match="publication_holds"):
+        await f.finalize_review_only(
+            None,
+            config=None,
+            journal=None,
+            lease=None,
+            root=None,
+            review_callback=None,
+            review_policy={"publication_holds": holds},
+        )

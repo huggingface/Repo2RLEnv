@@ -621,6 +621,16 @@ async def finalize_review_only(
     review_policy: dict,
 ) -> dict:
     """Own one fresh review effect, retain parent charges, and apply ordinary admission gates."""
+    holds = review_policy.get("publication_holds", [])
+    if "publication_holds" in review_policy and (
+        not isinstance(holds, list)
+        or not holds
+        or any(not isinstance(hold, str) or not hold.strip() for hold in holds)
+    ):
+        raise FinalizationError("publication_holds must be a nonempty list of nonempty strings")
+    # External findings are controller policy, never edits to the model's report.
+    # Freeze them before dispatch; the complete policy also binds the operation key.
+    holds = tuple(holds)
     fresh = prepare_finalization(
         config=config,
         source=prepared.source,
@@ -683,7 +693,7 @@ async def finalize_review_only(
         delivered = _review_delivery(root, report, fresh, config, review_policy)
         if values.get("review_delivery") != delivered:
             raise FinalizationError("Retained review delivery differs from its committed receipt")
-        reasons = admission_reasons(report, fresh.context)
+        reasons = [*admission_reasons(report, fresh.context), *holds]
         result = values["result"]
         if result["reasons"] != reasons or result["status"] != (
             "needs_repair" if reasons else "accepted"
@@ -739,7 +749,7 @@ async def finalize_review_only(
         )
         if after.digest != fresh.digest:
             raise FinalizationError("Frozen evidence changed during review")
-        reasons = admission_reasons(report, fresh.context)
+        reasons = [*admission_reasons(report, fresh.context), *holds]
         result = {
             "status": "needs_repair" if reasons else "accepted",
             "repairable": bool(reasons),
