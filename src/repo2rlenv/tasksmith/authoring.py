@@ -72,9 +72,18 @@ class Construction(AuthorArtifact):
     """Executable payload is in fixed remote files; this is its semantic manifest."""
 
     contract: Contract
-    expected_values: dict[str, ExpectedValue] = Field(min_length=1)
-    cases: dict[str, list[str]] = Field(min_length=1)
-    public_evidence: dict[str, list[str]] = Field(min_length=1)
+    expected_values: dict[str, ExpectedValue] = Field(
+        min_length=1,
+        description="Keys must be exactly the pytest function names listed in contract.requirements[*].tests. Do not use case labels or behavior IDs as keys.",
+    )
+    cases: dict[str, list[str]] = Field(
+        min_length=1,
+        description="Keys must exactly equal expected_values keys: pytest function names from contract.requirements[*].tests. Values describe the inputs each test exercises.",
+    )
+    public_evidence: dict[str, list[str]] = Field(
+        min_length=1,
+        description="Keys must be exactly contract.requirements[*].id. Values cite public instruction sections or visible source supporting that requirement. Do not use test names as keys.",
+    )
     source_origin_probe: str = Field(min_length=10)
     reference_explanation: str = Field(min_length=30)
     reference_adaptations: list[str] = Field(default_factory=list)
@@ -85,10 +94,20 @@ class Construction(AuthorArtifact):
         requirements = {r.id for r in self.contract.requirements}
         if checks != set(self.expected_values) or checks != set(self.cases):
             raise ValueError(
-                "Every protected test needs cases and independent expected-value provenance"
+                "Every protected test needs cases and independent expected-value provenance. "
+                f"Expected keys are pytest function names: {sorted(checks)}. "
+                f"Missing expected_values: {sorted(checks - self.expected_values.keys())}; "
+                f"extra expected_values: {sorted(self.expected_values.keys() - checks)}; "
+                f"missing cases: {sorted(checks - self.cases.keys())}; "
+                f"extra cases: {sorted(self.cases.keys() - checks)}"
             )
         if requirements != set(self.public_evidence):
-            raise ValueError("Every requirement needs public instruction/code evidence")
+            raise ValueError(
+                "Every requirement needs public instruction/code evidence. "
+                f"Use requirement IDs as keys: {sorted(requirements)}; "
+                f"missing: {sorted(requirements - self.public_evidence.keys())}; "
+                f"extra: {sorted(self.public_evidence.keys() - requirements)}"
+            )
         if any(not rows for rows in self.cases.values()) or any(
             not rows for rows in self.public_evidence.values()
         ):
@@ -106,6 +125,14 @@ Distinguish observed facts from hypotheses. Preserve the PR's useful outcome.
 Do not replace its hard behavior with a tiny unrelated exercise or inflate scope.
 Instructions should read like a developer request: explicit outcomes, implementation
 freedom, ordinary language. Difficulty is descriptive; ambiguity is not difficulty.
+The reference diff is private evidence, not a template for the public request.
+State externally observable behavior, compatibility, valid inputs and examples.
+Do not prescribe local variable names, intermediate containers, sentinels, branch
+conditions, loop counters, or a sequence of edits from the reference implementation.
+For example, describe which whole batches each worker should receive; do not tell
+the solver to replace a buffer, initialize a pending value to None, or increment a
+particular counter. Public API requirements are appropriate; private implementation
+steps belong only in the oracle explanation and verifier planning.
 Do not claim execution that you have not observed. Submit your typed stage artifact
 with submit_artifact. Once accepted, finish; do not keep calling tools.
 """
@@ -142,6 +169,8 @@ bootstrap evidence. Explore further if necessary. Generate up to three paired
 task-and-verifier ideas; do not implement three tasks. Each must retain a coherent
 useful PR outcome. Identify what is included/omitted, independent expected outcomes,
 wrong implementations that should fail and valid different approaches that pass.
+The task_request must already be suitable for a human solver. Keep implementation
+recipes out of it even when a literal recipe would make the reference easier to match.
 Choose the strongest faithful framing before comparing cost. If one natural request
 exists, explain why fewer proposals are appropriate. Explicitly resolve conflicts
 between stale upstream prose and the intended change from cited source evidence.
@@ -164,6 +193,9 @@ fetch the PR or rely on /private at trial time. It must not change hidden tests.
 /output/task/tests/test_contract.py — protected pytest assertions using run_probe.
 
 The Construction artifact contains the execution contract, controls and evidence map.
+Translate any implementation detail in the private proposal into an observable
+requirement before writing instruction.md. Do not copy the proposal's private
+algorithm, variable assignments, edit sequence, or reference patch into that file.
 source_paths are relative to /workspace and must include the whole editable package
 subtree and any allowed new helpers. Tell the solver its permitted edit paths. Do
 not permit new files outside collected roots. Mutation/equivalent scripts run AFTER

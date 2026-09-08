@@ -75,6 +75,11 @@ def _trial_text(outcome: TrialOutcome, *, trace=False) -> str:
         path = folder / file
         if path.is_file():
             chunks.append(file + "\n" + path.read_text())
+    for path in sorted((folder.parent / "resources").glob("*.json")):
+        chunks.append("provider lifecycle receipt: " + path.name + "\n" + path.read_text())
+    collection = folder.parent / "collection-receipt.json"
+    if collection.is_file():
+        chunks.append("controller collection receipt\n" + collection.read_text())
     if trace:
         raw = (folder / "agent/trace.jsonl").read_bytes()
         projection, receipt = project_trace(
@@ -323,7 +328,7 @@ async def validate_candidate(
         "controls": "\n".join(
             _trial_text(v)
             for k, v in outcomes.items()
-            if k not in {"solver-0", "solver-1", "adversary"}
+            if k not in {"oracle-0", "oracle-1", "solver-0", "solver-1", "adversary"}
         )
         + "\n"
         + value.contract.model_dump_json(indent=2),

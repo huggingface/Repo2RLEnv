@@ -334,7 +334,7 @@ async def comprehension_review(
             "inference": inference_settings(config.reviewer_model),
         },
         system=COMMON
-        + "\nYou see only the public instruction and file inventory. State the outcome a developer would infer; identify ambiguity or actual answer leakage. Required API names are not answer leakage. Scanner flags are leads, and prohibitions may be benign.",
+        + "\nYou see only the public instruction and file inventory. State the outcome a developer would infer; identify ambiguity or actual answer leakage. Required API names, observable outcomes and input/output examples are not answer leakage. A step-by-step reconstruction of private implementation choices (assignments, intermediate buffers, sentinels or loop logic) is a material answer leak even without a pasted diff; request a behavioral rewrite that preserves scope and implementation freedom. Scanner flags are leads, and prohibitions may be benign.",
         prompt=json.dumps(
             {"public_evidence": evidence, "scanner_observations": flags}, ensure_ascii=False
         ),
