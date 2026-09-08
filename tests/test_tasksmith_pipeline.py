@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("langgraph.checkpoint.sqlite.aio")
+
 from repo2rlenv.tasksmith import pipeline
 from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.state import ArtifactCorrupt, ReconciliationRequired

@@ -356,6 +356,7 @@ async def _paged(
 ):
     evidence = _snapshot(evidence)
     reader = _EvidenceReader(evidence, root)
+    read_turns = (sum(map(len, evidence.values())) + MAX_READ_CHARACTERS - 1) // MAX_READ_CHARACTERS
 
     async def checked(value):
         reader.require_complete()
@@ -384,7 +385,7 @@ async def _paged(
         model=config.reviewer_model,
         runtime="langgraph",
         max_cost=config.review_stage_limit_usd,
-        max_turns=MAX_TURNS,
+        max_turns=max(MAX_TURNS, read_turns + 4),
         deadline=deadline,
         extra_tools=[reader.tool],
         extra_handlers={"read_evidence": reader.read},

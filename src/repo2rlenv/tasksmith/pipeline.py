@@ -223,6 +223,17 @@ class Candidate:
         console.info(
             f"Tasksmith {self.source['id']}: bootstrapping and constructing revision {revision}"
         )
+        prior = {}
+        inputs = {"discovery": state["discovery"], "repair": state.get("repair")}
+        if revision > 0:
+            prior = {
+                "prior_construction": state["construction"],
+                "parent_task_digest": state["revision_digest"],
+            }
+            # The operation key already binds the parent task revision. The
+            # construction worker separately binds the verified prior manifest
+            # and design; keep the controller's existing repair identity stable
+            # so an explicitly reconciled interrupted repair can resume.
 
         async def execute():
             suffix = f"-attempt-{self.active_attempt}" if self.active_attempt else ""
@@ -234,6 +245,7 @@ class Candidate:
                 self.campaign_root / "bootstrap-cache",
                 self.deadline,
                 state.get("repair"),
+                **prior,
             )
             return {
                 **result,
@@ -244,7 +256,7 @@ class Candidate:
         result = await self.effect(
             state,
             "construction",
-            {"discovery": state["discovery"], "repair": state.get("repair")},
+            inputs,
             execute,
         )
         result = {

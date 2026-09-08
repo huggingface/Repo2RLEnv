@@ -11,6 +11,10 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 import tomli_w
 
+pytest.importorskip("harbor")
+pytest.importorskip("modal")
+pytest.importorskip("daytona")
+
 from repo2rlenv.curation.budget import Budget, BudgetExceeded
 from repo2rlenv.curation.models import Contract
 from repo2rlenv.tasksmith import trials as t

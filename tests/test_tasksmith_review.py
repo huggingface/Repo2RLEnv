@@ -121,7 +121,7 @@ def test_public_review_never_receives_private_evidence(config, tmp_path, monkeyp
     async def run(**call):
         calls.append(call)
         assert call["runtime"] == "langgraph"
-        assert set(call["handlers"]) == {"submit_artifact"}
+        assert set(call["handlers"]) == {"submit_artifact", "revise_artifact"}
         assert "private-canary-value" not in call["prompt"]
         assert (
             await call["handlers"]["submit_artifact"](**public_result())
@@ -148,7 +148,7 @@ def test_critic_partial_read_rejected_then_valid_artifact_committed(
     config, contract, tmp_path, monkeypatch
 ):
     async def run(**call):
-        assert set(call["handlers"]) == {"submit_artifact", "read_evidence"}
+        assert set(call["handlers"]) == {"submit_artifact", "revise_artifact", "read_evidence"}
         rejected = await call["handlers"]["submit_artifact"](**critic_result())
         assert "Read all required evidence" in rejected
         await read_all(call)
@@ -203,6 +203,27 @@ def test_final_reads_all_and_cache_reuses_without_model(config, tmp_path, monkey
     with pytest.raises(ValueError, match="solver_1"):
         asyncio.run(review.final_review(**args))
     assert len(calls) == 1
+
+
+def test_large_dossier_allows_reading_before_submission(config, tmp_path, monkeypatch):
+    evidence = dossier()
+    evidence["solver_0"] = "Captured solver action. " * 21000
+    total = sum(map(len, evidence.values()))
+
+    async def run(**call):
+        minimum_reads = (total + review.MAX_READ_CHARACTERS - 1) // review.MAX_READ_CHARACTERS
+        assert call["max_turns"] >= minimum_reads + 4
+        assert call["max_cost"] == config.review_stage_limit_usd
+        await read_all(call)
+        assert "committed" in await call["handlers"]["submit_artifact"](**final_result())
+
+    monkeypatch.setattr(worker, "run_agent", run)
+    result = asyncio.run(
+        review.final_review(
+            **arguments(config, tmp_path), pr=PR, revision_digest=REVISION, evidence=evidence
+        )
+    )
+    assert isinstance(result, QualityReport)
 
 
 def test_completed_rejection_never_rerolled_and_changed_inputs_fail(config, tmp_path, monkeypatch):

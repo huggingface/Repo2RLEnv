@@ -309,7 +309,13 @@ def emit_task(
         for name in execution_contract.source_paths
         for root in package_roots
     ):
-        raise ValueError("Collect the complete package directory, including possible new helpers")
+        raise ValueError(
+            "Collect the complete package directory, including possible new helpers. "
+            f"Set contract.source_paths to the existing package root: {[str(p) for p in package_roots]}. "
+            "Use the directory name without a trailing slash; do not enumerate its files "
+            "or include both a parent directory and files beneath it. "
+            f"Received: {execution_contract.source_paths}"
+        )
     materialization = {
         "policy_version": POLICY_VERSION,
         "mode": "source_only",

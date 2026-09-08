@@ -727,7 +727,11 @@ def load_recovery(root: Path, source: dict) -> dict | None:
         return None
     if any(p.is_symlink() for p in (root, *root.parents)):
         raise ValueError("Construction recovery target must not contain symlinks")
-    path = root.parent / f"recovery-construction-attempt-{match[2]}.json"
+    path = root.parent / f"recovery-construction-revision-{match[1]}-attempt-{match[2]}.json"
+    # The original handoff filename predated semantic revisions. It belongs to
+    # revision zero only; another revision's attempt1 must not consume it.
+    if not path.exists() and not path.is_symlink() and match[1] == "0":
+        path = root.parent / f"recovery-construction-attempt-{match[2]}.json"
 
     def regular_bytes(file: Path, limit: int) -> bytes:
         if any(p.is_symlink() for p in (file, *file.parents)):
@@ -824,6 +828,96 @@ def load_recovery(root: Path, source: dict) -> dict | None:
     }
 
 
+def load_prior_construction(
+    root: Path, source: dict, previous: dict, parent_task_digest: str
+) -> dict:
+    """Capture the preceding immutable task as data for a new semantic revision."""
+    from repo2rlenv.tasksmith.emit import _dependency_recipe, _source
+
+    if len(json.dumps(previous, allow_nan=False).encode()) > 1_000_000:
+        raise ValueError("Prior construction metadata exceeds 1 MB")
+    current = re.fullmatch(r"revision-(\d+)(?:-attempt-[1-9]\d*)?", root.name)
+    task = Path(previous["task_path"])
+    prior = re.fullmatch(r"revision-(\d+)(?:-attempt-[1-9]\d*)?", task.parent.name)
+    if (
+        current is None
+        or prior is None
+        or int(current[1]) != int(prior[1]) + 1
+        or previous.get("task_revision", int(prior[1])) != int(prior[1])
+        or task.name != "task"
+        or not task.is_absolute()
+        or task.parent.parent != root.absolute().parent
+        or any(p.is_symlink() for p in (root, *root.parents, task, *task.parents))
+        or not task.is_dir()
+    ):
+        raise ValueError("Semantic repair must use the preceding revision in this candidate")
+    emitter = previous["emitter"]
+    if emitter["task_digest"] != parent_task_digest or emitter.get("source") != _source(source):
+        raise ValueError("Prior construction source pins or parent digest differ")
+    discovery = Discovery.model_validate(previous["bootstrap_discovery"])
+    recipe_digest = hashlib.sha256(
+        _dependency_recipe(discovery.dependency_dockerfile, _source(source)).encode()
+    ).hexdigest()
+    if recipe_digest != emitter["dependency_recipe_digest"]:
+        raise ValueError("Prior bootstrap recipe differs from the emitted dependency identity")
+    manifest = Construction.model_validate(previous["artifact"])
+    design = Design.model_validate(previous["design"])
+    files, pending, entries, total = {}, [task], 0, 0
+    while pending:
+        for file in sorted(pending.pop().iterdir()):
+            entries += 1
+            if entries > 500:
+                raise ValueError("Prior task exceeds 500 filesystem entries")
+            info = file.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                pending.append(file)
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("Prior task contains linked or nonregular files")
+            total += info.st_size
+            if info.st_size > 2_000_000 or total > 20_000_000 or len(files) >= 150:
+                raise ValueError("Prior task exceeds bounded file-transfer limits")
+            with file.open("rb") as stream:
+                data = stream.read(2_000_001)
+            if len(data) != info.st_size:
+                raise ValueError("Prior task file changed during capture")
+            files[file.relative_to(task).as_posix()] = data
+    digest = hashlib.sha256()
+    # Match digest_task's Path ordering, including file/directory prefix cases.
+    for name, data in sorted(files.items(), key=lambda row: Path(row[0])):
+        digest.update(name.encode() + b"\0" + data + b"\0")
+    if digest.hexdigest() != parent_task_digest:
+        raise ValueError("Prior task digest changed before semantic repair")
+    if json.loads(files["contract.json"]) != manifest.contract.model_dump(mode="json"):
+        raise ValueError("Prior authored contract differs from the emitted contract")
+    if files.get("tests/source_origin_probe.py", b"").decode() != manifest.source_origin_probe:
+        raise ValueError("Prior source probe differs from its authored manifest")
+    restore = (
+        "instruction.md",
+        "solution/solve.sh",
+        "tests/test_contract.py",
+        "contract.json",
+        "tests/source_origin_probe.py",
+    )
+    context = {
+        "task_digest": parent_task_digest,
+        "task_revision": int(prior[1]),
+        "source_digest": canonical_digest(source),
+        "construction_digest": canonical_digest(previous),
+        "artifact": manifest.model_dump(mode="json"),
+        "design": design.model_dump(mode="json"),
+        "public_instruction": files["instruction.md"].decode(),
+        "restored_files": list(restore),
+        "status": "Unvalidated prior revision supplied for repair, not acceptance evidence. Preserve or correct the authored files and contract using every required feedback item; run the checks and submit a complete new Construction. Controller-owned wrapper files are regenerated.",
+    }
+    return {
+        "context": context,
+        "files": [(name, files[name]) for name in restore],
+        "design": design,
+        "discovery": discovery,
+    }
+
+
 async def construct(
     config: TasksmithConfig,
     source: dict,
@@ -832,7 +926,17 @@ async def construct(
     cache_root: Path,
     deadline: float,
     repair: dict | None = None,
+    *,
+    prior_construction: dict | None = None,
+    parent_task_digest: str | None = None,
 ) -> dict:
+    previous = None
+    if prior_construction is not None:
+        if not parent_task_digest or not repair or repair.get("repairable") is not True:
+            raise ValueError("Semantic repair needs its parent digest and required repair feedback")
+        previous = load_prior_construction(root, source, prior_construction, parent_task_digest)
+    elif parent_task_digest is not None:
+        raise ValueError("Semantic repair parent digest requires the prior construction")
     recovery = load_recovery(root, source)
     result_path = root / "construction.json"
     if result_path.exists():
@@ -841,9 +945,15 @@ async def construct(
             recovery["receipt_digest"] if recovery else None
         ):
             raise ValueError("Retained construction recovery receipt changed")
+        if result.get("prior_construction_digest") != (
+            canonical_digest(prior_construction) if previous else None
+        ):
+            raise ValueError("Retained semantic repair parent changed")
         return result
     root.mkdir(parents=True, exist_ok=True)
     discovered = Discovery.model_validate(discovery["artifact"])
+    if previous:
+        discovered = previous["discovery"]
     if recovery and "bootstrap_discovery" in recovery["receipt"]:
         discovered = Discovery.model_validate(recovery["receipt"]["bootstrap_discovery"])
     budget = config.budget(source["id"])
@@ -858,6 +968,10 @@ async def construct(
             "bootstrap": readiness,
             "repair": repair,
         }
+        if previous:
+            stage_inputs["prior_revision"] = previous["context"]
+            for name, data in previous["files"]:
+                await remote.write("/output/task/" + name, data)
         if recovery:
             stage_inputs["construction_recovery"] = {
                 "receipt_digest": recovery["receipt_digest"],
@@ -870,6 +984,17 @@ async def construct(
             for name, data in recovery["files"]:
                 await remote.write("/output/task/" + name, data)
             design = recovery["design"]
+        elif (
+            previous
+            and repair.get("stage") == "execution"
+            and repair.get("status") == "needs_repair"
+            and not repair.get("review")
+            and not repair.get("scope_change_required")
+        ):
+            # A concrete control failure preserves the selected problem. The
+            # author can correct its implementation/fixtures without paying for
+            # an unchanged proposal; semantic review feedback still revisits scope.
+            design = previous["design"]
         else:
             design = await artifact_stage(
                 schema=Design,
@@ -957,6 +1082,7 @@ async def construct(
             "source_receipt": discovery["source_receipt"],
             "public_instruction": payload["instruction.md"],
             "recovery_receipt_digest": recovery["receipt_digest"] if recovery else None,
+            "prior_construction_digest": canonical_digest(prior_construction) if previous else None,
         }
         save_json(result_path, result)
     return result

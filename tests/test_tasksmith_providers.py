@@ -13,6 +13,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+pytest.importorskip("modal")
+pytest.importorskip("daytona")
+
 from repo2rlenv.tasksmith import providers as p
 
 

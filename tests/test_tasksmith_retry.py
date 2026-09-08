@@ -8,6 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("langgraph.checkpoint.sqlite.aio")
+
 from repo2rlenv.tasksmith import pipeline
 from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.models import OperationKey
@@ -240,9 +242,19 @@ def test_construction_result_records_task_revision_and_parent_digest(
         )
         state["revision_digest"] = "e" * 64
     state.update(revision=revision, discovery={"fixture": True})
+    if revision:
+        state["construction"] = {"emitter": {"task_digest": "e" * 64}}
 
-    async def construct(config, source, discovery, root, cache, deadline, repair):
+    async def construct(config, source, discovery, root, cache, deadline, repair, **kwargs):
         assert root == candidate.root / f"revision-{revision}"
+        assert kwargs == (
+            {
+                "prior_construction": state["construction"],
+                "parent_task_digest": state["revision_digest"],
+            }
+            if revision
+            else {}
+        )
         return {"task_path": str(root / "task"), "emitter": {"task_digest": "f" * 64}}
 
     monkeypatch.setattr(pipeline, "construct", construct)
