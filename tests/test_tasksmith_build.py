@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import shlex
 import time
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
@@ -294,3 +296,102 @@ def test_dependency_cache_keys_bind_recipe_and_inputs(tmp_path):
             key, "modal", "recipe A", {"lock": "hash1"}, {"status": "uncertain", "image_id": "im-x"}
         )
     assert cache.lookup(key, "modal") is None
+
+
+@pytest.mark.asyncio
+async def test_public_inventory_reads_complete_nul_file_from_pinned_base():
+    source = {"base_sha": "a" * 40, "head_sha": "b" * 40}
+    names = ["src/example/__init__.py", "docs/a file with spaces.md", "docs/café.md"]
+    calls = []
+
+    async def shell(command, timeout):
+        calls.append(("shell", command, timeout))
+        assert shlex.split(command) == [
+            "git",
+            "-C",
+            "/workspace/repo",
+            "ls-tree",
+            "-r",
+            "-z",
+            "--name-only",
+            source["base_sha"],
+            ">",
+            "/private/tasksmith-base-file-inventory",
+        ]
+        assert source["head_sha"] not in command
+        # Tool stdout can be truncated or contain diagnostics; it is never the
+        # inventory transport. Only the separately read NUL file is authoritative.
+        return json.dumps({"exit_code": 0, "stdout": "TRUNCATED/invented.py\n", "stderr": ""})
+
+    async def read(path):
+        calls.append(("read", path))
+        assert path == "/private/tasksmith-base-file-inventory"
+        return b"\0".join(name.encode() for name in names) + b"\0"
+
+    assert await build.public_file_inventory(
+        SimpleNamespace(shell=shell, read=read), source
+    ) == sorted(names)
+    assert [row[0] for row in calls] == ["shell", "read"]
+    assert calls[0][-1] == 30
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exit_code", [1, 2, 127, None])
+async def test_public_inventory_nonzero_capture_never_reads_stale_file(exit_code):
+    async def shell(*args):
+        return json.dumps({"exit_code": exit_code, "stdout": "stale.py\0"})
+
+    async def read(path):
+        pytest.fail("Failed git inventory capture read a stale file")
+
+    with pytest.raises(RuntimeError, match="pinned base file inventory"):
+        await build.public_file_inventory(
+            SimpleNamespace(shell=shell, read=read), {"base_sha": "a" * 40}
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"",
+        b"src/a.py",
+        b"src/a.py\0truncated",
+        b"\0",
+        b"a.py\0\0",
+        b"a.py\0a.py\0",
+        b"/outside.py\0",
+        b"../outside.py\0",
+        b"src/../outside.py\0",
+        b".\0",
+        b"src//a.py\0",
+        b"src/./a.py\0",
+        b"src\\a.py\0",
+        b"\xff.py\0",
+    ],
+)
+async def test_public_inventory_rejects_incomplete_or_unsafe_names(raw):
+    async def shell(*args):
+        return json.dumps({"exit_code": 0, "stdout": "ignored"})
+
+    async def read(path):
+        return raw
+
+    with pytest.raises(ValueError):
+        await build.public_file_inventory(
+            SimpleNamespace(shell=shell, read=read), {"base_sha": "a" * 40}
+        )
+
+
+@pytest.mark.asyncio
+async def test_public_inventory_propagates_bounded_file_read_failure():
+    async def shell(*args):
+        return json.dumps({"exit_code": 0, "stdout": "a.py\0"})
+
+    async def read(path):
+        raise ValueError("Remote file exceeds the bounded read limit")
+
+    with pytest.raises(ValueError, match="bounded read limit"):
+        await build.public_file_inventory(
+            SimpleNamespace(shell=shell, read=read), {"base_sha": "a" * 40}
+        )

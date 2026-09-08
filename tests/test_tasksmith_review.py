@@ -424,3 +424,94 @@ def test_budget_exception_remains_incomplete_no_retry(config, tmp_path, monkeypa
     assert json.loads((tmp_path / "review/operation.json").read_text())["status"] == "incomplete"
     with pytest.raises(RuntimeError, match="reconciliation"):
         asyncio.run(review.comprehension_review(**args))
+
+
+def test_large_public_inventory_is_paged_complete_and_keeps_private_inputs_out(
+    config, tmp_path, monkeypatch
+):
+    files = [f"src/example/module_{i:04d}_with_complete_public_filename.py" for i in range(900)]
+    expected = {
+        "instruction": "Preserve public dynamic batching behavior.",
+        "visible_files": json.dumps(sorted(files)),
+    }
+    assert 45000 < len(expected["visible_files"]) < review.MAX_EVIDENCE_CHARACTERS
+    calls = []
+
+    async def run(**call):
+        calls.append(call)
+        prompt = json.loads(call["prompt"])
+        assert prompt["required_evidence"] == {key: len(value) for key, value in expected.items()}
+        assert set(call["handlers"]) == {"submit_artifact", "revise_artifact", "read_evidence"}
+        assert set(prompt["context"]) == {"scanner_observations"}
+        assert "private-canary-value" not in call["prompt"]
+        delivered = {key: [] for key in expected}
+        gap = None
+        for key, value in expected.items():
+            for offset in range(0, len(value), 12000):
+                request = {"evidence_id": key, "offset": offset, "length": 12000}
+                if key == "visible_files" and offset == 12000:
+                    gap = request
+                    continue
+                result = json.loads(await call["handlers"]["read_evidence"](requests=[request]))
+                page = result["pages"][0]
+                delivered[key].append((offset, page["text"]))
+        response = await call["handlers"]["submit_artifact"](**public_result())
+        assert "visible_files: [12000,24000)" in response
+        assert not (tmp_path / "review/artifact.json").exists()
+        result = json.loads(await call["handlers"]["read_evidence"](requests=[gap]))
+        delivered["visible_files"].append((gap["offset"], result["pages"][0]["text"]))
+        assert {
+            key: "".join(text for _, text in sorted(pages)) for key, pages in delivered.items()
+        } == expected
+        response = await call["handlers"]["submit_artifact"](
+            **public_result(
+                advisory=[
+                    {
+                        "explanation": "A reference to a nonexistent private artifact.",
+                        "evidence_ids": ["gold_patch"],
+                    }
+                ]
+            )
+        )
+        assert "Unknown evidence IDs" in response
+        assert (await call["handlers"]["submit_artifact"](**public_result())).startswith(
+            "Artifact committed"
+        )
+
+    monkeypatch.setattr(worker, "run_agent", run)
+    args = arguments(config, tmp_path)
+    kwargs = dict(
+        **args,
+        instruction=expected["instruction"],
+        visible_files=files,
+        reference_hashes=("private-canary-value",),
+    )
+    assert asyncio.run(review.comprehension_review(**kwargs)).status == "pass"
+    assert asyncio.run(review.comprehension_review(**kwargs)).status == "pass"
+    assert len(calls) == 1
+    assert calls[0]["max_cost"] == config.review_stage_limit_usd
+    assert calls[0]["max_turns"] == review.MAX_TURNS
+    receipt = tmp_path / "review/read-coverage.json"
+    coverage = json.loads(receipt.read_text())
+    coverage["spans"]["visible_files"] = [[0, 12000], [24000, len(expected["visible_files"])]]
+    receipt.write_text(json.dumps(coverage))
+    with pytest.raises(ValueError, match="Read all required evidence"):
+        asyncio.run(review.comprehension_review(**kwargs))
+    assert len(calls) == 1
+
+
+def test_public_inventory_above_complete_review_bound_fails_before_model(
+    config, tmp_path, monkeypatch
+):
+    async def run(**kwargs):
+        pytest.fail("Oversized evidence must fail before a model call")
+
+    monkeypatch.setattr(worker, "run_agent", run)
+    with pytest.raises(ValueError, match="never silently truncate"):
+        asyncio.run(
+            review.comprehension_review(
+                **arguments(config, tmp_path),
+                instruction="Preserve behavior.",
+                visible_files=["src/" + "x" * review.MAX_EVIDENCE_CHARACTERS + ".py"],
+            )
+        )

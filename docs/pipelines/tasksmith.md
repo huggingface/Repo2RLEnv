@@ -111,6 +111,14 @@ source-based Python on a CPU in a single remote container. Native source rebuild
 GPU, multi-service and performance profiles need additional conformance evidence;
 the presence of fields describing those modes does not establish support.
 
+The selected developer request is reviewed before verifier construction. A
+separate editor can make at most two corrections using only public text, the
+pinned base file inventory and required review feedback. It has no shell, reference
+patch or private verifier. Once approved, the request is frozen during construction:
+the coding author builds tests and the oracle against it, and any attempted rewrite
+is rejected and restored. The final emitted task still receives independent
+instruction and verifier reviews. Missing review evidence remains incomplete.
+
 Solver and grader run with an offline runtime policy and distinct grading trust
 boundaries. Submitted code executes without protected assertions or reward-writing
 authority. The trusted grader interprets bounded observations. Builds, generated

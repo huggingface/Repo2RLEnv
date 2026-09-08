@@ -31,7 +31,9 @@ from repo2rlenv.tasksmith.bootstrap import (
 )
 from repo2rlenv.tasksmith.config import TasksmithConfig
 from repo2rlenv.tasksmith.emit import APT_STANZA, emit_task, prepared_recipe
+from repo2rlenv.tasksmith.models import safe_relative
 from repo2rlenv.tasksmith.providers import BuildSpec, WorkspaceConfig
+from repo2rlenv.tasksmith.specification import approve_instruction
 from repo2rlenv.tasksmith.worker import artifact_stage, canonical_digest, save_json
 
 
@@ -918,6 +920,29 @@ def load_prior_construction(
     }
 
 
+async def public_file_inventory(remote, source: dict) -> list[str]:
+    """Read names from the pinned base tree, never from an author's mutable worktree."""
+    path = "/private/tasksmith-base-file-inventory"
+    command = (
+        "git -C /workspace/repo ls-tree -r -z --name-only "
+        + shlex.quote(source["base_sha"])
+        + " > "
+        + shlex.quote(path)
+    )
+    result = json.loads(await remote.shell(command, 30))
+    if result.get("exit_code") != 0:
+        raise RuntimeError("Could not capture the pinned base file inventory")
+    raw = await remote.read(path)
+    if not raw or not raw.endswith(b"\0"):
+        raise ValueError("Incomplete base file inventory")
+    names = raw[:-1].decode().split("\0")
+    if len(set(names)) != len(names):
+        raise ValueError("Invalid public file inventory")
+    for name in names:
+        safe_relative(name)
+    return sorted(names)
+
+
 async def construct(
     config: TasksmithConfig,
     source: dict,
@@ -1012,10 +1037,36 @@ async def construct(
                 shell=remote.shell,
             )
 
+        visible_files = await public_file_inventory(remote, source)
+        specification = await approve_instruction(
+            config=config,
+            budget=budget,
+            root=root / "public-specification",
+            deadline=wc.deadline,
+            initial_text=(
+                previous["context"]["public_instruction"]
+                if previous and design == previous["design"]
+                else design.selected.task_request
+            ),
+            visible_files=visible_files,
+        )
+        instruction = specification["instruction"]
+        await remote.write("/output/task/instruction.md", instruction.encode())
+        stage_inputs["approved_public_instruction"] = instruction
+        author_design = design.model_copy(deep=True)
+        author_design.selected.task_request = instruction
+
         async def validate(value: Construction):
             payload = {}
             for file in ("instruction.md", "solution/solve.sh", "tests/test_contract.py"):
                 payload[file] = (await remote.read("/output/task/" + file)).decode()
+            if payload["instruction.md"] != instruction:
+                await remote.write("/output/task/instruction.md", instruction.encode())
+                raise ValueError(
+                    "The independently approved public instruction is frozen during construction. "
+                    "Its exact bytes have been restored. Align the verifier and metadata with "
+                    "approved_public_instruction; request a later scope revision if it cannot be implemented."
+                )
             # Static syntax/schema checks only. Generated code is never imported locally.
             with tempfile.TemporaryDirectory(prefix="tasksmith-static-") as temporary:
                 emit_task(
@@ -1033,12 +1084,12 @@ async def construct(
         construction = await artifact_stage(
             schema=Construction,
             stage="construction",
-            inputs={**stage_inputs, "design": design.model_dump(mode="json")},
+            inputs={**stage_inputs, "design": author_design.model_dump(mode="json")},
             system=CONSTRUCT,
             prompt=json.dumps(
                 {
                     **stage_inputs,
-                    "selected": design.selected.model_dump(mode="json"),
+                    "selected": author_design.selected.model_dump(mode="json"),
                     "bootstrap_note": "Reference readiness passed on this exact dependency recipe. Preserve these installed dependencies; any further dependency change requires another construction revision and fresh readiness. Shell-only installs will not exist in Harbor.",
                 }
             ),
@@ -1081,6 +1132,7 @@ async def construct(
             "bootstrap_discovery": discovered.model_dump(mode="json"),
             "source_receipt": discovery["source_receipt"],
             "public_instruction": payload["instruction.md"],
+            "specification_review": specification,
             "recovery_receipt_digest": recovery["receipt_digest"] if recovery else None,
             "prior_construction_digest": canonical_digest(prior_construction) if previous else None,
         }

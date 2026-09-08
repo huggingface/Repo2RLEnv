@@ -317,13 +317,26 @@ async def comprehension_review(
     evidence = _snapshot(
         {"instruction": instruction, "visible_files": json.dumps(sorted(visible_files))}
     )
-    if sum(map(len, evidence.values())) > 32_000:
-        raise ValueError("Public comprehension evidence exceeds inline bound")
     flags = [f.model_dump() for f in scan_instruction_leakage(instruction, reference_hashes)]
 
     async def validate(value):
         for issue in [*value.required_repairs, *value.advisory]:
             _references(issue.evidence_ids, evidence)
+
+    public_system = "\nYou see only the public instruction and file inventory. State the outcome a developer would infer; identify ambiguity or actual answer leakage. Required API names, observable outcomes and input/output examples are not answer leakage. A step-by-step reconstruction of private implementation choices (assignments, intermediate buffers, sentinels or loop logic) is a material answer leak even without a pasted diff; request a behavioral rewrite that preserves scope and implementation freedom. Scanner flags are leads, and prohibitions may be benign."
+    if sum(map(len, evidence.values())) > 32_000:
+        return await _paged(
+            schema=ComprehensionReview,
+            stage="public-comprehension-paged",
+            config=config,
+            budget=budget,
+            root=root,
+            deadline=deadline,
+            evidence=evidence,
+            context={"scanner_observations": flags},
+            system=public_system,
+            validate=validate,
+        )
 
     result = await artifact_stage(
         schema=ComprehensionReview,
@@ -333,8 +346,7 @@ async def comprehension_review(
             "evidence": evidence,
             "inference": inference_settings(config.reviewer_model),
         },
-        system=COMMON
-        + "\nYou see only the public instruction and file inventory. State the outcome a developer would infer; identify ambiguity or actual answer leakage. Required API names, observable outcomes and input/output examples are not answer leakage. A step-by-step reconstruction of private implementation choices (assignments, intermediate buffers, sentinels or loop logic) is a material answer leak even without a pasted diff; request a behavioral rewrite that preserves scope and implementation freedom. Scanner flags are leads, and prohibitions may be benign.",
+        system=COMMON + public_system,
         prompt=json.dumps(
             {"public_evidence": evidence, "scanner_observations": flags}, ensure_ascii=False
         ),

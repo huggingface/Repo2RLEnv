@@ -188,19 +188,23 @@ from /workspace/repo at the frozen base; you can inspect head in a separate priv
 worktree. The controller emits the Dockerfile, Harbor configuration and trusted
 runner; do not invent that plumbing.
 
-Write exactly these three outputs:
-/output/task/instruction.md — the natural public developer request.
+The independently reviewed public developer request is already written to
+/output/task/instruction.md. Read it and preserve its exact bytes. It is the
+binding public specification for this construction, including permitted paths.
+If it needs a scope change, explain the contradiction for a later revision;
+do not silently add requirements or replace the request with a solution recipe.
+
+Write these two outputs:
 /output/task/solution/solve.sh — apply the scoped PR reference changes OFFLINE to
 the base in /workspace, with set -eu. Embed the needed patch/source directly; never
 fetch the PR or rely on /private at trial time. It must not change hidden tests.
 /output/task/tests/test_contract.py — protected pytest assertions using run_probe.
 
 The Construction artifact contains the execution contract, controls and evidence map.
-Translate any implementation detail in the private proposal into an observable
-requirement before writing instruction.md. Do not copy the proposal's private
-algorithm, variable assignments, edit sequence, or reference patch into that file.
+Use the approved public request to select observable requirements. Keep private
+algorithms, variable assignments, edit sequences and reference patches private.
 source_paths are relative to /workspace and must include the whole editable package
-subtree and any allowed new helpers. Tell the solver its permitted edit paths. Do
+subtree and any allowed new helpers. Collect all permitted edit paths. Do
 not permit new files outside collected roots. Mutation/equivalent scripts run AFTER
 the reference solution in /workspace; mutations introduce realistic wrong behavior,
 equivalents implement a meaningfully different correct approach. Each must actually

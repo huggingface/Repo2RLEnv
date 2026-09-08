@@ -424,6 +424,11 @@ async def test_semantic_repair_restores_context_and_reconsiders_scope_when_neede
     s = semantic
     before = snapshot(s.old)
     files, calls = {}, []
+    approved_instruction = (
+        "Implement deterministic rank assignments including every incomplete tail.\n"
+    )
+    visible_files = ["src/library/__init__.py", "tests/test_public.py"]
+    specification_calls = []
     feedback = {
         "repairable": True,
         "status": "needs_repair",
@@ -443,6 +448,23 @@ async def test_semantic_repair_restores_context_and_reconsiders_scope_when_neede
 
     async def shell(*args, **kwargs):
         pytest.fail("No target execution in this test")
+
+    async def inventory(remote, source):
+        assert source == s.source and remote.read is read
+        return visible_files
+
+    async def approve(**kwargs):
+        specification_calls.append(kwargs)
+        assert kwargs["config"] is s.config and kwargs["deadline"] == s.deadline
+        assert kwargs["root"] == s.root / "public-specification"
+        assert kwargs["visible_files"] == visible_files
+        expected = (
+            s.design.selected.task_request + " Clarify the repaired public scope."
+            if "design" in expected_stages
+            else before["task/instruction.md"].decode()
+        )
+        assert kwargs["initial_text"] == expected
+        return {"instruction": approved_instruction, "fixture_approval": "public-only"}
 
     @asynccontextmanager
     async def ready(config, source, discovered, root, cache, deadline, budget):
@@ -474,15 +496,28 @@ async def test_semantic_repair_restores_context_and_reconsiders_scope_when_neede
             changed = s.design.model_dump(mode="json")
             changed["proposals"][0]["task_request"] += " Clarify the repaired public scope."
             return Design.model_validate(changed)
-        files["/output/task/instruction.md"] = (
-            b"Implement deterministic rank assignments including every incomplete tail.\n"
+        assert files["/output/task/instruction.md"] == approved_instruction.encode()
+        assert kwargs["inputs"]["approved_public_instruction"] == approved_instruction
+        assert (
+            Design.model_validate(kwargs["inputs"]["design"]).selected.task_request
+            == approved_instruction
         )
+        assert json.loads(kwargs["prompt"])["selected"]["task_request"] == approved_instruction
         value = Construction.model_validate(s.previous["artifact"])
+        files["/output/task/instruction.md"] = b"Unauthorized narrower task request.\n"
+        with pytest.raises(ValueError, match="approved public instruction is frozen"):
+            await kwargs["validate"](value)
+        assert files["/output/task/instruction.md"] == approved_instruction.encode()
+        assert not (s.root / "payload.json").exists()
+        # Resubmit the normal typed manifest after the controller restores the
+        # exact approved public bytes. No generated program is executed here.
         await kwargs["validate"](value)
         return value
 
     monkeypatch.setattr(build, "bootstrap_ready", ready)
     monkeypatch.setattr(build, "artifact_stage", artifact)
+    monkeypatch.setattr(build, "public_file_inventory", inventory)
+    monkeypatch.setattr(build, "approve_instruction", approve)
     result = await build.construct(
         s.config,
         s.source,
@@ -495,6 +530,8 @@ async def test_semantic_repair_restores_context_and_reconsiders_scope_when_neede
         parent_task_digest=s.parent_digest,
     )
     assert calls == expected_stages
+    assert len(specification_calls) == 1
+    assert result["specification_review"]["instruction"] == approved_instruction
     assert result["public_instruction"] == files["/output/task/instruction.md"].decode()
     assert result["prior_construction_digest"] == canonical_digest(s.previous)
     assert result["emitter"]["task_digest"] != s.parent_digest
@@ -569,6 +606,17 @@ async def test_recovery_restores_after_readiness_skips_design_and_revalidates_pa
     async def shell(*args, **kwargs):
         pytest.fail("Fixture must not execute author code")
 
+    async def inventory(remote, source):
+        assert source == s.source
+        return ["src/library/__init__.py"]
+
+    async def approve(**kwargs):
+        assert kwargs["initial_text"] == s.design.selected.task_request
+        assert kwargs["visible_files"] == ["src/library/__init__.py"]
+        assert kwargs["deadline"] == s.deadline
+        assert kwargs["root"] == s.root / "public-specification"
+        return {"instruction": final_instruction, "fixture_approval": "public-only"}
+
     @asynccontextmanager
     async def ready(config, source, discovered, root, cache_root, deadline, budget):
         assert config is s.config and source == s.source and discovered == s.discovery
@@ -584,13 +632,20 @@ async def test_recovery_restores_after_readiness_skips_design_and_revalidates_pa
     async def artifact(**kwargs):
         workers.append(kwargs)
         assert kwargs["schema"] is Construction, "Retained Design must not be rerolled"
-        assert remote_files == {"/output/task/" + k: v for k, v in s.files.items()}
+        expected_files = {"/output/task/" + k: v for k, v in s.files.items()}
+        expected_files["/output/task/instruction.md"] = final_instruction.encode()
+        assert remote_files == expected_files
+        assert kwargs["inputs"]["approved_public_instruction"] == final_instruction
+        assert (
+            Design.model_validate(kwargs["inputs"]["design"]).selected.task_request
+            == final_instruction
+        )
+        assert json.loads(kwargs["prompt"])["selected"]["task_request"] == final_instruction
         recovery = kwargs["inputs"]["construction_recovery"]
         assert recovery["receipt_digest"] == canonical_digest(s.receipt)
         assert recovery["last_submission"] == s.receipt["last_submission"]
         assert json.loads(kwargs["prompt"])["construction_recovery"] == recovery
         assert kwargs["deadline"] == s.deadline
-        remote_files["/output/task/instruction.md"] = final_instruction.encode()
         value = SimpleNamespace(
             contract={},
             source_origin_probe="print('fixture')",
@@ -608,6 +663,8 @@ async def test_recovery_restores_after_readiness_skips_design_and_revalidates_pa
     monkeypatch.setattr(build, "bootstrap_ready", ready)
     monkeypatch.setattr(build, "artifact_stage", artifact)
     monkeypatch.setattr(build, "emit_task", emit)
+    monkeypatch.setattr(build, "public_file_inventory", inventory)
+    monkeypatch.setattr(build, "approve_instruction", approve)
     result = await build.construct(
         s.config,
         s.source,
