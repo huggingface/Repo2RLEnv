@@ -52,6 +52,7 @@ def arguments(tmp_path):
 
 @pytest.mark.asyncio
 async def test_merge_patch_uses_real_agent_trace_and_same_validator_commit(arguments, monkeypatch):
+    pytest.importorskip("langgraph")
     validated = []
 
     async def validate(value):
