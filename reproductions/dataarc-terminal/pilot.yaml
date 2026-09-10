@@ -1,0 +1,18 @@
+seed_root: /work/dataarc-terminal/upstream/examples/syn_agentic_data/terminal-bench-seed
+output_dir: /work/dataarc-terminal/native-output
+task_names: [cancel-async-tasks]
+strategies: [few_shot]
+num_samples_per_strategy: 1
+model:
+  provider: openai
+  model: gpt-4o
+  base_url: https://api.openai.com/v1
+  max_retry_attempts: 1
+  retry_delay: 1
+completion_max_tokens: 8192
+model_request_timeout: 240
+harbor:
+  agent: terminus-2
+  model: anthropic/claude-sonnet-4-5
+  environment: docker
+  force_build: true

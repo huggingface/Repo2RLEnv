@@ -21,6 +21,25 @@ HF login or `HF_TOKEN` in the environment/project `.env`, then run:
 The download contains definitions and logs only. Build images and run Harbor
 tasks on the remote worker described in [RUNBOOK.md](RUNBOOK.md).
 
+The expanded reproduction batch is stored separately under `phase02/`, preserving
+the original batch and its immutable receipt. It contains 13 task definitions
+representing 12 additional environments (two CLI-Gym instructions share one
+environment), plus component outputs and failures. Nine additional environments
+pass execution contrast; all remain `training_approved: false`.
+
+```bash
+.venv/bin/python reproductions/runtime/fetch_artifacts.py \
+  reproductions/artifacts-phase02.json reproductions/runs/expanded-artifacts
+```
+
+The 3,980-file snapshot preserves historical recipe uploads alongside native and
+exported outputs. TerminalWorld source recordings and Docker/SIF images are
+excluded. Expanded task manifests, stage journals, settlements and teardown
+receipts are adjacent to the archive under `phase02/` in the recorded revision.
+One rejected CLI-Gym variant has no exact matching execution hash after Python
+bytecode caches were excluded from the archive; that mismatch is retained in
+the task index rather than silently normalized away.
+
 The artifact repository separates:
 
 - `tasks/`: original native Harbor exports and minimal packaging adapters,

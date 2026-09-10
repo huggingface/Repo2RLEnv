@@ -6,10 +6,12 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from budget import locked, reserve, settle, total
-from harbor_artifacts import export_native
+from harbor_artifacts import audit, export_native
 
 
 class BudgetTests(unittest.TestCase):
@@ -77,6 +79,45 @@ class ExportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 export_native(source, root / "export")
             self.assertFalse((root / "export").exists())
+
+    def test_reward_scale_is_explicit_and_execution_errors_never_pass(self):
+        for custom_scale, exception, expected in [
+            (True, None, True),
+            (False, None, False),
+            (True, {"exception_type": "RuntimeError"}, False),
+        ]:
+            with self.subTest(custom_scale=custom_scale, exception=exception):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    source = self.fixture(root)
+                    (source / "solution").mkdir()
+                    (source / "solution/solve.sh").write_text("#!/bin/bash\ntrue\n")
+
+                    def fake_run(command, _exception=exception, **kwargs):
+                        agent = command[command.index("-a") + 1]
+                        output = Path(command[command.index("--jobs-dir") + 1])
+                        trial = output / agent / "trial"
+                        trial.mkdir(parents=True)
+                        (trial / "result.json").write_text(
+                            json.dumps(
+                                {
+                                    "exception_info": _exception,
+                                    "verifier_result": {
+                                        "rewards": {"reward": -1 if agent == "nop" else 1}
+                                    },
+                                }
+                            )
+                        )
+                        return SimpleNamespace(returncode=0)
+
+                    with patch("harbor_artifacts.subprocess.run", side_effect=fake_run):
+                        report = audit(
+                            source,
+                            root / "audit",
+                            ["nop", "oracle"],
+                            nop_reward=-1 if custom_scale else 0,
+                        )
+                    self.assertEqual(report["execution_contrast_passed"], expected)
 
 
 if __name__ == "__main__":

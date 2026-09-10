@@ -1,0 +1,21 @@
+{
+  "id": "sec-bench",
+  "stages": {
+    "bootstrap": {
+      "script": "sec-bench/bootstrap_remote.sh",
+      "description": "Pinned native sec-bench runtime and bounded preparation; no model calls",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1000
+    },
+    "build": {
+      "script": "sec-bench/build_remote.sh",
+      "description": "Original instance image constructor on released njs CVE seed, one worker and no registry publication",
+      "requires": [
+        "sec-bench/bootstrap"
+      ],
+      "timeout_seconds": 1800
+    }
+  }
+}

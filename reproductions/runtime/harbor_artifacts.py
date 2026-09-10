@@ -53,7 +53,9 @@ def export_native(source: Path, destination: Path) -> dict:
     }
 
 
-def audit(task: Path, output: Path, agents: list[str]) -> dict:
+def audit(
+    task: Path, output: Path, agents: list[str], *, nop_reward: float = 0, oracle_reward: float = 1
+) -> dict:
     Task(task)
     output.mkdir(parents=True, exist_ok=False)
     report = {
@@ -62,6 +64,7 @@ def audit(task: Path, output: Path, agents: list[str]) -> dict:
         "schema_valid": True,
         "runs": {},
         "execution_contrast_passed": False,
+        "expected_rewards": {"nop": nop_reward, "oracle": oracle_reward},
     }
     for agent in agents:
         if agent == "oracle" and not (task / "solution" / "solve.sh").is_file():
@@ -115,7 +118,9 @@ def audit(task: Path, output: Path, agents: list[str]) -> dict:
         rewards = (trials[0].get("verifier_result") or {}).get("rewards") or {}
         return rewards.get("reward")
 
-    report["execution_contrast_passed"] = reward("nop") == 0 and reward("oracle") == 1
+    report["execution_contrast_passed"] = (
+        reward("nop") == nop_reward and reward("oracle") == oracle_reward
+    )
     report["note"] = (
         "Execution contrast alone is not test coverage, conversion parity or quality approval."
     )

@@ -1,0 +1,111 @@
+{
+  "id": "terminalworld",
+  "stages": {
+    "validate": {
+      "script": "terminalworld/export_audit_remote.sh",
+      "description": "Byte-preserving Harbor export, rebuild final Docker context and independent NOP/reference execution",
+      "requires": ["terminalworld/tests"],
+      "timeout_seconds": 2400
+    },
+    "bootstrap": {
+      "script": "terminalworld/bootstrap_remote.sh",
+      "description": "Pinned native runtime, original text-only downloader and initial PII filter on documented recording IDs",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 600
+    },
+    "filter": {
+      "script": "terminalworld/filter_remote.sh",
+      "description": "Native TUI, URL and LLM value checks on clean downloaded recording inputs",
+      "requires": [
+        "terminalworld/bootstrap"
+      ],
+      "timeout_seconds": 600,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 1
+    },
+    "extract": {
+      "script": "terminalworld/extract_remote.sh",
+      "description": "Original solution extraction, then native value scoring on its required task layout; released implementation requires this order",
+      "requires": [
+        "terminalworld/filter"
+      ],
+      "timeout_seconds": 600,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 2
+    },
+    "score-compat": {
+      "script": "terminalworld/score_compat_remote.sh",
+      "description": "Native value scorer with recorded command-field schema compatibility; original skipped-input result preserved",
+      "requires": [
+        "terminalworld/extract"
+      ],
+      "timeout_seconds": 600,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 1
+    },
+    "instruction": {
+      "script": "terminalworld/instruction_remote.sh",
+      "description": "Native outcome-oriented instruction on accepted compatibility-scored input",
+      "requires": [
+        "terminalworld/score-compat"
+      ],
+      "timeout_seconds": 400,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 1
+    },
+    "environment": {
+      "script": "terminalworld/environment_remote.sh",
+      "description": "Original bounded Claude environment-building agent and Docker execution-feedback loop",
+      "requires": [
+        "terminalworld/instruction"
+      ],
+      "timeout_seconds": 1200,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 3
+    },
+    "tests": {
+      "script": "terminalworld/tests_remote.sh",
+      "description": "Native pre/post execution snapshots and state-based test generation",
+      "requires": [
+        "terminalworld/environment"
+      ],
+      "timeout_seconds": 900,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 2
+    },
+    "repair": {
+      "script": "terminalworld/repair_remote.sh",
+      "description": "Original repair mode resumes an incomplete refiner; requires existing refinement metadata",
+      "requires": ["terminalworld/tests"],
+      "timeout_seconds": 1800,
+      "credentials": ["ANTHROPIC_API_KEY"],
+      "reserve_usd": 5
+    },
+    "refine": {
+      "script": "terminalworld/refine_remote.sh",
+      "description": "Original refiner with oracle, NOP and partial trials; preserves pre-refinement draft",
+      "requires": [
+        "terminalworld/tests"
+      ],
+      "timeout_seconds": 1500,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 5
+    }
+  }
+}

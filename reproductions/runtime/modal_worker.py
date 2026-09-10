@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -119,11 +120,19 @@ def main() -> None:
         if args.credential:
             credentials = dotenv_values(ROOT / ".env")
             for key in args.credential:
-                if key not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "HF_TOKEN"}:
+                if key not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "HF_TOKEN", "GITHUB_TOKEN"}:
                     raise ValueError("Unsupported credential")
-                if not credentials.get(key):
+                value = credentials.get(key)
+                if key == "GITHUB_TOKEN" and not value:
+                    # Read the configured CLI credential without printing or
+                    # persisting it. The reproduction recipes do not publish.
+                    token = subprocess.run(
+                        ["gh", "auth", "token"], capture_output=True, text=True, check=False
+                    )
+                    value = token.stdout.strip() if token.returncode == 0 else None
+                if not value:
                     raise ValueError(f"Missing credential: {key}")
-                selected[key] = credentials[key]
+                selected[key] = value
         process = sandbox.exec(
             "bash",
             "-se",

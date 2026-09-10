@@ -4,7 +4,7 @@
   "title": "harden-v0",
   "kind": "component",
   "order": null,
-  "status": "planned",
+  "status": "component_pilot_complete",
   "upstream": {
     "repository": "https://github.com/few-sh/harden-v0",
     "commit": "342b8474e0c0cf96e4a8313fd2e26c7a11d51193",
@@ -29,29 +29,35 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "claude-sonnet-4-6",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "not_exported",
     "approach": "Already Harbor-shaped; keep before/after copies and publish separate hardening results."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One original iteration, capped hacker/fixer turns, native oracle precheck and replay setting retained",
+      "Added tmux to the runtime used by the original terminal agent"
+    ],
     "known_limitations": [
       "These are transformations of existing tasks, not 100 new source tasks."
     ]
   },
   "results": {
-    "attempted": 0,
     "native_emitted": 0,
-    "native_accepted": 0,
+    "native_accepted": null,
     "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "component_inputs": 1,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Reproduce hardening on 100 generated tasks after their unmodified baselines have been frozen."
 }

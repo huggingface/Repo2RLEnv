@@ -1,0 +1,70 @@
+{
+  "id": "cli-gym",
+  "stages": {
+    "bootstrap": {
+      "script": "cli-gym/bootstrap_remote.sh",
+      "description": "Original runtime image and unit-test extraction from previous native SWE-smith records",
+      "requires": [
+        "runtime/bootstrap",
+        "runtime/restore-pilot"
+      ],
+      "timeout_seconds": 1200
+    },
+    "generate": {
+      "script": "cli-gym/generate_remote.sh",
+      "description": "One original destruction proposal with measured GPT-4o substitution",
+      "requires": [
+        "cli-gym/bootstrap"
+      ],
+      "timeout_seconds": 300,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 2
+    },
+    "invert": {
+      "script": "cli-gym/invert_remote.sh",
+      "description": "Original Terminus-2 destruction and native problem assembly, bounded to 30 episodes",
+      "requires": [
+        "cli-gym/generate"
+      ],
+      "timeout_seconds": 1800,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 8
+    },
+    "generate-config": {
+      "script": "cli-gym/generate_config_remote.sh",
+      "description": "Second native candidate with the documented configuration-tampering input",
+      "requires": [
+        "cli-gym/bootstrap"
+      ],
+      "timeout_seconds": 300,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 2
+    },
+    "invert-config": {
+      "script": "cli-gym/invert_config_remote.sh",
+      "description": "Original bounded inversion and assembly of the configuration candidate",
+      "requires": [
+        "cli-gym/generate-config"
+      ],
+      "timeout_seconds": 1800,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 8
+    },
+    "validate": {
+      "script": "cli-gym/export_audit_remote.sh",
+      "description": "Original grading in Harbor, native no-op parity and explicit missing restoration oracle",
+      "requires": [
+        "cli-gym/invert-config"
+      ],
+      "timeout_seconds": 1800
+    }
+  }
+}

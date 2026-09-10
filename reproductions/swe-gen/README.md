@@ -1,3 +1,5 @@
+Current execution results: [RESULTS.md](RESULTS.md). Runnable stages: `python reproductions/run.py plan swe-gen`.
+
 # SWE-gen
 
 Status: **planned; no reproduction has run**. Position 9 in the generation queue; target **100 Harbor task exports**.

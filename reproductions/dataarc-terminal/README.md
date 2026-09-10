@@ -1,3 +1,5 @@
+Current execution results: [RESULTS.md](RESULTS.md). Runnable stages: `python reproductions/run.py plan dataarc-terminal`.
+
 # DataArc terminal synthesis (Envs-FORGE-linked code)
 
 Status: **planned; no reproduction has run**. Position 14 in the generation queue; target **100 Harbor task exports**.

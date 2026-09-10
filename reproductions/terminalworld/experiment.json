@@ -4,7 +4,7 @@
   "title": "TerminalWorld (EuniAI)",
   "kind": "generator",
   "order": 8,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/EuniAI/TerminalWorld",
     "commit": "784698ba93735470ce1664bff2ec44bcd7b28e15",
@@ -31,29 +31,39 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "native Haiku and Sonnet helpers; claude-sonnet-4-6 author/refiner",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Keep native Harbor tasks; make runtime configuration explicit and preserve reconstruction evidence."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Restored commands_with_output omitted by the upstream stage serializer and normalized extracted command strings; original scorer prompts/thresholds unchanged",
+      "Preserved released skills under paths expected by the native agent launcher; IS_SANDBOX=1 in remote VM",
+      "Restored exact Docker COPY asset moved out of the build context by native cleanup",
+      "Native builder adapted an unavailable historical data URL using another NASA URL already present in metadata",
+      "Original refiner reached its 40-turn cap after reference/no-op success; native --repair completed under a 60-turn/$3 cap",
+      "Recorded agent-side Harbor Trial API compatibility fix; final export rebuilt before validation"
+    ],
     "known_limitations": [
       "Use the recording-derived project. Record missing state and weak status-file checks as findings, without redesigning the verifier during baseline reproduction."
     ]
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "export_parity_passed": 1,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 1,
+    "training_approved": 0,
+    "native_partial_solutions_rejected": 3,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Native Harbor output, but source-state reconstruction is less predictable; tackle it after container execution is established."
 }

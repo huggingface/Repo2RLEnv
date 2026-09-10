@@ -4,7 +4,7 @@
   "title": "SWE-Flow",
   "kind": "generator",
   "order": 7,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/Hambaobao/SWE-Flow",
     "commit": "7da5b046fa1dc184674e4e94a9989be56c39e4e7",
@@ -31,29 +31,36 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "gpt-4o",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Package the upstream skeleton, specification, restoration patch and selected tests; execute labels rather than assuming they passed."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One published spectree runtime, five tests, seed 42, two trace workers",
+      "GPT-4o replaces native model defaults for 31 docstrings and four specifications",
+      "Preserved patch bytes and used git apply --inaccurate-eof -p0 for native EOF metadata",
+      "Harbor packaging removes installed healthy package, backup source and git history; hidden tests copied only for verification"
+    ],
     "known_limitations": [
       "Trace-derived test IDs are not execution receipts. Preserve original archives privately and keep them outside the learner image."
     ]
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "native_emitted": 4,
+    "native_accepted": null,
+    "harbor_exported": 4,
+    "export_parity_passed": 4,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 3,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Next reproduce repository reconstruction after the prepared-image workflow is stable."
 }

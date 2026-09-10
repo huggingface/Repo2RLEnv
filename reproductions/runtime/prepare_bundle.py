@@ -24,7 +24,28 @@ ROOTS = {
     "seta-seed2synth/reference-fixed": "variants/seta-reference-precision",
     "tmax/harbor-runtime-fixed": "variants/tmax-verifier-dependency",
     "swe-smith/blind-audit": "variants/swesmith-blind-runtime",
+    "cli-gym/harbor-v2": "tasks/cli-gym",
+    "swe-flow/export-v3-harbor": "tasks/swe-flow",
+    "swe-gen/harbor": "tasks/swe-gen",
+    "dataarc-terminal/harbor": "tasks/dataarc-terminal",
+    "r2e/harbor": "tasks/r2e",
+    "scaler/harbor": "tasks/scaler",
+    "terminalworld/harbor": "tasks/terminalworld",
+    "swe-rebench-v2/harbor": "replayed-tasks/swe-rebench-v2",
 }
+
+
+def audit_records(value, pointer=""):
+    """Locate execution receipts within native/export comparison envelopes."""
+    if isinstance(value, dict):
+        if "task_hashes" in value and "execution_contrast_passed" in value:
+            yield pointer, value
+        else:
+            for key, child in value.items():
+                yield from audit_records(child, f"{pointer}/{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from audit_records(child, f"{pointer}/{index}")
 
 
 def main() -> None:
@@ -36,10 +57,11 @@ def main() -> None:
     args.destination.mkdir(parents=True, exist_ok=False)
     review = json.loads(args.review.read_text())
     audits = []
-    for path in sorted((args.snapshot / "evidence").rglob("audit.json")):
-        report = json.loads(path.read_text())
-        if "task_hashes" in report:
-            audits.append((str(path.relative_to(args.snapshot)), report))
+    for path in sorted(args.snapshot.rglob("*.json")):
+        if "audit" not in path.name:
+            continue
+        for pointer, report in audit_records(json.loads(path.read_text())):
+            audits.append((str(path.relative_to(args.snapshot)) + "#" + pointer, report))
     records = []
     for origin, output in ROOTS.items():
         for source in sorted((args.snapshot / origin).glob("*/task.toml")):

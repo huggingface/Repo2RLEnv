@@ -4,7 +4,7 @@
   "title": "SWE-gen",
   "kind": "generator",
   "order": 9,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/abundant-ai/SWE-gen",
     "commit": "14e185f413f7bff03f8f9fec6fb246681bf61d74",
@@ -29,29 +29,35 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "gpt-5.5 instruction; claude-opus-4-8 author",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Retain its native task artifacts and NOP/oracle validation route."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One documented PR, native prompts and default model selection",
+      "Author capped at 80 turns, $8 and 1500 seconds",
+      "IS_SANDBOX=1 for the original Claude SDK inside the remote VM"
+    ],
     "known_limitations": [
       "Keep its original coding-agent implementation and PR filters. Additional coverage review is a separate audit."
     ]
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "export_parity_passed": 1,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 1,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Start PR mining once the reproduction runtime is proven, so repository bootstrap failures are easier to isolate."
 }

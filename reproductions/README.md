@@ -5,12 +5,16 @@ Reproduce existing public implementations one by one, using each project's nativ
 Branch: `codex/upstream-reproductions`, created from local `main` at `1a8bad5774e062d0d73a7d79f9d6a95540801c83`. The previous harness work remains on `codex/dynamic-harbor-curation`.
 
 The first five implementations have completed a remote generation/export pilot.
+The expanded campaign now has **28 distinct Harbor environments and 21 execution
+contrast passes including two repairs**. See [STATUS.md](STATUS.md) for all
+generators, remaining work and the distinction between execution and quality.
+Use `python reproductions/run.py list` for the unified experimental runner.
 See [RUNBOOK.md](RUNBOOK.md) for commands, [ARTIFACTS.md](ARTIFACTS.md) for the
 actual Harbor tasks and traces, and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 for the original stage contracts. The fresh **$500 reproduction budget** is
 separate from earlier Tasksmith campaigns.
-The completed pilot accounts for **$15.46**, with **$484.54 remaining** and the
-worker terminated. See [COSTS.md](COSTS.md) for the SDK reports, rate estimates and
+The first completed pilot accounted for **$15.46** and its worker was terminated.
+The second batch uses the same $500 campaign ledger. See [COSTS.md](COSTS.md) for the SDK reports, rate estimates and
 cloud allowance; these are not invoiced charges.
 
 | Pipeline | Generated Harbor exports | Fresh no-op/reference passes | Result |
@@ -21,7 +25,7 @@ cloud allowance; these are not invoiced charges.
 | [TMax](tmax/RESULTS.md) | 1 | 1 after adding a missing verifier dependency | Native 51-test success and Harbor replay success |
 | [SWE-smith](swe-smith/RESULTS.md) | 5 | 5 | Native procedural mutation validation; offline blind Sonnet success on one |
 
-**16 distinct task exports; 12 pass execution contrast when the two explicit
+**First-batch subtotal: 16 distinct task exports; 12 pass execution contrast when the two explicit
 repairs are included.** Variants and adversarial candidates do not inflate that
 count. No task is labeled training-approved by this pilot. We reproduced the
 released generation paths and preserved quality failures instead of changing

@@ -1,4 +1,41 @@
-# Running the first five reproductions
+# Running upstream reproductions
+
+## Unified experimental runner
+
+The preferred interface now lists implemented workflows and executes one native
+stage at a time. The examples below use a new worker name; inspect existing
+receipts before reusing a worker or creating an attempt.
+
+```bash
+.venv/bin/python reproductions/run.py list
+.venv/bin/python reproductions/run.py plan swe-gen
+.venv/bin/python reproductions/runtime/modal_worker.py create --name reproduction-worker-03 --hours 3 --cloud-reserve 10
+.venv/bin/python reproductions/run.py run runtime bootstrap --worker reproduction-worker-03
+.venv/bin/python reproductions/run.py run swe-gen bootstrap --worker reproduction-worker-03
+.venv/bin/python reproductions/run.py run swe-gen generate --worker reproduction-worker-03
+.venv/bin/python reproductions/run.py run swe-gen validate --worker reproduction-worker-03
+```
+
+The runner uploads reviewed recipe files, binds only declared credentials,
+reserves paid-stage allowance and records logs under
+`runs/runner/WORKER/EXPERIMENT/STAGE-ATTEMPT.*`. A repeated attempt ID is refused
+before remote execution or spending. To retry after inspecting a failure, pass
+an explicit new `--attempt` value. Native directories may still need inspection;
+the runner never assumes a failed command had no side effects.
+
+Dependencies must have a completed receipt on the same worker with the current
+shell recipe hash. Receipt manifests preserve Python helpers and other source
+hashes for review; dependency reuse currently checks the shell recipe, not every
+helper or remote package. Re-bootstrap after changing a dependency's helpers.
+Stage completion means its process exited successfully, not that tasks passed.
+
+Only CLI-Gym and harden-v0 examples need `runtime/restore-pilot` plus access to the
+private first-pilot artifacts. Other bootstraps do not require that dataset.
+SCALER's `expand` stage reproduces released-family expansion, and the
+SWE-rebench V2 component replays a published sample rather than synthesizing a task.
+See [STATUS.md](STATUS.md) and individual `RESULTS.md` files for measured outcomes.
+
+## Original direct recipe commands
 
 Use Python 3.12+, the local controller requirements, a configured Modal account,
 and `.env` containing the required OpenAI/Anthropic keys. Keep the controller at

@@ -1,0 +1,8 @@
+{
+  "id": "dataarc-terminal",
+  "stages": {
+    "bootstrap": {"script":"dataarc-terminal/bootstrap_remote.sh","description":"Pinned released terminal synthesis entry point with CPU-only dependency subset","requires":["runtime/bootstrap"],"timeout_seconds":600},
+    "generate": {"script":"dataarc-terminal/generate_remote.sh","description":"One native few-shot synthesis from the shipped async-task seed","requires":["dataarc-terminal/bootstrap"],"timeout_seconds":300,"credentials":["OPENAI_API_KEY"],"reserve_usd":2},
+    "validate": {"script":"dataarc-terminal/export_audit_remote.sh","description":"Byte-preserving Harbor export and separate no-op/reference execution","requires":["dataarc-terminal/generate"],"timeout_seconds":2400}
+  }
+}

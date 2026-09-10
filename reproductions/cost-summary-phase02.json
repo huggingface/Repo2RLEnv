@@ -1,0 +1,10 @@
+{
+  "limit_usd": "500.00",
+  "accounted_usd": "22.4274551380071998473",
+  "remaining_usd": "477.5725448619928001527",
+  "reserved_usd": "0",
+  "paid_jobs_running": 0,
+  "worker_state": "terminated",
+  "as_of": "2026-09-10T19:37:14.846884+00:00",
+  "note": "Model reports and rate-based estimates; not provider invoices"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "swe-rebench-v2",
+  "stages": {
+    "bootstrap": {
+      "script": "swe-rebench-v2/bootstrap_remote.sh",
+      "description": "Pinned released component scripts and original published sample",
+      "requires": ["runtime/bootstrap"],
+      "timeout_seconds": 600
+    },
+    "annotate": {
+      "script": "swe-rebench-v2/annotate_remote.sh",
+      "description": "Original PR-description and metadata templates on one sample; GPT-4o, 4096-token response cap",
+      "requires": ["swe-rebench-v2/bootstrap"],
+      "timeout_seconds": 400,
+      "credentials": ["OPENAI_API_KEY"],
+      "reserve_usd": 1
+    },
+    "evaluate": {
+      "script": "swe-rebench-v2/evaluate_remote.sh",
+      "description": "Original golden evaluator on the published sample image; replay, not new synthesis",
+      "requires": ["swe-rebench-v2/bootstrap"],
+      "timeout_seconds": 1200
+    }
+  }
+}

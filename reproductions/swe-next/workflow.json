@@ -1,0 +1,41 @@
+{
+  "id": "swe-next",
+  "stages": {
+    "bootstrap": {
+      "script": "swe-next/bootstrap_remote.sh",
+      "description": "Pinned original SWE-Next installation with Python 3.12 and old-datasets-compatible PyArrow",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 900
+    },
+    "generate": {
+      "script": "swe-next/generate_remote.sh",
+      "description": "Original PR pipeline on psf/black, capped at 30 PRs, one execution candidate, one env profile; no publication or training",
+      "requires": [
+        "swe-next/bootstrap"
+      ],
+      "timeout_seconds": 1800,
+      "credentials": [
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 10
+    },
+    "generate-pyramid": {
+      "script": "swe-next/generate_pyramid_remote.sh",
+      "description": "Second native PR pilot on Pyramid, capped at 30 fetched PRs and 30 pre-filter commit records; no publication",
+      "requires": [
+        "swe-next/bootstrap"
+      ],
+      "timeout_seconds": 1800,
+      "credentials": [
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 10
+    }
+  }
+}

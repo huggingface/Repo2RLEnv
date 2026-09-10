@@ -4,7 +4,7 @@
   "title": "DataArc terminal synthesis (Envs-FORGE-linked code)",
   "kind": "generator",
   "order": 14,
-  "status": "planned",
+  "status": "pilot_complete_quality_failure",
   "upstream": {
     "repository": "https://github.com/DataArcTech/DataArc-SynData-Toolkit",
     "commit": "2a1d65ec8dcfaea2458d67e1fb18078cce6420b9",
@@ -30,29 +30,36 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "gpt-4o",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Keep the existing Harbor materializer and verification entry points."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One released few-shot seed and original toolkit generator",
+      "GPT-4o replaces the upstream DeepSeek default",
+      "Byte-preserving Harbor contract export; failing oracle and tests retained"
+    ],
     "known_limitations": [
       "This reproduces released toolkit functionality. The paper's MILP/frontier selector was not located; do not label this a full Envs-FORGE reproduction."
     ]
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md",
+    "native_acceptance_kind": "static file checks only"
   },
   "why_this_order": "Reproduce the available branch after core synthesis/evolution baselines, with explicit partial-release scope."
 }

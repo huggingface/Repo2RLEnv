@@ -1,3 +1,5 @@
+Current execution results: [RESULTS.md](RESULTS.md). Runnable stages: `python reproductions/run.py plan terminalworld`.
+
 # TerminalWorld (EuniAI)
 
 Status: **planned; no reproduction has run**. Position 8 in the generation queue; target **100 Harbor task exports**.

@@ -29,7 +29,8 @@
     "harden-v0",
     "secverifier"
   ],
-  "next": "seta-seed2synth",
+  "next": "sec-bench",
   "scope": "Faithful upstream workflow reproduction and Harbor export; no Tasksmith redesign.",
-  "status": "scaffolded"
+  "status": "remaining_reproduction_pilots_in_progress",
+  "runner": "reproductions/run.py"
 }

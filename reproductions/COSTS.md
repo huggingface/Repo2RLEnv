@@ -1,8 +1,16 @@
 # September 10 reproduction pilot costs
 
 The user authorized a **new $500 budget**, separate from earlier Tasksmith
-campaigns. This pilot accounts for **$15.45812590**, leaving **$484.54187410**.
-No paid jobs remain running and no operation reservations remain open.
+campaigns. The first pilot accounted for **$15.45812590**.
+
+After the expanded pilot, the campaign accounts for **$22.43**,
+leaving **$477.57**. Both workers are terminated and all
+operation reservations are reconciled. These are model reports and conservative
+cloud/rate estimates, not provider invoices. See
+[cost-summary-phase02.json](cost-summary-phase02.json) for exact totals.
+
+The table below is the first batch only. Expanded-batch settlements and the
+second worker calculation accompany the phase-two artifact archive.
 
 | Category | Accounted USD | Evidence type |
 | --- | ---: | --- |

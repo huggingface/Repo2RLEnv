@@ -1,3 +1,5 @@
+Current execution results: [RESULTS.md](RESULTS.md). Runnable stages: `python reproductions/run.py plan r2e-gym`.
+
 # R2E-Gym / SWEGEN
 
 Status: **planned; no reproduction has run**. Position 11 in the generation queue; target **100 Harbor task exports**.

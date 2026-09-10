@@ -4,7 +4,7 @@
   "title": "SCALER",
   "kind": "generator",
   "order": 15,
-  "status": "planned",
+  "status": "released_family_expansion_complete",
   "upstream": {
     "repository": "https://github.com/ALEX-nlp/SCALER",
     "commit": "60c6c5037866c718f4c001ea338f9c5a91cb01ae",
@@ -29,29 +29,37 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "no LLM calls for released-family expansion",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Represent original problem input, response interface and verifier in Harbor without inventing repository-editing semantics."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Released family expansion only: the source family-synthesis execution loop is commented out",
+      "Original generator and reference programs executed in SandboxFusion",
+      "Unchanged native reward function; fixed-instance reference-answer replay supplies the Harbor oracle"
+    ],
     "known_limitations": [
       "This is a specialist problem-family reproduction, not automatically a coding-agent environment dataset."
     ]
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "native_emitted": 3,
+    "native_accepted": 3,
+    "harbor_exported": 3,
+    "export_parity_passed": 3,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 3,
+    "training_approved": 0,
+    "domain": "algorithmic_reasoning",
+    "new_families": 0,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "A different task unit and domain; reproduce separately after terminal and repository baselines."
 }

@@ -4,7 +4,7 @@
   "title": "SecVerifier",
   "kind": "component",
   "order": null,
-  "status": "planned",
+  "status": "pilot_blocked_runtime_contract",
   "upstream": {
     "repository": "https://github.com/SEC-bench/SecVerifier",
     "commit": "93abf5900327809eacff66fec40d45eb95221acb",
@@ -28,29 +28,37 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "gpt-4o configured; no inference reached",
+    "commands_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "not_exported",
     "approach": "Attach upstream evidence to SEC-bench task exports."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Poetry lock retained; CC=gcc and CXX=g++ for a dependency build",
+      "Added undeclared pandas/datasets dependencies",
+      "User credential bound as SecretStr only in memory",
+      "Configured original CLI for one task, 30 iterations, $5 model limit, 4096 output tokens"
+    ],
     "known_limitations": [
       "Reproduce the original role implementation rather than extracting it into a new agent framework."
     ]
   },
   "results": {
-    "attempted": 0,
     "native_emitted": 0,
     "native_accepted": 0,
     "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "component_inputs": 1,
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Run with the SEC-bench reproduction on its supported inputs."
 }

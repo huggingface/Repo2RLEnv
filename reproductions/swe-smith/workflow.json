@@ -1,0 +1,41 @@
+{
+  "id": "swe-smith",
+  "stages": {
+    "bootstrap": {
+      "script": "swe-smith/bootstrap.sh",
+      "description": "Supported native addict profile and healthy runtime",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1200
+    },
+    "mutate": {
+      "script": "swe-smith/run_native.sh",
+      "description": "Original procedural mutations and native validation",
+      "requires": [
+        "swe-smith/bootstrap"
+      ],
+      "timeout_seconds": 1800
+    },
+    "generate": {
+      "script": "swe-smith/run_issues.sh",
+      "description": "Original issue writer and Harbor mutation adapter",
+      "requires": [
+        "swe-smith/mutate"
+      ],
+      "timeout_seconds": 1500,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 3
+    },
+    "validate": {
+      "script": "swe-smith/validate_harbor.sh",
+      "description": "Five offline no-op and inverse-mutation references",
+      "requires": [
+        "swe-smith/generate"
+      ],
+      "timeout_seconds": 2400
+    }
+  }
+}
