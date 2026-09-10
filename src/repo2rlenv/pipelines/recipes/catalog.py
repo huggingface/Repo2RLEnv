@@ -25,8 +25,10 @@ class RecipeInfo(BaseModel):
 # Entries are added only with an owned implementation and tests. Optional cloud
 # or model libraries are imported when running, never while listing recipes.
 IMPLEMENTATIONS: dict[str, str] = {
+    "swe_gen": "repo2rlenv.pipelines.pr_to_env:PRToEnvPipeline",
     "swe_smith": "repo2rlenv.pipelines.repo_mutate:RepoMutatePipeline",
     "seta_seed2synth": "repo2rlenv.pipelines.terminal_synth:TerminalSynthesisPipeline",
+    "seta_evol": "repo2rlenv.pipelines.task_evolve:TaskEvolutionPipeline",
 }
 
 

@@ -7,7 +7,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from repo2rlenv.spec.recipe_options import SWESmithOptions, TerminalSynthesisOptions
+from repo2rlenv.spec.recipe_options import (
+    PRRecipeOptions,
+    SWESmithOptions,
+    TaskEvolutionOptions,
+    TerminalSynthesisOptions,
+)
 
 
 class _BaseOptions(BaseModel):
@@ -265,7 +270,9 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
     "repo_mutate": SWESmithOptions,
+    "pr_to_env": PRRecipeOptions,
     "terminal_synth": TerminalSynthesisOptions,
+    "task_evolve": TaskEvolutionOptions,
 }
 
 

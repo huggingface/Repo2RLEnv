@@ -44,7 +44,7 @@ Where the algorithm requires synthesis or review, use recorded role-specific mod
 
 ## Yield and suitability
 
-Start with supported native inputs. Target 20 accepted distinct tasks, expanding cheap methods to 100 only under the shared budget policy. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
+Start with supported native inputs. Target 20 generated distinct tasks per recipe first. Expanded quality validation and any 100-task scaling follow only after every recipe reaches its generation milestone. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
 
 ## Dependencies
 

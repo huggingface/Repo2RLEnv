@@ -92,7 +92,7 @@ Names follow `{source}_{shape}`:
 - `_runtime` — runs inside the bootstrap sandbox to verify the oracle.
 - `_patches` / `_instruct` / `_tests` — the artifact type, for synthesized pipelines.
 - `_to_env` — import-shape: the caller supplies candidates, the pipeline doesn't
-  mine them. Proposed in RFC 0007; no shipped pipeline uses it yet.
+  mine them. The owned SWE-gen recipe uses this shape.
 
 `_bugs` and `_synthesis` were retired with `mutation_bugs` / `refactor_synthesis`.
 
@@ -347,5 +347,5 @@ uv add --dev <pkg>      # dev only
 ## Status
 
 Version is whatever `pyproject.toml` says (`__version__` reads package metadata).
-6 pipelines registered — 3 stable, 3 experimental; see the table above and
+Native pipelines and owned recipe families share the registry. Use `repo2rlenv pipelines list` for current availability; see
 [`docs/release_notes/HISTORY.md`](./docs/release_notes/HISTORY.md) for how it got here.

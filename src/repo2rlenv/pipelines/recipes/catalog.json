@@ -19,7 +19,7 @@
       ]
     },
     "rfc": "0012-swe-smith-recipe.md",
-    "target": 100
+    "target": 20
   },
   {
     "id": "seta_seed2synth",
@@ -319,6 +319,6 @@
       ]
     },
     "rfc": "0026-scaler-recipe.md",
-    "target": 100
+    "target": 20
   }
 ]

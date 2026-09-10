@@ -1,6 +1,6 @@
 # RFC 0014: `seta_evol` recipe for `task_evolve`
 
-**Status:** accepted design; implementation pending
+**Status:** implementation in progress; remote generation campaign pending
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -44,7 +44,7 @@ Where the algorithm requires synthesis or review, use recorded role-specific mod
 
 ## Yield and suitability
 
-Start with supported native inputs. Target 20 accepted distinct tasks, expanding cheap methods to 100 only under the shared budget policy. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
+Start with supported native inputs. Target 20 generated distinct tasks per recipe first. Expanded quality validation and any 100-task scaling follow only after every recipe reaches its generation milestone. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
 
 ## Dependencies
 
@@ -73,4 +73,8 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned evolution stages and six source-mapped strategy prompts live under
+`pipelines/recipes/seta_evol/`, using the shared terminal materialization and
+execution-feedback loop. The [guide](../pipelines/task_evolve.md) documents the
+supported parent format, options and deliberate upstream adaptations. Remote
+campaign evidence remains pending; generated is separate from quality-accepted.

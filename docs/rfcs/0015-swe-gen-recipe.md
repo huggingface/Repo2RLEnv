@@ -1,6 +1,6 @@
 # RFC 0015: `swe_gen` recipe for `pr_to_env`
 
-**Status:** accepted design; implementation pending
+**Status:** implementation in progress; remote campaign pending
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -44,7 +44,7 @@ Where the algorithm requires synthesis or review, use recorded role-specific mod
 
 ## Yield and suitability
 
-Start with supported native inputs. Target 20 accepted distinct tasks, expanding cheap methods to 100 only under the shared budget policy. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
+Start with supported native inputs. Target 20 generated distinct tasks per recipe first. Expanded quality validation and any 100-task scaling follow only after every recipe reaches its generation milestone. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
 
 ## Dependencies
 
@@ -73,4 +73,4 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `pipelines/pr_to_env.py`, `recipes/swe_gen/` and the shared remote bootstrap/export machinery. Contract tests cover pinned source selection and multi-file reference isolation. See the [guide](../pipelines/pr_to_env.md). The first profile supports existing Python files; upstream agent-driven discovery is replaced by explicit build/source/test settings. Campaign results are still being collected.

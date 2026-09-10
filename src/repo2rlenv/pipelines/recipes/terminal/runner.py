@@ -70,8 +70,22 @@ def load_seeds(path: Path) -> list[dict]:
     return list(unique.values())
 
 
-def feedback_for(trial) -> dict:
-    evidence = {"reward": trial.reward, "exception": trial.exception_type}
+def feedback_for(trial, *, agent: str) -> dict:
+    expected = 0 if agent == "nop" else 1
+    evidence = {
+        "agent": agent,
+        "expected_reward": expected,
+        "observed_reward": trial.reward,
+        "exception": trial.exception_type,
+    }
+    if trial.completed and trial.reward != expected:
+        evidence["required_repair"] = (
+            "The UNSOLVED starting state already passes. Make the fixture actually exhibit "
+            "the intended defect under the installed interpreter; do not weaken the tests."
+            if agent == "nop"
+            else "The REFERENCE solution does not satisfy the tests. Repair the reference, "
+            "environment or erroneous expectation consistently with the task requirements."
+        )
     for name in ("verifier/stdout.txt", "verifier/stderr.txt", "agent/oracle.txt"):
         path = trial.result.parent / name
         if path.is_file():
@@ -81,11 +95,20 @@ def feedback_for(trial) -> dict:
     return evidence
 
 
-def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
+def run_synthesis(
+    input,
+    options,
+    out_dir: Path,
+    on_event,
+    *,
+    inputs: list[dict] | None = None,
+    designer=seta.design,
+    builder_prompt: str | None = None,
+) -> PipelineResult:
     recipe = get_recipe(input.pipeline.recipe)
     execution = input.execution
     ledger = BudgetLedger(execution.campaign_dir / "budget.sqlite3")
-    seeds = load_seeds(input.source.path)
+    seeds = list(inputs) if inputs is not None else load_seeds(input.source.path)
     random.Random(options.seed).shuffle(seeds)
     seeds = seeds[: options.max_candidates]
     wheel_hash = check_runtime_wheel(execution.runtime_wheel)
@@ -108,6 +131,18 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
             pass
         record = {"fingerprint": fingerprint, "state": "running", "tasks": {}, "skipped": {}}
         save_record(receipt, record)
+    for task in record["tasks"].values():
+        if inspect_bundle(Path(task["path"]))["bundle_hash"] != task["bundle_hash"]:
+            raise ValueError("A previously exported task changed")
+    if record["state"] == "completed":
+        skipped = Counter(record["skipped"].values())
+        return PipelineResult(
+            candidates=len(record["tasks"]) + len(record["skipped"]),
+            emitted=len(record["tasks"]),
+            skipped=sum(skipped.values()),
+            out_dir=out_dir,
+            skip_reasons=dict(skipped),
+        )
     worker_record = json.loads(execution.worker_receipt.read_text())
     if (
         worker_record["state"] != "running"
@@ -116,8 +151,10 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
         raise ValueError("Generation requires a running worker from this campaign")
     worker = connect_worker(worker_record["spec"]["provider"], worker_record["worker_id"])
     prepare_docker(worker)
-    deadline = datetime.fromisoformat(worker_record["started_at"]) + timedelta(
-        seconds=worker_record["spec"]["timeout_sec"]
+    deadline = min(
+        datetime.fromisoformat(worker_record["started_at"])
+        + timedelta(seconds=worker_record["spec"]["timeout_sec"]),
+        datetime.now(UTC) + timedelta(seconds=execution.timeout_sec),
     )
     python = runtime_python(install_runtime(worker, execution.runtime_wheel, run))
 
@@ -152,7 +189,7 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
         candidate.mkdir(parents=True, exist_ok=True)
         save_record(candidate / "seed.json", seed)
         event("design", "started", seed["title"])
-        design = seta.design(
+        design = designer(
             seed,
             model=input.llm,
             ledger=ledger,
@@ -161,10 +198,27 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
             resume=execution.resume,
         )
         save_record(candidate / "design.json", design.model_dump(mode="json"))
+        if getattr(design, "filtered_reason", None):
+            record["skipped"][key] = "evolution_filtered"
+            save_record(receipt, record)
+            event("design", "failed", design.filtered_reason)
+            continue
         feedback = []
         name = recipe.id.replace("_", "-") + "-" + key
         lineage = {"seed_sha256": digest, "seed_source": str(seed.get("url", seed["source"]))}
+        for field in (
+            "parent_bundle_hash",
+            "evolution_strategy",
+            "variant",
+            "content_license",
+            "question_author",
+            "answer_author",
+        ):
+            if field in seed:
+                lineage[field] = seed[field]
         for attempt in range(options.max_repairs + 1):
+            if (deadline - datetime.now(UTC)).total_seconds() < 900:
+                raise TimeoutError("Insufficient worker window for another materialization attempt")
             event("build", "started", f"{seed['title']} · attempt {attempt + 1}")
             response = metered_complete(
                 input.llm,
@@ -174,7 +228,7 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
                 reservation_usd="1.25",
                 max_tokens=options.max_tokens,
                 resume=execution.resume,
-                system=seta.builder_prompt() + _MATERIALIZATION,
+                system=(builder_prompt or seta.builder_prompt()) + _MATERIALIZATION,
                 user=json.dumps({"design": design.model_dump(), "feedback": feedback}),
                 response_schema=TerminalDraft.model_json_schema(),
             )
@@ -197,7 +251,8 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
                 continue
             trials = []
             for agent in ("nop", "oracle"):
-                trial_id = f"{execution.run_id[:24]}-{index:03d}-{attempt}-{agent}"
+                run_key = hashlib.sha256(execution.run_id.encode()).hexdigest()[:12]
+                trial_id = f"{run_key}-{index:03d}-{attempt}-{agent}"
                 trial = run_trial(
                     worker,
                     task,
@@ -236,7 +291,10 @@ def run_synthesis(input, options, out_dir: Path, on_event) -> PipelineResult:
                 break
             feedback.append(
                 {
-                    "execution": [feedback_for(item) for item in trials],
+                    "execution": [
+                        feedback_for(item, agent=agent)
+                        for item, agent in zip(trials, ("nop", "oracle"), strict=False)
+                    ],
                     "previous_draft": draft.model_dump(),
                 }
             )

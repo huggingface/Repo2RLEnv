@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 
 from repo2rlenv.emitter.bundle import TaskBundle, TaskFile, write_bundle
 from repo2rlenv.pipelines.recipes.swe_smith.options import SWESmithOptions
+from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 RECIPE_VERSION = "1"
 UPSTREAM_REVISION = "9b74ac08118a85c39c356802f7961893af73e07f"
@@ -32,6 +33,52 @@ def export_candidate(
     base = generation / "base"
     evidence = generation / "candidates" / candidate["id"]
     source_file = candidate["source_file"]
+    return export_repository_task(
+        base=base,
+        defective={source_file: (evidence / "mutated.py").read_bytes()},
+        reference={source_file: (evidence / "original.py").read_bytes()},
+        options=options,
+        instruction=instruction,
+        destination=destination,
+        name="swe-smith-" + candidate["id"],
+        org=org,
+        contrast=candidate["contrast"],
+        metadata={
+            "recipe": "swe_smith",
+            "recipe_version": RECIPE_VERSION,
+            "pipeline": "repo_mutate",
+            "upstream_revision": UPSTREAM_REVISION,
+            "repository": candidate["repo"],
+            "source_revision": candidate["ref"],
+            "mutation_id": candidate["id"],
+        },
+        single_reference=True,
+        resume=resume,
+    )
+
+
+def export_repository_task(
+    *,
+    base: Path,
+    defective: dict[str, bytes],
+    reference: dict[str, bytes],
+    options: PythonRepositoryProfile,
+    instruction: str,
+    destination: Path,
+    name: str,
+    org: str,
+    contrast: dict,
+    metadata: dict,
+    single_reference: bool = False,
+    resume: bool = False,
+) -> Path:
+    """Materialize a tested repository contrast with private reference files.
+
+    This profile replaces existing Python files. Added/deleted source paths
+    require a separate artifact collection contract and are rejected explicitly.
+    """
+    if not defective or defective.keys() != reference.keys():
+        raise ValueError("Defective and reference snapshots must replace the same source files")
     assets: dict[str, TaskFile] = {}
     collected = []
     source_roots = [PurePosixPath(path) for path in options.source_paths]
@@ -49,11 +96,7 @@ def export_candidate(
             or path.suffix == ".pyc"
         ):
             raise ValueError(f"Snapshot contains a forbidden cache/history asset: {relative}")
-        content = (
-            (evidence / "mutated.py").read_bytes()
-            if str(relative) == source_file
-            else path.read_bytes()
-        )
+        content = defective.get(str(relative), path.read_bytes())
         asset = TaskFile(content, bool(path.stat().st_mode & 0o111))
         assets[f"tests/source/{relative}"] = asset
         private_test = any(relative == root or root in relative.parents for root in hidden_roots)
@@ -65,8 +108,8 @@ def export_candidate(
             and any(relative == root or root in relative.parents for root in source_roots)
         ):
             collected.append(str(relative))
-    if source_file not in collected:
-        raise ValueError("Mutated source must be within the submitted Python source paths")
+    if not set(defective).issubset(collected):
+        raise ValueError("Changed source must be within the submitted Python source paths")
     if set(collected) & {str(root) for root in hidden_roots}:
         raise ValueError("Source and private test paths overlap")
 
@@ -106,20 +149,19 @@ def export_candidate(
             {
                 "submitted_files": collected,
                 "test_paths": options.test_paths,
-                "expected_passes": candidate["contrast"]["FAIL_TO_PASS"]
-                + candidate["contrast"]["PASS_TO_PASS"],
+                "expected_passes": contrast["FAIL_TO_PASS"] + contrast["PASS_TO_PASS"],
                 "timeout_sec": options.test_timeout_sec,
             },
             sort_keys=True,
         )
     )
-    assets["solution/reference.py"] = TaskFile((evidence / "original.py").read_bytes())
-    assets["solution/solve.sh"] = TaskFile.text(
-        "#!/bin/sh\nset -eu\ncp /solution/reference.py "
-        + shlex.quote("/workspace/" + source_file)
-        + "\n",
-        executable=True,
-    )
+    solve = "#!/bin/sh\nset -eu\n"
+    for source_file, content in sorted(reference.items()):
+        asset = "reference.py" if single_reference else "reference/" + source_file
+        assets["solution/" + asset] = TaskFile(content)
+        solve += "cp " + shlex.quote("/solution/" + asset) + " "
+        solve += shlex.quote("/workspace/" + source_file) + "\n"
+    assets["solution/solve.sh"] = TaskFile.text(solve, executable=True)
     instruction = instruction.rstrip() + (
         "\n\nWork in `/workspace`. Submit your fix in the existing Python source files under "
         + ", ".join(f"`{root}`" for root in options.source_paths)
@@ -127,22 +169,16 @@ def export_candidate(
         "Grading runs the repository's test suite in a fresh environment, using your submitted source files.\n"
     )
     bundle = TaskBundle(
-        name="swe-smith-" + candidate["id"],
+        name=name,
         org=org,
         instruction=instruction,
         files=assets,
         metadata={
-            "recipe": "swe_smith",
-            "recipe_version": RECIPE_VERSION,
-            "pipeline": "repo_mutate",
-            "upstream_revision": UPSTREAM_REVISION,
-            "repository": candidate["repo"],
-            "source_revision": candidate["ref"],
-            "mutation_id": candidate["id"],
+            **metadata,
             "reward_kinds": ["test_execution"],
             "quality_status": "exported",
-            "fail_to_pass_count": len(candidate["contrast"]["FAIL_TO_PASS"]),
-            "pass_to_pass_count": len(candidate["contrast"]["PASS_TO_PASS"]),
+            "fail_to_pass_count": len(contrast["FAIL_TO_PASS"]),
+            "pass_to_pass_count": len(contrast["PASS_TO_PASS"]),
         },
         agent={"user": "learner", "network_mode": "no-network"},
         verifier={

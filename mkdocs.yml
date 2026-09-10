@@ -155,6 +155,8 @@ nav:
       - Owned recipes: pipelines/owned_recipes.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md
+      - "task_evolve / seta_evol (experimental)": pipelines/task_evolve.md
+      - "pr_to_env / swe_gen (experimental)": pipelines/pr_to_env.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md
