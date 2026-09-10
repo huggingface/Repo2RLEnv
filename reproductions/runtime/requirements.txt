@@ -1,0 +1,4 @@
+modal==1.5.5
+harbor==0.20.0
+python-dotenv==1.2.2
+huggingface-hub==1.13.0

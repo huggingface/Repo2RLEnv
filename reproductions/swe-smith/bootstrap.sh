@@ -4,7 +4,7 @@ mkdir -p /work/swesmith /evidence/swesmith
 git clone https://github.com/SWE-bench/SWE-smith.git /work/swesmith/upstream
 git -C /work/swesmith/upstream checkout --detach 9b74ac08118a85c39c356802f7961893af73e07f
 uv venv /work/swesmith/venv --python 3.12
-uv pip install --python /work/swesmith/venv/bin/python -e '/work/swesmith/upstream[generate,validate]' litellm datasets 'harbor==0.20.0'
+uv pip install --python /work/swesmith/venv/bin/python -r /work/recipes/swe-smith/config/requirements.lock.txt
 uv pip freeze --python /work/swesmith/venv/bin/python > /evidence/swesmith/requirements.lock.txt
 cd /work/swesmith/upstream
 /work/swesmith/venv/bin/python - <<'PY'

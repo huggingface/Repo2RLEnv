@@ -1,0 +1,13 @@
+--- a/rl_data/scripts/analyze/convert_to_harbor.py
++++ b/rl_data/scripts/analyze/convert_to_harbor.py
+@@ -199,8 +199,9 @@
+ # task.toml generation
+ # ---------------------------------------------------------------------------
+ 
+-def _escape_toml(s: str) -> str:
++def _escape_toml(s: str | None) -> str:
+     """Escape special characters for TOML double-quoted strings."""
++    s = "" if s is None else s
+     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+ 
+ 

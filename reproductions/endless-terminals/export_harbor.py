@@ -7,8 +7,8 @@ import json
 import shutil
 from pathlib import Path
 
-from generator.convert_to_harbor.convert_sif_docker import process_task_directory
 from generator.convert_to_harbor.add_reward_file import update_test_sh
+from generator.convert_to_harbor.convert_sif_docker import process_task_directory
 from harbor.models.task.task import Task
 
 
@@ -39,7 +39,7 @@ def main() -> None:
         shutil.copy2(source / "test_final_state.py", destination / "tests/test_final_state.py")
         (destination / "tests/test.sh").touch()
         update_test_sh(destination / "tests/test.sh")
-        (destination / "task.toml").write_text('''version = "1.0"
+        (destination / "task.toml").write_text("""version = "1.0"
 [metadata]
 source = "Endless Terminals upstream reproduction"
 [agent]
@@ -51,7 +51,7 @@ build_timeout_sec = 600
 cpus = 1
 memory_mb = 2048
 allow_internet = true
-''')
+""")
         Task(destination)
         result["harbor"] = str(destination)
         result["oracle_present"] = False

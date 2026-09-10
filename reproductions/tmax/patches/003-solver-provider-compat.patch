@@ -1,0 +1,27 @@
+--- a/rl_data/__init__.py
++++ b/rl_data/__init__.py
+@@ -164,6 +164,7 @@
+                     model=model,
+                     messages=msgs,
+                     tools=tools,
++                    **({"tool_choice": "required"} if os.environ.get("REPRO_REQUIRE_TOOL_CALL") == "1" else {}),
+                     temperature=temperature,
+                     max_tokens=max_tokens,
+                 )
+--- a/rl_data/generator/sample_solutions.py
++++ b/rl_data/generator/sample_solutions.py
+@@ -304,10 +304,10 @@
+                 act = actions[i]
+ 
+                 if not msg:
+-                    messages[n].append({
+-                        "role": "assistant",
+-                        "content": "I encountered an error. Let me try again.",
+-                    })
++                    # Preserve the failed call as a stopped rollout, not an
++                    # invalid trailing assistant prefill on the next request.
++                    is_done[n] = True
++                    to_mark_done.append(n)
+                     continue
+ 
+                 messages[n].append(msg)

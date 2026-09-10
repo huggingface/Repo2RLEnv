@@ -4,7 +4,7 @@
   "title": "SETA Evol",
   "kind": "generator",
   "order": 2,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/camel-ai/seta",
     "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
@@ -29,29 +29,43 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "claude-sonnet-4-6",
+    "commands_verified": true,
+    "bootstrap_verified": true
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Keep native task bundles and retain parent identifiers; do not add a new curriculum scheduler."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Newly generated validated parents; original CHANGE_CONTEXT strategy and Sonnet model.",
+      "SDK budget/turn caps; failing baseline parent excluded before generation."
+    ],
     "known_limitations": [
       "Configured evolution is not a learned scheduler. Keep children separate from originals and preserve the upstream strategy."
-    ]
+    ],
+    "deviation_record": "patches/README.md"
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
     "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "independent_audit_passed": 0,
+    "attempted": 2,
+    "attempted_unit": "parent task",
+    "native_emitted": 2,
+    "native_accepted": 2,
+    "harbor_exported": 2,
+    "execution_contrast_passed": 2,
+    "execution_contrast_with_recorded_repairs": 2,
+    "byte_preserving_exports": 2,
+    "parents_excluded_before_generation": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.282769+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Reuse the SETA installation and runtime; change only to its published evolution path."
 }

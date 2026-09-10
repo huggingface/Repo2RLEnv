@@ -25,12 +25,17 @@ def main() -> None:
             raise ValueError("Expected immediate reproduction folder")
         for source in directory.rglob("*"):
             relative = source.relative_to(ROOT)
-            if any(part in {"upstream", "runs", "harbor", "data", "cache", ".venv"}
-                   for part in relative.parts):
+            if any(
+                part in {"upstream", "runs", "harbor", "data", "cache", ".venv"}
+                for part in relative.parts
+            ):
                 continue
             if source.is_symlink() or not source.is_file():
                 continue
-            if source.suffix not in {".py", ".sh", ".patch", ".yaml", ".toml", ".in"}:
+            if (
+                source.suffix not in {".py", ".sh", ".patch", ".yaml", ".toml", ".in"}
+                and source.name != "requirements.lock.txt"
+            ):
                 continue
             destination = Path("/work/recipes") / relative
             sandbox.filesystem.make_directory(str(destination.parent))

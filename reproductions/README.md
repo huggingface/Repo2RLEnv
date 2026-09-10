@@ -4,7 +4,28 @@ Reproduce existing public implementations one by one, using each project's nativ
 
 Branch: `codex/upstream-reproductions`, created from local `main` at `1a8bad5774e062d0d73a7d79f9d6a95540801c83`. The previous harness work remains on `codex/dynamic-harbor-curation`.
 
-Implementation is underway for the first five experiments. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for stage contracts, requirements and the freshly authorized **$500 reproduction budget**. Earlier campaign outputs and spending are separate from this campaign. Measured results are recorded per experiment.
+The first five implementations have completed a remote generation/export pilot.
+See [RUNBOOK.md](RUNBOOK.md) for commands, [ARTIFACTS.md](ARTIFACTS.md) for the
+actual Harbor tasks and traces, and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+for the original stage contracts. The fresh **$500 reproduction budget** is
+separate from earlier Tasksmith campaigns.
+The completed pilot accounts for **$15.46**, with **$484.54 remaining** and the
+worker terminated. See [COSTS.md](COSTS.md) for the SDK reports, rate estimates and
+cloud allowance; these are not invoiced charges.
+
+| Pipeline | Generated Harbor exports | Fresh no-op/reference passes | Result |
+| --- | --- | --- | --- |
+| [SETA Seed2Synth](seta-seed2synth/RESULTS.md) | 3 | 2 original; 3 with a reference-precision repair | Offline blind Sonnet success on one task |
+| [SETA Evol](seta-evol/RESULTS.md) | 2 | 2 | Both original CHANGE_CONTEXT children pass |
+| [Endless Terminals](endless-terminals/RESULTS.md) | 5 from 11 attempts | 1 | All five have documented quality failures, including three demonstrated reward shortcuts |
+| [TMax](tmax/RESULTS.md) | 1 | 1 after adding a missing verifier dependency | Native 51-test success and Harbor replay success |
+| [SWE-smith](swe-smith/RESULTS.md) | 5 | 5 | Native procedural mutation validation; offline blind Sonnet success on one |
+
+**16 distinct task exports; 12 pass execution contrast when the two explicit
+repairs are included.** Variants and adversarial candidates do not inflate that
+count. No task is labeled training-approved by this pilot. We reproduced the
+released generation paths and preserved quality failures instead of changing
+their verifiers. The 100-per-pipeline scale-up remains a later milestone.
 
 ## Recommended generation order
 
@@ -94,8 +115,12 @@ TaskPilot, Environment Evolution, CalibForge, Recursive Task Synthesis, CLI-Univ
 
 SWE-rebench V2 and the Envs-FORGE-linked DataArc branch are explicitly labeled partial releases. Importing released tasks or running available components does not reproduce an absent production generator. SCALER keeps its original problem-domain semantics rather than being presented as a repository coding pipeline.
 
-## First concrete milestone
+## Next milestone
 
-Prepare the pinned **SETA Seed2Synth** installation remotely, use a small published seed subset, and run its native synthesis command with its original authoring agent. Produce one task, retain the full log, then independently check the native Harbor artifact. Reach five before committing resources to a 20-input pilot and the 100-task target.
-
-The scaffold required no paid jobs. The user subsequently authorized a fresh $500 for these reproductions. Track inference and cloud use, including failures, in a separate campaign ledger and use the pilot measurements before scaling.
+Use the saved artifacts to reproduce the observed checks without generation cost,
+then expand the small panels toward five, 20 and 100 inputs per generator. Keep
+native workflow fidelity and independent quality as separate measurements.
+Endless's observed verifier failures should inform any later hardening experiment;
+they must not be hidden by rewriting this baseline. SWE-smith needs additional
+supported repositories before making a diversity claim, and SETA needs further
+seed and evolution strategies before making a curriculum claim.

@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 from harbor.models.task.task import Task
 from swesmith.profiles import registry
 
-TEST_SH = '''#!/bin/bash
+TEST_SH = """#!/bin/bash
 set -uo pipefail
 mkdir -p /logs/verifier
 echo 0 > /logs/verifier/reward.txt
@@ -21,9 +20,9 @@ source /opt/miniconda3/bin/activate || exit 1
 conda activate testbed || exit 1
 bash /tests/native-test-command.sh > /logs/verifier/test-stdout.txt 2>&1
 python /tests/grade.py
-'''
+"""
 
-GRADER = '''from pathlib import Path
+GRADER = """from pathlib import Path
 import json,re
 expected=json.loads(Path('/tests/expected.json').read_text())
 text=Path('/logs/verifier/test-stdout.txt').read_text()
@@ -36,7 +35,7 @@ required=expected['FAIL_TO_PASS']+expected['PASS_TO_PASS']
 passed=bool(expected['FAIL_TO_PASS']) and all(statuses.get(case) in {'PASSED','XFAIL'} for case in required)
 Path('/logs/verifier/test-statuses.json').write_text(json.dumps(statuses,indent=2))
 Path('/logs/verifier/reward.txt').write_text('1' if passed else '0')
-'''
+"""
 
 
 def main() -> None:
@@ -71,8 +70,9 @@ def main() -> None:
         (task / "tests/native-test-command.sh").write_text("#!/bin/bash\n" + test_command + "\n")
         (task / "tests/test.sh").write_text(TEST_SH)
         (task / "tests/grade.py").write_text(GRADER)
-        (task / "tests/expected.json").write_text(json.dumps({
-            key: instance[key] for key in ("FAIL_TO_PASS", "PASS_TO_PASS")}, indent=2))
+        (task / "tests/expected.json").write_text(
+            json.dumps({key: instance[key] for key in ("FAIL_TO_PASS", "PASS_TO_PASS")}, indent=2)
+        )
         container = subprocess.check_output(["docker", "create", image], text=True).strip()
         try:
             f2p, p2p = profile.get_test_files(instance)
@@ -82,10 +82,12 @@ def main() -> None:
                     raise ValueError(f"Unexpected native test path: {filename}")
                 target = task / "tests/pristine" / path
                 target.parent.mkdir(parents=True, exist_ok=True)
-                subprocess.run(["docker", "cp", f"{container}:/testbed/{filename}", str(target)], check=True)
+                subprocess.run(
+                    ["docker", "cp", f"{container}:/testbed/{filename}", str(target)], check=True
+                )
         finally:
             subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL)
-        (task / "task.toml").write_text('''version = "1.0"
+        (task / "task.toml").write_text("""version = "1.0"
 [metadata]
 source = "SWE-smith procedural mutation; pinned upstream reproduction"
 [agent]
@@ -97,12 +99,18 @@ build_timeout_sec = 600
 cpus = 1
 memory_mb = 2048
 allow_internet = false
-''')
+""")
         Task(task)
-        records.append({"instance_id": instance["instance_id"], "harbor": str(task),
-                        "image_digest": digest, "reference": "inverse original mutation",
-                        "isolation_deviation": "remove git metadata and disable solver internet",
-                        "test_command": test_command})
+        records.append(
+            {
+                "instance_id": instance["instance_id"],
+                "harbor": str(task),
+                "image_digest": digest,
+                "reference": "inverse original mutation",
+                "isolation_deviation": "remove git metadata and disable solver internet",
+                "test_command": test_command,
+            }
+        )
     args.destination.mkdir(parents=True, exist_ok=True)
     (args.destination / "export-manifest.json").write_text(json.dumps(records, indent=2))
     print(json.dumps(records, indent=2))

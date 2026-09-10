@@ -4,7 +4,7 @@
   "title": "SETA Seed2Synth",
   "kind": "generator",
   "order": 1,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/camel-ai/seta",
     "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
@@ -29,29 +29,46 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "claude-opus-4-6",
+    "commands_verified": true,
+    "runtime": "VM sandbox with Docker and Apptainer",
+    "bootstrap_verified": true,
+    "dependencies": "config/requirements.lock.txt"
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Keep native Harbor artifacts. Apply only documented schema/runtime compatibility changes in a separate export copy."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Independent frozen Unix.SE inputs replace the gated published seed split.",
+      "SDK budget/turn caps; optional offline and repaired-reference variants retained separately."
+    ],
     "known_limitations": [
       "Keep the upstream author-report verdict; independently measure actual oracle and baseline results. Do not replace its authoring workflow with Tasksmith."
-    ]
+    ],
+    "deviation_record": "patches/README.md"
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
     "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "independent_audit_passed": 0,
+    "attempted": 3,
+    "attempted_unit": "seed",
+    "native_emitted": 3,
+    "native_accepted": 3,
+    "harbor_exported": 3,
+    "execution_contrast_passed": 2,
+    "execution_contrast_with_recorded_repairs": 3,
+    "byte_preserving_exports": 3,
+    "blind_harbor_successes": 1,
+    "reference_repairs": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.282293+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Native Harbor output and a standalone synthesis mode; first prove one complete upstream run."
 }

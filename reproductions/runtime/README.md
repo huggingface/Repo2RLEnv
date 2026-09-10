@@ -3,6 +3,10 @@
 These helpers run original upstream implementations; they do not author tasks.
 Run controllers from the repository root using `.venv/bin/python`.
 
+Controller requirements: `uv pip install -r reproductions/runtime/requirements.txt`.
+The remote bootstrap scripts install each project's separately frozen dependency
+file under `config/requirements.lock.txt`.
+
 ```bash
 python reproductions/runtime/modal_worker.py create --name reproduction-worker-01 --hours 3 --cloud-reserve 10
 python reproductions/runtime/modal_worker.py exec --name reproduction-worker-01 --script reproductions/runtime/docker_smoke.sh --timeout 300
@@ -53,3 +57,7 @@ Daytona credentials are available as a fallback. This first implementation exerc
 Modal's VM worker; it does not claim that an equivalent Daytona recipe has been tested.
 
 Contract tests: `python -m unittest discover -s reproductions/runtime/tests -v`.
+
+See [RUNBOOK.md](../RUNBOOK.md) for the implemented stage commands. Recorded
+one-off diagnostic commands stay with the ignored campaign evidence; the runbook
+uses the corrected recipes.

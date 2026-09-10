@@ -40,29 +40,61 @@ def main() -> None:
         task_id = f"unix-se-{question['question_id']}"
         folder = destination / task_id
         folder.mkdir()
-        seed = {"title": question["title"], "question_text": question["body"],
-                "answer_text": answer["body"], "tags": question["tags"],
-                "source": "unix_linux_se", "url": question["link"],
-                "question_id": question["question_id"], "answer_id": answer["answer_id"],
-                "attribution": {"question": question.get("owner"), "answer": answer.get("owner")},
-                "content_license": {"question": question.get("content_license"),
-                                    "answer": answer.get("content_license")}}
+        seed = {
+            "title": question["title"],
+            "question_text": question["body"],
+            "answer_text": answer["body"],
+            "tags": question["tags"],
+            "source": "unix_linux_se",
+            "url": question["link"],
+            "question_id": question["question_id"],
+            "answer_id": answer["answer_id"],
+            "attribution": {"question": question.get("owner"), "answer": answer.get("owner")},
+            "content_license": {
+                "question": question.get("content_license"),
+                "answer": answer.get("content_license"),
+            },
+        }
         body = json.dumps(seed, indent=2) + "\n"
         (folder / "main.json").write_text(body)
-        rows.append({"task_id": task_id, "source": "unix_linux_se", "title": seed["title"],
-                     "category": "bash", "tags": json.dumps(seed["tags"]),
-                     "score": question["score"], "url": seed["url"], "filtered": "False",
-                     "filter_reason": ""})
-        manifest.append({"task_id": task_id, "url": seed["url"],
-                         "sha256": hashlib.sha256(body.encode()).hexdigest()})
+        rows.append(
+            {
+                "task_id": task_id,
+                "source": "unix_linux_se",
+                "title": seed["title"],
+                "category": "bash",
+                "tags": json.dumps(seed["tags"]),
+                "score": question["score"],
+                "url": seed["url"],
+                "filtered": "False",
+                "filter_reason": "",
+            }
+        )
+        manifest.append(
+            {
+                "task_id": task_id,
+                "url": seed["url"],
+                "sha256": hashlib.sha256(body.encode()).hexdigest(),
+            }
+        )
     with (destination / "metadata.csv").open("w") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    (ROOT / "seed-manifest.json").write_text(json.dumps({"selection": "first five accepted-answer questions from Unix.SE bash sorted votes descending; API response frozen", "inputs": manifest}, indent=2))
+    (ROOT / "seed-manifest.json").write_text(
+        json.dumps(
+            {
+                "selection": "first five accepted-answer questions from Unix.SE bash sorted votes descending; API response frozen",
+                "inputs": manifest,
+            },
+            indent=2,
+        )
+    )
     (ROOT / "questions-response.json").write_text(json.dumps(response, indent=2))
     (ROOT / "smoke.csv").write_text("source,task_id\nunix_linux_se," + rows[0]["task_id"] + "\n")
-    (ROOT / "five.csv").write_text("source,task_id\n" + "".join(f"unix_linux_se,{r['task_id']}\n" for r in rows))
+    (ROOT / "five.csv").write_text(
+        "source,task_id\n" + "".join(f"unix_linux_se,{r['task_id']}\n" for r in rows)
+    )
     print(json.dumps(manifest, indent=2))
 
 

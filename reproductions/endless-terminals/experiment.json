@@ -4,7 +4,7 @@
   "title": "Endless Terminals",
   "kind": "generator",
   "order": 3,
-  "status": "planned",
+  "status": "pilot_complete",
   "upstream": {
     "repository": "https://github.com/kanishkg/endless-terminals",
     "commit": "99f4c74b75faacf21e53d3dc01df170902e924cb",
@@ -30,29 +30,48 @@
   },
   "execution": {
     "location": "remote",
-    "provider": null,
+    "provider": "modal",
     "upstream_environment_isolated": true,
-    "model": null,
-    "commands_verified": false
+    "model": "gpt-4o",
+    "commands_verified": true,
+    "runtime": "VM sandbox with Docker and Apptainer",
+    "bootstrap_verified": true,
+    "dependencies": "config/requirements.lock.txt"
   },
   "conversion": {
-    "status": "not_started",
+    "status": "exported",
     "approach": "Use the upstream converter first; compare native and converted verifier outcomes on identical initial and solution states."
   },
   "fidelity": {
-    "mode": "upstream_baseline",
-    "deviations": [],
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Direct OpenAI endpoint with native CLI GPT-4o default, instead of README Qwen/vLLM deployment.",
+      "Preserve build failure evidence; prebuild omitted SIF; use Apptainer user namespaces.",
+      "Native converter followed by minimal Harbor layout; original solver provides a replay witness when successful."
+    ],
     "known_limitations": [
       "The conversion path has its own model/sampling requirements. Initial-state build success is distinct from completion-verifier validity."
-    ]
+    ],
+    "deviation_record": "patches/README.md"
   },
   "results": {
-    "attempted": 0,
-    "native_emitted": 0,
-    "native_accepted": 0,
-    "harbor_exported": 0,
-    "export_parity_passed": 0,
-    "independent_audit_passed": 0
+    "export_parity_passed": 1,
+    "independent_audit_passed": 0,
+    "attempted": 11,
+    "attempted_unit": "sampled candidate",
+    "native_emitted": 5,
+    "native_accepted": 5,
+    "harbor_exported": 5,
+    "execution_contrast_passed": 1,
+    "execution_contrast_with_recorded_repairs": 1,
+    "quality_rejected": 5,
+    "pre_solved": 1,
+    "reward_shortcuts_demonstrated": 3,
+    "instruction_verifier_mismatches": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.283019+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
   },
   "why_this_order": "Establish the simpler Apptainer generation path and its existing Harbor conversion before TMax."
 }

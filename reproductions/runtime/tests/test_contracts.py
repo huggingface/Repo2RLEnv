@@ -18,12 +18,14 @@ class BudgetTests(unittest.TestCase):
             path = Path(directory) / "ledger.json"
             with locked(path) as data:
                 data["limit_usd"] = "10"
+
             def attempt(index):
                 try:
                     reserve(str(index), "3", "test", path)
                     return True
                 except ValueError:
                     return False
+
             with ThreadPoolExecutor(max_workers=8) as pool:
                 accepted = list(pool.map(attempt, range(8)))
             self.assertEqual(sum(accepted), 3)
@@ -59,8 +61,10 @@ class ExportTests(unittest.TestCase):
             destination = root / "export"
             report = export_native(source, destination)
             self.assertFalse((destination / "idea_agent_log.txt").exists())
-            self.assertEqual((source / "tests" / "test.sh").read_bytes(),
-                             (destination / "tests" / "test.sh").read_bytes())
+            self.assertEqual(
+                (source / "tests" / "test.sh").read_bytes(),
+                (destination / "tests" / "test.sh").read_bytes(),
+            )
             self.assertFalse(report["oracle_present"])
             with self.assertRaises(FileExistsError):
                 export_native(source, destination)

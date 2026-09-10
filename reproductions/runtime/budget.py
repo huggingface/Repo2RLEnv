@@ -7,7 +7,7 @@ import fcntl
 import json
 import os
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,7 +15,7 @@ DEFAULT = Path(__file__).resolve().parents[1] / "runs" / "budget.json"
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @contextmanager
@@ -23,11 +23,15 @@ def locked(path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.with_suffix(".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        data = json.loads(path.read_text()) if path.exists() else {
-            "limit_usd": "500.00",
-            "authorization": "2026-09-10: Use a new $500 budget for these reproductions",
-            "entries": {},
-        }
+        data = (
+            json.loads(path.read_text())
+            if path.exists()
+            else {
+                "limit_usd": "500.00",
+                "authorization": "2026-09-10: Use a new $500 budget for these reproductions",
+                "entries": {},
+            }
+        )
         yield data
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(data, indent=2) + "\n")
@@ -47,8 +51,13 @@ def reserve(key: str, amount: str, purpose: str, path: Path = DEFAULT) -> dict:
             raise ValueError(f"Operation already exists: {key}; inspect before retrying")
         if total(data) + value > Decimal(data["limit_usd"]):
             raise ValueError("Campaign allowance exceeded")
-        entry = {"purpose": purpose, "reserved_usd": str(value), "accounted_usd": str(value),
-                 "status": "reserved", "created_at": now()}
+        entry = {
+            "purpose": purpose,
+            "reserved_usd": str(value),
+            "accounted_usd": str(value),
+            "status": "reserved",
+            "created_at": now(),
+        }
         data["entries"][key] = entry
     return entry
 
@@ -57,7 +66,13 @@ def settle(key: str, amount: str, evidence: str, kind: str, path: Path = DEFAULT
     value = Decimal(amount)
     if not value.is_finite() or value < 0 or not evidence:
         raise ValueError("Settlement requires nonnegative cost and evidence")
-    if kind not in {"model_reported", "cloud_estimate", "provider_invoice", "not_started"}:
+    if kind not in {
+        "model_reported",
+        "model_estimate",
+        "cloud_estimate",
+        "provider_invoice",
+        "not_started",
+    }:
         raise ValueError("Unknown cost evidence kind")
     with locked(path) as data:
         entry = data["entries"][key]
@@ -79,9 +94,16 @@ def main() -> None:
         print(json.dumps(settle(args.key, args.usd, args.note, args.kind), indent=2))
     else:
         with locked(DEFAULT) as data:
-            print(json.dumps({**data, "accounted_usd": str(total(data)),
-                              "remaining_usd": str(Decimal(data["limit_usd"]) - total(data))},
-                             indent=2))
+            print(
+                json.dumps(
+                    {
+                        **data,
+                        "accounted_usd": str(total(data)),
+                        "remaining_usd": str(Decimal(data["limit_usd"]) - total(data)),
+                    },
+                    indent=2,
+                )
+            )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,10 @@
+--- a/generator/env.py
++++ b/generator/env.py
+@@ -308,6 +308,7 @@
+         self.instance_name = f"agent_{uuid.uuid4().hex[:8]}"
+         start_cmd = [
+             "apptainer", "instance", "start",
++            "--fakeroot", "--userns",
+             "--containall",
+             "--writable-tmpfs",
+             "--bind", f"{self.temp_dir}:{self.temp_dir}",

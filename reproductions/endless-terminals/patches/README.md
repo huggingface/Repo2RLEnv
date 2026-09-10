@@ -18,3 +18,22 @@ The released converter creates a Dockerfile and runs initial tests. The released
 reward helper expects an existing Harbor layout. A packaging adapter must supply
 that layout while copying instruction and test contents without rewriting them.
 Its conversion result is recorded separately from native generation acceptance.
+
+`002-converter-receipts.patch` records the converter's unmodified API responses.
+The per-task conversion API avoids the batch command's hardcoded published
+o3/pass@16 dataset filter; the new tasks have no such preexisting sample file.
+The converter uses GPT-4o rather than its GPT-5.1 default.
+
+`003-build-evidence.patch` preserves definitions, initial tests and build logs for
+accepted and rejected candidates. The released helper discarded the failure logs.
+The first failed candidate attempted `chown user:user` without creating that user.
+
+`004-modal-userns.patch` adds `--fakeroot --userns` to instance startup, matching
+the released generator's initial-test execution flags. Modal's VM kernel lacks
+kernel squashfs support; the original privileged instance mount failed. The
+native prompts, commands, initial/final tests and reward interpretation stay intact.
+
+The probe builds the unchanged definition into a persistent SIF first. The
+generator only tests a temporary SIF and omits the persistent image. Its fallback
+runtime builder rewrites the definition to an author-specific `/data/...` path;
+the probe avoids that fallback. The observed failed rewrite is retained as evidence.

@@ -44,39 +44,69 @@ def export_native(source: Path, destination: Path) -> dict:
         elif path.is_file():
             shutil.copy2(path, destination / entry)
     Task(destination)
-    return {"source": str(source), "export": str(destination), "files": hashes(destination),
-            "oracle_present": (destination / "solution" / "solve.sh").exists(),
-            "conversion": "byte-preserving Harbor contract copy"}
+    return {
+        "source": str(source),
+        "export": str(destination),
+        "files": hashes(destination),
+        "oracle_present": (destination / "solution" / "solve.sh").exists(),
+        "conversion": "byte-preserving Harbor contract copy",
+    }
 
 
 def audit(task: Path, output: Path, agents: list[str]) -> dict:
     Task(task)
     output.mkdir(parents=True, exist_ok=False)
-    report = {"task": str(task), "task_hashes": hashes(task), "schema_valid": True,
-              "runs": {}, "execution_contrast_passed": False}
+    report = {
+        "task": str(task),
+        "task_hashes": hashes(task),
+        "schema_valid": True,
+        "runs": {},
+        "execution_contrast_passed": False,
+    }
     for agent in agents:
         if agent == "oracle" and not (task / "solution" / "solve.sh").is_file():
             report["runs"][agent] = {"status": "missing_upstream_oracle"}
             continue
-        command = ["harbor", "run", "-p", str(task), "-a", agent, "-e", "docker",
-                   "-n", "1", "--max-retries", "0", "--jobs-dir", str(output),
-                   "--job-name", agent]
+        command = [
+            "harbor",
+            "run",
+            "-p",
+            str(task),
+            "-a",
+            agent,
+            "-e",
+            "docker",
+            "-n",
+            "1",
+            "--max-retries",
+            "0",
+            "--jobs-dir",
+            str(output),
+            "--job-name",
+            agent,
+        ]
         with (output / f"{agent}.log").open("w") as log:
             try:
-                process = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                                         timeout=1800, check=False)
+                process = subprocess.run(
+                    command, stdout=log, stderr=subprocess.STDOUT, timeout=1800, check=False
+                )
                 returncode = process.returncode
             except subprocess.TimeoutExpired:
                 returncode = None
         trials = []
         for result in (output / agent).glob("*/result.json"):
             data = json.loads(result.read_text())
-            trials.append({"path": str(result), "exception_info": data.get("exception_info"),
-                           "verifier_result": data.get("verifier_result"),
-                           "agent_result": data.get("agent_result")})
-        report["runs"][agent] = {"command": command, "returncode": returncode,
-                                  "trials": trials}
+            trials.append(
+                {
+                    "path": str(result),
+                    "exception_info": data.get("exception_info"),
+                    "verifier_result": data.get("verifier_result"),
+                    "agent_result": data.get("agent_result"),
+                }
+            )
+        report["runs"][agent] = {"command": command, "returncode": returncode, "trials": trials}
         (output / "audit.json").write_text(json.dumps(report, indent=2) + "\n")
+
     def reward(agent: str):
         run = report["runs"].get(agent, {})
         trials = run.get("trials", [])
@@ -84,8 +114,11 @@ def audit(task: Path, output: Path, agents: list[str]) -> dict:
             return None
         rewards = (trials[0].get("verifier_result") or {}).get("rewards") or {}
         return rewards.get("reward")
+
     report["execution_contrast_passed"] = reward("nop") == 0 and reward("oracle") == 1
-    report["note"] = "Execution contrast alone is not test coverage, conversion parity or quality approval."
+    report["note"] = (
+        "Execution contrast alone is not test coverage, conversion parity or quality approval."
+    )
     (output / "audit.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 
