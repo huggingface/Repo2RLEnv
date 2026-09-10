@@ -1,0 +1,45 @@
+{
+  "id": "tmax",
+  "stages": {
+    "bootstrap": {
+      "script": "tmax/bootstrap.sh",
+      "description": "Pinned TMax source, dependencies and usage receipts",
+      "requires": [
+        "runtime/apptainer"
+      ],
+      "timeout_seconds": 1200
+    },
+    "generate": {
+      "script": "tmax/run_smoke.sh",
+      "description": "One original generator case with recorded Sonnet substitution",
+      "requires": [
+        "tmax/bootstrap"
+      ],
+      "timeout_seconds": 2700,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 8
+    },
+    "convert": {
+      "script": "tmax/convert_compat.sh",
+      "description": "Original converter with nullable metadata compatibility",
+      "requires": [
+        "tmax/generate"
+      ],
+      "timeout_seconds": 1200
+    },
+    "validate": {
+      "script": "tmax/probe_smoke.sh",
+      "description": "Original bounded solver and explicit missing-oracle results",
+      "requires": [
+        "tmax/convert"
+      ],
+      "timeout_seconds": 3600,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 8
+    }
+  }
+}

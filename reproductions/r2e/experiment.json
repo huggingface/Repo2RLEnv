@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "r2e",
+  "title": "R2E",
+  "kind": "generator",
+  "order": 12,
+  "status": "pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/r2e-project/r2e",
+    "commit": "bcbed156711bb939de14aa46b27eee15073f5272",
+    "license": "MIT",
+    "source_paths": [
+      "src/r2e/pat/dependency_slicer/",
+      "src/r2e/generators/specgen/",
+      "src/r2e/generators/testgen/genexec.py"
+    ]
+  },
+  "input": "Functions from repositories accepted by the upstream extraction and execution tooling.",
+  "native_output": "Function/specification records, generated execution tests and reference behavior.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "gpt-4o",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Wrap the upstream function reconstruction/equivalence task in a small workspace; preserve its tested input domain."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Original Docker builder failed on removed Ubuntu packages; used the supported --local mode inside the remote Modal VM",
+      "Downloaded missing NLTK punkt_tab data and retained native extraction/slicing/test generation",
+      "One selected function, up to three generation rounds, 1024-token cap; GPT-4o model substitution",
+      "Minimal function-body removal and docstring instruction; original tests unchanged; source reference replaces native compiled reference service"
+    ],
+    "known_limitations": [
+      "A reference-execution result is not the specification of a novel feature. This is a function-task reproduction."
+    ]
+  },
+  "results": {
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 1,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Reproduce the narrower function-level task unit after repository-level workflows."
+}

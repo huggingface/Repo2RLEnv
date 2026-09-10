@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "cli-gym",
+  "title": "CLI-Gym",
+  "kind": "generator",
+  "order": 6,
+  "status": "pilot_complete_quality_failure",
+  "upstream": {
+    "repository": "https://github.com/LiberCoders/CLI-Gym",
+    "commit": "48bb920b728a25a55a5b442303e901919654599e",
+    "license": "MIT",
+    "source_paths": [
+      "src/cli_gym/cli.py",
+      "src/cli_gym/build_destruction_task/",
+      "src/cli_gym/assemble_problem_instance/",
+      "src/cli_gym/utils/docker_utils.py"
+    ]
+  },
+  "input": "Healthy SWE-smith repository images and upstream destruction settings.",
+  "native_output": "Older Terminal-Bench task layout, Docker/Compose configuration and selected test runners.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "gpt-4o",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Translate the old task layout and reward entry point while preserving the original grading behavior."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "GPT-4o replaces upstream Qwen default; original prompts and agent loop retained",
+      "Bounded to 30 inversion episodes and 4096 output tokens",
+      "Selected configuration-file damage after preserving a proposal for 50 parallel 1GB writes without executing it",
+      "Native pytest parser and empty-result behavior preserved; removed learner git metadata and disabled internet"
+    ],
+    "known_limitations": [
+      "The assembly path lacks our desired restoration oracle and may retain broken-runner cases. Audit these explicitly instead of changing upstream acceptance."
+    ]
+  },
+  "results": {
+    "native_emitted": 2,
+    "native_accepted": 2,
+    "harbor_exported": 2,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "distinct_environments": 1,
+    "quality_report": "RESULTS.md",
+    "nop_reward_parity_passed": 2
+  },
+  "why_this_order": "Reuse healthy repository images from the SWE-smith stage and reproduce environment inversion."
+}

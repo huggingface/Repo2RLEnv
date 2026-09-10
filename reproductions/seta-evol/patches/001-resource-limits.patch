@@ -1,0 +1,53 @@
+--- a/datasynth/evol_pipeline/agents/claude_agents.py
++++ b/datasynth/evol_pipeline/agents/claude_agents.py
+@@ -288,6 +288,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-sonnet-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode="acceptEdits",
+             cwd=agent_cwd,
+             env=os.environ.copy(),
+@@ -310,6 +312,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write("\n")
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached."
+@@ -400,6 +403,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-sonnet-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode="acceptEdits",
+             cwd=evol_task_path,
+             env=os.environ.copy(),
+@@ -422,6 +427,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write("\n")
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached."
+@@ -478,6 +484,8 @@
+         # Evidence is pre-embedded in the prompt; the judge only needs Write.
+         options = ClaudeAgentOptions(
+             model="claude-sonnet-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode="acceptEdits",
+             cwd=task_path,
+             env=os.environ.copy(),
+@@ -497,6 +505,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write("\n")
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError("Claude rate limit/quota reached.")
+ 

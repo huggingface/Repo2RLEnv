@@ -1,0 +1,49 @@
+{
+  "id": "endless-terminals",
+  "stages": {
+    "bootstrap": {
+      "script": "endless-terminals/bootstrap.sh",
+      "description": "Pinned Endless source and measured provider adapter",
+      "requires": [
+        "runtime/apptainer"
+      ],
+      "timeout_seconds": 1200
+    },
+    "generate": {
+      "script": "endless-terminals/run_batch.sh",
+      "description": "Five native GPT-4o candidates with build evidence",
+      "requires": [
+        "endless-terminals/bootstrap"
+      ],
+      "timeout_seconds": 2100,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 8
+    },
+    "convert": {
+      "script": "endless-terminals/convert_batch.sh",
+      "description": "Original converter and Harbor layout",
+      "requires": [
+        "endless-terminals/generate"
+      ],
+      "timeout_seconds": 2100,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 5
+    },
+    "validate": {
+      "script": "endless-terminals/probe_batch.sh",
+      "description": "Original solver probes and Harbor execution",
+      "requires": [
+        "endless-terminals/convert"
+      ],
+      "timeout_seconds": 3600,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 8
+    }
+  }
+}

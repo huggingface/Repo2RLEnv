@@ -1,0 +1,27 @@
+{
+  "id": "runtime",
+  "stages": {
+    "bootstrap": {
+      "script": "runtime/bootstrap_control.sh",
+      "description": "Remote control environment, Docker smoke and Harbor networking compatibility",
+      "timeout_seconds": 900
+    },
+    "restore-pilot": {
+      "script": "runtime/restore_pilot.sh",
+      "description": "Optional immutable first-pilot artifacts for dependent CLI-Gym and harden-v0 examples",
+      "requires": ["runtime/bootstrap"],
+      "timeout_seconds": 600,
+      "credentials": [
+        "HF_TOKEN"
+      ]
+    },
+    "apptainer": {
+      "script": "runtime/apptainer_bootstrap.sh",
+      "description": "Pinned remote Apptainer and native SIF smoke",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 900
+    }
+  }
+}

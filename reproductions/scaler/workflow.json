@@ -1,0 +1,29 @@
+{
+  "id": "scaler",
+  "stages": {
+    "bootstrap": {
+      "script": "scaler/bootstrap_remote.sh",
+      "description": "Pinned SCALER source and published SandboxFusion runtime, remote-only execution",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1200
+    },
+    "expand": {
+      "script": "scaler/expand_remote.sh",
+      "description": "Three fresh reasoning instances from one released family using native generation and SandboxFusion reference execution; no new family synthesis",
+      "requires": [
+        "scaler/bootstrap"
+      ],
+      "timeout_seconds": 600
+    },
+    "validate": {
+      "script": "scaler/export_audit_remote.sh",
+      "description": "Harbor answer-file conversion with original deterministic -1/+1 score and native/Harbor checks",
+      "requires": [
+        "scaler/expand"
+      ],
+      "timeout_seconds": 1000
+    }
+  }
+}

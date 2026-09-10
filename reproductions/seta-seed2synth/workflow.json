@@ -1,0 +1,33 @@
+{
+  "id": "seta-seed2synth",
+  "stages": {
+    "bootstrap": {
+      "script": "seta-seed2synth/bootstrap.sh",
+      "description": "Pinned SETA with frozen attributed Unix.SE seed input",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1200
+    },
+    "generate": {
+      "script": "seta-seed2synth/run_smoke.sh",
+      "description": "Native Opus synthesis for the first frozen seed",
+      "requires": [
+        "seta-seed2synth/bootstrap"
+      ],
+      "timeout_seconds": 3000,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 9
+    },
+    "validate": {
+      "script": "seta-seed2synth/validate_smoke.sh",
+      "description": "Native verdict, byte-preserving export and Harbor contrast",
+      "requires": [
+        "seta-seed2synth/generate"
+      ],
+      "timeout_seconds": 3600
+    }
+  }
+}

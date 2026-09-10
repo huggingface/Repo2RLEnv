@@ -1,0 +1,26 @@
+{
+  "id": "harden-v0",
+  "stages": {
+    "bootstrap": {
+      "script": "harden-v0/bootstrap_remote.sh",
+      "description": "Pinned harden loop with the previous pilot's reward-shortcut task",
+      "requires": [
+        "runtime/bootstrap",
+        "runtime/restore-pilot"
+      ],
+      "timeout_seconds": 600
+    },
+    "harden": {
+      "script": "harden-v0/run_remote.sh",
+      "description": "One original adversarial hardening iteration with oracle precheck and targeted replay",
+      "requires": [
+        "harden-v0/bootstrap"
+      ],
+      "timeout_seconds": 2400,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 10
+    }
+  }
+}

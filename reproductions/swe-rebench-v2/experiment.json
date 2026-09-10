@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "swe-rebench-v2",
+  "title": "SWE-rebench V2 released components",
+  "kind": "component",
+  "order": null,
+  "status": "released_components_pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/SWE-rebench/SWE-rebench-V2",
+    "commit": "c71902a8cf8d2b725f63d51f199f4d3e56f68d2d",
+    "license": "MIT",
+    "source_paths": [
+      "prompts/installer/",
+      "prompts/annotations/",
+      "lib/agent/log_parsers.py"
+    ]
+  },
+  "input": "Published task records, environment recipes and evaluation inputs.",
+  "native_output": "Installer/parser/annotation components and execution records.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "gpt-4o annotation",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Import/replay 100 published executable tasks if useful, labeling that campaign as replay rather than synthesis."
+  },
+  "fidelity": {
+    "mode": "released_component_reproduction",
+    "deviations": [
+      "One original published netCDF-C sample",
+      "Original annotation templates with GPT-4o and a 4096-token cap",
+      "Original golden evaluator and original published image; replay rather than new synthesis"
+    ],
+    "known_limitations": [
+      "No invented production miner. Availability of a large dataset is not generation source availability."
+    ]
+  },
+  "results": {
+    "attempted": 1,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0,
+    "component_inputs": 1,
+    "native_annotations": 2,
+    "native_golden_passed": 1,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Reproduce published build/evaluation components; the complete production miner was not located."
+}

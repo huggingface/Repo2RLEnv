@@ -1,0 +1,8 @@
+{
+  "id": "swe-gen",
+  "stages": {
+    "bootstrap": {"script":"swe-gen/bootstrap_remote.sh","description":"Pinned original SWE-gen with Harbor 0.20 and Modal Docker compatibility","requires":["runtime/bootstrap"],"timeout_seconds":600},
+    "generate": {"script":"swe-gen/generate_remote.sh","description":"Original PR reversal, instruction, Claude Code completion and validation for the documented Axios PR","requires":["swe-gen/bootstrap"],"timeout_seconds":1800,"credentials":["OPENAI_API_KEY","ANTHROPIC_API_KEY","GITHUB_TOKEN"],"reserve_usd":12},
+    "validate": {"script":"swe-gen/export_audit_remote.sh","description":"Byte-preserving Harbor export and independent no-op/reference reruns","requires":["swe-gen/generate"],"timeout_seconds":1800}
+  }
+}

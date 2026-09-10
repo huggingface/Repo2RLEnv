@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "tmax",
+  "title": "TMax",
+  "kind": "generator",
+  "order": 4,
+  "status": "pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/hamishivi/tmax",
+    "commit": "7387d2f9142397a458dc39f0827a2ab0b4c03cda",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "rl_data/generate_tasks.py",
+      "rl_data/generator/",
+      "rl_data/containers/",
+      "rl_data/scripts/analyze/convert_to_harbor.py"
+    ]
+  },
+  "input": "Upstream domain/skill/fixture sampling configuration and base-image recipes.",
+  "native_output": "Apptainer task bundles, fixtures and optional sampled solution summaries.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "anthropic/claude-sonnet-4-6",
+    "commands_verified": true,
+    "runtime": "VM sandbox with Docker and Apptainer",
+    "bootstrap_verified": true,
+    "dependencies": "config/requirements.lock.txt"
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Use its existing Harbor converter; preserve the generated tests and task semantics."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Sonnet4.6 substitutes for Gemini3.1Pro.",
+      "Fix nullable metadata serialization; provider-compatible required tool calls in solver.",
+      "Separate generated-task runtime repair adds a missing verifier dependency."
+    ],
+    "known_limitations": [
+      "The upstream method skips teacher correctness validation and its converter omits solve.sh. Record missing reference evidence; do not silently add a new oracle-generation stage."
+    ],
+    "deviation_record": "patches/README.md"
+  },
+  "results": {
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0,
+    "attempted": 1,
+    "attempted_unit": "sampled candidate",
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "execution_contrast_passed": 0,
+    "execution_contrast_with_recorded_repairs": 1,
+    "corrected_native_harbor_parity_passed": 1,
+    "runtime_repairs": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.283281+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Reuse the Apptainer runtime established for Endless, then exercise the richer sampler and fixtures."
+}

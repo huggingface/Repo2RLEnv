@@ -1,0 +1,26 @@
+{
+  "id": "secverifier",
+  "stages": {
+    "bootstrap": {
+      "script": "secverifier/bootstrap_remote.sh",
+      "description": "Pinned native secverifier runtime and bounded preparation; no model calls",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1800
+    },
+    "verify": {
+      "script": "secverifier/run_remote.sh",
+      "description": "Original manager, builder, reproducer and fixer on one isolated released njs CVE seed, bounded GPT-4o run",
+      "requires": [
+        "secverifier/bootstrap",
+        "sec-bench/build"
+      ],
+      "timeout_seconds": 2000,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 10
+    }
+  }
+}

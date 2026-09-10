@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "swe-dev",
+  "title": "SWE-Dev (THUDM)",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/THUDM/SWE-Dev",
+    "commit": "72917b610c3749c9e1236b29effd629f8aca6a99",
+    "license": "MIT",
+    "source_paths": [
+      "swedev/testcases/get_descriptions.py",
+      "swedev/testcases/get_testcases.py",
+      "swedev/testcases/eval_testcases.py"
+    ]
+  },
+  "input": "Repository task descriptions, patches and execution environments.",
+  "native_output": "Generated behavior descriptions and executable tests.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Attach its generated verifier to the source task in a separately labeled export copy."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "This is verifier generation, not a new learner-writes-tests pipeline."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reproduce test construction on 100 existing task inputs after a repository baseline exists."
+}

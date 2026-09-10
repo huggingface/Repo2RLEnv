@@ -1,0 +1,9 @@
+{
+  "id": "swe-flow",
+  "stages": {
+    "bootstrap": {"script":"swe-flow/bootstrap_remote.sh","description":"Pinned SWE-Flow and Trace sources with the upstream documented spectree image","requires":["runtime/bootstrap"],"timeout_seconds":1200},
+    "trace": {"script":"swe-flow/trace_remote.sh","description":"Five native pytest traces, runtime dependency graphs and development schedule","requires":["swe-flow/bootstrap"],"timeout_seconds":900},
+    "generate": {"script":"swe-flow/synthesize_remote.sh","description":"Native docstrings, specifications, skeleton codebases and reference patches using GPT-4o","requires":["swe-flow/trace"],"timeout_seconds":1200,"credentials":["OPENAI_API_KEY"],"reserve_usd":5},
+    "validate": {"script":"swe-flow/export_audit_remote.sh","description":"Native and Harbor execution contrast with isolated skeleton tasks","requires":["swe-flow/generate"],"timeout_seconds":2400}
+  }
+}

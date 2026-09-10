@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "branch": "codex/upstream-reproductions",
+  "base_commit": "1a8bad5774e062d0d73a7d79f9d6a95540801c83",
+  "generation_order": [
+    "seta-seed2synth",
+    "seta-evol",
+    "endless-terminals",
+    "tmax",
+    "swe-smith",
+    "cli-gym",
+    "swe-flow",
+    "terminalworld",
+    "swe-gen",
+    "swe-next",
+    "r2e-gym",
+    "r2e",
+    "sec-bench",
+    "dataarc-terminal",
+    "scaler"
+  ],
+  "supporting_components": [
+    "repolaunch",
+    "swe-flow-trace",
+    "swe-bench-live",
+    "swe-rebench-v2",
+    "swe-dev",
+    "swe-mutation",
+    "harden-v0",
+    "secverifier"
+  ],
+  "next": "sec-bench",
+  "scope": "Faithful upstream workflow reproduction and Harbor export; no Tasksmith redesign.",
+  "status": "remaining_reproduction_pilots_in_progress",
+  "runner": "reproductions/run.py"
+}

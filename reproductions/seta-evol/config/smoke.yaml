@@ -1,0 +1,19 @@
+huggingface:
+  input_repo: null
+  output_repo: null
+filter_csv: null
+evolve:
+  n_workers: 1
+  skip_timeout: false
+  task_timeout_s: 2700
+  rounds:
+    - name: smoke_change_context
+      input_dir: /work/seta/harbor
+      output_dir: /work/seta/evol_data
+      strategy:
+        evol_strategy: breadth
+        evol_target: CHANGE_CONTEXT
+        max_variants: 1
+rollout:
+  tasks_dirs: []
+  models: []

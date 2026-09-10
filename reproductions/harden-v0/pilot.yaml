@@ -1,0 +1,8 @@
+agents:
+  - name: terminus-2
+    kwargs:
+      record_terminal_session: false
+      llm_call_kwargs:
+        max_tokens: 4096
+environment:
+  type: docker

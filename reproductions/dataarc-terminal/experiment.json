@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "dataarc-terminal",
+  "title": "DataArc terminal synthesis (Envs-FORGE-linked code)",
+  "kind": "generator",
+  "order": 14,
+  "status": "pilot_complete_quality_failure",
+  "upstream": {
+    "repository": "https://github.com/DataArcTech/DataArc-SynData-Toolkit",
+    "commit": "2a1d65ec8dcfaea2458d67e1fb18078cce6420b9",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "sdgsystem/agentic_data/terminal_bench.py",
+      "examples/syn_agentic_data/run_terminal_bench.py",
+      "configs/syn_agentic_terminal_bench.yaml"
+    ],
+    "branch_hint": "SynAgenticData"
+  },
+  "input": "Upstream seed Harbor tasks and supported few/self/evol settings.",
+  "native_output": "Harbor task bundles and synthesis manifests.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "gpt-4o",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Keep the existing Harbor materializer and verification entry points."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One released few-shot seed and original toolkit generator",
+      "GPT-4o replaces the upstream DeepSeek default",
+      "Byte-preserving Harbor contract export; failing oracle and tests retained"
+    ],
+    "known_limitations": [
+      "This reproduces released toolkit functionality. The paper's MILP/frontier selector was not located; do not label this a full Envs-FORGE reproduction."
+    ]
+  },
+  "results": {
+    "native_emitted": 1,
+    "native_accepted": 1,
+    "harbor_exported": 1,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md",
+    "native_acceptance_kind": "static file checks only"
+  },
+  "why_this_order": "Reproduce the available branch after core synthesis/evolution baselines, with explicit partial-release scope."
+}

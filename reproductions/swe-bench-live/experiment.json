@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "swe-bench-live",
+  "title": "SWE-bench-Live",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/microsoft/SWE-bench-Live",
+    "commit": "9a273490f230bc0e54de75e8f865a0d90f7eb1f6",
+    "license": "MIT",
+    "source_paths": [
+      "curation/crawl_repo.py",
+      "curation/swe_task_crawling/"
+    ]
+  },
+  "input": "Repository and issue/PR crawl configuration.",
+  "native_output": "Collected issue/PR task evidence and curated records.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Fully executable curated records can be imported; collection-only records do not count as generated environments."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Do not count crawl records as built tasks or substitute existing dataset downloads for a generation run."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Use the published crawler as a separate source-collection reproduction for PR workflows."
+}

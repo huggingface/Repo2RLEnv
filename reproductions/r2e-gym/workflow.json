@@ -1,0 +1,34 @@
+{
+  "id": "r2e-gym",
+  "stages": {
+    "bootstrap": {
+      "script": "r2e-gym/bootstrap_remote.sh",
+      "description": "Frozen R2E-Gym install followed by missing pinned R2E dependency compatibility; supported Pyramid input bounded to 100 recent commits",
+      "requires": [
+        "runtime/bootstrap",
+        "r2e/bootstrap"
+      ],
+      "timeout_seconds": 900
+    },
+    "mine": {
+      "script": "r2e-gym/mine_remote.sh",
+      "description": "Original commit parser and filters on bounded supported input, single-worker resource override",
+      "requires": [
+        "r2e-gym/bootstrap"
+      ],
+      "timeout_seconds": 600
+    },
+    "generate": {
+      "script": "r2e-gym/generate_remote.sh",
+      "description": "Original test extraction, commit contrast, issue generation and Docker assembly for native-filtered Pyramid candidate",
+      "requires": [
+        "r2e-gym/mine"
+      ],
+      "timeout_seconds": 1800,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 5
+    }
+  }
+}

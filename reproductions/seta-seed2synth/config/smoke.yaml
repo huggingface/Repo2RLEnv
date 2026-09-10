@@ -1,0 +1,20 @@
+huggingface:
+  seed_repo: camel-ai/seta-env-seed2synth-seed
+  synth_repo: unused-uploads-disabled
+  token_env: HF_TOKEN
+paths:
+  seed_data_dir: /work/seta/seed_data
+  synth_data_dir: /work/seta/synth_data
+  rollout_dir: /work/seta/rollouts
+sources: [unix_linux_se]
+filter_csv: /work/seta/smoke.csv
+seed_preparation:
+  download_all_upfront: false
+pipeline:
+  n_synth_workers: 1
+  stage: full
+  skip_timeout: false
+rollout:
+  enabled: false
+upload:
+  enabled: false

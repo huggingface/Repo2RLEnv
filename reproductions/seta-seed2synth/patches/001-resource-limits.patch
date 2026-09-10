@@ -1,0 +1,104 @@
+--- a/datasynth/seed2synth_pipeline/agents/claude_agents.py
++++ b/datasynth/seed2synth_pipeline/agents/claude_agents.py
+@@ -195,6 +195,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=seed_path,
+             env=os.environ.copy(),
+@@ -218,6 +220,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."
+@@ -290,6 +293,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=evol_cwd,
+             env=os.environ.copy(),
+@@ -313,6 +318,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."
+@@ -375,6 +381,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=evol_cwd,
+             env=os.environ.copy(),
+@@ -398,6 +406,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."
+@@ -755,6 +764,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=output_path,
+             env=os.environ.copy(),
+@@ -780,6 +791,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."
+@@ -885,6 +897,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=evol_task_path,
+             env=os.environ.copy(),
+@@ -907,6 +921,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."
+@@ -975,6 +990,8 @@
+ 
+         options = ClaudeAgentOptions(
+             model="claude-opus-4-6",
++            max_budget_usd=float(os.environ["REPRO_AGENT_BUDGET_USD"]),
++            max_turns=int(os.environ.get("REPRO_AGENT_MAX_TURNS", "100")),
+             permission_mode='acceptEdits',
+             cwd=evol_task_path,
+             env=os.environ.copy(),
+@@ -996,6 +1013,7 @@
+                 async for message in client.receive_response():
+                     log_f.write(str(message))
+                     log_f.write('\n')
++                    log_f.flush()
+                     if _message_indicates_rate_limit(message):
+                         raise ClaudeRateLimitError(
+                             "Claude rate limit/quota reached (e.g. out of extra usage)."

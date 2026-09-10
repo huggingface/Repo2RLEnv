@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "swe-mutation",
+  "title": "SWE-Mutation",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/Sunny4Coding/SWE-Mutation",
+    "commit": "c9485dc1a31a90a0410c8393da90f65c8682aa24",
+    "license": "MIT",
+    "source_paths": [
+      "framework/mutation.py",
+      "agents/configs/mutation.yaml",
+      "agents/configs/test_generation.yaml"
+    ]
+  },
+  "input": "Existing tasks and test/patch evidence.",
+  "native_output": "Adversarial or mutated solution candidates and discrimination results.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Retain original Harbor tasks with challenge evidence; do not inflate the generated task count."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Keep challenge success and ordinary task success separate."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reproduce on 100 existing tasks to measure verifier weaknesses separately from generation."
+}

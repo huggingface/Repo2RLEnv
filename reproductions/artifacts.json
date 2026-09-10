@@ -1,0 +1,15 @@
+{
+  "repo_id": "AdithyaSK/repo2rlenv-upstream-reproductions-20260910",
+  "repo_type": "dataset",
+  "visibility": "private",
+  "revision": "003e7745d14c3d5ad2878498c289c7f51161df1f",
+  "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-upstream-reproductions-20260910/tree/003e7745d14c3d5ad2878498c289c7f51161df1f",
+  "archive_path": "evidence/snapshot-final.tar.gz",
+  "archive_sha256": "033fb9ada6a6c1e7563b26a982a99e483bebb79b9555bab6c1b45ab427289cd3",
+  "archive_bytes": 1992878,
+  "baseline_task_count": 16,
+  "variant_count": 4,
+  "distinct_execution_passes_with_repairs": 12,
+  "training_approved": 0,
+  "recorded_at": "2026-09-10T17:29:59.428095+00:00"
+}

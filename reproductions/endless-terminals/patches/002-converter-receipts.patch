@@ -1,0 +1,26 @@
+--- a/generator/convert_to_harbor/convert_sif_docker.py
++++ b/generator/convert_to_harbor/convert_sif_docker.py
+@@ -16,6 +16,7 @@
+ from typing import Optional, List, Dict, Any
+ 
+ from tqdm import tqdm
++from api_usage import record_response
+ from openai import OpenAI
+ 
+ try:
+@@ -138,6 +139,7 @@
+                 max_tokens=max_tokens,
+             )
+             
++            record_response(response)
+             # Extract response content
+             response_content = response.choices[0].message.content
+             return _extract_dockerfile_content(response_content)
+@@ -181,6 +183,7 @@
+                 ],
+             )
+             
++            record_response(response)
+             # Extract response content
+             response_content = response.content[0].text
+             return _extract_dockerfile_content(response_content)

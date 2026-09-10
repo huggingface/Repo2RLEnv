@@ -1,0 +1,38 @@
+--- a/generator/__init__.py
++++ b/generator/__init__.py
+@@ -14,6 +14,7 @@
+ import textwrap
+ 
+ from tqdm import tqdm
++from api_usage import record_response
+ 
+ from openai import AzureOpenAI, OpenAI, AsyncOpenAI
+ 
+@@ -33,8 +34,8 @@
+     """Get or create a cached vllm OpenAI client."""
+ 
+     client = OpenAI(
+-        base_url="http://localhost:8000/v1",
+-        api_key="nokey"
++        base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
++        api_key=os.environ["OPENAI_API_KEY"]
+     )
+     return client
+ 
+@@ -51,7 +52,7 @@
+     
+ 
+     # vllm client
+-    client = OpenAI(base_url="http://localhost:8000/v1", api_key="nokey")
++    client = OpenAI(base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"), api_key=os.environ["OPENAI_API_KEY"])
+     clients = {
+         model : client
+     }
+@@ -74,6 +75,7 @@
+                     max_tokens=max_tokens,
+                     n=num_completions,
+                 )
++                record_response(resp)
+                 return resp
+                 
+             except Exception as e:

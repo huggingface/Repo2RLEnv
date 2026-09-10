@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "swe-flow-trace",
+  "title": "SWE-Flow-Trace",
+  "kind": "component",
+  "order": null,
+  "status": "component_pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/Hambaobao/SWE-Flow-Trace",
+    "commit": "e7251448ae7d29c7de5fdcda2a3bc175e547420e",
+    "license": "MIT",
+    "source_paths": [
+      "sweflow_trace/python/"
+    ]
+  },
+  "input": "Testable Python repositories.",
+  "native_output": "Runtime dependency traces.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": true,
+    "runner_stage": "swe-flow/trace"
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Trace data supports SWE-Flow task construction; it is not independently a Harbor task."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Record unsupported tracing modes and missing calls."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0,
+    "component_inputs": 1,
+    "native_test_traces": 5,
+    "training_approved": 0
+  },
+  "why_this_order": "A dependency of the SWE-Flow reproduction, with its own source pin."
+}

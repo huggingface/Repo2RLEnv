@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "seta-evol",
+  "title": "SETA Evol",
+  "kind": "generator",
+  "order": 2,
+  "status": "pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/camel-ai/seta",
+    "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "datasynth/evol_pipeline/run_evol_orchestrator.py",
+      "datasynth/evol_pipeline/evol_task_pipeline.py",
+      "datasynth/evol_pipeline/agents/evol_strategy_prompts/"
+    ]
+  },
+  "input": "Existing Harbor tasks accepted by the upstream evolution configuration; prefer its published seeds first.",
+  "native_output": "Evolved Harbor tasks and lineage/authoring artifacts.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "claude-sonnet-4-6",
+    "commands_verified": true,
+    "bootstrap_verified": true
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Keep native task bundles and retain parent identifiers; do not add a new curriculum scheduler."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Newly generated validated parents; original CHANGE_CONTEXT strategy and Sonnet model.",
+      "SDK budget/turn caps; failing baseline parent excluded before generation."
+    ],
+    "known_limitations": [
+      "Configured evolution is not a learned scheduler. Keep children separate from originals and preserve the upstream strategy."
+    ],
+    "deviation_record": "patches/README.md"
+  },
+  "results": {
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0,
+    "attempted": 2,
+    "attempted_unit": "parent task",
+    "native_emitted": 2,
+    "native_accepted": 2,
+    "harbor_exported": 2,
+    "execution_contrast_passed": 2,
+    "execution_contrast_with_recorded_repairs": 2,
+    "byte_preserving_exports": 2,
+    "parents_excluded_before_generation": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.282769+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Reuse the SETA installation and runtime; change only to its published evolution path."
+}

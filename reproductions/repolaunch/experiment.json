@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "repolaunch",
+  "title": "RepoLaunch",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/microsoft/RepoLaunch",
+    "commit": "db3eb23a6b6b1260ab72d7253adb77df7c3cf5fe",
+    "license": "MIT",
+    "source_paths": [
+      "launch/core/workflow.py",
+      "launch/agent/setup/",
+      "launch/agent/organize/",
+      "launch/scripts/adjacent_commit_run.py"
+    ]
+  },
+  "input": "Repository revisions requiring setup.",
+  "native_output": "Working environment recipes, commands, parsers and reuse evidence.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Use build records as dependencies of Harbor exports, not as 100 newly generated learner tasks."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Bootstrap success and task validity have different denominators."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Run when setup is needed for repository reproductions; benchmark 100 setup cases separately."
+}

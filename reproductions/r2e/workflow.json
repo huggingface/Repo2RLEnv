@@ -1,0 +1,49 @@
+{
+  "id": "r2e",
+  "stages": {
+    "bootstrap": {
+      "script": "r2e/bootstrap_remote.sh",
+      "description": "Frozen native R2E installation, documented python-graphs input and function extraction",
+      "requires": [
+        "runtime/bootstrap"
+      ],
+      "timeout_seconds": 1200
+    },
+    "build": {
+      "script": "r2e/build_remote.sh",
+      "description": "Original interactive R2E Docker image builder with recorded recipe and bounded remote execution",
+      "requires": [
+        "r2e/bootstrap"
+      ],
+      "timeout_seconds": 1250
+    },
+    "local-runtime": {
+      "script": "r2e/local_runtime_remote.sh",
+      "description": "Native supported local execution mode inside remote VM after preserving original Docker failure",
+      "requires": [
+        "r2e/bootstrap"
+      ],
+      "timeout_seconds": 600
+    },
+    "generate": {
+      "script": "r2e/generate_remote.sh",
+      "description": "Original GenExec on ast_height, three rounds, documented remote-local mode, measured GPT-4o substitution",
+      "requires": [
+        "r2e/local-runtime"
+      ],
+      "timeout_seconds": 1000,
+      "credentials": [
+        "OPENAI_API_KEY"
+      ],
+      "reserve_usd": 3
+    },
+    "validate": {
+      "script": "r2e/export_audit_remote.sh",
+      "description": "Function-completion Harbor conversion using native docstring, sliced context, generated equivalence tests and original reference",
+      "requires": [
+        "r2e/generate"
+      ],
+      "timeout_seconds": 900
+    }
+  }
+}

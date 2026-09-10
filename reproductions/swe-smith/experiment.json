@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "swe-smith",
+  "title": "SWE-smith",
+  "kind": "generator",
+  "order": 5,
+  "status": "pilot_complete",
+  "upstream": {
+    "repository": "https://github.com/SWE-bench/SWE-smith",
+    "commit": "9b74ac08118a85c39c356802f7961893af73e07f",
+    "license": "MIT",
+    "source_paths": [
+      "scripts/bug_gen_modal.py",
+      "swesmith/bug_gen/",
+      "swesmith/issue_gen/",
+      "swesmith/harness/valid.py"
+    ]
+  },
+  "input": "A supported repository profile and healthy upstream image.",
+  "native_output": "Mutation patches, issue descriptions and validated SWE-bench-style instances.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "openai/gpt-5-mini (issue writer); procedural generator",
+    "commands_verified": true,
+    "runtime": "VM sandbox with Docker and Apptainer",
+    "bootstrap_verified": true,
+    "dependencies": "config/requirements.lock.txt"
+  },
+  "conversion": {
+    "status": "exported",
+    "approach": "Package the exact defective snapshot, existing reference restoration and upstream test command into Harbor."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One supported addict profile with original procedural mutations.",
+      "Original issue writer uses direct OpenAI instead of Portkey.",
+      "Local projection of validation reports replaces GitHub branch publication.",
+      "Harbor adapter, restored pristine tests, inverse mutation, removed git metadata and offline execution."
+    ],
+    "known_limitations": [
+      "Use a supported repository first. Do not introduce a new mutation strategy or claim arbitrary repository support."
+    ],
+    "deviation_record": "patches/README.md"
+  },
+  "results": {
+    "export_parity_passed": 5,
+    "independent_audit_passed": 0,
+    "attempted": 23,
+    "attempted_unit": "procedural mutation",
+    "repository_profiles": 1,
+    "native_emitted": 23,
+    "native_validation_attempted": 10,
+    "native_accepted": 10,
+    "issue_descriptions": 5,
+    "harbor_exported": 5,
+    "execution_contrast_passed": 5,
+    "execution_contrast_with_recorded_repairs": 5,
+    "blind_harbor_successes": 1,
+    "training_approved": 0,
+    "snapshot_at": "2026-09-10T17:26:07.283451+00:00",
+    "artifacts": "../artifacts.json",
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "First repository synthesis reproduction; prepared profiles and an existing Modal execution path reduce setup uncertainty."
+}

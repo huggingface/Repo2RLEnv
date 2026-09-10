@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "r2e-gym",
+  "title": "R2E-Gym / SWEGEN",
+  "kind": "generator",
+  "order": 11,
+  "status": "pilot_blocked_test_execution",
+  "upstream": {
+    "repository": "https://github.com/R2E-Gym/R2E-Gym",
+    "commit": "0d94c4eb9431cd195c55a7ea3abd54006c9a1735",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "docs/ENV_GENERATION.md",
+      "src/r2egym/repo_analysis/"
+    ]
+  },
+  "input": "A supported repository with its upstream installation and test configuration.",
+  "native_output": "Commit-derived executable coding tasks and reference patches.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "no issue-generation inference reached",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "not_exported",
+    "approach": "Translate existing task records into Harbor without inventing new instructions or grading rules."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "Added the pinned R2E dependency missing from the declared runtime",
+      "Single mining worker instead of hardcoded 32; shallow clone depth 100 includes merged ancestors",
+      "Expanded the pre-filter record cap to include the full bounded clone",
+      "Supported local execution inside the remote Modal VM; no Mac execution"
+    ],
+    "known_limitations": [
+      "Use supported repositories initially and keep source-specific setup changes explicit."
+    ]
+  },
+  "results": {
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "commit_records": 369,
+    "eligible_candidates": 1,
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "A separate commit-generation baseline with more repository-specific configuration."
+}

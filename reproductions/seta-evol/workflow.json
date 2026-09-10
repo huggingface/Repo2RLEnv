@@ -1,0 +1,25 @@
+{
+  "id": "seta-evol",
+  "stages": {
+    "generate": {
+      "script": "seta-evol/run_smoke.sh",
+      "description": "Native Sonnet evolution of the validated first SETA parent",
+      "requires": [
+        "seta-seed2synth/validate"
+      ],
+      "timeout_seconds": 3000,
+      "credentials": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "reserve_usd": 9
+    },
+    "validate": {
+      "script": "seta-evol/validate_smoke.sh",
+      "description": "Child lineage, byte-preserving export and execution contrast",
+      "requires": [
+        "seta-evol/generate"
+      ],
+      "timeout_seconds": 1800
+    }
+  }
+}

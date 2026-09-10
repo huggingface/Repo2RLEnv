@@ -1,0 +1,13 @@
+**/upstream/
+**/.venv/
+**/node_modules/
+**/runs/
+**/harbor/
+**/data/
+**/cache/
+**/.cache/
+**/outputs/
+**/__pycache__/
+**/.env
+**/.env.*
+!**/.env.example

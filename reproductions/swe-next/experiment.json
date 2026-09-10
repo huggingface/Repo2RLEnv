@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "swe-next",
+  "title": "SWE-Next",
+  "kind": "generator",
+  "order": 10,
+  "status": "pilot_blocked_test_execution",
+  "upstream": {
+    "repository": "https://github.com/TIGER-AI-Lab/SWE-Next",
+    "commit": "b55c0841f364f9fe7363b2012cd0ae8d8afdf872",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "run_pr_pipeline.zsh",
+      "src/swenext/repo_analysis/"
+    ]
+  },
+  "input": "Supported repositories and candidate commit/PR pairs, with upstream dependency profiles.",
+  "native_output": "Executable repository task records and environment profiles.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "native claude-sonnet-4-5 environment profiles; no successful issue generation",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "not_exported",
+    "approach": "Preserve pinned source pairs, profile composition, reference patches and execution tests in a Harbor wrapper."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "At most 30 PR records per repository, one worker, one quarter-environment profile",
+      "Native image publishing and solver trajectories disabled for the pilot",
+      "Recorded wrapper/environment compatibility and response-only telemetry",
+      "Bounded pre-filter input cap expanded from 3 to 30 for Pyramid; original eligibility rules unchanged"
+    ],
+    "known_limitations": [
+      "Report compared test evidence honestly; do not broaden an upstream no-regression claim."
+    ]
+  },
+  "results": {
+    "native_emitted": 3,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "repository_profiles": 2,
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Reproduce dependency-profile reuse and commit mining after a direct PR-to-Harbor baseline."
+}

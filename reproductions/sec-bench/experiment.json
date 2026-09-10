@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "sec-bench",
+  "title": "SEC-bench",
+  "kind": "generator",
+  "order": 13,
+  "status": "instance_built_runtime_incompatible",
+  "upstream": {
+    "repository": "https://github.com/SEC-bench/SEC-bench",
+    "commit": "31eb43485a3de47da260be0f978528b1f2314415",
+    "license": "MIT",
+    "source_paths": [
+      "secb/preprocessor/",
+      "secb/evaluator/build_eval_instances.py",
+      "secb/evaluator/eval_instances.py"
+    ]
+  },
+  "input": "Supported documented defects, affected projects and fixed revisions.",
+  "native_output": "Built security benchmark instances and evaluation artifacts.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": "modal",
+    "upstream_environment_isolated": true,
+    "model": "no model used for image construction",
+    "commands_verified": true
+  },
+  "conversion": {
+    "status": "not_exported",
+    "approach": "Wrap existing isolated instances and their original reproduction/regression checks in Harbor."
+  },
+  "fidelity": {
+    "mode": "workflow_reproduction",
+    "deviations": [
+      "One released processed CVE seed, not fresh vulnerability mining",
+      "Pinned source, captured dataset revision and image inspect receipt",
+      "Builder-only dependencies isolated from the separately pinned SecVerifier runtime"
+    ],
+    "known_limitations": [
+      "Preserve the intended learner task and scoring; report upstream instance-construction limitations."
+    ]
+  },
+  "results": {
+    "native_emitted": 1,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": null,
+    "independent_audit_passed": 0,
+    "execution_contrast_passed": 0,
+    "training_approved": 0,
+    "quality_report": "RESULTS.md"
+  },
+  "why_this_order": "Specialized native build and reproduction requirements make this a later repository workflow."
+}
