@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import math
+import re
 from importlib.resources import files
 from pathlib import Path
 
@@ -78,7 +79,10 @@ def emit_draft(
     lineage: dict,
     timeout_sec: int,
     resume: bool = False,
+    agent_user: str | None = None,
 ) -> Path:
+    if agent_user is not None and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", agent_user) is None:
+        raise ValueError("Agent user must be a simple Unix username")
     dockerfile = (
         "FROM python:3.12-slim\n"
         "RUN apt-get update && apt-get install -y --no-install-recommends bash tmux curl git jq sqlite3 "
@@ -89,6 +93,12 @@ def emit_draft(
         + draft.environment_setup.rstrip()
         + "\nWORKDIR /workspace\n"
     )
+    if agent_user:
+        dockerfile += (
+            f"RUN (id -u {agent_user} >/dev/null 2>&1 || useradd -m -s /bin/bash {agent_user}) "
+            f"&& mkdir -p /home/{agent_user} && chown -R {agent_user}:{agent_user} /workspace /home/{agent_user}\n"
+            f"ENV HOME=/home/{agent_user}\n"
+        )
     assets = {
         "environment/" + item.path: TaskFile.text(item.content, executable=item.executable)
         for item in draft.environment_files
@@ -134,8 +144,8 @@ def emit_draft(
                 "quality_status": "exported",
                 **lineage,
             },
-            agent={"network_mode": "no-network"},
-            verifier={"network_mode": "no-network"},
+            agent={"network_mode": "no-network", **({"user": agent_user} if agent_user else {})},
+            verifier={"network_mode": "no-network", "user": "root"},
             verifier_timeout_sec=timeout_sec + 30,
         ),
         destination,

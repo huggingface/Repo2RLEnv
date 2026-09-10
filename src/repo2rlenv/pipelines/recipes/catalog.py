@@ -25,6 +25,7 @@ class RecipeInfo(BaseModel):
 # Entries are added only with an owned implementation and tests. Optional cloud
 # or model libraries are imported when running, never while listing recipes.
 IMPLEMENTATIONS: dict[str, str] = {
+    "tmax": "repo2rlenv.pipelines.recipes.tmax.pipeline:TMaxPipeline",
     "r2e": "repo2rlenv.pipelines.recipes.r2e.pipeline:R2EPipeline",
     "swe_flow": "repo2rlenv.pipelines.repo_reconstruct:RepoReconstructPipeline",
     "swe_gen": "repo2rlenv.pipelines.pr_to_env:PRToEnvPipeline",

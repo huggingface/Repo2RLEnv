@@ -159,6 +159,7 @@ nav:
       - "pr_to_env / swe_gen (experimental)": pipelines/pr_to_env.md
       - "repo_reconstruct / swe_flow (experimental)": pipelines/repo_reconstruct.md
       - "equivalence_tests / r2e (experimental)": pipelines/r2e.md
+      - "terminal_synth / tmax (experimental)": pipelines/tmax.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

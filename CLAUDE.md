@@ -76,6 +76,11 @@ Per-pipeline detail (yield, sources, options, reference datasets):
 | `equivalence_tests` | extract a pure function; LLM writes tests against a `reference_<name>` oracle | experimental | 0005 |
 | `cve_patches` | OSV CVE → fix commit → task; reuses the `pr_runtime` verifier | experimental | 0006 |
 | `repo_mutate / swe_smith` | owned procedural source mutation and issue generation; separate Harbor verifier | experimental | 0012 |
+| `terminal_synth / seta_seed2synth, tmax` | owned seed/skill-based terminal task generation | experimental | 0013, 0018 |
+| `task_evolve / seta_evol` | evolve existing tasks with retained strategy prompts | experimental | 0014 |
+| `pr_to_env / swe_gen` | supplied PRs, source reversal and execution-grounded instruction | experimental | 0015 |
+| `repo_reconstruct / swe_flow` | traced dependency scheduling and missing-function reconstruction | experimental | 0016 |
+| `equivalence_tests / r2e` | owned generate/execute/coverage loop and specification refinement | experimental | 0017 |
 
 RFCs **0007 `pr_to_env` / 0008 `env_setup` / 0009 `test_synthesis` /
 0010 `issue_runtime`** are drafted but not built.

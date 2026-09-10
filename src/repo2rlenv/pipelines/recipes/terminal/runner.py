@@ -104,6 +104,8 @@ def run_synthesis(
     inputs: list[dict] | None = None,
     designer=seta.design,
     builder_prompt: str | None = None,
+    preflight=None,
+    agent_user: str | None = None,
 ) -> PipelineResult:
     recipe = get_recipe(input.pipeline.recipe)
     execution = input.execution
@@ -189,14 +191,21 @@ def run_synthesis(
         candidate.mkdir(parents=True, exist_ok=True)
         save_record(candidate / "seed.json", seed)
         event("design", "started", seed["title"])
-        design = designer(
-            seed,
-            model=input.llm,
-            ledger=ledger,
-            receipt=candidate / "design-model.json",
-            operation_id=f"design:{execution.run_id}:{key}",
-            resume=execution.resume,
-        )
+        try:
+            design = designer(
+                seed,
+                model=input.llm,
+                ledger=ledger,
+                receipt=candidate / "design-model.json",
+                operation_id=f"design:{execution.run_id}:{key}",
+                resume=execution.resume,
+            )
+        except (ValueError, SyntaxError) as exc:
+            record["skipped"][key] = "design_schema"
+            save_record(candidate / "design-error.json", {"reason": str(exc)})
+            save_record(receipt, record)
+            event("design", "failed", "Invalid design; retained model and error receipts")
+            continue
         save_record(candidate / "design.json", design.model_dump(mode="json"))
         if getattr(design, "filtered_reason", None):
             record["skipped"][key] = "evolution_filtered"
@@ -213,6 +222,16 @@ def run_synthesis(
             "content_license",
             "question_author",
             "answer_author",
+            "domain",
+            "skill_type",
+            "primitive_skills",
+            "task_complexity",
+            "command_complexity",
+            "scenario",
+            "language",
+            "corpus_kind",
+            "fixture_kind",
+            "verifier_kind",
         ):
             if field in seed:
                 lineage[field] = seed[field]
@@ -228,7 +247,14 @@ def run_synthesis(
                 reservation_usd="1.25",
                 max_tokens=options.max_tokens,
                 resume=execution.resume,
-                system=(builder_prompt or seta.builder_prompt()) + _MATERIALIZATION,
+                system=(builder_prompt or seta.builder_prompt())
+                + _MATERIALIZATION
+                + (
+                    f"\nThe solution runs as unprivileged {agent_user}; install packages only during image build. "
+                    "Keep editable task files in /workspace or /home/user."
+                    if agent_user
+                    else ""
+                ),
                 user=json.dumps({"design": design.model_dump(), "feedback": feedback}),
                 response_schema=TerminalDraft.model_json_schema(),
             )
@@ -243,6 +269,7 @@ def run_synthesis(
                     lineage=lineage,
                     timeout_sec=options.test_timeout_sec,
                     resume=execution.resume,
+                    agent_user=agent_user,
                 )
             except (ValueError, SyntaxError) as exc:
                 feedback.append(
@@ -250,6 +277,29 @@ def run_synthesis(
                 )
                 continue
             trials = []
+            run_key = hashlib.sha256(execution.run_id.encode()).hexdigest()[:12]
+            if preflight is not None:
+                failure = preflight(
+                    worker=worker,
+                    draft=draft,
+                    design=design,
+                    candidate=candidate,
+                    name=name,
+                    recipe=recipe,
+                    lineage=lineage,
+                    org=input.output.org,
+                    timeout_sec=options.test_timeout_sec,
+                    resume=execution.resume,
+                    python=python,
+                    trial_id=f"initial-{run_key}-{index:03d}-{attempt}",
+                    attempt=attempt,
+                    agent_user=agent_user,
+                )
+                if failure:
+                    feedback.append(
+                        {"initial_state_failure": failure, "previous_draft": draft.model_dump()}
+                    )
+                    continue
             for agent in ("nop", "oracle"):
                 run_key = hashlib.sha256(execution.run_id.encode()).hexdigest()[:12]
                 trial_id = f"task-{run_key}-{index:03d}-{attempt}-{agent}"
@@ -279,6 +329,7 @@ def run_synthesis(
                     lineage=lineage,
                     timeout_sec=options.test_timeout_sec,
                     resume=execution.resume,
+                    agent_user=agent_user,
                 )
                 record["tasks"][key] = {
                     "path": str(task.resolve()),

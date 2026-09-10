@@ -1,6 +1,6 @@
 # RFC 0018: `tmax` recipe for `terminal_synth`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented legacy text-fixture profile; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -74,4 +74,10 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+The owned sampler, template, initial/final test authors and fixture preflight
+live in `pipelines/recipes/tmax/`. Remote execution uses the shared terminal
+materializer with a non-root solver. [The guide](../pipelines/tmax.md) and
+`examples/owned-tmax.yaml` describe the supported legacy profile. Contract tests
+cover seeded sampling, conditional domains/languages and the Harbor user/private
+artifact configuration. Generation is running toward twenty tasks; the v2
+multimodal and sampled-solution stages are explicitly deferred.
