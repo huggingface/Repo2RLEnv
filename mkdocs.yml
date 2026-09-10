@@ -164,6 +164,22 @@ nav:
       - "0008 — env_setup (draft)": rfcs/0008-env-setup.md
       - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
       - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
+      - "0011 — owned recipe integration": rfcs/0011-owned-recipes.md
+      - "0012 — swe_smith recipe": rfcs/0012-swe-smith-recipe.md
+      - "0013 — seta_seed2synth recipe": rfcs/0013-seta-seed2synth-recipe.md
+      - "0014 — seta_evol recipe": rfcs/0014-seta-evol-recipe.md
+      - "0015 — swe_gen recipe": rfcs/0015-swe-gen-recipe.md
+      - "0016 — swe_flow recipe": rfcs/0016-swe-flow-recipe.md
+      - "0017 — r2e recipe": rfcs/0017-r2e-recipe.md
+      - "0018 — tmax recipe": rfcs/0018-tmax-recipe.md
+      - "0019 — terminalworld recipe": rfcs/0019-terminalworld-recipe.md
+      - "0020 — endless_terminals recipe": rfcs/0020-endless-terminals-recipe.md
+      - "0021 — cli_gym recipe": rfcs/0021-cli-gym-recipe.md
+      - "0022 — dataarc recipe": rfcs/0022-dataarc-terminal-recipe.md
+      - "0023 — swe_next recipe": rfcs/0023-swe-next-recipe.md
+      - "0024 — r2e_gym recipe": rfcs/0024-r2e-gym-recipe.md
+      - "0025 — sec_bench recipe": rfcs/0025-sec-bench-recipe.md
+      - "0026 — scaler recipe": rfcs/0026-scaler-recipe.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

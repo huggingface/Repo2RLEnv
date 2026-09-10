@@ -56,6 +56,23 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0009 | `test_synthesis` | draft | [0009-test-synthesis.md](./0009-test-synthesis.md) | — |
 | 0010 | `issue_runtime` | draft | [0010-issue-runtime.md](./0010-issue-runtime.md) | — |
 
+| 0011 | owned recipe contract | accepted design | [0011-owned-recipes.md](./0011-owned-recipes.md) | — |
+| 0012 | `repo_mutate` / `swe_smith` | accepted design | [0012-swe-smith-recipe.md](./0012-swe-smith-recipe.md) | — |
+| 0013 | `terminal_synth` / `seta_seed2synth` | accepted design | [0013-seta-seed2synth-recipe.md](./0013-seta-seed2synth-recipe.md) | — |
+| 0014 | `task_evolve` / `seta_evol` | accepted design | [0014-seta-evol-recipe.md](./0014-seta-evol-recipe.md) | — |
+| 0015 | `pr_to_env` / `swe_gen` | accepted design | [0015-swe-gen-recipe.md](./0015-swe-gen-recipe.md) | — |
+| 0016 | `repo_reconstruct` / `swe_flow` | accepted design | [0016-swe-flow-recipe.md](./0016-swe-flow-recipe.md) | — |
+| 0017 | `equivalence_tests` / `r2e` | accepted design | [0017-r2e-recipe.md](./0017-r2e-recipe.md) | — |
+| 0018 | `terminal_synth` / `tmax` | accepted design | [0018-tmax-recipe.md](./0018-tmax-recipe.md) | — |
+| 0019 | `terminal_reconstruct` / `terminalworld` | accepted design | [0019-terminalworld-recipe.md](./0019-terminalworld-recipe.md) | — |
+| 0020 | `terminal_synth` / `endless_terminals` | accepted design | [0020-endless-terminals-recipe.md](./0020-endless-terminals-recipe.md) | — |
+| 0021 | `env_repair` / `cli_gym` | accepted design | [0021-cli-gym-recipe.md](./0021-cli-gym-recipe.md) | — |
+| 0022 | `terminal_synth` / `dataarc` | accepted design | [0022-dataarc-terminal-recipe.md](./0022-dataarc-terminal-recipe.md) | — |
+| 0023 | `pr_runtime` / `swe_next` | accepted design | [0023-swe-next-recipe.md](./0023-swe-next-recipe.md) | — |
+| 0024 | `commit_runtime` / `r2e_gym` | accepted design | [0024-r2e-gym-recipe.md](./0024-r2e-gym-recipe.md) | — |
+| 0025 | `cve_patches` / `sec_bench` | accepted design | [0025-sec-bench-recipe.md](./0025-sec-bench-recipe.md) | — |
+| 0026 | `reasoning_synth` / `scaler` | accepted design | [0026-scaler-recipe.md](./0026-scaler-recipe.md) | — |
+
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 
 ## Related
