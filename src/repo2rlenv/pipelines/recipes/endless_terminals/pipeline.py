@@ -1,18 +1,18 @@
-"""TMax legacy task generation through its retained sampler and distinct stages."""
+"""Owned Endless Terminals pipeline with separately executed initial-state tests."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.pipelines.recipes.endless_terminals import recipe
+from repo2rlenv.pipelines.recipes.endless_terminals.sampler import sample_inputs
 from repo2rlenv.pipelines.recipes.terminal.preflight import initial_state
 from repo2rlenv.pipelines.recipes.terminal.runner import run_synthesis
-from repo2rlenv.pipelines.recipes.tmax import recipe
-from repo2rlenv.pipelines.recipes.tmax.sampler import sample_inputs
 from repo2rlenv.spec.input import PipelineName, SeedSource
 
 
-class TMaxPipeline:
+class EndlessTerminalsPipeline:
     name = PipelineName.TERMINAL_SYNTH
     requires_bootstrap = False
     supported_languages = None
@@ -20,10 +20,10 @@ class TMaxPipeline:
     native_supported = False
 
     def __init__(self, input, options, bootstrap=None):
-        if input.pipeline.recipe != "tmax" or not isinstance(input.source, SeedSource):
-            raise ValueError("TMax requires its sampler JSON as a seeds input")
+        if input.pipeline.recipe != "endless_terminals" or not isinstance(input.source, SeedSource):
+            raise ValueError("Endless Terminals requires its sampler JSON as a seeds input")
         if input.execution is None or input.llm is None:
-            raise ValueError("TMax requires remote execution and an authoring model")
+            raise ValueError("Endless Terminals requires remote execution and an authoring model")
         self.input, self.options = input, options
         self.on_event = lambda event: None
 

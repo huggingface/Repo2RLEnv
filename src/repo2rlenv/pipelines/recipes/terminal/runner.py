@@ -223,6 +223,7 @@ def run_synthesis(
             "question_author",
             "answer_author",
             "domain",
+            "category",
             "skill_type",
             "primitive_skills",
             "task_complexity",

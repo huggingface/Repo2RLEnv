@@ -1,6 +1,6 @@
 # RFC 0020: `endless_terminals` recipe for `terminal_synth`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented text-fixture generation profile; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -74,4 +74,9 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+The owned sampler and retained prompts live in `recipes/endless_terminals/`.
+Shared terminal stages execute the distinct initial-state and completion-test
+authors, fixture preflight and Harbor baseline/reference pair. The
+[guide](../pipelines/endless_terminals.md) and example configuration expose
+the supported profile. Contract tests check seeded sampling and stage evidence
+flow. The twenty-task generation campaign precedes sampled-solution evaluation.

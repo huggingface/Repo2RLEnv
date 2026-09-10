@@ -88,6 +88,7 @@ jobs:
           tests/test_recipe_contracts.py tests/test_recipe_events.py
           tests/test_terminal_draft.py tests/test_issue_reproducers.py
           tests/test_task_evolution.py tests/test_swe_gen_recipe.py tests/test_swe_flow_recipe.py tests/test_r2e_recipe.py tests/test_tmax_recipe.py
+          tests/test_endless_terminals_recipe.py
           tests/test_remote_job.py tests/test_verifier_driver.py
 
   build:

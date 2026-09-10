@@ -1,21 +1,20 @@
-"""TMax's retained prompts over shared initial/final-state generation stages."""
+"""Retained Endless Terminals prompts and native template/test/environment order."""
 
 from __future__ import annotations
 
 from importlib.resources import files
 
 from repo2rlenv.pipelines.recipes.terminal import templates
-from repo2rlenv.pipelines.recipes.tmax.sampler import template_prompt
 
 
 def design(seed, **kwargs):
     resources = files(__package__)
     return templates.design(
         seed,
-        template_prompt=template_prompt(seed),
+        template_prompt=resources.joinpath("template_prompt.md").read_text(),
         initial_prompt=resources.joinpath("initial_prompt.md").read_text(),
         final_prompt=resources.joinpath("final_prompt.md").read_text(),
-        capabilities=seed["primitive_skills"],
+        capabilities=[seed["category"]],
         **kwargs,
     )
 

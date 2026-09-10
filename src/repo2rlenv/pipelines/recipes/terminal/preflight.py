@@ -1,4 +1,4 @@
-"""Verify TMax's initial-state tests on a fresh task before checking completion."""
+"""Verify separately generated initial-state tests on a fresh task before checking completion."""
 
 from __future__ import annotations
 
