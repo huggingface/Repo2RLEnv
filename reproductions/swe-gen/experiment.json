@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "swe-gen",
+  "title": "SWE-gen",
+  "kind": "generator",
+  "order": 9,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/abundant-ai/SWE-gen",
+    "commit": "14e185f413f7bff03f8f9fec6fb246681bf61d74",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "src/swegen/create/task_instruction.py",
+      "src/swegen/create/claude_code_runner.py",
+      "src/swegen/tools/validate.py"
+    ]
+  },
+  "input": "PRs and their repository, issue, patch and test evidence.",
+  "native_output": "Harbor task directories.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Retain its native task artifacts and NOP/oracle validation route."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Keep its original coding-agent implementation and PR filters. Additional coverage review is a separate audit."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Start PR mining once the reproduction runtime is proven, so repository bootstrap failures are easier to isolate."
+}

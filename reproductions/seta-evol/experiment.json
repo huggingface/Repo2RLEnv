@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "seta-evol",
+  "title": "SETA Evol",
+  "kind": "generator",
+  "order": 2,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/camel-ai/seta",
+    "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "datasynth/evol_pipeline/run_evol_orchestrator.py",
+      "datasynth/evol_pipeline/evol_task_pipeline.py",
+      "datasynth/evol_pipeline/agents/evol_strategy_prompts/"
+    ]
+  },
+  "input": "Existing Harbor tasks accepted by the upstream evolution configuration; prefer its published seeds first.",
+  "native_output": "Evolved Harbor tasks and lineage/authoring artifacts.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Keep native task bundles and retain parent identifiers; do not add a new curriculum scheduler."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Configured evolution is not a learned scheduler. Keep children separate from originals and preserve the upstream strategy."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reuse the SETA installation and runtime; change only to its published evolution path."
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "harden-v0",
+  "title": "harden-v0",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/few-sh/harden-v0",
+    "commit": "342b8474e0c0cf96e4a8313fd2e26c7a11d51193",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "harden/loop.py",
+      "harden/agent.py",
+      "harden/workspace.py"
+    ]
+  },
+  "input": "Existing Harbor tasks.",
+  "native_output": "Hardened task revisions and hacker/fixer/solver evidence.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Already Harbor-shaped; keep before/after copies and publish separate hardening results."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "These are transformations of existing tasks, not 100 new source tasks."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reproduce hardening on 100 generated tasks after their unmodified baselines have been frozen."
+}

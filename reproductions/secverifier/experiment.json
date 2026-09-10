@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "secverifier",
+  "title": "SecVerifier",
+  "kind": "component",
+  "order": null,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/SEC-bench/SecVerifier",
+    "commit": "93abf5900327809eacff66fec40d45eb95221acb",
+    "license": "MIT",
+    "source_paths": [
+      "multi-agent.py",
+      "single-agent.py"
+    ]
+  },
+  "input": "Supported isolated security instances.",
+  "native_output": "Builder, reproducer and fixer traces and validation evidence.",
+  "target": {
+    "harbor_tasks": null,
+    "component_inputs": 100,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Attach upstream evidence to SEC-bench task exports."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Reproduce the original role implementation rather than extracting it into a new agent framework."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Run with the SEC-bench reproduction on its supported inputs."
+}

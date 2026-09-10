@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "seta-seed2synth",
+  "title": "SETA Seed2Synth",
+  "kind": "generator",
+  "order": 1,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/camel-ai/seta",
+    "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "datasynth/seed2synth_pipeline/run_orchestrator.py",
+      "datasynth/seed2synth_pipeline/seed2task_pipeline.py",
+      "datasynth/seed2synth_pipeline/configs/"
+    ]
+  },
+  "input": "Upstream seed metadata and source assets: start with a small published notebook or Q&A subset.",
+  "native_output": "Harbor task directories plus synthesis status and author reports.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Keep native Harbor artifacts. Apply only documented schema/runtime compatibility changes in a separate export copy."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Keep the upstream author-report verdict; independently measure actual oracle and baseline results. Do not replace its authoring workflow with Tasksmith."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Native Harbor output and a standalone synthesis mode; first prove one complete upstream run."
+}

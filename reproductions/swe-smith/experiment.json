@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "swe-smith",
+  "title": "SWE-smith",
+  "kind": "generator",
+  "order": 5,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/SWE-bench/SWE-smith",
+    "commit": "9b74ac08118a85c39c356802f7961893af73e07f",
+    "license": "MIT",
+    "source_paths": [
+      "scripts/bug_gen_modal.py",
+      "swesmith/bug_gen/",
+      "swesmith/issue_gen/",
+      "swesmith/harness/valid.py"
+    ]
+  },
+  "input": "A supported repository profile and healthy upstream image.",
+  "native_output": "Mutation patches, issue descriptions and validated SWE-bench-style instances.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Package the exact defective snapshot, existing reference restoration and upstream test command into Harbor."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Use a supported repository first. Do not introduce a new mutation strategy or claim arbitrary repository support."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "First repository synthesis reproduction; prepared profiles and an existing Modal execution path reduce setup uncertainty."
+}

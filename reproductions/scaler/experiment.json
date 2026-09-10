@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "scaler",
+  "title": "SCALER",
+  "kind": "generator",
+  "order": 15,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/ALEX-nlp/SCALER",
+    "commit": "60c6c5037866c718f4c001ea338f9c5a91cb01ae",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "SCALER/api_generate_generator_for_environment.py",
+      "SCALER/generate_problem_from_environment.py",
+      "recipe/environment/"
+    ]
+  },
+  "input": "Upstream seed problems and parameterized environment-generation configuration.",
+  "native_output": "Executable problem generators and sampled reasoning/problem instances.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Represent original problem input, response interface and verifier in Harbor without inventing repository-editing semantics."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "This is a specialist problem-family reproduction, not automatically a coding-agent environment dataset."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "A different task unit and domain; reproduce separately after terminal and repository baselines."
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "swe-flow",
+  "title": "SWE-Flow",
+  "kind": "generator",
+  "order": 7,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/Hambaobao/SWE-Flow",
+    "commit": "7da5b046fa1dc184674e4e94a9989be56c39e4e7",
+    "license": "MIT",
+    "source_paths": [
+      "docs/pipeline.md",
+      "sweflow/extensions/python/rdg.py",
+      "sweflow/extensions/python/schedule.py",
+      "sweflow/extensions/python/create_codebase.py",
+      "sweflow/extensions/python/create_specification.py"
+    ]
+  },
+  "input": "A working supported Python repository and traces from SWE-Flow-Trace.",
+  "native_output": "Partial codebases, restoration patches, schedules and specifications.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Package the upstream skeleton, specification, restoration patch and selected tests; execute labels rather than assuming they passed."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Trace-derived test IDs are not execution receipts. Preserve original archives privately and keep them outside the learner image."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Next reproduce repository reconstruction after the prepared-image workflow is stable."
+}

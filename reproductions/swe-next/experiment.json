@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "swe-next",
+  "title": "SWE-Next",
+  "kind": "generator",
+  "order": 10,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/TIGER-AI-Lab/SWE-Next",
+    "commit": "b55c0841f364f9fe7363b2012cd0ae8d8afdf872",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "run_pr_pipeline.zsh",
+      "src/swenext/repo_analysis/"
+    ]
+  },
+  "input": "Supported repositories and candidate commit/PR pairs, with upstream dependency profiles.",
+  "native_output": "Executable repository task records and environment profiles.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Preserve pinned source pairs, profile composition, reference patches and execution tests in a Harbor wrapper."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "Report compared test evidence honestly; do not broaden an upstream no-regression claim."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reproduce dependency-profile reuse and commit mining after a direct PR-to-Harbor baseline."
+}

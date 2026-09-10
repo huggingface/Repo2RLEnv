@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "endless-terminals",
+  "title": "Endless Terminals",
+  "kind": "generator",
+  "order": 3,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/kanishkg/endless-terminals",
+    "commit": "99f4c74b75faacf21e53d3dc01df170902e924cb",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "generate_tasks.py",
+      "generator/apptainer_def_gen.py",
+      "generator/convert_to_harbor/convert_sif_docker.py",
+      "generator/convert_to_harbor/add_reward_file.py"
+    ]
+  },
+  "input": "Its original task-generation settings, prompts and configured model.",
+  "native_output": "Task JSON, initial/completion tests, Apptainer definitions and sampled solutions.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Use the upstream converter first; compare native and converted verifier outcomes on identical initial and solution states."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "The conversion path has its own model/sampling requirements. Initial-state build success is distinct from completion-verifier validity."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Establish the simpler Apptainer generation path and its existing Harbor conversion before TMax."
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "dataarc-terminal",
+  "title": "DataArc terminal synthesis (Envs-FORGE-linked code)",
+  "kind": "generator",
+  "order": 14,
+  "status": "planned",
+  "upstream": {
+    "repository": "https://github.com/DataArcTech/DataArc-SynData-Toolkit",
+    "commit": "2a1d65ec8dcfaea2458d67e1fb18078cce6420b9",
+    "license": "Apache-2.0",
+    "source_paths": [
+      "sdgsystem/agentic_data/terminal_bench.py",
+      "examples/syn_agentic_data/run_terminal_bench.py",
+      "configs/syn_agentic_terminal_bench.yaml"
+    ],
+    "branch_hint": "SynAgenticData"
+  },
+  "input": "Upstream seed Harbor tasks and supported few/self/evol settings.",
+  "native_output": "Harbor task bundles and synthesis manifests.",
+  "target": {
+    "harbor_tasks": 100,
+    "component_inputs": null,
+    "ramp": [
+      1,
+      5,
+      20,
+      100
+    ]
+  },
+  "execution": {
+    "location": "remote",
+    "provider": null,
+    "upstream_environment_isolated": true,
+    "model": null,
+    "commands_verified": false
+  },
+  "conversion": {
+    "status": "not_started",
+    "approach": "Keep the existing Harbor materializer and verification entry points."
+  },
+  "fidelity": {
+    "mode": "upstream_baseline",
+    "deviations": [],
+    "known_limitations": [
+      "This reproduces released toolkit functionality. The paper's MILP/frontier selector was not located; do not label this a full Envs-FORGE reproduction."
+    ]
+  },
+  "results": {
+    "attempted": 0,
+    "native_emitted": 0,
+    "native_accepted": 0,
+    "harbor_exported": 0,
+    "export_parity_passed": 0,
+    "independent_audit_passed": 0
+  },
+  "why_this_order": "Reproduce the available branch after core synthesis/evolution baselines, with explicit partial-release scope."
+}
