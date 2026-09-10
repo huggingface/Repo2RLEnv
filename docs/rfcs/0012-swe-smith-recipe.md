@@ -1,6 +1,6 @@
 # RFC 0012: `swe_smith` recipe for `repo_mutate`
 
-**Status:** accepted design; implementation pending
+**Status:** accepted; experimental implementation and quality campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -74,4 +74,8 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `pipelines/repo_mutate.py` and `pipelines/recipes/swe_smith/`.
+Options use the standard registry; prompts and MIT notices are packaged. The
+[guide](../pipelines/repo_mutate.md) documents supported profiles, CLI and recovery.
+Controller tests and a remote Harbor nop/oracle/oracle pilot establish execution
+contrast. Independent quality acceptance and the 20/100-task campaign remain open.

@@ -65,6 +65,7 @@ def _do_complete(
     user: str,
     max_tokens: int,
     temperature: float,
+    response_schema: dict | None = None,
 ) -> LLMResponse:
     """One non-fallback chat-completion call. Internal helper for `complete()`."""
     import litellm  # type: ignore[import-untyped]
@@ -93,6 +94,15 @@ def _do_complete(
         kwargs["temperature"] = temperature
     if spec.endpoint:
         kwargs["api_base"] = spec.endpoint
+    if response_schema is not None:
+        kwargs["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "repo2rlenv_response",
+                "strict": True,
+                "schema": response_schema,
+            },
+        }
 
     if spec.provider == "huggingface" and spec.endpoint is None:
         kwargs.setdefault("api_base", "https://router.huggingface.co/v1")
@@ -130,6 +140,7 @@ def complete(
     user: str,
     max_tokens: int = 1024,
     temperature: float = 0.7,
+    response_schema: dict | None = None,
     _depth: int = 0,
 ) -> LLMResponse:
     """Single chat-completion call with automatic fallback on transient errors.
@@ -148,6 +159,7 @@ def complete(
             user=user,
             max_tokens=max_tokens,
             temperature=temperature,
+            response_schema=response_schema,
         )
     except Exception as exc:
         if _depth >= 3 or spec.fallback is None or not _is_failover_eligible(exc):
@@ -164,5 +176,6 @@ def complete(
             user=user,
             max_tokens=max_tokens,
             temperature=temperature,
+            response_schema=response_schema,
             _depth=_depth + 1,
         )

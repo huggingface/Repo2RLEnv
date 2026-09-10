@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from repo2rlenv.spec.recipe_options import SWESmithOptions, TerminalSynthesisOptions
+
 
 class _BaseOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -255,17 +257,19 @@ class EquivalenceTestsOptions(_BaseOptions):
     skip_validation: bool = False
 
 
-OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
+OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
     "commit_runtime": CommitRuntimeOptions,
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
+    "repo_mutate": SWESmithOptions,
+    "terminal_synth": TerminalSynthesisOptions,
 }
 
 
-def parse_options(pipeline_name: str, raw: dict) -> _BaseOptions:
+def parse_options(pipeline_name: str, raw: dict) -> BaseModel:
     cls = OPTIONS_REGISTRY.get(pipeline_name)
     if cls is None:
         raise ValueError(

@@ -19,7 +19,11 @@ flowchart LR
 
 ## Pipelines
 
-All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 3 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+The original six native pipelines remain available: three stable (`pr_diff`,
+`pr_runtime`, `commit_runtime`) and three experimental. [Owned recipes](owned_recipes.md)
+add method-specific implementations, starting with experimental
+[`repo_mutate / swe_smith`](repo_mutate.md). The catalog labels other planned
+methods explicitly. See each guide for its supported scope and verification status.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|

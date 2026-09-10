@@ -7,6 +7,8 @@ from repo2rlenv.pipelines.cve_patches import CVEPatchesPipeline
 from repo2rlenv.pipelines.equivalence_tests import EquivalenceTestsPipeline
 from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
 from repo2rlenv.pipelines.pr_runtime import PRRuntimePipeline
+from repo2rlenv.pipelines.repo_mutate import RepoMutatePipeline
+from repo2rlenv.pipelines.terminal_synth import TerminalSynthesisPipeline
 
 PIPELINES: dict[str, type[Pipeline]] = {
     "pr_diff": PRDiffPipeline,
@@ -15,6 +17,8 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "code_instruct": CodeInstructPipeline,
     "equivalence_tests": EquivalenceTestsPipeline,
     "cve_patches": CVEPatchesPipeline,
+    "repo_mutate": RepoMutatePipeline,
+    "terminal_synth": TerminalSynthesisPipeline,
 }
 
 __all__ = [
@@ -27,4 +31,6 @@ __all__ = [
     "PRRuntimePipeline",
     "Pipeline",
     "PipelineResult",
+    "RepoMutatePipeline",
+    "TerminalSynthesisPipeline",
 ]

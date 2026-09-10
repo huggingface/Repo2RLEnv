@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class PipelineName(StrEnum):
@@ -19,6 +19,15 @@ class PipelineName(StrEnum):
     # Synthesized by LLM
     CODE_INSTRUCT = "code_instruct"  # OSS-Instruct-style (was: oss_instruct)
     EQUIVALENCE_TESTS = "equivalence_tests"
+    # Owned recipes; individual implementations declare their availability.
+    PR_TO_ENV = "pr_to_env"
+    REPO_MUTATE = "repo_mutate"
+    REPO_RECONSTRUCT = "repo_reconstruct"
+    TERMINAL_SYNTH = "terminal_synth"
+    TERMINAL_RECONSTRUCT = "terminal_reconstruct"
+    TASK_EVOLVE = "task_evolve"
+    ENV_REPAIR = "env_repair"
+    REASONING_SYNTH = "reasoning_synth"
 
 
 class RepoSpec(BaseModel):
@@ -69,6 +78,63 @@ class RepoSpec(BaseModel):
         if len(parts) < 2:
             raise ValueError(f"cannot parse owner/name from {self.url!r}")
         return parts[-2], parts[-1]
+
+
+class RepositorySource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["repository"] = "repository"
+    repo: RepoSpec
+
+
+class PRSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["pr"] = "pr"
+    urls: list[str] = Field(min_length=1)
+
+    @field_validator("urls")
+    @classmethod
+    def validate_urls(cls, values: list[str]) -> list[str]:
+        import re
+
+        values = [value.rstrip("/") for value in values]
+        pattern = (
+            r"https://(?:github\.com/[^/]+/[^/]+/pull/\d+|gitlab\.com/.+/-/merge_requests/\d+)/?"
+        )
+        if any(re.fullmatch(pattern, value) is None for value in values):
+            raise ValueError("PR sources require explicit GitHub PR or GitLab MR HTTPS URLs")
+        if len(set(values)) != len(values):
+            raise ValueError("PR sources contain duplicate URLs")
+        return values
+
+
+class SeedSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["seeds"] = "seeds"
+    path: Path
+
+
+class TaskSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["task"] = "task"
+    path: Path
+
+
+class RecordingSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["recording"] = "recording"
+    path: Path
+
+
+class FamilySource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["family"] = "family"
+    path: Path
+
+
+SourceSpec = Annotated[
+    RepositorySource | PRSource | SeedSource | TaskSource | RecordingSource | FamilySource,
+    Field(discriminator="kind"),
+]
 
 
 class LLMSpec(BaseModel):
@@ -189,12 +255,26 @@ class BootstrapSpec(BaseModel):
 
 class PipelineSpec(BaseModel):
     name: PipelineName
+    recipe: str = "native"
     options: dict[str, Any] = Field(default_factory=dict)
+
+
+class RecipeExecutionSpec(BaseModel):
+    """An owned recipe's explicit, recoverable remote execution context."""
+
+    model_config = ConfigDict(extra="forbid")
+    worker_receipt: Path
+    runtime_wheel: Path
+    campaign_dir: Path
+    run_id: str = Field(pattern=r"^[a-z][a-z0-9-]{0,60}$")
+    timeout_sec: int = Field(default=1800, ge=60, le=14400)
+    resume: bool = False
 
 
 class GenerationInput(BaseModel):
     spec_version: Literal["0.1.0"] = "0.1.0"
-    repo: RepoSpec
+    repo: RepoSpec | None = None
+    source: SourceSpec | None = None
     pipeline: PipelineSpec
     llm: LLMSpec | None = None
     output: OutputSpec
@@ -202,6 +282,37 @@ class GenerationInput(BaseModel):
     sandbox: SandboxSpec = Field(default_factory=SandboxSpec)
     bootstrap: BootstrapSpec = Field(default_factory=BootstrapSpec)
     auth: AuthSpec = Field(default_factory=AuthSpec)
+    execution: RecipeExecutionSpec | None = None
+
+    @model_validator(mode="after")
+    def normalize_source(self) -> GenerationInput:
+        if self.source is None:
+            if self.repo is None:
+                raise ValueError("Provide a repository or a typed source")
+            self.source = RepositorySource(repo=self.repo)
+        elif isinstance(self.source, RepositorySource):
+            if self.repo is not None and self.repo != self.source.repo:
+                raise ValueError("repo and source.repo describe different inputs")
+            self.repo = self.source.repo
+        elif self.repo is not None:
+            raise ValueError("A non-repository source cannot also specify repo")
+        if self.pipeline.recipe == "native" and self.repo is None:
+            raise ValueError(
+                "Native pipelines require a repository; select an owned recipe for this source"
+            )
+        return self
+
+    @property
+    def source_label(self) -> str:
+        if self.repo is not None:
+            return self.repo.url
+        if isinstance(self.source, PRSource):
+            return (
+                self.source.urls[0]
+                if len(self.source.urls) == 1
+                else f"{len(self.source.urls)} PRs"
+            )
+        return str(self.source.path)
 
 
 LLMSpec.model_rebuild()

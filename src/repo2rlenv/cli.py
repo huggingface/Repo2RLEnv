@@ -69,6 +69,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
             "name": args.pipeline,
             "options": _parse_pipeline_opts(args.pipeline_opt),
         }
+    if getattr(args, "recipe", None):
+        overrides.setdefault("pipeline", {})["recipe"] = args.recipe
+    if getattr(args, "resume", False):
+        overrides["execution"] = {"resume": True}
     if args.llm:
         if "/" not in args.llm:
             raise SystemExit(f"--llm expects provider/model, got {args.llm!r}")
@@ -92,11 +96,22 @@ def cmd_generate(args: argparse.Namespace) -> int:
     config_path = Path(args.config) if args.config else None
     gen_input = load_generation_input(config_path, overrides)
 
+    if gen_input.pipeline.recipe != "native":
+        from repo2rlenv.pipelines.recipes.cli import run_recipe
+
+        return run_recipe(gen_input, plain=args.no_ui, json_output=getattr(args, "json", False))
+
     pipeline_cls = PIPELINES.get(gen_input.pipeline.name.value)
     if pipeline_cls is None:
         console.error(
             f"pipeline {gen_input.pipeline.name.value!r} not implemented in v{__version__}; "
             f"available: {sorted(PIPELINES)}"
+        )
+        return 2
+
+    if not getattr(pipeline_cls, "native_supported", True):
+        console.error(
+            f"{gen_input.pipeline.name.value} requires an explicit --recipe; see pipelines list"
         )
         return 2
 
@@ -847,6 +862,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
+    from repo2rlenv.campaigns.cli import add_campaign_parsers
+    from repo2rlenv.pipelines.recipes.cli import add_discovery_parser
+
+    add_discovery_parser(sub)
+    add_campaign_parsers(sub)
+
     # generate
     g = sub.add_parser("generate", help="Run a synthesis pipeline against a repo")
     g.add_argument("--config", help="path to YAML/TOML config file")
@@ -854,6 +875,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--ref", default="HEAD", help="branch/tag/commit (default: HEAD)")
     g.add_argument("--access", choices=["public", "private", "auto"], default="auto")
     g.add_argument("--pipeline", help="pipeline name")
+    g.add_argument("--recipe", help="owned recipe name (native by default)")
+    g.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume an owned run without redispatching completed work",
+    )
+    g.add_argument("--json", action="store_true", help="emit owned recipe progress as JSON Lines")
     g.add_argument(
         "--pipeline-opt",
         action="append",

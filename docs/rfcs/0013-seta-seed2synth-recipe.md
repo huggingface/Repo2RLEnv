@@ -1,6 +1,6 @@
 # RFC 0013: `seta_seed2synth` recipe for `terminal_synth`
 
-**Status:** accepted design; implementation pending
+**Status:** implementation in progress; remote generation campaign pending
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -73,4 +73,9 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned stages live under `pipelines/recipes/seta_seed2synth/`; typed materialization
+and execution feedback are shared under `pipelines/recipes/terminal/`. The
+`terminal_synth` pipeline registers this recipe, with strict options and the shared
+Rich/JSON CLI. See [the guide](../pipelines/terminal_synth.md) for the supported
+profile, explicit upstream adaptations and generation-first campaign sequencing.
+Local contract tests pass; remote campaign counts will be recorded after execution.
