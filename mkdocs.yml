@@ -157,6 +157,8 @@ nav:
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md
       - "task_evolve / seta_evol (experimental)": pipelines/task_evolve.md
       - "pr_to_env / swe_gen (experimental)": pipelines/pr_to_env.md
+      - "repo_reconstruct / swe_flow (experimental)": pipelines/repo_reconstruct.md
+      - "equivalence_tests / r2e (experimental)": pipelines/r2e.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

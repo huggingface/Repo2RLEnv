@@ -1,6 +1,6 @@
 # RFC 0016: `swe_flow` recipe for `repo_reconstruct`
 
-**Status:** accepted design; implementation pending
+**Status:** implementation in progress; remote campaign running
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -75,4 +75,4 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `recipes/swe_flow/` and `pipelines/repo_reconstruct.py`, sharing remote repository execution and Harbor export. [Guide](../pipelines/repo_reconstruct.md) and fixture tests cover dependency scheduling, function stubbing and helper removal. Initial scope is top-level synchronous Python functions; generation campaigns precede independent quality review.

@@ -49,6 +49,22 @@ class PRRecipeOptions(PythonRepositoryProfile):
     force_generate_instruction: bool = False
 
 
+class ReconstructionOptions(PythonRepositoryProfile):
+    target: int = Field(default=20, ge=1, le=1000)
+    max_candidates: int = Field(default=60, ge=1, le=1000)
+    trace_max_tests: int = Field(default=128, ge=20, le=1000)
+    trace_seed: int = 24
+
+
+class R2EOptions(PythonRepositoryProfile):
+    target: int = Field(default=20, ge=1, le=1000)
+    max_candidates: int = Field(default=60, ge=1, le=1000)
+    max_rounds: int = Field(default=3, ge=1, le=5)
+    min_branch_coverage: float = Field(default=0.8, ge=0, le=1)
+    seed: int = 24
+    dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3", "coverage==7.16.0"])
+
+
 class TerminalSynthesisOptions(BaseModel):
     """Bounds for terminal task authoring and its executable repair loop."""
 

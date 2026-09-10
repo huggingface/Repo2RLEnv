@@ -20,9 +20,9 @@ from repo2rlenv.execution.lifecycle import prepare_docker, save_record
 from repo2rlenv.github import GitHubError
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.recipes.catalog import get_recipe
+from repo2rlenv.pipelines.recipes.repository.export import export_repository_task
 from repo2rlenv.pipelines.recipes.swe_gen.instruction import write_instruction
 from repo2rlenv.pipelines.recipes.swe_gen.source import fetch_source
-from repo2rlenv.pipelines.recipes.swe_smith.export import export_repository_task
 from repo2rlenv.spec.input import GenerationInput, PipelineName, PRSource
 from repo2rlenv.spec.recipe_options import PRRecipeOptions
 

@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict
 
 from repo2rlenv.spec.recipe_options import (
     PRRecipeOptions,
+    R2EOptions,
+    ReconstructionOptions,
     SWESmithOptions,
     TaskEvolutionOptions,
     TerminalSynthesisOptions,
@@ -270,14 +272,18 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
     "repo_mutate": SWESmithOptions,
+    "repo_reconstruct": ReconstructionOptions,
     "pr_to_env": PRRecipeOptions,
     "terminal_synth": TerminalSynthesisOptions,
     "task_evolve": TaskEvolutionOptions,
 }
 
 
-def parse_options(pipeline_name: str, raw: dict) -> BaseModel:
-    cls = OPTIONS_REGISTRY.get(pipeline_name)
+RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {"r2e": R2EOptions}
+
+
+def parse_options(pipeline_name: str, raw: dict, *, recipe: str = "native") -> BaseModel:
+    cls = RECIPE_OPTIONS_REGISTRY.get(recipe) or OPTIONS_REGISTRY.get(pipeline_name)
     if cls is None:
         raise ValueError(
             f"pipeline {pipeline_name!r} has no Options registered "

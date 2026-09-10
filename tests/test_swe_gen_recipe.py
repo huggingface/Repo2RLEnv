@@ -4,8 +4,8 @@ import json
 
 import pytest
 
+from repo2rlenv.pipelines.recipes.repository.export import export_repository_task
 from repo2rlenv.pipelines.recipes.swe_gen.source import fetch_source
-from repo2rlenv.pipelines.recipes.swe_smith.export import export_repository_task
 from repo2rlenv.spec.recipe_options import PRRecipeOptions
 
 

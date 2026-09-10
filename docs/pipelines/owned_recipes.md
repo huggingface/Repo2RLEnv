@@ -63,8 +63,9 @@ flowchart LR
   P --> B[Bootstrap and source snapshot]
   B --> G[Recipe-specific generation]
   G --> H[Immutable Harbor bundle]
-  H --> E[Fresh baseline and two oracles]
-  E --> Q[Specification and verifier attack checks]
+  H --> E[Fresh baseline and reference]
+  E --> G[20 generated tasks per method]
+  G --> Q[Later: repeated reference, specification and attack checks]
   Q --> R[Blind Sonnet and Opus traces]
   R --> A[Artifact-bound acceptance report]
 ```
@@ -82,7 +83,9 @@ Linux Dockerfile tasks that remain offline in every phase, using Docker's
 `network_mode: none`. It rejects allowlists, network transitions and task-defined
 extra services. Other task shapes require another verified runtime route.
 
-See [SWE-smith / repo_mutate](repo_mutate.md) for the first owned recipe.
+Implemented recipe guides: [SWE-smith](repo_mutate.md), [SETA Seed2Synth](terminal_synth.md),
+[SETA Evol](task_evolve.md), [SWE-gen](pr_to_env.md), [SWE-Flow](repo_reconstruct.md)
+and [R2E](r2e.md). Campaigns are still collecting generated outputs.
 
 ## Contract references
 

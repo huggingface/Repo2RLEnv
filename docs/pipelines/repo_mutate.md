@@ -101,3 +101,7 @@ baseline passing test identities. Its emitted Harbor task returned 0 for nop and
 1 for two fresh oracle trials through the remote offline adapter. The instruction
 still required semantic review and repair; these results establish execution
 contrast, not training-quality acceptance or population yield.
+
+The first generation campaign now has 24 distinct exports from 29 mutation
+attempts. Twenty exports have also passed fresh Harbor checks (nop 0, oracle 1)
+on Modal. These are generation results; quality acceptance remains pending.

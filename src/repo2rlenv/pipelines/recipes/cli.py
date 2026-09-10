@@ -92,9 +92,8 @@ def run_recipe(input, *, plain: bool, json_output: bool) -> int:
         console.error(f"{recipe.id} is planned and has no executable implementation yet")
         return 2
     module, name = IMPLEMENTATIONS[recipe.id].split(":")
-    pipeline = getattr(importlib.import_module(module), name)(
-        input, parse_options(recipe.pipeline, input.pipeline.options)
-    )
+    options = parse_options(recipe.pipeline, input.pipeline.options, recipe=recipe.id)
+    pipeline = getattr(importlib.import_module(module), name)(input, options)
     if input.output.destination.startswith("hf://"):
         raise ValueError(
             "Generate owned tasks to a local artifact directory, then publish with repo2rlenv push"

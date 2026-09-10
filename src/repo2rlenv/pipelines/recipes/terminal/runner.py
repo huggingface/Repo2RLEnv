@@ -252,7 +252,7 @@ def run_synthesis(
             trials = []
             for agent in ("nop", "oracle"):
                 run_key = hashlib.sha256(execution.run_id.encode()).hexdigest()[:12]
-                trial_id = f"{run_key}-{index:03d}-{attempt}-{agent}"
+                trial_id = f"task-{run_key}-{index:03d}-{attempt}-{agent}"
                 trial = run_trial(
                     worker,
                     task,

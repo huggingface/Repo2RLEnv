@@ -9,7 +9,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from repo2rlenv.bootstrap import ensure_bootstrap
@@ -18,6 +18,13 @@ from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.test_results import parse_junit
 from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
+
+
+@dataclass(frozen=True)
+class TestInstrumentation:
+    driver: Path
+    arguments: tuple[str, ...] = ()
+    outputs: tuple[str, ...] = ()
 
 
 def _run(argv: list[str], *, timeout: int = 600, check: bool = True):
@@ -34,6 +41,7 @@ def test_image(
     *,
     replacement: tuple[Path, str] | None = None,
     replacements: dict[str, Path] | None = None,
+    instrumentation: TestInstrumentation | None = None,
 ):
     """Run each test suite from a clean image, with no network or host mounts."""
     output.mkdir(parents=True, exist_ok=False)
@@ -47,6 +55,10 @@ def test_image(
         "--tb=short",
         "--junitxml=/tmp/results.xml",
     ]
+    if instrumentation is not None:
+        command = ["python", "/tmp/instrument.py", *instrumentation.arguments, *command[3:]]
+        if any(Path(name).name != name for name in instrumentation.outputs):
+            raise ValueError("Instrumentation outputs must be filenames in /tmp")
     _run(
         [
             "docker",
@@ -69,6 +81,8 @@ def test_image(
         ]
     )
     try:
+        if instrumentation is not None:
+            _run(["docker", "cp", str(instrumentation.driver), f"{name}:/tmp/instrument.py"])
         changes = dict(replacements or {})
         if replacement is not None:
             changes[replacement[1]] = replacement[0]
@@ -87,6 +101,9 @@ def test_image(
         if state.get("OOMKilled") or state.get("Running"):
             raise ValueError("Test container did not complete within its resource contract")
         _run(["docker", "cp", f"{name}:/tmp/results.xml", str(output / "results.xml")])
+        if instrumentation is not None:
+            for filename in instrumentation.outputs:
+                _run(["docker", "cp", f"{name}:/tmp/{filename}", str(output / filename)])
         parsed = parse_junit((output / "results.xml").read_text(), returncode=state["ExitCode"])
         save_record(
             output / "results.json", {"returncode": parsed.returncode, "statuses": parsed.statuses}

@@ -1,6 +1,6 @@
 # RFC 0017: `r2e` recipe for `equivalence_tests`
 
-**Status:** accepted design; implementation pending
+**Status:** implementation in progress; remote campaign running
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -73,4 +73,4 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned source: `recipes/r2e/`, with recipe-specific options preserving native `equivalence_tests` defaults. Fixture tests cover dependency closure, stubbing, private differential bindings and target-only branch feedback. See the [guide](../pipelines/r2e.md) for the supported profile and private in-process reference limitation. The first remote generation campaign is running; full quality acceptance remains deferred.
