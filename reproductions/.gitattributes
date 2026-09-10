@@ -1,0 +1,4 @@
+reports/*.pdf binary
+# Patch context and the copied upstream prompt preserve original whitespace.
+**/patches/*.patch -whitespace
+swe-smith/config/issues.yaml -whitespace

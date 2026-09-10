@@ -1,0 +1,6 @@
+# Standalone synthesis dependencies; omit upstream's unrelated GPU training stack.
+claude-agent-sdk==0.2.152
+harbor==0.20.0
+pandas==2.3.3
+PyYAML==6.0.3
+huggingface-hub==1.13.0

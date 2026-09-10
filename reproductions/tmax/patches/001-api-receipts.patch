@@ -1,0 +1,26 @@
+--- a/rl_data/__init__.py
++++ b/rl_data/__init__.py
+@@ -13,6 +13,7 @@
+ from typing import Any, Dict, List, Optional
+ 
+ from tqdm import tqdm
++from api_usage import record_response
+ 
+ import litellm
+ litellm.suppress_debug_info = True
+@@ -84,6 +85,7 @@
+                 if extra_body is not None:
+                     kwargs["extra_body"] = extra_body
+                 resp = litellm.completion(**kwargs)
++                record_response(resp)
+                 return resp
+             except litellm.exceptions.AuthenticationError as e:
+                 logger.error(f"[req {idx}] Auth error (not retrying): {e}")
+@@ -170,6 +172,7 @@
+                 if extra_body is not None:
+                     kwargs["extra_body"] = extra_body
+                 resp = litellm.completion(**kwargs)
++                record_response(resp)
+                 return resp
+             except litellm.exceptions.AuthenticationError as e:
+                 logger.error(f"[req {idx}] Auth error (not retrying): {e}")

@@ -4,7 +4,7 @@ Reproduce existing public implementations one by one, using each project's nativ
 
 Branch: `codex/upstream-reproductions`, created from local `main` at `1a8bad5774e062d0d73a7d79f9d6a95540801c83`. The previous harness work remains on `codex/dynamic-harbor-curation`.
 
-Current state: **23 experiment folders scaffolded; zero upstream runs and zero tasks generated in this reproduction campaign.** This folder contains plans and source pins, not a new generation harness. Earlier campaign outputs are not results for this campaign.
+Implementation is underway for the first five experiments. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for stage contracts, requirements and the freshly authorized **$500 reproduction budget**. Earlier campaign outputs and spending are separate from this campaign. Measured results are recorded per experiment.
 
 ## Recommended generation order
 
@@ -42,7 +42,7 @@ Pinned upstream code + native input
   -> 100 exported tasks and a reproducible result summary
 ```
 
-Ramp: **1 -> 5 -> 20 -> 100**. Finish each reproduction before moving to the next, except for a supporting component it actually needs. A smoke result is not a paper reproduction or a 100-task result.
+Ramp: **1 -> 5 -> 20 -> 100**. First establish working smoke runs across the first five in order, then scale using measured cost and yield. A smoke result is not a paper reproduction or a 100-task result.
 
 For every stage, preserve the native acceptance count, export count and independent audit count separately. Native failures and quality weaknesses are results to report; they are not permission to redesign the method. See [PROTOCOL.md](PROTOCOL.md).
 
@@ -98,4 +98,4 @@ SWE-rebench V2 and the Envs-FORGE-linked DataArc branch are explicitly labeled p
 
 Prepare the pinned **SETA Seed2Synth** installation remotely, use a small published seed subset, and run its native synthesis command with its original authoring agent. Produce one task, retain the full log, then independently check the native Harbor artifact. Reach five before committing resources to a 20-input pilot and the 100-task target.
 
-No paid jobs were launched while creating this branch and scaffold. Before scaling, measure inference and cloud cost from the pilot, including failures, and respect the existing overall spending limit. Task-count targets do not imply a new dollar budget.
+The scaffold required no paid jobs. The user subsequently authorized a fresh $500 for these reproductions. Track inference and cloud use, including failures, in a separate campaign ledger and use the pilot measurements before scaling.

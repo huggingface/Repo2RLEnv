@@ -1,0 +1,23 @@
+--- a/swesmith/issue_gen/generate.py
++++ b/swesmith/issue_gen/generate.py
+@@ -23,6 +23,7 @@
+ from datasets import load_dataset
+ from dotenv import load_dotenv
+ from litellm import completion, completion_cost
++from api_usage import record_response
+ from litellm.utils import get_token_count
+ from pathlib import Path
+ from tqdm import tqdm
+@@ -384,8 +385,10 @@
+                 messages=messages,
+                 n=self.n_instructions,
+                 temperature=0,
+-            )
+-
++                max_tokens=4096,
++            )
++
++        record_response(response)
+         model_for_cost = self.model
+         if self.portkey_model and self.portkey_model.config.litellm_model_name_override:
+             model_for_cost = self.portkey_model.config.litellm_model_name_override
