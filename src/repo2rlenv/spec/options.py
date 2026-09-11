@@ -11,6 +11,7 @@ from repo2rlenv.spec.recipe_options import (
     PRRecipeOptions,
     R2EOptions,
     ReconstructionOptions,
+    RecordingReconstructionOptions,
     SWESmithOptions,
     TaskEvolutionOptions,
     TerminalSynthesisOptions,
@@ -275,6 +276,7 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "repo_reconstruct": ReconstructionOptions,
     "pr_to_env": PRRecipeOptions,
     "terminal_synth": TerminalSynthesisOptions,
+    "terminal_reconstruct": RecordingReconstructionOptions,
     "task_evolve": TaskEvolutionOptions,
 }
 

@@ -106,6 +106,7 @@ def run_synthesis(
     builder_prompt: str | None = None,
     preflight=None,
     agent_user: str | None = None,
+    materializer=None,
 ) -> PipelineResult:
     recipe = get_recipe(input.pipeline.recipe)
     execution = input.execution
@@ -208,7 +209,7 @@ def run_synthesis(
             continue
         save_record(candidate / "design.json", design.model_dump(mode="json"))
         if getattr(design, "filtered_reason", None):
-            record["skipped"][key] = "evolution_filtered"
+            record["skipped"][key] = "design_filtered"
             save_record(receipt, record)
             event("design", "failed", design.filtered_reason)
             continue
@@ -224,6 +225,7 @@ def run_synthesis(
             "answer_author",
             "domain",
             "category",
+            "transcript_sha256",
             "skill_type",
             "primitive_skills",
             "task_complexity",
@@ -240,27 +242,44 @@ def run_synthesis(
             if (deadline - datetime.now(UTC)).total_seconds() < 900:
                 raise TimeoutError("Insufficient worker window for another materialization attempt")
             event("build", "started", f"{seed['title']} · attempt {attempt + 1}")
-            response = metered_complete(
-                input.llm,
-                ledger=ledger,
-                receipt=candidate / f"builder-{attempt}.json",
-                operation_id=f"build:{execution.run_id}:{key}:{attempt}",
-                reservation_usd="1.25",
-                max_tokens=options.max_tokens,
-                resume=execution.resume,
-                system=(builder_prompt or seta.builder_prompt())
-                + _MATERIALIZATION
-                + (
-                    f"\nThe solution runs as unprivileged {agent_user}; install packages only during image build. "
-                    "Keep editable task files in /workspace or /home/user."
-                    if agent_user
-                    else ""
-                ),
-                user=json.dumps({"design": design.model_dump(), "feedback": feedback}),
-                response_schema=TerminalDraft.model_json_schema(),
-            )
+            content = ""
             try:
-                draft = TerminalDraft.model_validate_json(response.content)
+                if materializer is not None:
+                    content = materializer(
+                        input=input,
+                        options=options,
+                        ledger=ledger,
+                        worker=worker,
+                        python=python,
+                        candidate=candidate,
+                        design=design,
+                        feedback=feedback,
+                        attempt=attempt,
+                        operation_id=f"build:{execution.run_id}:{key}:{attempt}",
+                        on_event=event,
+                    )
+                else:
+                    response = metered_complete(
+                        input.llm,
+                        ledger=ledger,
+                        receipt=candidate / f"builder-{attempt}.json",
+                        operation_id=f"build:{execution.run_id}:{key}:{attempt}",
+                        reservation_usd="1.25",
+                        max_tokens=options.max_tokens,
+                        resume=execution.resume,
+                        system=(builder_prompt or seta.builder_prompt())
+                        + _MATERIALIZATION
+                        + (
+                            f"\nThe solution runs as unprivileged {agent_user}; install packages only during image build. "
+                            "Keep editable task files in /workspace or /home/user."
+                            if agent_user
+                            else ""
+                        ),
+                        user=json.dumps({"design": design.model_dump(), "feedback": feedback}),
+                        response_schema=TerminalDraft.model_json_schema(),
+                    )
+                    content = response.content
+                draft = TerminalDraft.model_validate_json(content)
                 task = emit_draft(
                     draft,
                     candidate / f"attempt-{attempt}",
@@ -273,9 +292,7 @@ def run_synthesis(
                     agent_user=agent_user,
                 )
             except (ValueError, SyntaxError) as exc:
-                feedback.append(
-                    {"materialization_error": str(exc), "previous_draft": response.content}
-                )
+                feedback.append({"materialization_error": str(exc), "previous_draft": content})
                 continue
             trials = []
             run_key = hashlib.sha256(execution.run_id.encode()).hexdigest()[:12]

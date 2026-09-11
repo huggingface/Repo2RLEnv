@@ -1,6 +1,6 @@
 # RFC 0019: `terminalworld` recipe for `terminal_reconstruct`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented single-container recording profile; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -75,4 +75,10 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+The owned implementation is in `recipes/terminalworld/`: public text acquisition,
+retained transcript screening and scoring prompts, distinct solution/instruction
+authors, a remote reconstruction/replay worker, and snapshot-informed test
+generation. [The guide](../pipelines/terminalworld.md) and example configuration
+describe the supported runtime and recorded adaptations. Unit contracts cover
+screening boundaries, metadata extraction and filesystem changes. The campaign
+targets twenty generated tasks before detailed native partial and quality trials.

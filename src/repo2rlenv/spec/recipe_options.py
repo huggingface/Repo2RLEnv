@@ -77,6 +77,10 @@ class TerminalSynthesisOptions(BaseModel):
     test_timeout_sec: int = Field(default=120, ge=10, le=600)
 
 
+class RecordingReconstructionOptions(TerminalSynthesisOptions):
+    min_score: int = Field(default=4, ge=0, le=12)
+
+
 class TaskEvolutionOptions(TerminalSynthesisOptions):
     strategies: list[
         Literal[

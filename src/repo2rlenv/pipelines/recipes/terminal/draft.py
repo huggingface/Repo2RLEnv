@@ -28,18 +28,13 @@ class TestWeight(BaseModel):
     weight: float = Field(gt=0, le=1)
 
 
-class TerminalDraft(BaseModel):
+class EnvironmentDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    instruction: str = Field(min_length=40, max_length=16000)
     environment_setup: str = Field(max_length=16000)
     environment_files: list[EnvironmentFile] = Field(min_length=1, max_length=100)
-    tests_python: str = Field(min_length=40, max_length=50000)
-    solution_shell: str = Field(min_length=20, max_length=50000)
-    weights: list[TestWeight] = Field(min_length=5, max_length=10)
-    self_review: str = Field(min_length=20, max_length=8000)
 
     @model_validator(mode="after")
-    def complete_contract(self):
+    def valid_environment(self):
         paths = []
         for item in self.environment_files:
             relative_asset_path("environment/" + item.path)
@@ -48,6 +43,23 @@ class TerminalDraft(BaseModel):
             paths.append(item.path)
         if len(set(paths)) != len(paths):
             raise ValueError("Environment files contain duplicate paths")
+        if any(
+            line.lstrip().upper().startswith(("FROM ", "USER ", "ENTRYPOINT ", "CMD "))
+            for line in self.environment_setup.splitlines()
+        ):
+            raise ValueError("Environment setup cannot replace the base image, user or entry point")
+        return self
+
+
+class TerminalDraft(EnvironmentDefinition):
+    instruction: str = Field(min_length=40, max_length=16000)
+    tests_python: str = Field(min_length=40, max_length=50000)
+    solution_shell: str = Field(min_length=20, max_length=50000)
+    weights: list[TestWeight] = Field(min_length=5, max_length=10)
+    self_review: str = Field(min_length=20, max_length=8000)
+
+    @model_validator(mode="after")
+    def complete_contract(self):
         tree = ast.parse(self.tests_python)
         tests = {
             node.name
@@ -61,12 +73,27 @@ class TerminalDraft(BaseModel):
             raise ValueError("Test weights must sum to one")
         if not self.solution_shell.startswith("#!/bin/bash\n"):
             raise ValueError("Reference must start with a bash shebang")
-        if any(
-            line.lstrip().upper().startswith(("FROM ", "USER ", "ENTRYPOINT ", "CMD "))
-            for line in self.environment_setup.splitlines()
-        ):
-            raise ValueError("Environment setup cannot replace the base image, user or entry point")
         return self
+
+
+def dockerfile_for_setup(setup: str, agent_user: str | None = None) -> str:
+    if agent_user is not None and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", agent_user) is None:
+        raise ValueError("Agent user must be a simple Unix username")
+    dockerfile = (
+        "FROM python:3.12-slim\n"
+        "RUN apt-get update && apt-get install -y --no-install-recommends bash tmux curl git jq sqlite3 "
+        "&& rm -rf /var/lib/apt/lists/*\n"
+        "RUN python -m pip install --no-cache-dir pytest==9.0.3 uv==0.10.9\n"
+        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
+        "WORKDIR /workspace\nCOPY . /workspace\n" + setup.rstrip() + "\nWORKDIR /workspace\n"
+    )
+    if agent_user:
+        dockerfile += (
+            f"RUN (id -u {agent_user} >/dev/null 2>&1 || useradd -m -s /bin/bash {agent_user}) "
+            f"&& mkdir -p /home/{agent_user} && chown -R {agent_user}:{agent_user} /workspace /home/{agent_user}\n"
+            f"ENV HOME=/home/{agent_user}\n"
+        )
+    return dockerfile
 
 
 def emit_draft(
@@ -81,24 +108,7 @@ def emit_draft(
     resume: bool = False,
     agent_user: str | None = None,
 ) -> Path:
-    if agent_user is not None and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", agent_user) is None:
-        raise ValueError("Agent user must be a simple Unix username")
-    dockerfile = (
-        "FROM python:3.12-slim\n"
-        "RUN apt-get update && apt-get install -y --no-install-recommends bash tmux curl git jq sqlite3 "
-        "&& rm -rf /var/lib/apt/lists/*\n"
-        "RUN python -m pip install --no-cache-dir pytest==9.0.3 uv==0.10.9\n"
-        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
-        "WORKDIR /workspace\nCOPY . /workspace\n"
-        + draft.environment_setup.rstrip()
-        + "\nWORKDIR /workspace\n"
-    )
-    if agent_user:
-        dockerfile += (
-            f"RUN (id -u {agent_user} >/dev/null 2>&1 || useradd -m -s /bin/bash {agent_user}) "
-            f"&& mkdir -p /home/{agent_user} && chown -R {agent_user}:{agent_user} /workspace /home/{agent_user}\n"
-            f"ENV HOME=/home/{agent_user}\n"
-        )
+    dockerfile = dockerfile_for_setup(draft.environment_setup, agent_user)
     assets = {
         "environment/" + item.path: TaskFile.text(item.content, executable=item.executable)
         for item in draft.environment_files

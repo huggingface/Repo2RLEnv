@@ -25,6 +25,7 @@ class RecipeInfo(BaseModel):
 # Entries are added only with an owned implementation and tests. Optional cloud
 # or model libraries are imported when running, never while listing recipes.
 IMPLEMENTATIONS: dict[str, str] = {
+    "terminalworld": "repo2rlenv.pipelines.recipes.terminalworld.pipeline:TerminalWorldPipeline",
     "endless_terminals": "repo2rlenv.pipelines.recipes.endless_terminals.pipeline:EndlessTerminalsPipeline",
     "tmax": "repo2rlenv.pipelines.recipes.tmax.pipeline:TMaxPipeline",
     "r2e": "repo2rlenv.pipelines.recipes.r2e.pipeline:R2EPipeline",
