@@ -20,3 +20,5 @@ self-review are retained as evidence; they do not imply independent acceptance.
 
 This is an owned workflow adaptation, not byte-identical upstream execution.
 No upstream project is installed, imported or cloned by the recipe at runtime.
+
+The owned design response has a 9,000-token ceiling and an explicit 18,000-character draft limit. Design sections describe the build without embedding complete implementation files; the artifact author writes those separately. This bounds truncation seen in the generation campaign.

@@ -1,6 +1,6 @@
 # RFC 0022: `dataarc` recipe for `terminal_synth`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -73,4 +73,10 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `pipelines/recipes/dataarc/`. The retained prompt and four
+strategy texts feed direct artifact generation over complete Harbor seeds. Typed
+materialization, full environment context, remote baseline/reference checks and
+bounded repairs are explicit adaptations. Tests cover strategy enumeration,
+context filtering, source identity and missing-reference rejection. See the
+[guide](../pipelines/dataarc.md) and `examples/owned-dataarc.yaml`. Quality
+acceptance remains deferred until the generation milestone across all recipes.

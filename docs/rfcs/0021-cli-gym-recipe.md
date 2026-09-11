@@ -1,6 +1,6 @@
 # RFC 0021: `cli_gym` recipe for `env_repair`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented Python environment-repair profile; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -74,4 +74,10 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+The owned implementation is in `recipes/cli_gym/`. It constructs the healthy
+repository image remotely, samples real test identities, authors an inversion
+goal, and iterates destruction/recovery scripts against execution. A separate
+author describes observed symptoms. The standalone export keeps the inversion
+out of the copied source and grades against required original test identities.
+[The guide](../pipelines/env_repair.md) and example record supported scope.
+The twenty-task generation campaign precedes detailed root-runtime audits.

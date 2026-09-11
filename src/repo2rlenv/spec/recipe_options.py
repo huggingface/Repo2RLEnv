@@ -65,6 +65,23 @@ class R2EOptions(PythonRepositoryProfile):
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3", "coverage==7.16.0"])
 
 
+class EnvironmentRepairOptions(PythonRepositoryProfile):
+    target: int = Field(default=20, ge=1, le=1000)
+    max_candidates: int = Field(default=40, ge=1, le=1000)
+    max_rounds: int = Field(default=3, ge=1, le=5)
+    seed: int = 24
+    directions: list[str] = Field(
+        default_factory=lambda: [
+            "Tamper with development environment configuration",
+            "Disrupt package import resolution without editing repository source",
+            "Break filesystem layout or links required by tests",
+            "Disrupt installed dependencies",
+            "Disrupt command entry points used by the development environment",
+        ],
+        min_length=1,
+    )
+
+
 class TerminalSynthesisOptions(BaseModel):
     """Bounds for terminal task authoring and its executable repair loop."""
 
@@ -79,6 +96,16 @@ class TerminalSynthesisOptions(BaseModel):
 
 class RecordingReconstructionOptions(TerminalSynthesisOptions):
     min_score: int = Field(default=4, ge=0, le=12)
+
+
+class DataArcOptions(TerminalSynthesisOptions):
+    strategies: list[Literal["few_shot", "self_instruct", "evol_instruct"]] = Field(
+        default_factory=lambda: ["few_shot", "self_instruct", "evol_instruct"], min_length=1
+    )
+    evol_directions: list[Literal["in_depth", "in_breadth"]] = Field(
+        default_factory=lambda: ["in_depth", "in_breadth"], min_length=1
+    )
+    samples_per_strategy: int = Field(default=3, ge=1, le=100)
 
 
 class TaskEvolutionOptions(TerminalSynthesisOptions):

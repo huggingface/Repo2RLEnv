@@ -20,3 +20,5 @@ Strategy names are preserved. Presumed 8B-model success rates in the upstream
 slight-adjustment prompts are explicitly treated as unmeasured here. No difficulty
 calibration or independent quality acceptance is inferred from author self-review.
 No upstream research package is installed or imported at runtime.
+
+The owned design response has a 9,000-token ceiling and an explicit 18,000-character draft limit. Design sections describe the build without embedding complete implementation files; the artifact author writes those separately. This bounds truncation seen in the generation campaign.

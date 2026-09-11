@@ -162,6 +162,8 @@ nav:
       - "terminal_synth / tmax (experimental)": pipelines/tmax.md
       - "terminal_synth / endless_terminals (experimental)": pipelines/endless_terminals.md
       - "terminal_reconstruct / terminalworld (experimental)": pipelines/terminalworld.md
+      - "env_repair / cli_gym (experimental)": pipelines/env_repair.md
+      - "terminal_synth / dataarc (experimental)": pipelines/dataarc.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

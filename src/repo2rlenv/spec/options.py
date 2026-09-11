@@ -8,6 +8,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from repo2rlenv.spec.recipe_options import (
+    DataArcOptions,
+    EnvironmentRepairOptions,
     PRRecipeOptions,
     R2EOptions,
     ReconstructionOptions,
@@ -277,11 +279,12 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "pr_to_env": PRRecipeOptions,
     "terminal_synth": TerminalSynthesisOptions,
     "terminal_reconstruct": RecordingReconstructionOptions,
+    "env_repair": EnvironmentRepairOptions,
     "task_evolve": TaskEvolutionOptions,
 }
 
 
-RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {"r2e": R2EOptions}
+RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {"r2e": R2EOptions, "dataarc": DataArcOptions}
 
 
 def parse_options(pipeline_name: str, raw: dict, *, recipe: str = "native") -> BaseModel:

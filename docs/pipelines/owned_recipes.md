@@ -86,7 +86,8 @@ extra services. Other task shapes require another verified runtime route.
 Implemented recipe guides: [SWE-smith](repo_mutate.md), [SETA Seed2Synth](terminal_synth.md),
 [SETA Evol](task_evolve.md), [SWE-gen](pr_to_env.md), [SWE-Flow](repo_reconstruct.md)
 and [R2E](r2e.md), plus [TMax](tmax.md) and
-[Endless Terminals](endless_terminals.md), and [TerminalWorld](terminalworld.md).
+[Endless Terminals](endless_terminals.md), [TerminalWorld](terminalworld.md),
+[CLI-Gym](env_repair.md), and [DataArc](dataarc.md).
 Campaigns are still collecting generated outputs.
 
 ## Contract references

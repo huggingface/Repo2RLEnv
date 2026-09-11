@@ -24,13 +24,15 @@ def design(seed: dict, *, model, ledger, receipt, operation_id: str, resume: boo
             receipt=receipt,
             operation_id=operation_id,
             reservation_usd="0.75",
-            max_tokens=6000,
+            max_tokens=9000,
             resume=resume,
             system=files(__package__).joinpath("idea_prompt.md").read_text()
             + (
                 "\n\nOWNED RUNTIME ADAPTATION: the seed is supplied as JSON rather than a folder. "
                 "Return core_capabilities and draft_spec in the requested JSON schema; do not "
                 "write files or request tools. Preserve the full design sections above. "
+                "Keep draft_spec below 18000 characters; describe the task and verifier "
+                "design without embedding full implementation files. "
                 "The supported profile is a CPU Linux container with no runtime internet, "
                 "no systemd or privileged networking. Use a Python 3.12 Debian base with bash, "
                 "jq, sqlite3, git, curl, tmux, uv and pytest preinstalled. Dependencies and "

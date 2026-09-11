@@ -1,0 +1,6 @@
+{
+  "few_shot": "Create a close variant that preserves the seed task structure while changing concrete requirements and verifier expectations.",
+  "self_instruct": "Invent a related terminal task in the same domain with its own task description, solution, and verifier.",
+  "evol_instruct:in_breadth": "Broaden the seed into a neighboring task type while keeping the same terminal-bench directory contract.",
+  "evol_instruct:in_depth": "Deepen the seed by adding a harder constraint or edge case and update solution and tests accordingly."
+}

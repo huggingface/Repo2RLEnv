@@ -85,6 +85,8 @@ def design(
         "do not invent research. Supported runtime: offline CPU Debian/Python 3.12 container "
         "with bash, jq, sqlite3, git, curl, tmux, uv, pytest; no systemd, GPU, privileged "
         "networking or external services. Install extra packages only during image build."
+        " Keep draft_spec below 18000 characters; preserve the design sections without "
+        "embedding complete implementation files."
     )
     response = metered_complete(
         model,
@@ -92,7 +94,7 @@ def design(
         receipt=receipt,
         operation_id=operation_id,
         reservation_usd="0.90",
-        max_tokens=6500,
+        max_tokens=9000,
         resume=resume,
         system=prompt,
         user=json.dumps(seed),

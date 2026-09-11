@@ -1,0 +1,31 @@
+source:
+  kind: repository
+  repo:
+    url: https://github.com/pallets/click
+    ref: 934813e4d421071a1b3db3973c02fe2721359a6e
+    access: public
+pipeline:
+  name: env_repair
+  recipe: cli_gym
+  options:
+    source_paths: [src/click]
+    test_paths: [tests]
+    target: 20
+    max_candidates: 50
+    max_rounds: 3
+    test_timeout_sec: 180
+    install_command: python -m pip install --no-cache-dir -e . && python -m pip wheel --wheel-dir /opt/wheelhouse . pytest==9.0.3
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+execution:
+  campaign_dir: workspace/campaign
+  run_id: cli-gym-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/cli-gym
+  org: your-org
+  dataset_name: cli-gym-first
+  visibility: private
