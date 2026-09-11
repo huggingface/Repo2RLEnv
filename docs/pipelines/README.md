@@ -1,6 +1,14 @@
 # Pipelines
 
-A pipeline is a synthesis method that takes a repo and emits Harbor-shaped tasks. They share the same input shape (`GenerationInput`) and output shape (Harbor task dirs); they differ in **how** they manufacture verifiable tasks.
+A pipeline turns source material into Harbor tasks. Inputs can be repositories,
+PRs, questions, existing tasks, recordings or problem-family definitions.
+Pipelines share `GenerationInput` and Harbor output; they differ in how they
+create the problem, reference solution and verifier.
+
+For the 14 owned research recipes, start with the
+[visual route map and execution boundaries](owned_recipes.md), then
+[follow the actual prompts](prompt_reference.md). Each recipe has a stage diagram,
+call-by-call input/output table, concrete example and complete prompt reference.
 
 ## Common shape
 
@@ -21,9 +29,10 @@ flowchart LR
 
 The original six native pipelines remain available: three stable (`pr_diff`,
 `pr_runtime`, `commit_runtime`) and three experimental. [Owned recipes](owned_recipes.md)
-add method-specific implementations, starting with experimental
-[`repo_mutate / swe_smith`](repo_mutate.md). The catalog labels other planned
-methods explicitly. See each guide for its supported scope and verification status.
+add 14 method-specific experimental implementations. The catalog labels deferred
+or planned methods explicitly. The table below covers the original native
+pipelines; the [owned recipe table](owned_recipes.md#choose-a-generation-route)
+covers the new methods, inputs and reference sources.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|
@@ -36,7 +45,7 @@ methods explicitly. See each guide for its supported scope and verification stat
 
 - **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
-- **LLM use**: every pipeline calls an LLM at *some* stage. `at synthesis` = the pipeline itself authors task content (problems, mutations, tests) — this is the heavy spend. `at bootstrap (cached)` = the pipeline doesn't call the LLM, but the per-repo env construction does — that runs **once per repo**, content-addressed, then cached. `at verify` = an LLM is invoked at reward time (only `pr_diff`'s LLM-judge component).
+- **LLM use** in this native-pipeline table: `at synthesis` authors task content; `at bootstrap (cached)` constructs the per-repo environment; `at verify` invokes a reward-time model (the optional `pr_diff` judge). Owned recipes have different [call sequences](prompt_reference.md), including explicit bootstrap profiles without model calls and SCALER's entirely programmatic generation.
 
 ¹ `pr_diff` is the unusual case — it skips bootstrap entirely (no per-repo image build), ships a generic env, and only uses the LLM at *verify* time. The judge degrades gracefully on missing API key (`status=no_api_key`), and the remaining 5 components renormalize.
 

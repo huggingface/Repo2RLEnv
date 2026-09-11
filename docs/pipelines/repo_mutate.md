@@ -17,17 +17,58 @@ stages. It does not implement the upstream LLM rewrite or multi-mutation
 combination strategies. See [RFC 0012](../rfcs/0012-swe-smith-recipe.md) and the
 packaged `pipelines/recipes/swe_smith/provenance.md` and `UPSTREAM_LICENSE`.
 
+## Pipeline, step by step
+
 ```mermaid
 flowchart TD
-  P[Public repository and explicit Python profile] --> B[Existing bootstrap in remote worker]
-  B --> T[Fresh healthy test run]
-  T --> M[Seeded LibCST mutation inside a source function]
-  M --> C[Fresh offline defective test run]
-  C -->|Same collection and nonempty failures| I[Issue from failing test evidence]
-  C -->|Invalid or ineffective mutation| S[Record rejection]
-  I --> H[Harbor bundle with separate verifier]
-  H --> A[Independent quality audit]
+  S["Pinned Python repository + build/test profile"] --> B["Remote bootstrap; healthy suite must pass"]
+  B --> M["Seeded single-site LibCST mutation"]
+  M --> E["Run unchanged tests against mutated source"]
+  E -->|"No real contrast or invalid collection"| X["Record rejection; try next mutation"]
+  E -->|"Identifiable failures"| P1["P1 · Write issue from failing test evidence"]
+  P1 --> C["Check report and Python examples"]
+  C -->|"Bounded revision feedback"| P1
+  C --> H["Export mutated repo, original-source oracle and private verifier"]
+  H -.-> Q["Separate campaign: fresh Harbor trials and quality review"]
 ```
+
+`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+
+**Prepare and mutate.** A healthy test report and source tree become a seeded, formatting-preserving operator, condition or constant edit. No model chooses the mutation.
+
+**Measure behavior.** The same tests run on the defective state. Invalid collection, no meaningful failures or loss of expected passing behavior rejects the mutation before spending on issue writing.
+
+**Author and export.** Only failing test excerpts and the defective execution log enter the issue author. The learner receives the mutated repository and public issue; the reference restores original source.
+
+## Every prompt and its data
+
+One issue-writing call on the first successful attempt; up to two attempts in the pipeline.
+
+| Call | System prompt composition | User / input material | Output | Retry or branch |
+|---|---|---|---|---|
+| P1 · Issue | issue_prompt.md | Selected failing test source and imports, defective stdout, optional review feedback. No mutation patch is passed. | IssueReport: issue, reason | Malformed JSON, private test names, unsupported test-oriented wording and invalid/undefined Python examples produce revision feedback. |
+
+Read the [complete swe_smith prompt reference](prompts/swe_smith.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+
+## Follow one task
+
+Illustration: a seeded boundary-condition edit makes a batching helper mishandle the last group. The issue describes that observable symptom. Hidden existing tests establish the failure; restoring the original helper is the reference.
+
+## What repeats, what is checked
+
+The issue writer defaults to two attempts. The recipe itself exports after remote source-level contrast; fresh Harbor trials for SWE-smith are a separate campaign step, unlike recipes that call Harbor inside author_export. Do not infer per-export Harbor success from the common repository runner.
+
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+
+## Implementation map
+
+- [`swe_smith/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/worker.py)
+- [`swe_smith/mutations.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/mutations.py)
+- [`swe_smith/issue.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/issue.py)
+- [`swe_smith/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/export.py)
+- [`swe_smith/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
+
+
 
 ## Run
 

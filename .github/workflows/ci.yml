@@ -47,6 +47,9 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
+      - name: Prompt documentation matches implementation
+        run: uv run python docs/_tools/generate_prompt_reference.py --check
+
   test:
     name: Tests (py${{ matrix.python-version }})
     runs-on: ubuntu-latest

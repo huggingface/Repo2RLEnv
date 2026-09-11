@@ -153,6 +153,7 @@ nav:
       - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
       - "cve_patches (experimental)": pipelines/cve_patches.md
       - Owned recipes: pipelines/owned_recipes.md
+      - Follow the prompts: pipelines/prompt_reference.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md
       - "task_evolve / seta_evol (experimental)": pipelines/task_evolve.md
@@ -167,6 +168,22 @@ nav:
       - "pr_runtime / swe_next (experimental)": pipelines/swe_next.md
       - "commit_runtime / r2e_gym (experimental)": pipelines/r2e_gym.md
       - "reasoning_synth / scaler (experimental)": pipelines/scaler.md
+      - Complete prompt reference:
+          - Shared terminal stages: pipelines/prompts/shared_terminal.md
+          - SWE-smith: pipelines/prompts/swe_smith.md
+          - SETA Seed2Synth: pipelines/prompts/seta_seed2synth.md
+          - SETA Evol: pipelines/prompts/seta_evol.md
+          - SWE-gen: pipelines/prompts/swe_gen.md
+          - SWE-Flow: pipelines/prompts/swe_flow.md
+          - R2E: pipelines/prompts/r2e.md
+          - TMax: pipelines/prompts/tmax.md
+          - Endless Terminals: pipelines/prompts/endless_terminals.md
+          - TerminalWorld: pipelines/prompts/terminalworld.md
+          - CLI-Gym: pipelines/prompts/cli_gym.md
+          - DataArc: pipelines/prompts/dataarc.md
+          - SWE-Next: pipelines/prompts/swe_next.md
+          - R2E-Gym: pipelines/prompts/r2e_gym.md
+          - SCALER instruction construction: pipelines/prompts/scaler.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

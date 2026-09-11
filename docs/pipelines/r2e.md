@@ -4,14 +4,58 @@ The owned R2E recipe generates differential tests from real repository functions
 repairs them using execution and coverage feedback, then refines the task's
 specification using the observed behavior.
 
-```text
-Pinned healthy repository → function and dependency slice
-                        → generated differential unittest
-                        → execution + generated-test branch coverage
-                        ↺ bounded test repairs
-                        → observed behavior → refined docstring and task
-                        → private Harbor verifier → baseline/reference → export
+## Pipeline, step by step
+
+```mermaid
+flowchart TD
+  S["Healthy repo + documented function"] --> D["Bounded module dependency slice"]
+  D --> P1["P1 · Generate differential unittest"]
+  P1 --> E["Remote reference/stub execution + branch coverage"]
+  E -->|"Tests or coverage fail; bounded feedback"| P1
+  E -->|"Contrast and coverage pass"| P2["P2 · Refine docstring and task instruction"]
+  P2 --> B["Stub in repo; reference only in private verifier"]
+  B --> R["Fresh Harbor nop + oracle"]
+  R -->|"0 / 1"| H["Export function reconstruction task"]
 ```
+
+`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+
+**Extract a real function.** Select supported documented top-level synchronous functions and their bounded module-level dependency context.
+
+**Generate and execute tests.** Tests compare the function under test with reference_function through fut_module. Remote execution measures actual contrast and branch coverage attributable to generated tests. Existing tests run separately.
+
+**Refine the public contract.** Only after a useful test exists does the specification call see function source, generated tests and observations. The learner gets the refined docstring and instruction, with the function body stubbed.
+
+## Every prompt and its data
+
+One to max_rounds test-author calls, then one specification call for a successful candidate.
+
+| Call | System prompt composition | User / input material | Output | Retry or branch |
+|---|---|---|---|---|
+| P1 · Tests / repair | test_prompt.md + fut_module binding and offline adaptations | function_name, dependency context, prior test and execution/coverage feedback. | EquivalenceTest: test_code | Up to max_rounds; default three. Default minimum branch coverage is 0.8. |
+| P2 · Specification | specification_prompt.md + behavioral-only instruction adaptation | Original function, generated tests, observed executions. | RefinedSpecification: docstring, instruction | One call after the test-generation loop succeeds. |
+
+Read the [complete r2e prompt reference](prompts/r2e.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+
+## Follow one task
+
+Illustration: reconstruct a function that consumes iterators. The generated tests must compare equivalent fresh inputs and materialize finite iterators, so the verifier measures behavior rather than object identity.
+
+## What repeats, what is checked
+
+Syntax/schema errors and unsuccessful execution feed P1. Coverage below the configured threshold also feeds P1. The final Harbor check is separate from this loop; a failure there skips the task. The private Python reference is in the same process as the differential tests, a limitation for later adversarial review.
+
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+
+## Implementation map
+
+- [`r2e/extract.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/extract.py)
+- [`r2e/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/pipeline.py)
+- [`r2e/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/worker.py)
+- [`r2e/reference.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/reference.py)
+- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/repository/export.py)
+
+## Run and supported profile
 
 Use `repo2rlenv generate --config examples/owned-r2e.yaml`. The existing native
 `equivalence_tests` pipeline keeps its original options and behavior; selecting
