@@ -65,35 +65,40 @@ The approved sequence and expansion policy are in [RFC 0011](../rfcs/0011-owned-
 
 ```mermaid
 sequenceDiagram
-  participant C as Local controller
-  participant M as Configured model API
-  participant W as Modal or Daytona worker
-  participant H as Harbor task containers
-  C->>C: Validate source, recipe, budget and runtime hash
-  C->>W: Install owned wheel and prepare Docker
-  W->>W: Bootstrap / source analysis / native generation
-  W-->>C: Bounded evidence and candidate records
+  participant C as Controller
+  participant M as Model API
+  participant W as Cloud worker
+  participant H as Harbor containers
+  C->>C: Preflight
+  C->>W: Install runtime
+  W->>W: Prepare source
+  W-->>C: Candidate evidence
   opt Recipe needs a model
-    C->>C: Reserve budget and write exact request
-    C->>M: Stage-specific system, user and schema
-    M-->>C: Structured response and usage
-    C->>C: Validate response and record usage
+    C->>C: Reserve and log request
+    C->>M: Prompt and schema
+    M-->>C: Response and usage
+    C->>C: Validate and account
   end
-  C->>W: Materialize or execute candidate
-  W->>H: Build and run recipe-specific checks
-  H-->>C: Test identities, rewards, logs and artifacts
+  C->>W: Materialize candidate
+  W->>H: Build and check
+  H-->>C: Execution evidence
   opt Recipe has a repair loop
-    C->>M: Previous draft and observed failure
-    M-->>C: Revised structured response
-    C->>W: Retry within the configured bound
+    C->>M: Draft and failure
+    M-->>C: Revised draft
+    C->>W: Bounded retry
   end
-  C->>C: Export immutable Harbor bundle and lineage
+  C->>C: Export bundle and lineage
 ```
 
 This shows execution boundaries, not one universal stage order. Historical
 recipes establish contrast before instruction writing; TerminalWorld replays
 before test writing; SCALER has no model stage. SWE-smith's fresh Harbor checks
 are a separate campaign step. Follow each method's diagram for its exact order.
+
+Preflight checks the source, recipe, budget and runtime hash. The model receives
+stage-specific system and user messages plus an output schema. Execution evidence
+includes test identities, rewards, logs and artifacts. The cloud worker is a
+Modal or Daytona sandbox running the owned wheel and Docker.
 
 The controller performs metadata acquisition, parsing, model calls, accounting
 and file assembly. Image builds and target/generated-code execution happen
