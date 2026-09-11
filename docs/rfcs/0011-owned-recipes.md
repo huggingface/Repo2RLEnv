@@ -82,13 +82,18 @@ configuration. Reports and traces stay outside learner-visible artifacts.
 
 ### Campaign sequencing update
 
-The user subsequently prioritized implementing all fifteen generation recipes and
+The user subsequently prioritized implementing the generation recipes and
 producing **20 distinct tasks per recipe before the detailed quality campaign**.
 During this phase require a valid Harbor bundle, actual remote execution and a
 working reference, with baseline contrast where the method supplies it. Defer
 exhaustive verifier attacks and blind Sonnet/Opus trace reviews until the collection
 exists. Generated and execution-verified counts remain separate from quality
 acceptance. The earlier expansion-to-100 policy is deferred.
+
+SEC-bench was subsequently excluded from this integration campaign at the user's
+request. The active milestone covers **14 recipes**, including SCALER's reasoning
+instances. RFC 0025 remains a deferred design; it does not represent an implemented
+or required generator for this campaign.
 
 Hard acceptance gates require a fresh build, intended baseline failure, two clean
 oracle successes, expected nonempty test identities, required regression success,

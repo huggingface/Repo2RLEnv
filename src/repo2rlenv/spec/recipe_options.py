@@ -139,6 +139,24 @@ class DataArcOptions(TerminalSynthesisOptions):
     samples_per_strategy: int = Field(default=3, ge=1, le=100)
 
 
+class ScalerOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: int = Field(default=20, ge=1, le=1000)
+    max_candidates: int = Field(default=60, ge=1, le=1000)
+    seed: int = 24
+    difficulties: list[int] = Field(default_factory=lambda: [2, 4, 6, 8, 10, 12], min_length=1)
+    samples_per_difficulty: int = Field(default=1, ge=1, le=100)
+    execution_timeout_sec: int = Field(default=20, ge=1, le=120)
+    max_generator_attempts: int = Field(default=3, ge=1, le=5)
+
+    @field_validator("difficulties")
+    @classmethod
+    def nonnegative_unique_levels(cls, values):
+        if any(level < 0 for level in values) or len(set(values)) != len(values):
+            raise ValueError("Difficulty levels must be nonnegative and unique")
+        return values
+
+
 class TaskEvolutionOptions(TerminalSynthesisOptions):
     strategies: list[
         Literal[

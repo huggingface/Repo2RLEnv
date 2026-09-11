@@ -26,7 +26,7 @@ from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.spec.input import GenerationInput, RepositorySource
 
 
-class RepositoryGenerationPipeline:
+class RemoteGenerationPipeline:
     recipe_id: str
     worker_module: str
     requires_bootstrap = False  # The existing bootstrap runs inside the worker.
@@ -37,18 +37,8 @@ class RepositoryGenerationPipeline:
     def __init__(self, input: GenerationInput, options, bootstrap=None):
         if input.pipeline.recipe != self.recipe_id:
             raise ValueError(f"This pipeline requires --recipe {self.recipe_id}")
-        if (
-            not isinstance(input.source, RepositorySource)
-            or not input.repo.url.startswith("https://github.com/")
-            or input.repo.access == "private"
-        ):
-            raise ValueError(
-                "This recipe currently supports public GitHub Python repository profiles"
-            )
-        if input.execution is None or input.llm is None:
-            raise ValueError(
-                "Owned generation requires execution settings and an issue-writing LLM"
-            )
+        if input.execution is None:
+            raise ValueError("Owned generation requires remote execution settings")
         self.input, self.options = input, options
         self.on_event: Callable[[ProgressEvent], None] = lambda event: None
 
@@ -68,6 +58,9 @@ class RepositoryGenerationPipeline:
             "options": self.options.model_dump(mode="json"),
         }
 
+    def source_identity(self) -> dict:
+        return {}
+
     def run(self, out_dir: Path) -> PipelineResult:
         execution = self.input.execution
         run = execution.campaign_dir / "runs" / execution.run_id
@@ -76,6 +69,9 @@ class RepositoryGenerationPipeline:
         configuration = self.input.model_dump(mode="json")
         configuration["execution"].pop("resume", None)
         configuration["runtime_sha256"] = wheel_hash
+        identity = self.source_identity()
+        if identity:
+            configuration["source_identity"] = identity
         config_hash = hashlib.sha256(json.dumps(configuration, sort_keys=True).encode()).hexdigest()
         if receipt.exists():
             if not execution.resume:
@@ -225,3 +221,20 @@ class RepositoryGenerationPipeline:
 
     def author_export(self, generation, candidate, ledger, run, out_dir) -> Path:
         raise NotImplementedError
+
+
+class RepositoryGenerationPipeline(RemoteGenerationPipeline):
+    """Repository-specific input and model contract over the shared remote lifecycle."""
+
+    def __init__(self, input: GenerationInput, options, bootstrap=None):
+        super().__init__(input, options, bootstrap)
+        if (
+            not isinstance(input.source, RepositorySource)
+            or not input.repo.url.startswith("https://github.com/")
+            or input.repo.access == "private"
+        ):
+            raise ValueError(
+                "This recipe currently supports public GitHub Python repository profiles"
+            )
+        if input.llm is None:
+            raise ValueError("Repository generation requires an issue-writing LLM")

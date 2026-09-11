@@ -1,6 +1,6 @@
 # RFC 0026: `scaler` recipe for `reasoning_synth`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -73,4 +73,8 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `recipes/scaler/`. Released family expansion uses remote
+Python/C++ execution, native scaling and problem framing, and the active upstream
+math-verify reward route. See the [guide](../pipelines/scaler.md), example config,
+packaged provenance and `tests/test_scaler_recipe.py`. New-family synthesis and
+training are outside this profile; quality acceptance remains deferred.

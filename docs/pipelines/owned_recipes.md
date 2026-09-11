@@ -88,7 +88,10 @@ Implemented recipe guides: [SWE-smith](repo_mutate.md), [SETA Seed2Synth](termin
 and [R2E](r2e.md), plus [TMax](tmax.md) and
 [Endless Terminals](endless_terminals.md), [TerminalWorld](terminalworld.md),
 [CLI-Gym](env_repair.md), [DataArc](dataarc.md), [SWE-Next](swe_next.md), and [R2E-Gym](r2e_gym.md).
-Campaigns are still collecting generated outputs.
+[SCALER](scaler.md) adds algorithmic reasoning instances from released families.
+The active campaign covers these 14 recipes. SEC-bench remains a deferred design
+and is excluded from this integration milestone. Campaigns are still collecting
+generated outputs.
 
 ## Contract references
 

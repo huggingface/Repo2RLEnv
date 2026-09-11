@@ -166,6 +166,7 @@ nav:
       - "terminal_synth / dataarc (experimental)": pipelines/dataarc.md
       - "pr_runtime / swe_next (experimental)": pipelines/swe_next.md
       - "commit_runtime / r2e_gym (experimental)": pipelines/r2e_gym.md
+      - "reasoning_synth / scaler (experimental)": pipelines/scaler.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

@@ -15,6 +15,7 @@ from repo2rlenv.spec.recipe_options import (
     R2EOptions,
     ReconstructionOptions,
     RecordingReconstructionOptions,
+    ScalerOptions,
     SWENextOptions,
     SWESmithOptions,
     TaskEvolutionOptions,
@@ -287,6 +288,7 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
 
 
 RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
+    "scaler": ScalerOptions,
     "r2e": R2EOptions,
     "dataarc": DataArcOptions,
     "swe_next": SWENextOptions,

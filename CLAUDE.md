@@ -81,6 +81,12 @@ Per-pipeline detail (yield, sources, options, reference datasets):
 | `pr_to_env / swe_gen` | supplied PRs, source reversal and execution-grounded instruction | experimental | 0015 |
 | `repo_reconstruct / swe_flow` | traced dependency scheduling and missing-function reconstruction | experimental | 0016 |
 | `equivalence_tests / r2e` | owned generate/execute/coverage loop and specification refinement | experimental | 0017 |
+| `terminal_synth / endless_terminals, dataarc` | seedless terminal authoring and task evolution | experimental | 0020, 0022 |
+| `terminal_reconstruct / terminalworld` | reconstruct tasks from public terminal recordings | experimental | 0019 |
+| `env_repair / cli_gym` | invert a healthy environment and author a repair task | experimental | 0021 |
+| `pr_runtime / swe_next` | mine supplied repository PR history and author repair tasks | experimental | 0023 |
+| `commit_runtime / r2e_gym` | mine commit history and validate old/new behavior | experimental | 0024 |
+| `reasoning_synth / scaler` | expand released problem families into reasoning instances | experimental | 0026 |
 
 RFCs **0007 `pr_to_env` / 0008 `env_setup` / 0009 `test_synthesis` /
 0010 `issue_runtime`** are drafted but not built.

@@ -1,6 +1,10 @@
 # RFC 0025: `sec_bench` recipe for `cve_patches`
 
-**Status:** accepted design; implementation pending
+> Deferred at the user's request. SEC-bench is excluded from the current owned
+> recipe integration and 20-task generation campaign. The design below is retained
+> for future consideration; no implementation or generated-task claim is made.
+
+**Status:** deferred; excluded from the current integration
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
