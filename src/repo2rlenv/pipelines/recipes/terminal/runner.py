@@ -243,7 +243,7 @@ def run_synthesis(
             "fixture_kind",
             "verifier_kind",
         ):
-            if field in seed:
+            if seed.get(field) is not None:
                 lineage[field] = seed[field]
         for attempt in range(options.max_repairs + 1):
             if (deadline - datetime.now(UTC)).total_seconds() < 900:

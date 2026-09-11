@@ -164,6 +164,8 @@ nav:
       - "terminal_reconstruct / terminalworld (experimental)": pipelines/terminalworld.md
       - "env_repair / cli_gym (experimental)": pipelines/env_repair.md
       - "terminal_synth / dataarc (experimental)": pipelines/dataarc.md
+      - "pr_runtime / swe_next (experimental)": pipelines/swe_next.md
+      - "commit_runtime / r2e_gym (experimental)": pipelines/r2e_gym.md
   - RFCs:
       - Index: rfcs/README.md
       - "0001 — pr_diff": rfcs/0001-pr-diff.md

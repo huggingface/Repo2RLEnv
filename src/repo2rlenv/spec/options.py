@@ -11,9 +11,11 @@ from repo2rlenv.spec.recipe_options import (
     DataArcOptions,
     EnvironmentRepairOptions,
     PRRecipeOptions,
+    R2EGymOptions,
     R2EOptions,
     ReconstructionOptions,
     RecordingReconstructionOptions,
+    SWENextOptions,
     SWESmithOptions,
     TaskEvolutionOptions,
     TerminalSynthesisOptions,
@@ -284,7 +286,12 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
 }
 
 
-RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {"r2e": R2EOptions, "dataarc": DataArcOptions}
+RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
+    "r2e": R2EOptions,
+    "dataarc": DataArcOptions,
+    "swe_next": SWENextOptions,
+    "r2e_gym": R2EGymOptions,
+}
 
 
 def parse_options(pipeline_name: str, raw: dict, *, recipe: str = "native") -> BaseModel:

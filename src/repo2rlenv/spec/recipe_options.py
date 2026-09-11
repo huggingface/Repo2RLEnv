@@ -56,6 +56,37 @@ class ReconstructionOptions(PythonRepositoryProfile):
     trace_seed: int = 24
 
 
+class HistoryRecipeOptions(PythonRepositoryProfile):
+    target: int = Field(default=20, ge=1, le=1000)
+    max_candidates: int = Field(default=80, ge=1, le=1000)
+    history_limit: int = Field(default=2000, ge=1, le=10000)
+    max_non_test_files: int = Field(default=5, ge=1, le=30)
+    max_non_test_edited_lines: int = Field(default=200, ge=1, le=2000)
+    max_patch_length: int = Field(default=10000, ge=100, le=100000)
+    require_bug_edit: bool = False
+    require_test_match: bool = False
+    max_added_entities: int = Field(default=1, ge=0, le=20)
+    max_edited_entities: int = Field(default=4, ge=1, le=50)
+    max_statement_entities: int = Field(default=6, ge=0, le=100)
+
+
+class R2EGymOptions(HistoryRecipeOptions):
+    require_bug_edit: bool = True
+    require_test_match: bool = True
+
+
+class SWENextOptions(HistoryRecipeOptions):
+    max_prs: int = Field(default=300, ge=1, le=2000)
+    pr_numbers: list[int] = Field(default_factory=list)
+
+    @field_validator("pr_numbers")
+    @classmethod
+    def positive_unique_prs(cls, values):
+        if any(number < 1 for number in values) or len(set(values)) != len(values):
+            raise ValueError("PR numbers must be positive and unique")
+        return values
+
+
 class R2EOptions(PythonRepositoryProfile):
     target: int = Field(default=20, ge=1, le=1000)
     max_candidates: int = Field(default=60, ge=1, le=1000)

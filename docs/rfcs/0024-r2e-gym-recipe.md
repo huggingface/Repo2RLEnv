@@ -1,6 +1,6 @@
 # RFC 0024: `r2e_gym` recipe for `commit_runtime`
 
-**Status:** accepted design; implementation pending
+**Status:** implemented; generation campaign in progress
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -72,4 +72,7 @@ Exact supported scope, quality yield and cost are implementation evidence to col
 
 ## Implementation
 
-Pending. The integration PR must fill in source, tests, guide and immutable campaign evidence before this status changes.
+Owned implementation: `recipes/r2e_gym/`, sharing historical snapshot mechanics in
+`recipes/history/`. Recipe-specific selection and test layouts are explicit.
+See the [guide](../pipelines/r2e_gym.md), example configuration, packaged provenance
+and `tests/test_history_recipes.py`. Quality acceptance follows the generation campaign.

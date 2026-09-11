@@ -62,6 +62,12 @@ class RepositoryGenerationPipeline:
             )
         )
 
+    def worker_configuration(self, run: Path) -> dict:
+        return {
+            "repo": self.input.repo.model_dump(mode="json"),
+            "options": self.options.model_dump(mode="json"),
+        }
+
     def run(self, out_dir: Path) -> PipelineResult:
         execution = self.input.execution
         run = execution.campaign_dir / "runs" / execution.run_id
@@ -121,10 +127,7 @@ class RepositoryGenerationPipeline:
                 worker.exec(["mkdir", remote], timeout=30).checked("Claim remote generation")
                 save_record(
                     run / "worker-config.json",
-                    {
-                        "repo": self.input.repo.model_dump(mode="json"),
-                        "options": self.options.model_dump(mode="json"),
-                    },
+                    self.worker_configuration(run),
                 )
                 worker.upload(run / "worker-config.json", remote + "/config.json")
                 record.update(

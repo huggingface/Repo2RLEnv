@@ -91,7 +91,7 @@ jobs:
           tests/test_endless_terminals_recipe.py
           tests/test_terminalworld_recipe.py
           tests/test_cli_gym_recipe.py
-          tests/test_dataarc_recipe.py
+          tests/test_dataarc_recipe.py tests/test_history_recipes.py
           tests/test_remote_job.py tests/test_verifier_driver.py
 
   build:
