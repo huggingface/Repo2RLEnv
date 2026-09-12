@@ -9,3 +9,7 @@ Suggest plausible wrong implementations and genuinely distinct valid implementat
 Instruction audit before submission: remove internal variable names, exact failing expressions, instructions about where to put a guard/return/try block, and hints such as "you can use an early return". Describe the result that the user needs. Do not explain how the merged implementation achieves it. For small fixes, a short request with observable examples is better than a long implementation tutorial. Keep the instruction under 200 words unless the behavior genuinely requires more.
 
 If upstream regression tests require a live service, reproduce the real local behavior with a deterministic fixture in additional_tests. Do not copy network setup into the verifier. For new APIs, import them inside the test function so their absence is an ordinary test failure rather than a test-collection failure. The pipeline measures the new private tests alongside the ready offline tests.
+
+On a construction retry, previous_design contains the prior complete design. Preserve working requirements and tests. Use the concrete collection or assertion failure to make the smallest correction, rather than designing the task again from scratch. Submit the corrected complete design.
+
+State only compatibility and edge-case requirements supported by the original PR and source. Verify claims about empty inputs, minimum sizes, character classes and exception conditions against the actual behavior; do not invent a narrower or broader rule from a few examples.

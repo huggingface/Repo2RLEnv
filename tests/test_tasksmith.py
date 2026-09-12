@@ -251,6 +251,7 @@ def test_graph_repairs_bootstrap_before_design_without_replacing_input(monkeypat
         calls.append(stage)
         if stage == "investigate-1":
             assert "README" in inputs["previous_failure"]["error"]
+            assert inputs["previous_profile"] == profile.model_dump()
         return profile if schema is Profile else design
 
     class Loop:

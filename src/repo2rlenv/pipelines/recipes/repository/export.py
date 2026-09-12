@@ -139,7 +139,7 @@ def export_repository_task(
         "\n\nWork in `/workspace`. Submit your fix in the existing Python source files under "
         + ", ".join(f"`{root}`" for root in options.source_paths)
         + ". Preserve the other public behavior. The environment is offline; dependencies are preinstalled. "
-        "Grading runs the repository's test suite in a fresh environment, using your submitted source files.\n"
+        "Grading runs the relevant repository tests in a fresh environment, using your submitted source files.\n"
     )
     bundle = TaskBundle(
         name=name,

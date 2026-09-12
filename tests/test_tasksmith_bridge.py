@@ -98,6 +98,46 @@ class BridgeRequest:
         return self.body.copy()
 
 
+@pytest.mark.asyncio
+async def test_artifact_stage_reserves_final_calls_for_submission(tmp_path):
+    effects = []
+
+    async def shell(command):
+        effects.append(command)
+        return "file contents"
+
+    async def submit(**artifact):
+        effects.append(artifact)
+        return "Artifact committed"
+
+    bridge = AgentBridge(
+        model="anthropic/claude-sonnet-4-6",
+        budget=Budget(tmp_path / "budget.json", 1),
+        tools=[],
+        handlers={"shell": shell, "submit_artifact": submit},
+        trace=tmp_path / "trace.jsonl",
+        max_turns=5,
+        max_cost=1,
+    )
+    request = BridgeRequest(
+        {"name": "shell", "arguments": {"command": "read metadata"}}, token=bridge.token
+    )
+    bridge.turns = 1
+    response = json.loads((await bridge.tool(request)).text)
+    assert "4 model calls remain" in response["output"]
+    bridge.turns = 3
+    response = json.loads((await bridge.tool(request)).text)
+    assert "Command not executed" in response["output"]
+    bridge.turns = 4
+    response = await bridge.tool(
+        BridgeRequest(
+            {"name": "submit_artifact", "arguments": {"profile": "complete"}}, token=bridge.token
+        )
+    )
+    assert json.loads(response.text)["output"] == "Artifact committed"
+    assert effects == ["read metadata", {"profile": "complete"}]
+
+
 class LocalProvider:
     """Deterministic provider responses; no upstream HTTP requests are made."""
 

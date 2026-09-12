@@ -39,21 +39,48 @@ class EvidenceContext:
                 self._include(key, self._paths[key], maximum=12000, tail=key.endswith(".json"))
         instruction = (task / "instruction.md").read_text()
         symbols = set(re.findall(r"\bdef\s+([A-Za-z_]\w*)", instruction))
-        if not symbols:
-            symbols.update(re.findall(r"`([A-Za-z_]\w*)\(", instruction))
+        symbols.update(re.findall(r"`(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)\s*(?:\(|`)", instruction))
+        test_symbols: dict[str, set[str]] = {}
         contract = self._paths.get("tests/contract.json")
         if contract is not None:
             try:
-                identities = json.loads(contract.read_text()).get("expected_passes", [])
-                symbols.update(
-                    identity.rsplit("::", 1)[-1].split("[", 1)[0] for identity in identities[:64]
-                )
+                data = json.loads(contract.read_text())
+                methods = {
+                    identity.rsplit("::", 1)[-1].split("[", 1)[0]
+                    for identity in data.get("expected_passes", [])[:64]
+                }
+                for selector in data.get("test_paths", []):
+                    path, *nodes = selector.split("::")
+                    selected = {node.split("[", 1)[0] for node in nodes} or methods
+                    test_symbols.setdefault("tests/source/" + path, set()).update(selected)
+                for key in self._paths:
+                    if (
+                        key in test_symbols
+                        or not key.startswith("tests/source/")
+                        or not key.endswith(".py")
+                    ):
+                        continue
+                    module = key.removeprefix("tests/source/")[:-3].replace("/", ".")
+                    nodes = set()
+                    for identity in data.get("expected_passes", [])[:64]:
+                        if identity.startswith((module + ".", module + "::")):
+                            nodes.update(identity[len(module) :].lstrip(".:").split("::"))
+                    if nodes:
+                        test_symbols[key] = nodes
             except (ValueError, AttributeError):
                 pass
-        # Put selected private tests before duplicate source copies, so a large
-        # library module cannot crowd its actual regression cases out of context.
+        # Selected private tests precede source copies. Generic method names such
+        # as test_empty must never select unrelated source functions/classes.
         ordered = sorted(
-            self._paths.items(), key=lambda item: (not item[0].startswith("tests/source/"), item[0])
+            self._paths.items(),
+            key=lambda item: (
+                0
+                if item[0] in test_symbols
+                else 1
+                if item[0].startswith(("environment/", "solution/"))
+                else 2,
+                item[0],
+            ),
         )
         for key, path in ordered:
             if (
@@ -61,7 +88,7 @@ class EvidenceContext:
                 and path.suffix == ".py"
                 and path.stat().st_size < 2_000_000
             ):
-                self._include_symbols(key, path, symbols)
+                self._include_symbols(key, path, test_symbols.get(key, symbols))
         # Reserve an execution share before reading large repository files. Collect
         # every trial first: a baseline's long test inventory must not crowd out a
         # later counterexample's actual assertion failure.
@@ -177,14 +204,23 @@ class EvidenceContext:
             return
         lines = text.splitlines(keepends=True)
         chunks = []
+        covered = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
-                symbol.lower().replace("_", "") in node.name.lower().replace("_", "")
+                symbol.lower().replace("_", "") == node.name.lower().replace("_", "")
+                or (
+                    isinstance(node, ast.ClassDef)
+                    and node.name.endswith("Tests")
+                    and symbol.lower().replace("_", "") == node.name[:-5].lower().replace("_", "")
+                )
                 for symbol in symbols
                 if len(symbol) >= 3
             ):
+                if any(start <= node.lineno <= end for start, end in covered):
+                    continue
                 start = max(1, node.lineno - 1)
                 end = min(node.end_lineno or node.lineno, start + 399)
+                covered.append((start, end))
                 chunks.append(f"[Lines {start}-{end}]\n" + "".join(lines[start - 1 : end]))
                 if sum(map(len, chunks)) >= 12000:
                     break
@@ -245,8 +281,16 @@ class EvidenceContext:
         result = json.dumps(
             {
                 "documents": self.documents,
-                "inventory": self.inventory,
-                "omitted": self.omitted,
+                # Hashes remain in the local evidence record. They add no useful
+                # review context and repeat for every source copy and trial.
+                "inventory": [
+                    {"path": item["path"], "bytes": item["bytes"]} for item in self.inventory
+                ],
+                "omitted": [item for item in self.omitted if not item.endswith(": context budget")],
+                "budget_omissions": {
+                    "count": sum(item.endswith(": context budget") for item in self.omitted),
+                    "note": "Inventory files absent from documents remain available through bounded reads.",
+                },
                 **extra,
             },
             ensure_ascii=False,

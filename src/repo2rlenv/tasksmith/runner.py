@@ -34,6 +34,7 @@ from repo2rlenv.quality.loop.runner import QualityLoop
 from repo2rlenv.tasksmith.author.artifact import artifact_stage, canonical_digest
 from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Design, Options, Panel, Profile
+from repo2rlenv.tasksmith.reuse import load_generation
 from repo2rlenv.tasksmith.source import resolve_pr
 
 
@@ -187,6 +188,12 @@ class Tasksmith:
         path = root / "authors" / stage
         role = stage.split("-", 1)[0]
         prompt = (Path(__file__).parent / "prompts" / (role + ".md")).read_text()
+        prompt += (
+            f"\nThis stage has at most {self.options.author_turns} model calls. "
+            "Batch related reads and submit as soon as the evidence is sufficient. "
+            "The final two calls are reserved for submission and schema correction; "
+            "shell exploration is disabled then.\n"
+        )
         return asyncio.run(
             artifact_stage(
                 schema=schema,
@@ -224,6 +231,14 @@ class Tasksmith:
             self.ledger,
             budget=budget,
             protected_paths=("solution", "environment/source"),
+            task_context={
+                "kind": "merged_pr",
+                "title": source.get("title", ""),
+                "body": source.get("body", ""),
+                "source_diff": source.get("source_diff", "")[:24000],
+                "source_diff_truncated": len(source.get("source_diff", "")) > 24000,
+                "reference_policy": "fixed_pr_head",
+            },
             on_event=lambda event: self.event("quality/" + event.stage, event.message),
         )
         loop.remote = RemoteTrials(
@@ -236,10 +251,18 @@ class Tasksmith:
         )
         # Reuse the already prepared worker/runtime, avoiding redundant setup.
         loop.remote.worker, loop.remote.python = self.worker, self.python
-        result = loop.run(
-            Path(constructed["local"]) / constructed["value"]["task_relative"],
-            resume=(output / "run.json").exists(),
-        )
+        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
+        probes = None
+        if constructed.get("imported_from", {}).get("probes"):
+            probes = root / "imported-probes.json"
+            save_record(
+                probes,
+                {
+                    "bundle_hash": task_identity(task),
+                    "probes": constructed["imported_from"]["probes"],
+                },
+            )
+        result = loop.run(task, probes=probes, resume=(output / "run.json").exists())
         return {"quality": result.model_dump(mode="json"), "status": result.status}
 
     def candidate(self, source: dict):
@@ -307,7 +330,11 @@ class Tasksmith:
                 root,
                 f"investigate-{attempt}",
                 Profile,
-                {"source": source_context, "previous_failure": state.get("failure")},
+                {
+                    "source": source_context,
+                    "previous_profile": state.get("profile"),
+                    "previous_failure": state.get("failure"),
+                },
                 checkout,
                 validate=validate,
             )
@@ -343,6 +370,7 @@ class Tasksmith:
                     "source": source_context,
                     "profile": state["profile"],
                     "readiness": state["ready"]["readiness"],
+                    "previous_design": state.get("design"),
                     "previous_failure": state.get("failure"),
                 },
                 checkout,
@@ -454,32 +482,7 @@ class Tasksmith:
                 raise ValueError(f"No API key for configured quality provider {model.provider}")
         previous_sources = None
         if generation_run is not None:
-            previous = json.loads((generation_run / "panel.json").read_text())
-            if previous["configuration"]["panel"] != panel.model_dump():
-                raise ValueError("Imported generation must have the identical frozen panel")
-            previous_sources = previous["sources"]
-            for source in previous_sources:
-                receipt = generation_run / "candidates" / source["id"] / "result.json"
-                if not receipt.is_file():
-                    continue
-                record = json.loads(receipt.read_text())
-                quality = record.get("quality", {})
-                if quality:
-                    task = Path(quality["task_path"])
-                    expected = quality["bundle_hash"]
-                elif record.get("constructed"):
-                    built = record["constructed"]
-                    task = Path(built["local"]) / built["value"]["task_relative"]
-                    expected = task_identity(task)
-                else:
-                    continue
-                if task_identity(task) != expected:
-                    raise ValueError("Imported task differs from its saved evidence")
-                self.imported[source["id"]] = {
-                    "task": str(task.resolve()),
-                    "bundle_hash": expected,
-                    "generation_run": str(generation_run.resolve()),
-                }
+            previous_sources, self.imported = load_generation(generation_run, panel)
         runtime_path(self.options.author_runtime)
         check_runtime_wheel(self.wheel)
         manifest = self.directory / "panel.json"

@@ -14,6 +14,7 @@ from repo2rlenv.quality.loop.artifacts import (
     digest,
     import_trial,
     probe_variant,
+    refresh_identity,
     task_identity,
 )
 from repo2rlenv.quality.loop.client import JsonModel, ModelRequestError, RunBudget, response_schema
@@ -770,3 +771,119 @@ def test_real_build_failure_text_is_available_without_guessing(task, tmp_path):
         "Description file README.rst does not exist"
         in context.documents["evidence/0-oracle/result.json"]
     )
+
+
+def test_selected_class_wins_over_generic_method_names_and_source_copies(task, tmp_path):
+    private = task / "tests/source/tests/test_large.py"
+    private.parent.mkdir(parents=True)
+    private.write_text(
+        "\n".join(
+            f"class Unrelated{i}:\n    def test_empty(self):\n        assert unrelated == []\n"
+            for i in range(250)
+        )
+        + "\nclass ValueChainTests:\n    def test_empty(self):\n        assert selected_regression == []\n"
+    )
+    unrelated = task / "tests/source/library/more.py"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text("def more():\n    pass\n" * 200)
+    (task / "tests/contract.json").write_text(
+        json.dumps(
+            {
+                "expected_passes": ["tests.test_large.ValueChainTests::test_empty"],
+                "test_paths": ["tests/test_large.py::ValueChainTests"],
+            }
+        )
+    )
+    refresh_identity(task)
+    evidence = Trials(tmp_path / "results").run(task, "baseline", "baseline")
+    context = EvidenceContext(task, [evidence], limit=100000)
+    assert "selected_regression" in context.documents["tests/source/tests/test_large.py"]
+    assert "tests/source/library/more.py" not in context.documents
+
+
+def test_review_reads_missing_evidence_before_demanding_probe_scripts(task, tmp_path):
+    class Reader(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            self.calls.append(payload)
+            if len(self.calls) == 1:
+                return review().model_copy(
+                    update={
+                        "read_requests": [
+                            ReadRequest(
+                                path="tests/test.sh", query="weak check", start_line=1, end_line=1
+                            )
+                        ]
+                    }
+                )
+            assert "tests/test.sh:search=weak check" in payload["documents"]
+            return review(propose=True)
+
+    model = Reader()
+    loop = make_loop(tmp_path, model=model, max_read_rounds=1)
+    result, _ = loop._review(task, [], "read", probe_limit=2)
+    assert not result.read_requests
+    assert len(model.calls) == 2
+
+
+def test_review_reserves_a_slot_for_valid_alternative(task, tmp_path):
+    class WrongOnly(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            self.calls.append(payload)
+            assert payload["required_probe_kinds"] == ["valid_alternative", "wrong_solution"]
+            value = review(propose=True)
+            if len(self.calls) == 1:
+                value.probes = [probes()[0], probes()[0].model_copy(update={"name": "other-wrong"})]
+            else:
+                assert "missing control kinds" in payload["protocol_feedback"][-1]
+            return value
+
+    model = WrongOnly()
+    value, _ = make_loop(tmp_path, model=model)._review(task, [], "kinds", probe_limit=2)
+    assert {p.kind for p in value.probes} == {"wrong_solution", "valid_alternative"}
+    assert len(model.calls) == 2
+
+
+def test_blocking_task_defect_can_be_repaired_before_authoring_probes(task, tmp_path):
+    class Defect(Model):
+        def ask(self, *args):
+            return review(broken=True, propose=False)
+
+    value, _ = make_loop(tmp_path, model=Defect())._review(task, [], "defect", probe_limit=2)
+    assert value.issues and not value.probes
+
+
+def test_review_inventory_preserves_readable_paths_without_duplicate_hash_tokens(task):
+    context = EvidenceContext(task, [], limit=100000)
+    for index in range(600):
+        key = f"evidence/3-probe/artifacts/workspace/large_package/module_{index:04}.py"
+        context.inventory.append({"path": key, "bytes": 200, "sha256": "a" * 64})
+        context.omitted.append(key + ": context budget")
+    payload = json.loads(context.payload())
+    assert len(payload["inventory"]) == len(context.inventory)
+    assert payload["inventory"][-1]["path"] == key
+    assert payload["budget_omissions"]["count"] >= 600
+    assert all("sha256" not in item for item in payload["inventory"])
+    assert all("sha256" in item for item in context.inventory)
+
+
+def test_original_task_intent_and_protected_paths_reach_reviewer(task, tmp_path):
+    class IntentModel(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            assert payload["protected_paths"] == ["solution"]
+            context = json.loads(payload["documents"]["evidence/task-context.json"])
+            assert context["kind"] == "merged_pr"
+            assert context["source_diff"] == "fixed original change"
+            return review()
+
+    loop = QualityLoop(
+        LoopOptions(),
+        tmp_path / "review",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="5"),
+        protected_paths=("solution",),
+        task_context={"kind": "merged_pr", "source_diff": "fixed original change"},
+        model_client=IntentModel(),
+    )
+    loop._review(task, [], "intent", probe_limit=0)

@@ -118,6 +118,8 @@ class AgentBridge:
             name, arguments = data.get("name"), data.get("arguments", {})
             if name not in self.handlers or not isinstance(arguments, dict):
                 raise web.HTTPBadRequest(text="Unknown tool or malformed arguments")
+            artifact_stage = "submit_artifact" in self.handlers
+            remaining = self.max_turns - self.turns
             try:
                 # Native runtimes can dispatch tools at message_stop before
                 # provider EOF. Match LangGraph: meter and validate that model
@@ -129,7 +131,15 @@ class AgentBridge:
                 )
                 async with self.tool_lock:
                     self.ensure_open()
-                    output = await self.handlers[name](**arguments)
+                    remaining = self.max_turns - self.turns
+                    if artifact_stage and name == "shell" and remaining <= 2:
+                        output = (
+                            "Command not executed: the final two model calls are reserved for "
+                            "artifact submission and schema correction. Submit the best supported "
+                            "complete artifact using the evidence already collected."
+                        )
+                    else:
+                        output = await self.handlers[name](**arguments)
             except web.HTTPException:
                 raise
             except (ValueError, TypeError, KeyError) as exc:
@@ -139,6 +149,11 @@ class AgentBridge:
                 return web.json_response({"error": str(exc)}, status=409)
             if len(output) > 24000:
                 output = output[:8000] + "\n[truncated]\n" + output[-16000:]
+            if artifact_stage and name == "shell":
+                output += (
+                    f"\nController budget: {max(0, remaining)} model calls remain. "
+                    "Reserve the final two for submit_artifact and any needed revise_artifact."
+                )
             self.record("tool", name=name, arguments=arguments, output=output)
             return web.json_response({"output": output})
         finally:

@@ -32,6 +32,7 @@ from repo2rlenv.quality.loop.models import (
     ReadRequest,
     Repair,
     Review,
+    SemanticProbe,
     TrialRecord,
 )
 
@@ -99,12 +100,14 @@ class QualityLoop:
         *,
         budget: RunBudget | None = None,
         protected_paths: tuple[str, ...] = (),
+        task_context: dict | None = None,
         model_client=None,
         trial_runner=None,
         on_event: Callable[[ProgressEvent], None] | None = None,
     ):
         self.options, self.directory = options, directory.resolve()
         self.protected_paths = tuple(Path(value) for value in protected_paths)
+        self.task_context = task_context
         prefix = "quality-" + hashlib.sha256(str(self.directory).encode()).hexdigest()[:16]
         self.budget = budget or RunBudget(ledger, prefix, options.max_spend_usd)
         self.model = model_client or JsonModel(
@@ -126,6 +129,8 @@ class QualityLoop:
         if any(trial.bundle_hash != identity for trial in trials if trial.role != "probe"):
             raise ValueError("Execution evidence belongs to another task revision")
         context = EvidenceContext(task, trials, limit=self.options.context_chars)
+        if self.task_context is not None:
+            context.documents["evidence/task-context.json"] = json.dumps(self.task_context)
         context.documents["evidence/checks.json"] = json.dumps(
             {
                 "control_failures": control_failures(trials, self.options.success_reward),
@@ -144,10 +149,18 @@ class QualityLoop:
         *,
         probe_limit: int,
         prior: Review | None = None,
-        covered_focus: set[str] | None = None,
+        existing_probes: list[SemanticProbe] | None = None,
     ):
         context = self._context(task, trials)
-        needed_focus = required_probe_focus(task) - (covered_focus or set())
+        save_record(
+            self.directory / "inventories" / f"{key}.json",
+            {"bundle_hash": task_identity(task), "files": context.inventory},
+        )
+        existing = existing_probes or []
+        needed_focus = required_probe_focus(task) - {
+            probe.focus for probe in existing if probe.kind == "wrong_solution"
+        }
+        needed_kinds = {"wrong_solution", "valid_alternative"} - {probe.kind for probe in existing}
         self.event(
             "review", "Review task, verifier and available execution evidence", state="started"
         )
@@ -166,14 +179,32 @@ class QualityLoop:
                     prompt("review"),
                     context.payload(
                         probe_limit=probe_limit,
+                        protected_paths=[str(path) for path in self.protected_paths],
                         required_probe_focus=sorted(needed_focus),
+                        required_probe_kinds=sorted(needed_kinds) if probe_limit else [],
+                        retained_probes=[
+                            {"name": p.name, "kind": p.kind, "focus": p.focus} for p in existing
+                        ],
                         protocol_feedback=feedback,
                         previous_review=prior.model_dump() if prior else None,
                     ),
                     f"{key}-{index}",
                 )
                 context.validate_review(review)
-                if probe_limit:
+                if review.read_requests:
+                    context.read_more(review.read_requests)
+                    feedback.append(
+                        "Requested file ranges are now included; finish the review if sufficient."
+                    )
+                    continue
+                if len(review.probes) > probe_limit:
+                    raise ValueError("Proposed probes exceed the remaining probe limit")
+                names = [probe.name for probe in [*existing, *review.probes]]
+                if len(names) != len(set(names)):
+                    raise ValueError(
+                        "New probes must have distinct names and not repeat retained probes"
+                    )
+                if probe_limit and review.sound:
                     missing = needed_focus - {
                         probe.focus for probe in review.probes if probe.kind == "wrong_solution"
                     }
@@ -181,19 +212,25 @@ class QualityLoop:
                         raise ValueError(
                             f"Propose a wrong-solution probe targeting these explicit requirements: {sorted(missing)}"
                         )
-                if not review.read_requests:
-                    save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
-                    return review, context
-                context.read_more(review.read_requests)
-                feedback.append(
-                    "Requested file ranges are now included; finish the review if sufficient."
-                )
+                    # A bounded review with only one slot may still be useful,
+                    # but two or more slots must cover both semantic controls.
+                    required_count = max(
+                        len(needed_focus), int("wrong_solution" in needed_kinds)
+                    ) + int("valid_alternative" in needed_kinds)
+                    missing_kinds = needed_kinds - {probe.kind for probe in review.probes}
+                    if required_count <= probe_limit and missing_kinds:
+                        raise ValueError(
+                            f"Reserve probe slots for missing control kinds: {sorted(missing_kinds)}"
+                        )
+                save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
+                return review, context
             except (ValidationError, ValueError) as exc:
                 feedback.append(f"Invalid structured review or evidence request: {exc}")
                 if review is not None:
                     prior = review
         raise ValueError(
-            "Review did not resolve its evidence requests or grounded output within the call limit"
+            "Review did not resolve its evidence requests or grounded output within the call limit: "
+            + (feedback[-1] if feedback else "no grounded response")
         )
 
     def _repair(self, task, review, context, probes, revision, reasons):
@@ -329,6 +366,7 @@ class QualityLoop:
         ]
         configuration = {
             "protected_paths": [str(path) for path in self.protected_paths],
+            "task_context": self.task_context,
             "source_hash": source_hash,
             "source": str(source),
             "options": self.options.model_dump(mode="json"),
@@ -388,9 +426,7 @@ class QualityLoop:
                     trials,
                     f"r{revision}-before",
                     probe_limit=max(0, self.options.max_probes - len(probes)),
-                    covered_focus={
-                        probe.focus for probe in probes if probe.kind == "wrong_solution"
-                    },
+                    existing_probes=probes,
                 )
                 if len(probes) < self.options.max_probes:
                     names = {probe.name for probe in probes}

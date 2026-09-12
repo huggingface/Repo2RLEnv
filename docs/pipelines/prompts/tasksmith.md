@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `68e792a98333e6234ba91d628051b313ce349b90a39fcbed83f38ff22d3e6d48`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `d4559704d44fcf9af8baeb013b0d3a15f3f50a4c5ce9ba79add91d67bdd8075e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -25,13 +25,15 @@ A previous failure, if supplied, is evidence for correcting only the profile. Do
 Packaging matters: never exclude a README, license or other file referenced by pyproject/setup metadata merely because it is prose. The bootstrap builds the public workspace separately and will reject missing installation inputs. Use pinned dependencies (for example pytest==9.0.3 and a compatible pinned build backend); query versions if uncertain. Do not repeat dependency installation inside install_command. Prefer `python -m pip install --no-cache-dir --no-deps --no-build-isolation -e .` when the backend supports it.
 
 Efficiency: use the supplied full PR diff, especially its added tests, to locate the affected behavior before browsing. Batch related metadata/source/test reads into a few shell calls. If the PR regression itself calls an external service, do not repeatedly search for a nonexistent offline version: select a small existing offline readiness test for the package and explain that the next design stage must supply a faithful local fixture for the changed behavior. For filesystem/cache fixes, a constructed on-disk cache is faithful; downloading a live hosted model is unnecessary. Avoid testing unrelated API integrations or installing the project's entire optional ML dependency stack.
+
+On a bootstrap retry, previous_profile contains your prior complete profile. Retain fields unaffected by the observed error. For a dependency conflict, inspect the conflicting constraints and correct that dependency choice; do not repeat repository discovery or replace working test selections without evidence. Submit the corrected complete profile.
 ````
 
 </details>
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `3781e0aa32dfa9e65011bd9650f6d7007a1101b56a052981b49ab32abaa150ce`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `ddde0e9a2a46fc6d88be55dee39dbe267a03226fe581712e2269e0ef3a353265`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -50,13 +52,17 @@ Suggest plausible wrong implementations and genuinely distinct valid implementat
 Instruction audit before submission: remove internal variable names, exact failing expressions, instructions about where to put a guard/return/try block, and hints such as "you can use an early return". Describe the result that the user needs. Do not explain how the merged implementation achieves it. For small fixes, a short request with observable examples is better than a long implementation tutorial. Keep the instruction under 200 words unless the behavior genuinely requires more.
 
 If upstream regression tests require a live service, reproduce the real local behavior with a deterministic fixture in additional_tests. Do not copy network setup into the verifier. For new APIs, import them inside the test function so their absence is an ordinary test failure rather than a test-collection failure. The pipeline measures the new private tests alongside the ready offline tests.
+
+On a construction retry, previous_design contains the prior complete design. Preserve working requirements and tests. Use the concrete collection or assertion failure to make the smallest correction, rather than designing the task again from scratch. Submit the corrected complete design.
+
+State only compatibility and edge-case requirements supported by the original PR and source. Verify claims about empty inputs, minimum sizes, character classes and exception conditions against the actual behavior; do not invent a narrower or broader rule from a few examples.
 ````
 
 </details>
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `fa868ba64f0f9ee72e9d7907dec06a3cf420b0a489532adba7746d3b079cd608`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `4fe1263558ba784c64cd14517633ea3edad449fe838527dd266abb966a9bfad5`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -144,7 +150,12 @@ class Options(Record):
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
-            repair=True, run_rollout=True, max_repairs=2, max_turns=20, max_spend_usd="20.00"
+            repair=True,
+            run_rollout=True,
+            max_repairs=2,
+            max_probes=4,
+            max_turns=20,
+            max_spend_usd="20.00",
         )
     )
 
@@ -164,7 +175,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `5e905f30000f15358a405c9aaa51fef1d8d3b0c2e44f3e405234ee7fa5433361`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `8f9390209d16e71e1ec3423fbb73a03c265b52f14b776a809b2d1f0d6dffc27f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -208,6 +219,7 @@ from repo2rlenv.quality.loop.runner import QualityLoop
 from repo2rlenv.tasksmith.author.artifact import artifact_stage, canonical_digest
 from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Design, Options, Panel, Profile
+from repo2rlenv.tasksmith.reuse import load_generation
 from repo2rlenv.tasksmith.source import resolve_pr
 
 
@@ -361,6 +373,12 @@ class Tasksmith:
         path = root / "authors" / stage
         role = stage.split("-", 1)[0]
         prompt = (Path(__file__).parent / "prompts" / (role + ".md")).read_text()
+        prompt += (
+            f"\nThis stage has at most {self.options.author_turns} model calls. "
+            "Batch related reads and submit as soon as the evidence is sufficient. "
+            "The final two calls are reserved for submission and schema correction; "
+            "shell exploration is disabled then.\n"
+        )
         return asyncio.run(
             artifact_stage(
                 schema=schema,
@@ -398,6 +416,14 @@ class Tasksmith:
             self.ledger,
             budget=budget,
             protected_paths=("solution", "environment/source"),
+            task_context={
+                "kind": "merged_pr",
+                "title": source.get("title", ""),
+                "body": source.get("body", ""),
+                "source_diff": source.get("source_diff", "")[:24000],
+                "source_diff_truncated": len(source.get("source_diff", "")) > 24000,
+                "reference_policy": "fixed_pr_head",
+            },
             on_event=lambda event: self.event("quality/" + event.stage, event.message),
         )
         loop.remote = RemoteTrials(
@@ -410,10 +436,18 @@ class Tasksmith:
         )
         # Reuse the already prepared worker/runtime, avoiding redundant setup.
         loop.remote.worker, loop.remote.python = self.worker, self.python
-        result = loop.run(
-            Path(constructed["local"]) / constructed["value"]["task_relative"],
-            resume=(output / "run.json").exists(),
-        )
+        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
+        probes = None
+        if constructed.get("imported_from", {}).get("probes"):
+            probes = root / "imported-probes.json"
+            save_record(
+                probes,
+                {
+                    "bundle_hash": task_identity(task),
+                    "probes": constructed["imported_from"]["probes"],
+                },
+            )
+        result = loop.run(task, probes=probes, resume=(output / "run.json").exists())
         return {"quality": result.model_dump(mode="json"), "status": result.status}
 
     def candidate(self, source: dict):
@@ -481,7 +515,11 @@ class Tasksmith:
                 root,
                 f"investigate-{attempt}",
                 Profile,
-                {"source": source_context, "previous_failure": state.get("failure")},
+                {
+                    "source": source_context,
+                    "previous_profile": state.get("profile"),
+                    "previous_failure": state.get("failure"),
+                },
                 checkout,
                 validate=validate,
             )
@@ -517,6 +555,7 @@ class Tasksmith:
                     "source": source_context,
                     "profile": state["profile"],
                     "readiness": state["ready"]["readiness"],
+                    "previous_design": state.get("design"),
                     "previous_failure": state.get("failure"),
                 },
                 checkout,
@@ -628,32 +667,7 @@ class Tasksmith:
                 raise ValueError(f"No API key for configured quality provider {model.provider}")
         previous_sources = None
         if generation_run is not None:
-            previous = json.loads((generation_run / "panel.json").read_text())
-            if previous["configuration"]["panel"] != panel.model_dump():
-                raise ValueError("Imported generation must have the identical frozen panel")
-            previous_sources = previous["sources"]
-            for source in previous_sources:
-                receipt = generation_run / "candidates" / source["id"] / "result.json"
-                if not receipt.is_file():
-                    continue
-                record = json.loads(receipt.read_text())
-                quality = record.get("quality", {})
-                if quality:
-                    task = Path(quality["task_path"])
-                    expected = quality["bundle_hash"]
-                elif record.get("constructed"):
-                    built = record["constructed"]
-                    task = Path(built["local"]) / built["value"]["task_relative"]
-                    expected = task_identity(task)
-                else:
-                    continue
-                if task_identity(task) != expected:
-                    raise ValueError("Imported task differs from its saved evidence")
-                self.imported[source["id"]] = {
-                    "task": str(task.resolve()),
-                    "bundle_hash": expected,
-                    "generation_run": str(generation_run.resolve()),
-                }
+            previous_sources, self.imported = load_generation(generation_run, panel)
         runtime_path(self.options.author_runtime)
         check_runtime_wheel(self.wheel)
         manifest = self.directory / "panel.json"

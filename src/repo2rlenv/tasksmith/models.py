@@ -78,7 +78,12 @@ class Options(Record):
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
-            repair=True, run_rollout=True, max_repairs=2, max_turns=20, max_spend_usd="20.00"
+            repair=True,
+            run_rollout=True,
+            max_repairs=2,
+            max_probes=4,
+            max_turns=20,
+            max_spend_usd="20.00",
         )
     )
 

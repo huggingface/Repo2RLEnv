@@ -13,12 +13,15 @@ flowchart TD
     CACHE[("Dependency image cache<br/>Shared provider worker")] <--> BOOT
     BOOT --> HEAD{"Merged-head tests<br/>pass offline?"}
     HEAD -->|"No • bounded profile correction"| INVEST
-    HEAD -->|Yes| DESIGN["Pi / OpenCode • design<br/>Human request, requirement/test mapping,<br/>optional private behavioral tests"]
+    HEAD -->|Yes| PUBLIC{"Filtered learner workspace<br/>builds successfully?"}
+    PUBLIC -->|No| INVEST
+    PUBLIC -->|Yes| DESIGN["Pi / OpenCode • design<br/>Human request, requirement/test mapping,<br/>optional private behavioral tests"]
     DESIGN --> CONTRAST["Deterministic construction<br/>Reverse the PR source patch<br/>Run healthy and defective tests"]
     CONTRAST --> CHECK{"Fail-to-pass and<br/>pass-to-pass evidence?"}
     CHECK -->|"No • bounded design correction"| DESIGN
     CHECK -->|Yes| EMIT["Owned Harbor exporter<br/>Offline learner + separate private verifier<br/>Oracle from actual PR head"]
     EMIT --> REVIEW["Quality loop • static review<br/>Instruction, verifier, leakage"]
+    PIN -. "Private PR intent and diff" .-> REVIEW
     REVIEW --> EXEC["Baseline + oracle + semantic probes<br/>Sonnet learner rollout"]
     EXEC --> DECIDE{"Sound task and verifier<br/>with legitimate rollout?"}
     DECIDE -->|"Repairable • bounded"| REPAIR["Targeted component repair<br/>Re-run invalidated checks"]
@@ -83,7 +86,11 @@ uv run repo2rlenv tasksmith run configs/tasksmith/cpu-hf-pilot.json \
   --env-file .env
 ```
 
-The previous panel must match exactly. Saved task hashes are checked before paid work; generated inputs are reused and the current quality loop runs again. Inputs that never produced a task still enter normal generation. Source and oracle paths remain immutable during Tasksmith quality repairs. Instructions and private verification can change in a new revision. The report retains the source run and task hash.
+The previous panel must match exactly. Before paid work, the importer checks each task's hash, PR URL, head/base, source diff and containment within the original run directory. It retains previously executed semantic probes, so improving a review does not discard known counterexamples. Generated inputs are reused and the current quality loop runs again. Inputs that never produced a task still enter normal generation. A draft with a blocking reference conflict also enters fresh generation; its old probes remain attached to the original draft and are not relabeled. Source and oracle paths remain immutable during Tasksmith quality repairs. Instructions and private verification can change in a new revision. The report retains the source run and task hash.
+
+Tasksmith allows up to four semantic probes, while usually needing only one wrong solution and one valid alternative. Extra capacity preserves a discovered counterexample when a repair also needs a specific laziness or tolerance check. The reviewer sees which controls already exist and must reserve space for the missing control kinds. A blocking defect can be repaired before probe authoring; requests for missing code are serviced before demanding probe scripts.
+
+The reviewer also receives the original PR intent and diff privately. This distinguishes a generated request that invents requirements from a faulty reference. A request that exceeds the PR's scope should be corrected; a real conflict between the PR intent and reference remains a reported defect. Full file hashes are retained in local review inventories, while model context contains compact file paths and sizes instead of repeated hashes and omission notices.
 
 The campaign must already have an explicitly initialized budget. Tasksmith reserves model calls and workers on that same ledger. A per-pilot cap and nested quality cap further bound spending. A stopped worker's cost hold remains until explicitly reconciled; it is not silently counted as zero.
 
@@ -93,12 +100,15 @@ Repository readiness uses the existing bootstrap implementation. A separate, sou
 
 LangGraph checkpoints stage state. Artifact receipts additionally bind the schema, prompt, source inputs and runtime. Remote jobs have durable supervisor paths and are observed rather than blindly relaunched after a lost response. An incomplete author call requires reconciliation. Changed configuration or worker code requires a new run directory; previous evidence remains available. Unknown worker creation or termination must be resolved before another worker is allocated.
 
+Bootstrap/design retries receive the previous complete artifact alongside the failure, so they can preserve working fields. The author sees its remaining call allowance after each shell tool result. The last two model calls are reserved for artifact submission and correction; further shell exploration is declined. These limits bound investigation without spending the entire allowance before producing a usable profile.
+
 ## Code map and credit
 
 | Responsibility | Owned code |
 |---|---|
 | CLI, graph, fixed panel and reports | `src/repo2rlenv/tasksmith/{cli,runner,models}.py` |
 | Source pins and PR patch selection | `src/repo2rlenv/tasksmith/source.py` |
+| Generation provenance and retained controls | `src/repo2rlenv/tasksmith/reuse.py` |
 | Deterministic remote stages | `src/repo2rlenv/tasksmith/worker.py` |
 | Coding runtime adapters and structured artifact protocol | `src/repo2rlenv/tasksmith/author/` |
 | Docker readiness and snapshots | `src/repo2rlenv/bootstrap/`, `execution/python_repository.py` |
