@@ -229,7 +229,10 @@ shell-out); gitlab → `repo.auth_token_env` then `$GITLAB_TOKEN`; github →
 
 HF Hub auth uses `huggingface_hub`'s own resolution
 (`~/.cache/huggingface/token` or `$HF_TOKEN`). LLM keys come from provider-default
-env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) via `auth.resolve_llm_api_key()`.
+env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) via `auth.resolve_llm_api_key()` —
+only for the providers in `auth.LLM_KEY_ENV_DEFAULTS`. Anything else is left to LiteLLM's
+own lookup, and a self-hosted `LLMSpec.endpoint` (`--llm-endpoint`) needs no key at all
+(`llm._resolve_api_key`).
 
 Registry push credentials resolve from explicit env vars first: GHCR reads
 `GHCR_TOKEN` / `GITHUB_TOKEN` (needs a one-time

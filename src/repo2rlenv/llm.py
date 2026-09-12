@@ -11,10 +11,15 @@ import logging
 import re
 from dataclasses import dataclass
 
-from repo2rlenv.auth import resolve_llm_api_key
+from repo2rlenv.auth import LLM_KEY_ENV_DEFAULTS, resolve_llm_api_key
 from repo2rlenv.spec.input import LLMSpec
 
 logger = logging.getLogger(__name__)
+
+# Sent with `endpoint` to providers whose client insists on *some* key string
+# (`openai/<model>` against vLLM, Ollama, llama.cpp — the server ignores it).
+# Same value vLLM's docs use.
+_PLACEHOLDER_API_KEY = "EMPTY"
 
 
 # Models that reject any `temperature` value (forced default). Add patterns
@@ -58,6 +63,56 @@ def _is_failover_eligible(exc: BaseException) -> bool:
     }
 
 
+def _resolve_api_key(spec: LLMSpec) -> str | None:
+    """The API key to hand LiteLLM, or None to let LiteLLM resolve it.
+
+    - `api_key_env` given → its value; raise if unset (never falls through)
+    - `endpoint` given → the provider-default key is *not* forwarded to a
+      custom server. `LLM_KEY_ENV_DEFAULTS` clients (`openai/`, …) need a key
+      string, so they get the placeholder; `hosted_vllm/`, `ollama/`, … get
+      None and LiteLLM applies its own `HOSTED_VLLM_API_KEY`-style lookup.
+    - otherwise → provider-default key; raise naming the var for
+      `LLM_KEY_ENV_DEFAULTS` providers, None (LiteLLM's call) for the rest
+    """
+    provider = spec.provider.lower()
+    if spec.api_key_env:
+        key = resolve_llm_api_key(provider, spec.api_key_env)
+        if key is None:
+            raise RuntimeError(
+                f"no API key for provider {spec.provider!r}: ${spec.api_key_env} is unset."
+            )
+        return key
+    if spec.endpoint:
+        return _PLACEHOLDER_API_KEY if provider in LLM_KEY_ENV_DEFAULTS else None
+    key = resolve_llm_api_key(provider)
+    if key is None and provider in LLM_KEY_ENV_DEFAULTS:
+        raise RuntimeError(
+            f"no API key resolved for provider {spec.provider!r}. Set "
+            f"{LLM_KEY_ENV_DEFAULTS[provider]}, or use --llm-endpoint for a self-hosted server."
+        )
+    return key
+
+
+def check_provider(spec: LLMSpec) -> None:
+    """Raise early if LiteLLM doesn't know a provider in the spec's fallback chain.
+
+    Cheap next to what follows (clone, image pull, agent loop), so the bootstrap
+    entry points call it before any of that starts.
+    """
+    import litellm  # type: ignore[import-untyped]
+
+    cur: LLMSpec | None = spec
+    while cur is not None:
+        try:
+            litellm.get_llm_provider(cur.qualified_name)
+        except Exception as exc:
+            first_line = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+            raise RuntimeError(
+                f"unknown LLM provider in {cur.qualified_name!r}: {first_line}"
+            ) from exc
+        cur = cur.fallback
+
+
 def _do_complete(
     spec: LLMSpec,
     *,
@@ -69,12 +124,7 @@ def _do_complete(
     """One non-fallback chat-completion call. Internal helper for `complete()`."""
     import litellm  # type: ignore[import-untyped]
 
-    api_key = resolve_llm_api_key(spec.provider, spec.api_key_env)
-    if api_key is None:
-        raise RuntimeError(
-            f"no API key resolved for provider {spec.provider!r}. "
-            f"Set {spec.api_key_env or 'the provider-default env var'}."
-        )
+    api_key = _resolve_api_key(spec)
 
     messages: list[dict] = []
     if system:
@@ -85,9 +135,10 @@ def _do_complete(
         "model": spec.qualified_name,
         "messages": messages,
         "max_tokens": max_tokens,
-        "api_key": api_key,
         "timeout": spec.timeout_sec,
     }
+    if api_key is not None:
+        kwargs["api_key"] = api_key
     # Newer reasoning-focused models (Opus 4.7+, GPT-5+) reject `temperature`.
     if _supports_temperature(spec.model):
         kwargs["temperature"] = temperature
