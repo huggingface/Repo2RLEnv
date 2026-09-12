@@ -1,0 +1,628 @@
+{
+  "SKILL_TAXONOMY": {
+    "security": {
+      "Systems": [
+        "Firewall and network policy configuration",
+        "SSH hardening and key management",
+        "File permission and access control",
+        "Service auditing and port scanning",
+        "Process isolation and sandboxing"
+      ],
+      "Data Processing": [
+        "Security log parsing and correlation",
+        "Payload encoding and decoding",
+        "Certificate chain validation",
+        "Sensitive data redaction",
+        "Binary format and ELF analysis"
+      ],
+      "Web Security": [
+        "Exploit crafting and payload delivery",
+        "Injection and XSS vulnerability analysis",
+        "HTTP header and cookie inspection",
+        "TLS/SSL certificate management",
+        "Content security policy enforcement"
+      ],
+      "Algorithmic": [
+        "Cryptographic hashing and checksum verification",
+        "Password cracking and brute-force search",
+        "Encryption and decryption",
+        "Token generation and validation",
+        "Pattern matching for intrusion detection",
+        "Reverse engineering and disassembly",
+        "Cryptanalysis (differential, linear)"
+      ],
+      "Testing": [
+        "Automated vulnerability scanning",
+        "Authentication flow testing",
+        "File integrity verification",
+        "Privilege escalation auditing",
+        "CWE identification and code auditing"
+      ]
+    },
+    "software_engineering": {
+      "Algorithmic": [
+        "Graph traversal and dependency resolution",
+        "Custom data structure design",
+        "Sorting, merging, and diffing",
+        "State machine and parser construction",
+        "Constraint satisfaction",
+        "Interpreter and emulator implementation"
+      ],
+      "Systems": [
+        "Build system configuration and linking",
+        "Shared library and ABI management",
+        "Cross-compilation and conditional builds",
+        "CI/CD pipeline setup",
+        "Memory debugging and profiling",
+        "Package and dependency management"
+      ],
+      "Data Processing": [
+        "Structured data parsing and transformation",
+        "Serialization and deserialization",
+        "Schema migration",
+        "Diff and patch processing",
+        "Code translation between languages"
+      ],
+      "Web Security": [
+        "REST/GraphQL API construction",
+        "Request validation and rate limiting",
+        "Reverse proxy configuration",
+        "WebSocket communication",
+        "URL routing and parameter parsing",
+        "gRPC and protobuf service design"
+      ],
+      "Testing": [
+        "Unit and integration testing",
+        "Test fixture and mock setup",
+        "Property-based testing",
+        "Performance benchmarking",
+        "End-to-end test orchestration"
+      ],
+      "Mathematical": [
+        "Numerical algorithm implementation",
+        "Expression parsing and evaluation",
+        "Semantic version comparison",
+        "Checksum and error-correcting codes",
+        "Character and data encoding"
+      ],
+      "Multi-Language": [
+        "C program compilation, debugging, and Makefile repair",
+        "Rust ownership and borrow checker debugging",
+        "Go concurrency patterns (goroutines, channels)",
+        "C/C++ memory safety and undefined behaviour repair",
+        "Polyglot build orchestration (multiple compiled languages)",
+        "FFI and cross-language interop (C bindings, ctypes, cgo)",
+        "Assembly-level analysis and minimal program construction"
+      ]
+    },
+    "file_operations": {
+      "File I/O": [
+        "Text and binary file reading/writing",
+        "File locking and concurrent access",
+        "Streaming and memory-mapped I/O",
+        "Atomic writes and temp file management",
+        "Standard stream redirection and piping"
+      ],
+      "Navigation": [
+        "Recursive directory traversal",
+        "Symbolic and hard link management",
+        "File watching and change detection",
+        "Filesystem mount and path manipulation",
+        "Metadata-based file search"
+      ],
+      "Data Parsing": [
+        "Structured format parsing (JSON, XML, CSV)",
+        "Binary format and header extraction",
+        "Multi-line log record parsing",
+        "Character encoding conversion",
+        "Configuration file interpretation",
+        "Domain-specific format parsing (GCode, ELF, WAL)"
+      ],
+      "Transformation": [
+        "Bulk file renaming",
+        "Format conversion between file types",
+        "Text transformation with sed/awk/vim",
+        "File splitting, merging, and chunking",
+        "Manifest and checksum generation",
+        "Large-scale text editing and macro application"
+      ],
+      "Archives": [
+        "Archive creation and extraction",
+        "Nested and multi-part archive handling",
+        "Incremental and differential backups",
+        "Archive integrity verification",
+        "Compressed stream processing",
+        "Custom compression and decompression"
+      ]
+    },
+    "data_querying": {
+      "Query Construction": [
+        "Complex joins and subqueries",
+        "Window functions and analytical aggregation",
+        "Parameterized query construction",
+        "Graph query languages (SPARQL, Cypher)",
+        "NoSQL aggregation pipelines"
+      ],
+      "Data Comprehension": [
+        "Schema analysis and relationship mapping",
+        "Query plan interpretation and optimization",
+        "Index strategy design",
+        "Data model reverse engineering",
+        "Cross-representation mapping (relational, document, graph)"
+      ],
+      "Graph Processing": [
+        "Graph traversal and shortest path computation",
+        "Recursive and hierarchical queries",
+        "Knowledge graph pattern matching",
+        "Graph analytics (centrality, clustering)",
+        "Graph projection and materialization"
+      ],
+      "Result Processing": [
+        "Result sorting, pagination, and filtering",
+        "Query result export and format conversion",
+        "Cross-query aggregation and summarization",
+        "Output schema validation",
+        "Query-to-pipeline chaining"
+      ]
+    },
+    "data_science": {
+      "Systems": [
+        "Analysis environment setup",
+        "Numerical library configuration",
+        "Large-scale data storage management",
+        "Experiment tracking",
+        "Reproducible pipeline construction",
+        "Package and dependency installation"
+      ],
+      "Data Processing": [
+        "Tabular data transformation and aggregation",
+        "Missing value and outlier handling",
+        "Multi-source data joining",
+        "Feature engineering and selection",
+        "ETL pipeline construction",
+        "Tokenization and dataset preparation"
+      ],
+      "Algorithmic": [
+        "Classification and regression",
+        "Cross-validation and hyperparameter tuning",
+        "Similarity search and recommendation",
+        "Dimensionality reduction",
+        "Model training and evaluation",
+        "Model architecture reconstruction and inference",
+        "Embedding computation and retrieval"
+      ],
+      "Mathematical": [
+        "Hypothesis testing and confidence intervals",
+        "Bayesian inference and probabilistic modeling",
+        "Correlation and covariance analysis",
+        "Sampling and bootstrap methods",
+        "Linear algebra for data analysis"
+      ],
+      "Testing": [
+        "Model output validation",
+        "Pipeline reproducibility testing",
+        "Data schema enforcement",
+        "Numerical accuracy testing",
+        "Inference performance benchmarking"
+      ]
+    },
+    "debugging": {
+      "Systems": [
+        "Build failure diagnosis",
+        "System call tracing",
+        "Container debugging and log inspection",
+        "Dependency conflict resolution",
+        "Environment misconfiguration repair",
+        "Compiler and linker error interpretation"
+      ],
+      "Debugging": [
+        "Interactive debugger usage (breakpoints, memory inspection)",
+        "Core dump and stack trace analysis",
+        "Logging and traceback analysis",
+        "Git bisection for regression finding",
+        "Delta debugging and test minimization",
+        "Existing codebase comprehension and reading"
+      ],
+      "Testing": [
+        "Regression test construction",
+        "Intermittent failure reproduction",
+        "Fuzz testing",
+        "Minimal reproducible example creation",
+        "Assertion-based intermediate validation"
+      ],
+      "Algorithmic": [
+        "Boundary condition and off-by-one repair",
+        "Race condition and concurrency debugging",
+        "Intermediate state tracing",
+        "Floating-point precision repair",
+        "Loop termination and recursion fixing"
+      ],
+      "Data Processing": [
+        "Corrupted input handling and recovery",
+        "Encoding and serialization troubleshooting",
+        "Data transformation diff analysis",
+        "Query result debugging",
+        "Format parsing edge-case repair"
+      ],
+      "Mathematical": [
+        "Numerical instability diagnosis",
+        "Convergence failure repair",
+        "Formula implementation correction",
+        "Statistical anomaly investigation",
+        "Precision loss tracking"
+      ],
+      "Forensics": [
+        "Database recovery from corrupted files (WAL, journal)",
+        "Deleted file recovery and filesystem inspection",
+        "Binary reverse engineering and decompilation",
+        "Network packet capture analysis (pcap)",
+        "Git history forensics and secret recovery",
+        "Memory dump analysis and string extraction",
+        "Log timeline reconstruction across services"
+      ]
+    },
+    "scientific_computing": {
+      "Data Processing": [
+        "Scientific data format I/O (NetCDF, HDF5, FITS)",
+        "Experimental data visualization",
+        "Multi-dimensional array manipulation",
+        "Bioinformatics format parsing (FASTA, PDB)",
+        "Observational data reshaping",
+        "Spectroscopy and signal data processing"
+      ],
+      "Algorithmic": [
+        "ODE/PDE numerical solving",
+        "Monte Carlo simulation",
+        "Optimization (gradient descent, simplex, genetic)",
+        "Mesh refinement and domain decomposition",
+        "Graph algorithms for molecular/network models",
+        "Primer design and sequence alignment"
+      ],
+      "Mathematical": [
+        "Probability distribution distance metrics",
+        "Matrix decomposition (SVD, LU, QR, Cholesky)",
+        "Numerical integration and differentiation",
+        "Linear and nonlinear equation solving",
+        "Fourier transforms and spectral analysis"
+      ],
+      "Systems": [
+        "Scientific software compilation from source",
+        "Parallel computing setup (MPI, OpenMP)",
+        "Scientific environment management",
+        "Notebook-based workflow orchestration",
+        "Reproducible computation pipelines"
+      ],
+      "Testing": [
+        "Analytical solution validation",
+        "Convergence testing",
+        "Reference dataset comparison",
+        "Scientific code regression testing",
+        "Numerical stability testing"
+      ],
+      "Statistical": [
+        "MCMC sampling and posterior estimation",
+        "Curve fitting and regression",
+        "Statistical hypothesis comparison",
+        "Bootstrap confidence intervals",
+        "Density estimation and distribution fitting"
+      ]
+    },
+    "data_processing": {
+      "Data I/O": [
+        "Multi-format file reading and writing",
+        "Large-file streaming",
+        "Character encoding handling",
+        "Database bulk import/export",
+        "Local-remote data transfer"
+      ],
+      "Manipulation": [
+        "Cleaning, normalization, and deduplication",
+        "Joins, merges, and unions",
+        "Wide-long format reshaping",
+        "Windowed and rolling aggregation",
+        "Data masking and anonymization"
+      ],
+      "String/Text": [
+        "Structured information extraction from text",
+        "Regex pattern construction",
+        "Tokenization and normalization",
+        "Unicode and multi-language text processing",
+        "Template-based text generation"
+      ],
+      "Algorithmic": [
+        "Large-scale sorting and grouping",
+        "Constraint-based data validation",
+        "Hash-based deduplication",
+        "Data sampling and stratification",
+        "Pipeline DAG orchestration"
+      ],
+      "Mathematical": [
+        "Summary statistics and aggregation",
+        "Interpolation and imputation",
+        "Normalization and standardization",
+        "Feature extraction transforms",
+        "Distance and similarity computation"
+      ],
+      "Time Series": [
+        "Timestamp alignment and parsing",
+        "Resampling and gap-filling",
+        "Rolling statistics computation",
+        "Anomaly and changepoint detection",
+        "Time-based bucketing and aggregation"
+      ],
+      "Systems": [
+        "Multi-stage pipeline orchestration",
+        "Parallel data processing",
+        "Pipeline scheduling and cron management",
+        "Validation checkpoints and quality gates",
+        "Pipeline logging and monitoring"
+      ]
+    },
+    "system_administration": {
+      "Filesystem": [
+        "Permission and ACL management",
+        "Disk quota and storage monitoring",
+        "Mount and fstab configuration",
+        "Backup and restore strategies",
+        "Link and directory structure management"
+      ],
+      "Process/Service": [
+        "Service lifecycle management (systemd, init)",
+        "Process monitoring and control",
+        "Scheduled task configuration (cron, timers)",
+        "Process supervision and restart policies",
+        "Container lifecycle management"
+      ],
+      "Network": [
+        "Network interface and routing configuration",
+        "Firewall rules and port forwarding",
+        "Connectivity diagnostics",
+        "SSH tunneling and port forwarding",
+        "Web server setup and TLS configuration",
+        "Email and mailing list server configuration"
+      ],
+      "Configuration": [
+        "System config file management",
+        "Environment variable and shell profile setup",
+        "Locale and timezone configuration",
+        "User account and group administration",
+        "Log configuration and rotation"
+      ],
+      "Deployment": [
+        "CI/CD pipeline construction",
+        "Reverse proxy and load balancer setup",
+        "Rolling and staged deployments",
+        "Health check and monitoring setup",
+        "Virtualization and VM management (QEMU, VNC)",
+        "Git server and hook configuration"
+      ],
+      "Shell Scripting": [
+        "Robust script writing with error handling",
+        "Text processing pipelines (awk, sed, grep)",
+        "Task automation scripting",
+        "Interactive script construction",
+        "Idempotent configuration scripting",
+        "Expect scripting for interactive automation"
+      ]
+    }
+  },
+  "DOMAIN_MODULES": {
+    "security": "# Security Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Cryptography**: Encryption, decryption, key management, hash functions\n- **Vulnerability Analysis**: Code review, exploit identification, security auditing\n- **Authentication**: Password handling, token validation, session management\n- **Network Security**: Protocol analysis, traffic inspection, firewall rules\n- **Secure Coding**: Input validation, output encoding, secure defaults\n\nThe task should test security skills and require security knowledge and analytical thinking.",
+    "software_engineering": "# Software Engineering Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Code quality**: Refactoring, testing, documentation\n- **Build systems**: Compilation, linking, packaging\n- **Version control**: Git operations, merge conflicts, history analysis\n- **API design**: REST, GraphQL, protocol design\n- **Architecture**: Patterns, modularity, scalability\n\nThe task should test software engineering skills and require domain knowledge and analytical thinking.",
+    "file_operations": "# File Operations Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **File I/O**: Reading, writing, appending, seeking\n- **Directory operations**: Traversal, creation, permissions\n- **File formats**: Binary, text, structured data\n- **Compression**: Zip, tar, gzip, custom formats\n- **File system operations**: Links, permissions, metadata\n\nThe task should test file operations skills and require domain knowledge and analytical thinking.",
+    "data_querying": "# Data Querying Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **SQL operations**: Complex joins, window functions, CTEs\n- **Query optimization**: Indexes, execution plans, performance\n- **Database operations**: Schema design, migrations, constraints\n- **NoSQL patterns**: Document, key-value, graph queries\n- **Data retrieval**: Pagination, filtering, full-text search\n\nThe task should test data querying skills and require domain knowledge and analytical thinking.",
+    "data_science": "# Data Science Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Exploratory Analysis**: Statistical summaries, visualization, pattern discovery\n- **Feature Engineering**: Transformation, encoding, selection, creation\n- **Statistical Modeling**: Regression, hypothesis testing, Bayesian analysis\n- **Data Mining**: Clustering, association rules, anomaly detection\n- **Reporting**: Automated insights, metric computation, summary generation\n\nThe task should test data science skills and require statistical thinking and data intuition.",
+    "debugging": "# Debugging Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Error diagnosis**: Stack traces, logs, error messages\n- **Root cause analysis**: Bisection, delta debugging\n- **Performance debugging**: Profiling, bottleneck identification\n- **Memory issues**: Leaks, corruption, allocation problems\n- **Concurrency bugs**: Race conditions, deadlocks, livelocks\n\nThe task should test debugging skills and require domain knowledge and analytical thinking.",
+    "scientific_computing": "# Scientific Computing Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Numerical simulation**: ODEs, PDEs, Monte Carlo\n- **Signal processing**: FFT, filtering, spectral analysis\n- **Statistical analysis**: Hypothesis testing, regression, sampling\n- **Visualization**: Plotting, data exploration\n- **Domain-specific**: Physics, biology, chemistry applications\n\nThe task should test scientific computing skills and require domain knowledge and analytical thinking.",
+    "data_processing": "# Data Processing Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **File format handling**: CSV, JSON, XML, Parquet, binary formats\n- **Data transformation**: Cleaning, normalization, aggregation\n- **ETL pipelines**: Extract, transform, load workflows\n- **Stream processing**: Real-time data handling\n- **Data validation**: Schema enforcement, error handling\n\nThe task should test data processing skills and require domain knowledge and analytical thinking.",
+    "system_administration": "# System Administration Task Builder\n\nDomain Focus\nCreate tasks involving:\n- **Process management**: Services, daemons, scheduling\n- **Network configuration**: Routing, firewall, DNS\n- **Storage management**: Filesystems, RAID, backups\n- **Monitoring**: Logging, alerting, metrics\n- **Automation**: Scripts, configuration management\n\nThe task should test system administration skills and require domain knowledge and analytical thinking."
+  },
+  "TASK_COMPLEXITY": [
+    "short task (a few shell commands focused on the core task)",
+    "moderate task (several commands across setup, implementation, and verification)",
+    "complex task (many commands spanning multiple phases: dependency installation, code writing, configuration, building, and testing)",
+    "intricate task (multi-stage workflow combining (a) environment setup or package configuration, (b) primary implementation across multiple files or languages, (c) iterative refinement against a quantitative or adversarial verifier, and (d) a final integration step. Expect 30-60 commands.)"
+  ],
+  "COMMAND_COMPLEXITY": [
+    "bash-only (shell built-ins, coreutils, and standard CLI tools)",
+    "bash and code (shell commands and writing/running scripts in Python, Perl, Ruby, etc.)",
+    "bash, code, and system services (shell commands, scripts, package installation, service configuration, networking, and containers)"
+  ],
+  "DOMAIN_SCENARIOS": {
+    "security": [
+      "security auditor checking permissions",
+      "penetration tester scanning vulnerabilities",
+      "security engineer rotating credentials",
+      "DevSecOps engineer enforcing policy as code",
+      "compliance analyst generating audit trails",
+      "incident responder investigating issues",
+      "network engineer inspecting traffic",
+      "forensics analyst recovering evidence from a compromised host",
+      "red-team operator crafting an evasion payload"
+    ],
+    "software_engineering": [
+      "developer organizing project files",
+      "build engineer managing artifacts",
+      "release manager preparing deployments",
+      "QA engineer setting up test environments",
+      "platform engineer maintaining CI/CD pipelines",
+      "integration developer testing APIs",
+      "web developer building a feature",
+      "script developer creating utilities",
+      "mobile build engineer maintaining pipelines",
+      "open-source maintainer reviewing a broken PR",
+      "developer migrating from Python 2 to Python 3",
+      "engineer porting a Linux tool to work in a minimal container",
+      "developer fixing a multi-file Rust project that fails to compile",
+      "systems programmer debugging a C library linking issue",
+      "engineer setting up a polyglot build system from scratch"
+    ],
+    "file_operations": [
+      "developer organizing project files",
+      "backup administrator archiving data",
+      "researcher organizing datasets",
+      "storage administrator managing disk space",
+      "technical writer organizing documentation",
+      "configuration manager tracking changes",
+      "artifact manager curating binary repositories"
+    ],
+    "data_querying": [
+      "database administrator optimizing queries",
+      "data analyst processing CSV files",
+      "data engineer building ETL pipelines",
+      "researcher organizing datasets",
+      "database reliability engineer managing backups",
+      "compliance officer auditing systems"
+    ],
+    "data_science": [
+      "data scientist cleaning datasets",
+      "machine learning engineer preparing training data",
+      "data analyst processing CSV files",
+      "researcher organizing datasets",
+      "MLOps engineer tracking experiment artifacts",
+      "data engineer building ETL pipelines"
+    ],
+    "debugging": [
+      "DevOps engineer debugging logs",
+      "support engineer collecting diagnostics",
+      "site reliability engineer monitoring uptime",
+      "developer debugging a failing build",
+      "operations engineer triaging incidents",
+      "performance engineer profiling applications",
+      "IT support technician resolving tickets",
+      "on-call engineer responding to a 3am page",
+      "developer inheriting an unfamiliar codebase",
+      "security researcher analysing a suspicious binary",
+      "engineer investigating a memory leak in a long-running service",
+      "developer bisecting a regression across 200 commits"
+    ],
+    "scientific_computing": [
+      "researcher running simulations",
+      "data scientist fitting models",
+      "machine learning engineer preparing training data",
+      "performance engineer profiling applications",
+      "bioinformatics analyst processing sequences"
+    ],
+    "data_processing": [
+      "data engineer building ETL pipelines",
+      "data analyst processing CSV files",
+      "log analyst investigating patterns",
+      "automation specialist creating workflows",
+      "localization engineer updating translations",
+      "data scientist cleaning datasets",
+      "configuration manager tracking changes"
+    ],
+    "system_administration": [
+      "system administrator maintaining servers",
+      "linux systems engineer hardening configurations",
+      "kubernetes operator managing manifests",
+      "cloud architect migrating services",
+      "infrastructure engineer automating provisioning",
+      "site reliability engineer monitoring uptime",
+      "monitoring specialist setting up alerts",
+      "deployment engineer rolling out updates",
+      "capacity planner analyzing resource usage",
+      "backup operator testing restores",
+      "FinOps analyst optimizing cloud costs",
+      "container specialist managing microservices",
+      "network engineer troubleshooting connectivity",
+      "edge computing engineer deploying to IoT devices",
+      "observability engineer tuning dashboards",
+      "site administrator managing user accounts",
+      "engineer diagnosing why a systemd service fails to start",
+      "admin fixing an nginx config that returns 502 bad gateway"
+    ]
+  },
+  "REAL_SOFTWARE_ANCHORS": {
+    "software_engineering": [
+      "a small C project with a Makefile that has a linking error",
+      "a Python package with a broken setup.py/pyproject.toml",
+      "a multi-file Rust project that fails to compile due to lifetime issues",
+      "a Go module with a circular import that prevents building",
+      "a Node.js project whose npm install fails due to conflicting peer deps",
+      "a CMake project that can't find a shared library at link time",
+      "a Python project whose test suite passes locally but fails in CI due to import ordering"
+    ],
+    "debugging": [
+      "a C program with a buffer overflow that only manifests with specific input",
+      "a Python script with a subtle timezone bug",
+      "a shell script that breaks on filenames with spaces",
+      "a multithreaded program that deadlocks under high contention",
+      "a Rust program that panics on unwrap() with certain edge-case data",
+      "a Go service that leaks goroutines under cancellation",
+      "a program that works on x86 but produces wrong results due to signed integer overflow"
+    ],
+    "system_administration": [
+      "an nginx config that returns 502 due to wrong upstream socket path",
+      "a systemd service that fails to start because of a missing After= dependency",
+      "a cron job that runs but writes to the wrong location due to PATH differences",
+      "an SSH config that silently rejects key-based login",
+      "a Docker Compose setup where services can't reach each other due to network misconfiguration"
+    ],
+    "security": [
+      "a web server with an open redirect vulnerability in its login flow",
+      "a script that leaks credentials via command-line arguments visible in /proc",
+      "a JWT implementation that accepts tokens with algorithm=none",
+      "a file upload handler susceptible to path traversal"
+    ],
+    "data_querying": [
+      "a SQL query that returns wrong results due to an implicit cross join",
+      "an SQLite database with a corrupted index that returns stale rows",
+      "a query that deadlocks two concurrent transactions"
+    ],
+    "data_processing": [
+      "a CSV pipeline that silently drops rows containing embedded newlines",
+      "a JSON-lines parser that breaks on unicode escape sequences",
+      "an ETL job that produces duplicate records on retry"
+    ],
+    "file_operations": [
+      "a backup script that follows symlinks into infinite loops",
+      "an archive extraction that overwrites files outside the target directory (zip slip)",
+      "a log rotation script that races with the writing process"
+    ],
+    "data_science": [
+      "a pandas pipeline that silently converts ints to floats via NaN introduction",
+      "a scikit-learn pipeline where data leaks between train and test via fit_transform",
+      "a matplotlib script that produces blank plots due to backend misconfiguration"
+    ],
+    "scientific_computing": [
+      "a numerical integrator that diverges due to wrong step-size adaptation",
+      "a matrix factorisation that fails on near-singular input",
+      "a simulation that produces non-reproducible results due to floating-point reduction order"
+    ]
+  },
+  "TASK_LANGUAGES": [
+    [
+      "Python",
+      0.35
+    ],
+    [
+      "C",
+      0.15
+    ],
+    [
+      "Bash",
+      0.15
+    ],
+    [
+      "C++",
+      0.1
+    ],
+    [
+      "Rust",
+      0.07
+    ],
+    [
+      "Go",
+      0.07
+    ],
+    [
+      "multi-language",
+      0.06
+    ],
+    [
+      "any (model's choice)",
+      0.05
+    ]
+  ]
+}

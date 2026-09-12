@@ -1,0 +1,324 @@
+[
+  {
+    "id": "swe_smith",
+    "title": "SWE-smith",
+    "pipeline": "repo_mutate",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "A supported repository profile and healthy upstream image.",
+    "upstream": {
+      "repository": "https://github.com/SWE-bench/SWE-smith",
+      "commit": "9b74ac08118a85c39c356802f7961893af73e07f",
+      "license": "MIT",
+      "source_paths": [
+        "scripts/bug_gen_modal.py",
+        "swesmith/bug_gen/",
+        "swesmith/issue_gen/",
+        "swesmith/harness/valid.py"
+      ]
+    },
+    "rfc": "0012-swe-smith-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "seta_seed2synth",
+    "title": "SETA Seed2Synth",
+    "pipeline": "terminal_synth",
+    "source_kinds": [
+      "seeds"
+    ],
+    "summary": "Upstream seed metadata and source assets: start with a small published notebook or Q&A subset.",
+    "upstream": {
+      "repository": "https://github.com/camel-ai/seta",
+      "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "datasynth/seed2synth_pipeline/run_orchestrator.py",
+        "datasynth/seed2synth_pipeline/seed2task_pipeline.py",
+        "datasynth/seed2synth_pipeline/configs/"
+      ]
+    },
+    "rfc": "0013-seta-seed2synth-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "seta_evol",
+    "title": "SETA Evol",
+    "pipeline": "task_evolve",
+    "source_kinds": [
+      "task"
+    ],
+    "summary": "Existing Harbor tasks accepted by the upstream evolution configuration; prefer its published seeds first.",
+    "upstream": {
+      "repository": "https://github.com/camel-ai/seta",
+      "commit": "e4715b01174e6c9503fc46120d81dd692ced75e6",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "datasynth/evol_pipeline/run_evol_orchestrator.py",
+        "datasynth/evol_pipeline/evol_task_pipeline.py",
+        "datasynth/evol_pipeline/agents/evol_strategy_prompts/"
+      ]
+    },
+    "rfc": "0014-seta-evol-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "swe_gen",
+    "title": "SWE-gen",
+    "pipeline": "pr_to_env",
+    "source_kinds": [
+      "pr"
+    ],
+    "summary": "PRs and their repository, issue, patch and test evidence.",
+    "upstream": {
+      "repository": "https://github.com/abundant-ai/SWE-gen",
+      "commit": "14e185f413f7bff03f8f9fec6fb246681bf61d74",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "src/swegen/create/task_instruction.py",
+        "src/swegen/create/claude_code_runner.py",
+        "src/swegen/tools/validate.py"
+      ]
+    },
+    "rfc": "0015-swe-gen-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "swe_flow",
+    "title": "SWE-Flow",
+    "pipeline": "repo_reconstruct",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "A working supported Python repository and traces from SWE-Flow-Trace.",
+    "upstream": {
+      "repository": "https://github.com/Hambaobao/SWE-Flow",
+      "commit": "7da5b046fa1dc184674e4e94a9989be56c39e4e7",
+      "license": "MIT",
+      "source_paths": [
+        "docs/pipeline.md",
+        "sweflow/extensions/python/rdg.py",
+        "sweflow/extensions/python/schedule.py",
+        "sweflow/extensions/python/create_codebase.py",
+        "sweflow/extensions/python/create_specification.py"
+      ]
+    },
+    "rfc": "0016-swe-flow-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "r2e",
+    "title": "R2E",
+    "pipeline": "equivalence_tests",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "Functions from repositories accepted by the upstream extraction and execution tooling.",
+    "upstream": {
+      "repository": "https://github.com/r2e-project/r2e",
+      "commit": "bcbed156711bb939de14aa46b27eee15073f5272",
+      "license": "MIT",
+      "source_paths": [
+        "src/r2e/pat/dependency_slicer/",
+        "src/r2e/generators/specgen/",
+        "src/r2e/generators/testgen/genexec.py"
+      ]
+    },
+    "rfc": "0017-r2e-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "tmax",
+    "title": "TMax",
+    "pipeline": "terminal_synth",
+    "source_kinds": [
+      "seeds"
+    ],
+    "summary": "Upstream domain/skill/fixture sampling configuration and base-image recipes.",
+    "upstream": {
+      "repository": "https://github.com/hamishivi/tmax",
+      "commit": "7387d2f9142397a458dc39f0827a2ab0b4c03cda",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "rl_data/generate_tasks.py",
+        "rl_data/generator/",
+        "rl_data/containers/",
+        "rl_data/scripts/analyze/convert_to_harbor.py"
+      ]
+    },
+    "rfc": "0018-tmax-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "terminalworld",
+    "title": "TerminalWorld (EuniAI)",
+    "pipeline": "terminal_reconstruct",
+    "source_kinds": [
+      "recording"
+    ],
+    "summary": "Asciinema recordings and associated metadata accepted by the upstream filters.",
+    "upstream": {
+      "repository": "https://github.com/EuniAI/TerminalWorld",
+      "commit": "784698ba93735470ce1664bff2ec44bcd7b28e15",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "data_retrieval/",
+        "data_filtering/",
+        "task_synthesis/",
+        "environment_building/",
+        "test_generation/"
+      ]
+    },
+    "rfc": "0019-terminalworld-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "endless_terminals",
+    "title": "Endless Terminals",
+    "pipeline": "terminal_synth",
+    "source_kinds": [
+      "seeds"
+    ],
+    "summary": "Its original task-generation settings, prompts and configured model.",
+    "upstream": {
+      "repository": "https://github.com/kanishkg/endless-terminals",
+      "commit": "99f4c74b75faacf21e53d3dc01df170902e924cb",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "generate_tasks.py",
+        "generator/apptainer_def_gen.py",
+        "generator/convert_to_harbor/convert_sif_docker.py",
+        "generator/convert_to_harbor/add_reward_file.py"
+      ]
+    },
+    "rfc": "0020-endless-terminals-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "cli_gym",
+    "title": "CLI-Gym",
+    "pipeline": "env_repair",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "Healthy SWE-smith repository images and upstream destruction settings.",
+    "upstream": {
+      "repository": "https://github.com/LiberCoders/CLI-Gym",
+      "commit": "48bb920b728a25a55a5b442303e901919654599e",
+      "license": "MIT",
+      "source_paths": [
+        "src/cli_gym/cli.py",
+        "src/cli_gym/build_destruction_task/",
+        "src/cli_gym/assemble_problem_instance/",
+        "src/cli_gym/utils/docker_utils.py"
+      ]
+    },
+    "rfc": "0021-cli-gym-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "dataarc",
+    "title": "DataArc terminal synthesis (Envs-FORGE-linked code)",
+    "pipeline": "terminal_synth",
+    "source_kinds": [
+      "seeds"
+    ],
+    "summary": "Upstream seed Harbor tasks and supported few/self/evol settings.",
+    "upstream": {
+      "repository": "https://github.com/DataArcTech/DataArc-SynData-Toolkit",
+      "commit": "2a1d65ec8dcfaea2458d67e1fb18078cce6420b9",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "sdgsystem/agentic_data/terminal_bench.py",
+        "examples/syn_agentic_data/run_terminal_bench.py",
+        "configs/syn_agentic_terminal_bench.yaml"
+      ],
+      "branch_hint": "SynAgenticData"
+    },
+    "rfc": "0022-dataarc-terminal-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "swe_next",
+    "title": "SWE-Next",
+    "pipeline": "pr_runtime",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "Supported repositories and candidate commit/PR pairs, with upstream dependency profiles.",
+    "upstream": {
+      "repository": "https://github.com/TIGER-AI-Lab/SWE-Next",
+      "commit": "b55c0841f364f9fe7363b2012cd0ae8d8afdf872",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "run_pr_pipeline.zsh",
+        "src/swenext/repo_analysis/"
+      ]
+    },
+    "rfc": "0023-swe-next-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "r2e_gym",
+    "title": "R2E-Gym / SWEGEN",
+    "pipeline": "commit_runtime",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "A supported repository with its upstream installation and test configuration.",
+    "upstream": {
+      "repository": "https://github.com/R2E-Gym/R2E-Gym",
+      "commit": "0d94c4eb9431cd195c55a7ea3abd54006c9a1735",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "docs/ENV_GENERATION.md",
+        "src/r2egym/repo_analysis/"
+      ]
+    },
+    "rfc": "0024-r2e-gym-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "sec_bench",
+    "title": "SEC-bench",
+    "pipeline": "cve_patches",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "Supported documented defects, affected projects and fixed revisions.",
+    "upstream": {
+      "repository": "https://github.com/SEC-bench/SEC-bench",
+      "commit": "31eb43485a3de47da260be0f978528b1f2314415",
+      "license": "MIT",
+      "source_paths": [
+        "secb/preprocessor/",
+        "secb/evaluator/build_eval_instances.py",
+        "secb/evaluator/eval_instances.py"
+      ]
+    },
+    "rfc": "0025-sec-bench-recipe.md",
+    "target": 20
+  },
+  {
+    "id": "scaler",
+    "title": "SCALER",
+    "pipeline": "reasoning_synth",
+    "source_kinds": [
+      "family"
+    ],
+    "summary": "Upstream seed problems and parameterized environment-generation configuration.",
+    "upstream": {
+      "repository": "https://github.com/ALEX-nlp/SCALER",
+      "commit": "60c6c5037866c718f4c001ea338f9c5a91cb01ae",
+      "license": "Apache-2.0",
+      "source_paths": [
+        "SCALER/api_generate_generator_for_environment.py",
+        "SCALER/generate_problem_from_environment.py",
+        "recipe/environment/"
+      ]
+    },
+    "rfc": "0026-scaler-recipe.md",
+    "target": 20
+  }
+]

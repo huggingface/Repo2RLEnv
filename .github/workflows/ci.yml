@@ -47,6 +47,9 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
+      - name: Prompt documentation matches implementation
+        run: uv run python docs/_tools/generate_prompt_reference.py --check
+
   test:
     name: Tests (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -69,10 +72,37 @@ jobs:
       - name: Run pytest
         run: uv run pytest -q
 
+  owned-contracts:
+    name: Owned recipe contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: astral-sh/setup-uv@v8.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --group dev --all-extras --frozen
+      - name: Test optional mutation and Harbor contracts without cloud execution
+        run: >-
+          uv run --all-extras pytest -q
+          tests/test_swe_smith_mutations.py tests/test_swe_smith_export.py
+          tests/test_harbor_offline.py tests/test_worker_lifecycle.py
+          tests/test_remote_artifacts.py tests/test_metered_llm.py
+          tests/test_recipe_contracts.py tests/test_recipe_events.py
+          tests/test_terminal_draft.py tests/test_issue_reproducers.py
+          tests/test_task_evolution.py tests/test_swe_gen_recipe.py tests/test_swe_flow_recipe.py tests/test_r2e_recipe.py tests/test_tmax_recipe.py
+          tests/test_endless_terminals_recipe.py
+          tests/test_terminalworld_recipe.py
+          tests/test_cli_gym_recipe.py
+          tests/test_dataarc_recipe.py tests/test_history_recipes.py
+          tests/test_scaler_recipe.py
+          tests/test_remote_job.py tests/test_verifier_driver.py
+          tests/test_quality_loop.py
+
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, owned-contracts]
     steps:
       - uses: actions/checkout@v7.0.0
 

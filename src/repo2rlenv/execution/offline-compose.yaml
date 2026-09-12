@@ -1,0 +1,10 @@
+services:
+  main:
+    network_mode: none
+    labels:
+      repo2rlenv.job: "${REPO2RLENV_JOB_ID:-unsupervised}"
+    cap_drop:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true

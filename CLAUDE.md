@@ -46,7 +46,10 @@ Break these and the build, the CI, or the science breaks:
 3. **Run `uv run pytest tests/test_pipeline_contract.py` after touching
    `pipelines/`.** It fails for any registered pipeline that breaks the Protocol.
 4. **Anti-contamination is enforced by the environment, never requested in the
-   prompt.** Every emitted task goes through `pipelines/_env_guard.py`. Don't add
+   prompt.** Native patch tasks use `pipelines/_env_guard.py`. Owned recipes use
+   scrubbed build contexts, explicit Harbor network policies and fresh private
+   verifiers; `execution/harbor_offline.py` is the tested single-container route
+   for remote kernels without Harbor's dynamic firewall support. Don't add
    "please don't look up the fix" to an instruction — scrub the history and cut
    the egress instead.
 5. **New pipeline ⇒ RFC first.** Any new `PipelineName` entry needs a
@@ -72,9 +75,26 @@ Per-pipeline detail (yield, sources, options, reference datasets):
 | `code_instruct` | LLM authors a problem + verifier anchored to real repo source | experimental | 0004 |
 | `equivalence_tests` | extract a pure function; LLM writes tests against a `reference_<name>` oracle | experimental | 0005 |
 | `cve_patches` | OSV CVE → fix commit → task; reuses the `pr_runtime` verifier | experimental | 0006 |
+| `repo_mutate / swe_smith` | owned procedural source mutation and issue generation; separate Harbor verifier | experimental | 0012 |
+| `terminal_synth / seta_seed2synth, tmax` | owned seed/skill-based terminal task generation | experimental | 0013, 0018 |
+| `task_evolve / seta_evol` | evolve existing tasks with retained strategy prompts | experimental | 0014 |
+| `pr_to_env / swe_gen` | supplied PRs, source reversal and execution-grounded instruction | experimental | 0015 |
+| `repo_reconstruct / swe_flow` | traced dependency scheduling and missing-function reconstruction | experimental | 0016 |
+| `equivalence_tests / r2e` | owned generate/execute/coverage loop and specification refinement | experimental | 0017 |
+| `terminal_synth / endless_terminals, dataarc` | seedless terminal authoring and task evolution | experimental | 0020, 0022 |
+| `terminal_reconstruct / terminalworld` | reconstruct tasks from public terminal recordings | experimental | 0019 |
+| `env_repair / cli_gym` | invert a healthy environment and author a repair task | experimental | 0021 |
+| `pr_runtime / swe_next` | mine supplied repository PR history and author repair tasks | experimental | 0023 |
+| `commit_runtime / r2e_gym` | mine commit history and validate old/new behavior | experimental | 0024 |
+| `reasoning_synth / scaler` | expand released problem families into reasoning instances | experimental | 0026 |
 
 RFCs **0007 `pr_to_env` / 0008 `env_setup` / 0009 `test_synthesis` /
 0010 `issue_runtime`** are drafted but not built.
+
+Owned recipe integration follows RFC 0011 and method RFCs 0012–0026. Use
+`repo2rlenv pipelines list` for implemented versus planned status. An export is
+not quality acceptance: fresh execution, specification, attack and blind rollout
+evidence must match its complete bundle hash. See `docs/pipelines/owned_recipes.md`.
 
 Names follow `{source}_{shape}`:
 
@@ -83,7 +103,7 @@ Names follow `{source}_{shape}`:
 - `_runtime` — runs inside the bootstrap sandbox to verify the oracle.
 - `_patches` / `_instruct` / `_tests` — the artifact type, for synthesized pipelines.
 - `_to_env` — import-shape: the caller supplies candidates, the pipeline doesn't
-  mine them. Proposed in RFC 0007; no shipped pipeline uses it yet.
+  mine them. The owned SWE-gen recipe uses this shape.
 
 `_bugs` and `_synthesis` were retired with `mutation_bugs` / `refactor_synthesis`.
 
@@ -338,5 +358,5 @@ uv add --dev <pkg>      # dev only
 ## Status
 
 Version is whatever `pyproject.toml` says (`__version__` reads package metadata).
-6 pipelines registered — 3 stable, 3 experimental; see the table above and
+Native pipelines and owned recipe families share the registry. Use `repo2rlenv pipelines list` for current availability; see
 [`docs/release_notes/HISTORY.md`](./docs/release_notes/HISTORY.md) for how it got here.

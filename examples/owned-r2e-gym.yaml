@@ -1,0 +1,32 @@
+source:
+  kind: repository
+  repo:
+    url: more-itertools/more-itertools
+    ref: 9ed3dbb0ae527230cd156d91d0af305478558fba
+    access: public
+pipeline:
+  name: commit_runtime
+  recipe: r2e_gym
+  options:
+    source_paths:
+    - more_itertools
+    test_paths:
+    - tests
+    base_image: python:3.11-slim
+    target: 20
+    max_candidates: 80
+    test_timeout_sec: 120
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+execution:
+  campaign_dir: workspace/campaign
+  run_id: r2e_gym-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/r2e_gym
+  org: your-org
+  dataset_name: r2e_gym-first
+  visibility: private

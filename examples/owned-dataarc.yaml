@@ -1,0 +1,27 @@
+source:
+  kind: seeds
+  path: workspace/dataarc-seeds
+pipeline:
+  name: terminal_synth
+  recipe: dataarc
+  options:
+    target: 20
+    max_candidates: 36
+    max_repairs: 2
+    strategies: [few_shot, self_instruct, evol_instruct]
+    evol_directions: [in_depth, in_breadth]
+    samples_per_strategy: 3
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+execution:
+  campaign_dir: workspace/campaign
+  run_id: dataarc-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/dataarc
+  org: your-org
+  dataset_name: dataarc-first
+  visibility: private

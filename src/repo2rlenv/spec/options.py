@@ -7,6 +7,21 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from repo2rlenv.spec.recipe_options import (
+    DataArcOptions,
+    EnvironmentRepairOptions,
+    PRRecipeOptions,
+    R2EGymOptions,
+    R2EOptions,
+    ReconstructionOptions,
+    RecordingReconstructionOptions,
+    ScalerOptions,
+    SWENextOptions,
+    SWESmithOptions,
+    TaskEvolutionOptions,
+    TerminalSynthesisOptions,
+)
+
 
 class _BaseOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -255,18 +270,34 @@ class EquivalenceTestsOptions(_BaseOptions):
     skip_validation: bool = False
 
 
-OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
+OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
     "commit_runtime": CommitRuntimeOptions,
     "code_instruct": CodeInstructOptions,
     "equivalence_tests": EquivalenceTestsOptions,
     "cve_patches": CVEPatchesOptions,
+    "repo_mutate": SWESmithOptions,
+    "repo_reconstruct": ReconstructionOptions,
+    "pr_to_env": PRRecipeOptions,
+    "terminal_synth": TerminalSynthesisOptions,
+    "terminal_reconstruct": RecordingReconstructionOptions,
+    "env_repair": EnvironmentRepairOptions,
+    "task_evolve": TaskEvolutionOptions,
 }
 
 
-def parse_options(pipeline_name: str, raw: dict) -> _BaseOptions:
-    cls = OPTIONS_REGISTRY.get(pipeline_name)
+RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
+    "scaler": ScalerOptions,
+    "r2e": R2EOptions,
+    "dataarc": DataArcOptions,
+    "swe_next": SWENextOptions,
+    "r2e_gym": R2EGymOptions,
+}
+
+
+def parse_options(pipeline_name: str, raw: dict, *, recipe: str = "native") -> BaseModel:
+    cls = RECIPE_OPTIONS_REGISTRY.get(recipe) or OPTIONS_REGISTRY.get(pipeline_name)
     if cls is None:
         raise ValueError(
             f"pipeline {pipeline_name!r} has no Options registered "

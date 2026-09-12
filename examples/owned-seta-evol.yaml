@@ -1,0 +1,26 @@
+source:
+  kind: task
+  path: workspace/seta/tasks
+pipeline:
+  name: task_evolve
+  recipe: seta_evol
+  options:
+    target: 20
+    max_candidates: 30
+    variants_per_parent: 1
+    strategies: [increase_difficulty, change_context, decrease_difficulty]
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+  timeout_sec: 240
+execution:
+  campaign_dir: workspace/seta
+  run_id: seta-evol-first
+  worker_receipt: workspace/seta/workers/seta-worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 7200
+output:
+  destination: workspace/seta/evolved
+  org: repo2rlenv
+  dataset_name: seta-evol-first
+  visibility: private

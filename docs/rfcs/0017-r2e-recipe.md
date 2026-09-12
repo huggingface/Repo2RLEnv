@@ -1,0 +1,76 @@
+# RFC 0017: `r2e` recipe for `equivalence_tests`
+
+**Status:** implementation in progress; remote campaign running
+**Author:** @adithya-s-k
+**Created:** 2026-09-11
+
+## Summary
+
+Extract a function and its dependencies, generate execution-based test specifications, and compare candidate implementations with the private reference. Remove the implementation from the learner snapshot and keep reference execution outside learner-controlled processes.
+
+## Motivation
+
+Bring the released method into Repo2RLEnv as owned, maintainable code, with standalone Harbor output and independent quality evidence. The upstream project remains the attribution and comparison baseline, not a runtime dependency. Shared operations use [RFC 0011](0011-owned-recipes.md); method-specific generation decisions stay in this recipe.
+
+## Design
+
+### Input
+
+Native input: Functions from repositories accepted by the upstream extraction and execution tooling.
+
+Select `pipeline.name: equivalence_tests` and `pipeline.recipe: r2e` in a typed configuration. Source data, resolved revisions, resource limits, model roles, random seeds and recipe options are recorded before spending. Strict options reject unknown keys. Existing native pipeline defaults remain compatible.
+
+### Algorithm
+
+Extract a function and its dependencies, generate execution-based test specifications, and compare candidate implementations with the private reference. Remove the implementation from the learner snapshot and keep reference execution outside learner-controlled processes.
+
+Each substantive stage emits a typed progress event and an artifact-bound receipt. Classification separates source eligibility, infrastructure, oracle, verifier and solver failures. Repairs are bounded and invalidate affected downstream evidence.
+
+### Output
+
+A complete Harbor bundle: instruction, task configuration, environment, reference entry point and trusted verifier. Metadata records recipe/version, input lineage, upstream source pin, adaptations, reward scale, image/asset digests and the complete task hash. Exported is distinct from accepted.
+
+## Verification
+
+Require meaningful baseline failure, two fresh reference successes, nonempty expected test/result identities and required passing regressions. Use deterministic behavioral rewards; preserve a native nonzero negative reward where applicable. Independent leakage, partial-solution and shortcut checks plus blind Sonnet/Opus traces determine acceptance. Solver failure alone is not task failure.
+
+## Anti-contamination
+
+Learner-visible snapshots exclude the reference, future Git objects, credentials and private tests. Execute grading so learner code cannot inspect the private oracle. Prefetch pinned assets; enforce and probe the actual learner network policy. The prompt is not an access-control mechanism. Preserve legitimate source context rather than indiscriminately deleting it.
+
+## LLM use
+
+Where the algorithm requires synthesis or review, use recorded role-specific models through the common metered client or agent adapter. Reference execution is deterministic. Cost includes failures, retries, bootstrap, cloud runtime and independent audits; unknown costs are not zero.
+
+## Yield and suitability
+
+Start with supported native inputs. Target 20 generated distinct tasks per recipe first. Expanded quality validation and any 100-task scaling follow only after every recipe reaches its generation milestone. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
+
+## Dependencies
+
+Repository-owned recipe code, existing source/auth/LLM/bootstrap helpers, remote execution adapters and Harbor. Essential SDKs and ordinary libraries are permitted. No install/import/clone of the upstream research implementation at runtime. No dependency on ignored local reference folders or private pilot artifacts.
+
+## Alternatives considered
+
+A wrapper around upstream commands would preserve an uncontrolled runtime dependency. One generic generator for every method would lose method-specific behavior. Use owned stages with common execution and quality contracts instead; explicitly version deviations from the upstream baseline.
+
+## Rollout plan
+
+Implement the owned algorithm, verify fixture behavior, run remote 1/5/20 waves, complete quality evaluation and publish immutable artifact evidence. Integrate supporting stages where needed. Add the user guide, example configuration, acknowledgments and packaged notices before marking implementation complete.
+
+## Open questions
+
+Exact supported scope, quality yield and cost are implementation evidence to collect. An unresolved runtime or verifier issue blocks an acceptance claim rather than being hidden by a registered CLI command.
+
+## References
+
+- Upstream: [R2E](https://github.com/r2e-project/r2e)
+- Source commit: `bcbed156711bb939de14aa46b27eee15073f5272`
+- Recorded upstream license: MIT; verify the exact files before adapting them.
+- [src/r2e/pat/dependency_slicer/](https://github.com/r2e-project/r2e/blob/bcbed156711bb939de14aa46b27eee15073f5272/src/r2e/pat/dependency_slicer/)
+- [src/r2e/generators/specgen/](https://github.com/r2e-project/r2e/blob/bcbed156711bb939de14aa46b27eee15073f5272/src/r2e/generators/specgen/)
+- [src/r2e/generators/testgen/genexec.py](https://github.com/r2e-project/r2e/blob/bcbed156711bb939de14aa46b27eee15073f5272/src/r2e/generators/testgen/genexec.py)
+
+## Implementation
+
+Owned source: `recipes/r2e/`, with recipe-specific options preserving native `equivalence_tests` defaults. Fixture tests cover dependency closure, stubbing, private differential bindings and target-only branch feedback. See the [guide](../pipelines/r2e.md) for the supported profile and private in-process reference limitation. The first remote generation campaign is running; full quality acceptance remains deferred.

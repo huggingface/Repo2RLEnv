@@ -1,0 +1,18 @@
+[
+    {
+        "user": {
+            "content": "def add_model(self, model, initial=None):\n    \"\"\"Register a model with the state machine, initializing triggers and callbacks.\"\"\"\n    models = listify(model)\n    if initial is None:\n        if self.initial is None:\n            raise ValueError(\n                'No initial state configured for machine, must specify when adding model.'\n                )\n        initial = self.initial\n    for mod in models:\n        mod = self if mod is self.self_literal else mod\n        if mod not in self.models:\n            self._checked_assignment(mod, 'trigger', partial(self.\n                _get_trigger, mod))\n            self._checked_assignment(mod, 'may_trigger', partial(self.\n                _can_trigger, mod))\n            for trigger in self.events:\n                self._add_trigger_to_model(trigger, mod)\n            for state in self.states.values():\n                self._add_model_to_state(state, mod)\n            self.set_state(initial, model=mod)\n            self.models.append(mod)\n"
+        },
+        "assistant": {
+            "content": "Registers one or more models with the state machine, associating them with an initial state, \nand setting up triggers, callbacks, and state relationships.\n\nArgs:\n    model: A single model or a list of models to be registered.\n    initial (optional): The initial state to assign to the models. If not provided, \n                        the machine's preconfigured initial state will be used.\n\nRaises:\n    ValueError: If no initial state is specified and the machine lacks a preconfigured initial state.\n\nReturns:\n    None\n"
+        }
+    },
+    {
+        "user": {
+            "content": "def rotate_v1(array, k):\n    \"\"\"\n    Rotate the entire array 'k' times\n    T(n)- O(nk)\n\n    :type array: List[int]\n    :type k: int\n    :rtype: void Do not return anything, modify array in-place instead.\n    \"\"\"\n    array = array[:]\n    n = len(array)\n    for i in range(k):\n        temp = array[n - 1]\n        for j in range(n - 1, 0, -1):\n            array[j] = array[j - 1]\n        array[0] = temp\n    return array\n\n"
+        },
+        "assistant": {
+            "content": "Rotates the elements of an array to the right by 'k' positions.\n\nArgs:\n    array (List[int]): The array to be rotated.\n    k (int): The number of positions to rotate the array.\n\nReturns:\n    List[int]: The modified array after performing the rotations.\n"
+        }
+    }
+]
