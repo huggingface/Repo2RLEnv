@@ -41,6 +41,8 @@ def export_task(
             assets["tests/repository-tests/" + relative.removeprefix("tests/")] = file
     dockerfile = (
         f"FROM {options.base_image}\nWORKDIR /workspace\n"
+        "RUN apt-get update && apt-get install -y --no-install-recommends tmux "
+        "&& rm -rf /var/lib/apt/lists/*\n"
         f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
         "COPY source/ /workspace/\n"
         f"RUN {options.install_command}\n"

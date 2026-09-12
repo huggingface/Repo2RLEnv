@@ -78,6 +78,9 @@ fresh baseline/reference pair before export.
 
 The solver repairs the container as root, offline, without changing repository
 source or tests. The example makes dependency wheels available in `/opt/wheelhouse`.
+The exported image preinstalls `tmux` so Harbor's Terminus-2 agent can start
+without downloading terminal tooling. Baseline/reference success alone does not
+test this agent setup path; include a blind solver run in the quality pilot.
 The build-time destruction script stays outside the learner filesystem; its
 inverse remains a private reference. Full adversarial review of the root runtime
 is deferred to the later quality campaign.

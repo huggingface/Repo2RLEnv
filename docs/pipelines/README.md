@@ -10,6 +10,10 @@ For the 14 owned research recipes, start with the
 [follow the actual prompts](prompt_reference.md). Each recipe has a stage diagram,
 call-by-call input/output table, concrete example and complete prompt reference.
 
+The [quality pilot and scaling report](quality_pilot.md) records sampled task
+reviews, Sonnet rollouts, verifier defects and measured cost estimates. See
+[Tasksmith lessons](tasksmith_pilot_learnings.md) for recommended harness changes.
+
 ## Common shape
 
 Every pipeline follows the same skeleton — only the box labelled "synthesize" varies.
