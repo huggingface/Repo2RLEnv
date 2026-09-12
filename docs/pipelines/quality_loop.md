@@ -17,12 +17,15 @@ flowchart TD
     B --> C
     C --> D{Remote validation enabled?}
     D -->|Yes| F[Reuse controls or run fresh nop and oracle]
-    D -->|No| G[Review task, tests, reference and available trace]
-    F --> G
+    D -->|No| U[Static review with bounded reads and optional escalation]
+    U --> V[Report without new trials or edits]
+    F --> G[Review task, tests, reference and available trace]
     G --> H{Need more evidence?}
     H -->|Read request| I[Bounded file excerpts]
     I --> G
     H -->|Unresolved| J[Optional stronger reviewer]
+    J -->|Resolved| K
+    J -->|Still unresolved| S
     H -->|Enough| K[Propose wrong solution and valid alternative]
     K --> L[Run private reference-then-mutation probes remotely]
     L --> M{Task looks sound and controls agree?}
@@ -38,7 +41,7 @@ flowchart TD
 ```
 
 The diagram's execution steps require `--run-rollout` or `--repair`; a review-only
-run makes model calls but creates no worker. One task uses one worker and reuses
+run makes model calls but creates no worker. An active loop reuses one worker and
 its runtime and Docker build cache throughout the loop. Modal and Daytona use the
 same `RemoteWorker` contract. Target Docker builds, tests, probe scripts and solver
 commands run remotely; the controller only reads, hashes and edits artifacts.
@@ -196,6 +199,7 @@ They tested this component, not a new corpus-wide acceptance pass.
 | Existing R2E `collapse` task, early generic probes | Sonnet 4.6 | **False acceptance during calibration:** ordinary wrong/valid implementations missed the promised lazy evaluation. This motivated explicit requirement-focused probes. |
 | Same R2E task, focused probes | Sonnet 4.6 | The eager implementation earned 1, demonstrating a verifier defect. A generated test repair made it earn 0 while the reference still earned 1. A separate defective alternative remained unresolved, so the run was not selected. |
 | Same R2E task, full repair attempt after context correction | Sonnet 4.6 review, Opus 4.6 repair | The reviewer identified the actual `base_type` failure. A generated laziness test had an undefined import; fresh oracle execution rejected it. The following patch did not match its target. The run ended `needs_evidence`, motivating bounded patch correction and module-header context. |
+| Previously generated R2E laziness revision, with retained probes | GPT-6 Astra review/repair, Sonnet 4.6 solver | One additional revision clarified outer-container atomicity, strengthened partial-consumption grading and corrected the recursive alternative. Fresh baseline 0, reference 1, eager probe 0, recursive alternative 1 and Sonnet 1; final review classified the rollout as legitimate and returned `usable`. |
 
 The iterable canary accounted for $0.224319 in model usage and a conservative
 $1.038314 compute/build estimate. These are small-case measurements, not a general
@@ -203,6 +207,20 @@ per-task price. Cloud accounting uses the [Modal sandbox rate card](https://moda
 and recorded worker duration plus a $1 image-build allowance; it is not a provider
 invoice. Existing SCALER evidence was reused, so that review's $0.583783 model cost
 does not include its earlier execution.
+
+The final R2E run used $3.477980 in API calls and a $1.075085 conservative
+compute/build estimate. It started from an earlier generated repair and known
+probes, so this is an incremental result, not a one-shot success-rate measurement.
+Across all development canaries, recorded API usage was $8.218809 and conservative
+cloud/build accounting was $6.274614 ($14.493423 combined). All six created workers
+were terminated and their holds reconciled. Historical campaign reservations are
+separate and unchanged.
+
+Final component verification: 869 local tests passed, one opt-in GitLab test was
+skipped, and external/live test suites were excluded from the local run. GitHub CI
+passed lint, Python 3.12/3.13/3.14 tests, optional owned/Harbor contracts and package
+builds. No original export was replaced or newly admitted by these canaries; all
+291 original bundle hashes still match their recorded identities.
 
 Calibration also caught two controller issues: current OpenAI models need the
 completion-limit parameter supported by their API, and long baseline result files
