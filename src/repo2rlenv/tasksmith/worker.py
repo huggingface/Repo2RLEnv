@@ -24,7 +24,7 @@ from repo2rlenv.pipelines.recipes.repository.export import (
 from repo2rlenv.quality.python_evidence import test_excerpts
 from repo2rlenv.quality.test_results import execution_contrast
 from repo2rlenv.spec.input import RepoSpec
-from repo2rlenv.tasksmith.models import Design, Profile
+from repo2rlenv.tasksmith.models import BootstrapHint, Design, Profile
 
 
 def run(argv, *, cwd=None, timeout=120):
@@ -51,19 +51,23 @@ def inspect_source(source: dict, root: Path) -> dict:
 
 def dependency_image(profile: Profile, output: Path) -> dict:
     """Materialize a source-independent prefix, using the same Docker layer recipe as bootstrap."""
-    options = profile.options
-    recipe = f"FROM {options.base_image}\nWORKDIR /workspace\n"
-    if options.dependencies:
-        recipe += f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
+    return build_dependency_image(profile.options.base_image, profile.options.dependencies, output)
+
+
+def build_dependency_image(base_image: str, dependencies: list[str], output: Path) -> dict:
+    """Shared prefix for repository bootstrap and per-PR construction."""
+    recipe = f"FROM {base_image}\nWORKDIR /workspace\n"
+    if dependencies:
+        recipe += f"RUN python -m pip install --no-cache-dir {shlex.join(dependencies)}\n"
     base = subprocess.run(
-        ["docker", "image", "inspect", options.base_image, "--format", "{{.Id}}"],
+        ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"],
         capture_output=True,
         text=True,
         check=False,
     )
     if base.returncode:
-        run(["docker", "pull", options.base_image], timeout=300)
-        base_id = run(["docker", "image", "inspect", options.base_image, "--format", "{{.Id}}"])
+        run(["docker", "pull", base_image], timeout=300)
+        base_id = run(["docker", "image", "inspect", base_image, "--format", "{{.Id}}"])
     else:
         base_id = base.stdout
     key = hashlib.sha256((recipe + base_id.strip()).encode()).hexdigest()
@@ -238,7 +242,10 @@ def main():
     started = time.time()
     try:
         stage = data["stage"]
-        if stage == "inspect":
+        if stage == "dependencies":
+            hint = BootstrapHint.model_validate(data["hint"])
+            value = build_dependency_image(hint.base_image, hint.dependencies, args.output)
+        elif stage == "inspect":
             value = inspect_source(data["source"], args.output)
         elif stage == "bootstrap":
             value = bootstrap(data["source"], Profile.model_validate(data["profile"]), args.output)

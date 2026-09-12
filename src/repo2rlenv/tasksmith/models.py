@@ -67,6 +67,20 @@ class Panel(Record):
         return self
 
 
+class BootstrapHint(Record):
+    ref: str = Field(pattern=r"^[0-9a-f]{40}$")
+    base_image: str
+    dependencies: list[str]
+    scope: str
+
+    @model_validator(mode="after")
+    def build_fields(self):
+        for value in [self.base_image, *self.dependencies]:
+            if not value.strip() or "\n" in value or "\r" in value:
+                raise ValueError("Bootstrap build hints must contain nonempty single-line values")
+        return self
+
+
 class Options(Record):
     provider: Literal["modal", "daytona"] = "modal"
     author_runtime: Literal["pi", "opencode"] = "pi"
@@ -75,6 +89,10 @@ class Options(Record):
     author_stage_usd: str = "4.00"
     max_spend_usd: str = "100.00"
     worker_reservation_usd: str = "12.00"
+    worker_cpus: int = Field(default=2, ge=1, le=16)
+    worker_memory_mb: int = Field(default=4096, ge=1024, le=65536)
+    worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
+    bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
@@ -89,6 +107,8 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if self.worker_snapshot and self.provider != "modal":
+            raise ValueError("Worker snapshots currently require Modal")
         if not self.author_model.startswith("anthropic/"):
             raise ValueError(
                 "Pi/OpenCode author bridge currently supports Anthropic; quality models may use OpenAI or Anthropic"

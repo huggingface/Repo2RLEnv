@@ -158,6 +158,7 @@ nav:
       - Quality pilot results: pipelines/quality_pilot.md
       - Tasksmith PR harness: pipelines/tasksmith.md
       - Tasksmith five-PR results: pipelines/tasksmith_cpu_hf_pilot.md
+      - Tasksmith HF bootstrap and scale: pipelines/tasksmith_hf_scale.md
       - Tasksmith lessons: pipelines/tasksmith_pilot_learnings.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md

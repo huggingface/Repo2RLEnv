@@ -367,6 +367,10 @@ def _bootstrap_from_user_dockerfile(
             ],
             timeout=spec.max_seconds,
         )
+        build_logs = cache_mod.cache_key(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
+        build_logs.mkdir(parents=True, exist_ok=True)
+        (build_logs / "build.stdout").write_text(r.stdout, encoding="utf-8")
+        (build_logs / "build.stderr").write_text(r.stderr, encoding="utf-8")
         if not r.ok:
             raise BootstrapError(f"docker build (user_dockerfile) failed: {r.stderr.strip()[:400]}")
 

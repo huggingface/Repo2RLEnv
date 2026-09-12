@@ -1,0 +1,32 @@
+[
+  {
+    "name": "transformers",
+    "ref": "415e6d2f596ef2bd44fdee4261799200a7fc02bf",
+    "extra_install": []
+  },
+  {
+    "name": "accelerate",
+    "ref": "f13f7c13b64c10b6eb7e2d73171ea1b94c748701",
+    "extra_install": []
+  },
+  {
+    "name": "trl",
+    "ref": "0b4b33d7faa2ad88b92db2bfac3880ece6de8a66",
+    "extra_install": []
+  },
+  {
+    "name": "diffusers",
+    "ref": "c419dac0152186060246c93a095bc1bfaea342b3",
+    "extra_install": []
+  },
+  {
+    "name": "peft",
+    "ref": "0e8d0ae8ab94f189f28b845e293d7452d7892d91",
+    "extra_install": []
+  },
+  {
+    "name": "tokenizers",
+    "ref": "6cfd9d385ca0ed91c10b49f0ce97d02cfde1b607",
+    "extra_install": []
+  }
+]

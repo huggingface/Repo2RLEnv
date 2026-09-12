@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `d4559704d44fcf9af8baeb013b0d3a15f3f50a4c5ce9ba79add91d67bdd8075e`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `41a243cbd1abd7165c34c24907cbcc6f4f8cfb56141883ed6474d1d3874536e6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -27,13 +27,15 @@ Packaging matters: never exclude a README, license or other file referenced by p
 Efficiency: use the supplied full PR diff, especially its added tests, to locate the affected behavior before browsing. Batch related metadata/source/test reads into a few shell calls. If the PR regression itself calls an external service, do not repeatedly search for a nonexistent offline version: select a small existing offline readiness test for the package and explain that the next design stage must supply a faithful local fixture for the changed behavior. For filesystem/cache fixes, a constructed on-disk cache is faithful; downloading a live hosted model is unnecessary. Avoid testing unrelated API integrations or installing the project's entire optional ML dependency stack.
 
 On a bootstrap retry, previous_profile contains your prior complete profile. Retain fields unaffected by the observed error. For a dependency conflict, inspect the conflicting constraints and correct that dependency choice; do not repeat repository discovery or replace working test selections without evidence. Submit the corrected complete profile.
+
+A repository_bootstrap_hint, when supplied, records a previously executed setup at its stated source revision. Use its dependency pins and build recipe as a starting point, checking compatibility with this PR's own metadata. Preserve working fields when compatible so remote dependency layers can be reused. The hint is not evidence that this PR's tests pass. Never use an image containing another revision's installed source as the learner base. CPU PyTorch wheels may require the recorded CPU package index; do not replace them with multi-gigabyte CUDA dependencies for a CPU task.
 ````
 
 </details>
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `ddde0e9a2a46fc6d88be55dee39dbe267a03226fe581712e2269e0ef3a353265`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `c4ab8e0d68a385f586a16f84370c8fba1420c656a2f2438afe2e11549005d178`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -56,13 +58,15 @@ If upstream regression tests require a live service, reproduce the real local be
 On a construction retry, previous_design contains the prior complete design. Preserve working requirements and tests. Use the concrete collection or assertion failure to make the smallest correction, rather than designing the task again from scratch. Submit the corrected complete design.
 
 State only compatibility and edge-case requirements supported by the original PR and source. Verify claims about empty inputs, minimum sizes, character classes and exception conditions against the actual behavior; do not invent a narrower or broader rule from a few examples.
+
+Before submitting tests, check that every important assertion can execute. For an expected exception, inspect its message, identity or side effects after the pytest.raises block, not after the raising call inside that block. Check meaningful behavior rather than merely successful setup: for a selection policy, call it on both selected and unrelated inputs; for retries, verify both retryable failures and immediate propagation of unrelated errors. Exercise alternate public calling forms before promising they all support the same option; an existing limitation outside this PR must not become a new requirement.
 ````
 
 </details>
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `4fe1263558ba784c64cd14517633ea3edad449fe838527dd266abb966a9bfad5`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `f5b208fcd9234262d1f3f2343992f6495b7d7d71525a93a3ef8bea3df3978cc4`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -139,6 +143,20 @@ class Panel(Record):
         return self
 
 
+class BootstrapHint(Record):
+    ref: str = Field(pattern=r"^[0-9a-f]{40}$")
+    base_image: str
+    dependencies: list[str]
+    scope: str
+
+    @model_validator(mode="after")
+    def build_fields(self):
+        for value in [self.base_image, *self.dependencies]:
+            if not value.strip() or "\n" in value or "\r" in value:
+                raise ValueError("Bootstrap build hints must contain nonempty single-line values")
+        return self
+
+
 class Options(Record):
     provider: Literal["modal", "daytona"] = "modal"
     author_runtime: Literal["pi", "opencode"] = "pi"
@@ -147,6 +165,10 @@ class Options(Record):
     author_stage_usd: str = "4.00"
     max_spend_usd: str = "100.00"
     worker_reservation_usd: str = "12.00"
+    worker_cpus: int = Field(default=2, ge=1, le=16)
+    worker_memory_mb: int = Field(default=4096, ge=1024, le=65536)
+    worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
+    bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
@@ -161,6 +183,8 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if self.worker_snapshot and self.provider != "modal":
+            raise ValueError("Worker snapshots currently require Modal")
         if not self.author_model.startswith("anthropic/"):
             raise ValueError(
                 "Pi/OpenCode author bridge currently supports Anthropic; quality models may use OpenAI or Anthropic"
@@ -175,7 +199,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `8f9390209d16e71e1ec3423fbb73a03c265b52f14b776a809b2d1f0d6dffc27f`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `f79f57abc675eea06ac1e73275ef105e9bc8053fdacc1d13a9b80b1bb60ed0f0`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -261,9 +285,10 @@ class Tasksmith:
             return
         check_runtime_wheel(self.wheel)
         workers = self.directory / "workers"
-        index = len(list(workers.glob("*.json")))
+        receipts = [path for path in workers.glob("*.json") if not path.name.endswith(".cost.json")]
+        index = len(receipts)
         # Never allocate while an older worker's create/termination is unresolved.
-        for path in workers.glob("*.json"):
+        for path in receipts:
             record = json.loads(path.read_text())
             if record["state"] != "terminated":
                 raise ValueError(f"Reconcile existing worker before creating another: {path}")
@@ -271,8 +296,9 @@ class Tasksmith:
             WorkerSpec(
                 provider=self.options.provider,
                 name=f"{self.prefix}-w{index}",
-                cpus=2,
-                memory_mb=4096,
+                cpus=self.options.worker_cpus,
+                memory_mb=self.options.worker_memory_mb,
+                snapshot_id=self.options.worker_snapshot,
                 timeout_sec=14400,
             ),
             workers,
@@ -447,7 +473,15 @@ class Tasksmith:
                     "probes": constructed["imported_from"]["probes"],
                 },
             )
-        result = loop.run(task, probes=probes, resume=(output / "run.json").exists())
+        evidence = {}
+        for role, trial in constructed.get("imported_from", {}).get("trials", {}).items():
+            if (
+                role == "rollout"
+                and trial["model"] != self.options.quality.solver_model.qualified_name
+            ):
+                continue
+            evidence[role] = Path(trial["result"])
+        result = loop.run(task, probes=probes, resume=(output / "run.json").exists(), **evidence)
         return {"quality": result.model_dump(mode="json"), "status": result.status}
 
     def candidate(self, source: dict):
@@ -495,6 +529,7 @@ class Tasksmith:
 
         def investigate(state):
             attempt = state.get("profile_attempt", 0)
+            hint = self.options.bootstrap_hints.get(source.get("repo", ""))
             self.event(
                 "investigate", f"{source['id']} dependency/test profile, attempt {attempt + 1}"
             )
@@ -519,6 +554,7 @@ class Tasksmith:
                     "source": source_context,
                     "previous_profile": state.get("profile"),
                     "previous_failure": state.get("failure"),
+                    "repository_bootstrap_hint": hint.model_dump() if hint else None,
                 },
                 checkout,
                 validate=validate,
@@ -638,15 +674,24 @@ class Tasksmith:
         save_record(result_path, report)
         return report
 
-    def run(self, panel: Panel, *, limit: int | None = None, generation_run: Path | None = None):
+    def run(
+        self,
+        panel: Panel,
+        *,
+        limit: int | None = None,
+        generation_run: Path | None = None,
+        reuse_evidence: bool = False,
+    ):
+        if reuse_evidence and generation_run is None:
+            raise ValueError("Evidence reuse requires --generation-run")
         if limit is not None and not 1 <= limit <= len(panel.prs):
             raise ValueError("stop-after must be within the frozen panel size")
         self.directory.mkdir(parents=True, exist_ok=True)
         with (self.directory / ".lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return self._run(panel, limit, generation_run)
+            return self._run(panel, limit, generation_run, reuse_evidence)
 
-    def _run(self, panel, limit, generation_run):
+    def _run(self, panel, limit, generation_run, reuse_evidence=False):
         # Fail before provisioning if optional orchestration or credentials are absent.
         from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: F401
         from langgraph.graph import StateGraph  # noqa: F401
@@ -667,11 +712,14 @@ class Tasksmith:
                 raise ValueError(f"No API key for configured quality provider {model.provider}")
         previous_sources = None
         if generation_run is not None:
-            previous_sources, self.imported = load_generation(generation_run, panel)
+            previous_sources, self.imported = load_generation(
+                generation_run, panel, reuse_evidence=reuse_evidence
+            )
         runtime_path(self.options.author_runtime)
         check_runtime_wheel(self.wheel)
         manifest = self.directory / "panel.json"
         configuration = {
+            "reuse_evidence": reuse_evidence,
             "generation_inputs": self.imported,
             "panel": panel.model_dump(),
             "options": self.options.model_dump(mode="json"),
@@ -690,6 +738,23 @@ class Tasksmith:
             save_record(manifest, {"configuration": configuration, "sources": sources})
         reports = []
         try:
+            pending = [
+                source
+                for source in sources[:limit]
+                if not (self.directory / "candidates" / source["id"] / "result.json").is_file()
+                and source["id"] not in self.imported
+            ]
+            for repo in dict.fromkeys(source["repo"] for source in pending):
+                hint = self.options.bootstrap_hints.get(repo)
+                if hint is not None:
+                    key = hashlib.sha256(repo.encode()).hexdigest()[:12]
+                    self.event("cache", f"Prepare recorded source-free dependencies for {repo}")
+                    result = self.remote(
+                        self.directory / "dependency-seeds",
+                        key,
+                        {"stage": "dependencies", "hint": hint.model_dump()},
+                    )
+                    self.event("cache", f"{repo}: {result['status']}")
             for source in sources[:limit]:
                 try:
                     reports.append(self.candidate(source))

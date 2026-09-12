@@ -7,12 +7,14 @@ import json
 import tomllib
 from pathlib import Path
 
-from repo2rlenv.quality.loop.artifacts import task_identity
-from repo2rlenv.quality.loop.models import SemanticProbe
+from repo2rlenv.quality.loop.artifacts import digest, import_trial, task_identity
+from repo2rlenv.quality.loop.models import SemanticProbe, TrialRecord
 from repo2rlenv.tasksmith.models import Panel
 
 
-def generation_task(record: dict, source: dict, directory: Path) -> dict | None:
+def generation_task(
+    record: dict, source: dict, directory: Path, *, reuse_evidence: bool = False
+) -> dict | None:
     if record.get("id") != source["id"]:
         raise ValueError("Saved candidate belongs to a different PR")
     quality = record.get("quality", {})
@@ -59,15 +61,38 @@ def generation_task(record: dict, source: dict, directory: Path) -> dict | None:
             if probe.name in retained and retained[probe.name] != probe.model_dump():
                 raise ValueError("Saved probes disagree on the same control identity")
             retained[probe.name] = probe.model_dump()
-    return {
+    result = {
         "task": str(task),
         "bundle_hash": identity,
         "generation_run": str(directory.resolve()),
         "probes": list(retained.values()),
     }
+    if reuse_evidence:
+        trials = {}
+        for item in quality.get("trials", []):
+            if item.get("role") not in {"baseline", "oracle", "rollout"}:
+                continue
+            trial = TrialRecord.model_validate(item)
+            path = Path(trial.result)
+            if path.is_symlink() or not path.resolve().is_relative_to(directory.resolve()):
+                raise ValueError("Reusable execution evidence points outside its generation run")
+            if trial.bundle_hash != identity or digest(path) != trial.result_sha256:
+                raise ValueError("Reusable execution evidence changed or belongs to another task")
+            observed = import_trial(path, task, trial.role)
+            # Infrastructure failures need fresh execution. Legitimate solver
+            # failures remain useful evidence about the unchanged task.
+            if observed.exception_type is not None or observed.reward is None:
+                continue
+            if trial.role in trials:
+                raise ValueError("Reusable evidence contains duplicate execution roles")
+            trials[trial.role] = observed.model_dump(mode="json")
+        result["trials"] = trials
+    return result
 
 
-def load_generation(directory: Path, panel: Panel) -> tuple[list[dict], dict]:
+def load_generation(
+    directory: Path, panel: Panel, *, reuse_evidence: bool = False
+) -> tuple[list[dict], dict]:
     previous = json.loads((directory / "panel.json").read_text())
     if previous["configuration"]["panel"] != panel.model_dump():
         raise ValueError("Imported generation must have the identical frozen panel")
@@ -81,7 +106,9 @@ def load_generation(directory: Path, panel: Panel) -> tuple[list[dict], dict]:
             raise ValueError("Saved candidate points outside its run directory")
         if not candidate.is_file():
             continue
-        value = generation_task(json.loads(candidate.read_text()), source, directory)
+        value = generation_task(
+            json.loads(candidate.read_text()), source, directory, reuse_evidence=reuse_evidence
+        )
         if value is not None:
             imported[source["id"]] = value
     return sources, imported

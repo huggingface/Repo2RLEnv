@@ -119,3 +119,50 @@ def test_reference_conflict_requires_fresh_design_without_relabeling_probes(gene
     assert sources == [source]
     assert imported == {}
     assert json.loads(receipt.read_text()) == record
+
+
+@pytest.mark.parametrize("change", [None, "result", "task", "outside", "infrastructure"])
+def test_execution_reuse_requires_unchanged_bound_results(generation, tmp_path, change):
+    from harbor.models.task.task import Task
+
+    from repo2rlenv.quality.loop.artifacts import import_trial
+
+    run, panel, _, task, receipt, record, _ = generation
+    trial = run / "trials/baseline/result.json"
+    trial.parent.mkdir(parents=True)
+    native = {
+        "task_checksum": Task(task).checksum,
+        "config": {"agent": {"name": "nop"}},
+        "verifier_result": {"rewards": {"reward": 0.0}},
+    }
+    if change == "infrastructure":
+        native["exception_info"] = {"exception_type": "TimeoutError"}
+    trial.write_text(json.dumps(native))
+    evidence = import_trial(trial, task, "baseline").model_dump(mode="json")
+    record["quality"]["trials"] = [evidence]
+    if change == "result":
+        trial.write_text(trial.read_text() + "\n")
+    elif change == "task":
+        evidence["bundle_hash"] = "sha256:" + "0" * 64
+    elif change == "outside":
+        outside = tmp_path / "outside-result.json"
+        outside.write_bytes(trial.read_bytes())
+        evidence["result"] = str(outside)
+    receipt.write_text(json.dumps(record))
+    if change in {"result", "task", "outside"}:
+        with pytest.raises(ValueError, match="Reusable execution evidence"):
+            load_generation(run, panel, reuse_evidence=True)
+    else:
+        _, imported = load_generation(run, panel, reuse_evidence=True)
+        expected = {} if change == "infrastructure" else {"baseline": evidence}
+        assert imported["one"]["trials"] == expected
+        _, fresh_review = load_generation(run, panel)
+        assert "trials" not in fresh_review["one"]
+
+
+def test_execution_reuse_requires_generation_input(generation):
+    from repo2rlenv.tasksmith.runner import Tasksmith
+
+    _, panel, *_ = generation
+    with pytest.raises(ValueError, match="requires --generation-run"):
+        Tasksmith.__new__(Tasksmith).run(panel, reuse_evidence=True)

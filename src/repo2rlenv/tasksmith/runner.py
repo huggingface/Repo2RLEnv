@@ -76,9 +76,10 @@ class Tasksmith:
             return
         check_runtime_wheel(self.wheel)
         workers = self.directory / "workers"
-        index = len(list(workers.glob("*.json")))
+        receipts = [path for path in workers.glob("*.json") if not path.name.endswith(".cost.json")]
+        index = len(receipts)
         # Never allocate while an older worker's create/termination is unresolved.
-        for path in workers.glob("*.json"):
+        for path in receipts:
             record = json.loads(path.read_text())
             if record["state"] != "terminated":
                 raise ValueError(f"Reconcile existing worker before creating another: {path}")
@@ -86,8 +87,9 @@ class Tasksmith:
             WorkerSpec(
                 provider=self.options.provider,
                 name=f"{self.prefix}-w{index}",
-                cpus=2,
-                memory_mb=4096,
+                cpus=self.options.worker_cpus,
+                memory_mb=self.options.worker_memory_mb,
+                snapshot_id=self.options.worker_snapshot,
                 timeout_sec=14400,
             ),
             workers,
@@ -262,7 +264,15 @@ class Tasksmith:
                     "probes": constructed["imported_from"]["probes"],
                 },
             )
-        result = loop.run(task, probes=probes, resume=(output / "run.json").exists())
+        evidence = {}
+        for role, trial in constructed.get("imported_from", {}).get("trials", {}).items():
+            if (
+                role == "rollout"
+                and trial["model"] != self.options.quality.solver_model.qualified_name
+            ):
+                continue
+            evidence[role] = Path(trial["result"])
+        result = loop.run(task, probes=probes, resume=(output / "run.json").exists(), **evidence)
         return {"quality": result.model_dump(mode="json"), "status": result.status}
 
     def candidate(self, source: dict):
@@ -310,6 +320,7 @@ class Tasksmith:
 
         def investigate(state):
             attempt = state.get("profile_attempt", 0)
+            hint = self.options.bootstrap_hints.get(source.get("repo", ""))
             self.event(
                 "investigate", f"{source['id']} dependency/test profile, attempt {attempt + 1}"
             )
@@ -334,6 +345,7 @@ class Tasksmith:
                     "source": source_context,
                     "previous_profile": state.get("profile"),
                     "previous_failure": state.get("failure"),
+                    "repository_bootstrap_hint": hint.model_dump() if hint else None,
                 },
                 checkout,
                 validate=validate,
@@ -453,15 +465,24 @@ class Tasksmith:
         save_record(result_path, report)
         return report
 
-    def run(self, panel: Panel, *, limit: int | None = None, generation_run: Path | None = None):
+    def run(
+        self,
+        panel: Panel,
+        *,
+        limit: int | None = None,
+        generation_run: Path | None = None,
+        reuse_evidence: bool = False,
+    ):
+        if reuse_evidence and generation_run is None:
+            raise ValueError("Evidence reuse requires --generation-run")
         if limit is not None and not 1 <= limit <= len(panel.prs):
             raise ValueError("stop-after must be within the frozen panel size")
         self.directory.mkdir(parents=True, exist_ok=True)
         with (self.directory / ".lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return self._run(panel, limit, generation_run)
+            return self._run(panel, limit, generation_run, reuse_evidence)
 
-    def _run(self, panel, limit, generation_run):
+    def _run(self, panel, limit, generation_run, reuse_evidence=False):
         # Fail before provisioning if optional orchestration or credentials are absent.
         from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: F401
         from langgraph.graph import StateGraph  # noqa: F401
@@ -482,11 +503,14 @@ class Tasksmith:
                 raise ValueError(f"No API key for configured quality provider {model.provider}")
         previous_sources = None
         if generation_run is not None:
-            previous_sources, self.imported = load_generation(generation_run, panel)
+            previous_sources, self.imported = load_generation(
+                generation_run, panel, reuse_evidence=reuse_evidence
+            )
         runtime_path(self.options.author_runtime)
         check_runtime_wheel(self.wheel)
         manifest = self.directory / "panel.json"
         configuration = {
+            "reuse_evidence": reuse_evidence,
             "generation_inputs": self.imported,
             "panel": panel.model_dump(),
             "options": self.options.model_dump(mode="json"),
@@ -505,6 +529,23 @@ class Tasksmith:
             save_record(manifest, {"configuration": configuration, "sources": sources})
         reports = []
         try:
+            pending = [
+                source
+                for source in sources[:limit]
+                if not (self.directory / "candidates" / source["id"] / "result.json").is_file()
+                and source["id"] not in self.imported
+            ]
+            for repo in dict.fromkeys(source["repo"] for source in pending):
+                hint = self.options.bootstrap_hints.get(repo)
+                if hint is not None:
+                    key = hashlib.sha256(repo.encode()).hexdigest()[:12]
+                    self.event("cache", f"Prepare recorded source-free dependencies for {repo}")
+                    result = self.remote(
+                        self.directory / "dependency-seeds",
+                        key,
+                        {"stage": "dependencies", "hint": hint.model_dump()},
+                    )
+                    self.event("cache", f"{repo}: {result['status']}")
             for source in sources[:limit]:
                 try:
                     reports.append(self.candidate(source))

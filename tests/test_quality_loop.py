@@ -861,10 +861,15 @@ def test_review_inventory_preserves_readable_paths_without_duplicate_hash_tokens
         context.inventory.append({"path": key, "bytes": 200, "sha256": "a" * 64})
         context.omitted.append(key + ": context budget")
     payload = json.loads(context.payload())
-    assert len(payload["inventory"]) == len(context.inventory)
-    assert payload["inventory"][-1]["path"] == key
+    entries = {
+        "/".join(filter(None, [prefix, name])): size
+        for prefix, files in payload["inventory_by_directory"].items()
+        for name, size in files.items()
+    }
+    assert entries == {item["path"]: item["bytes"] for item in context.inventory}
+    assert entries[key] == 200
     assert payload["budget_omissions"]["count"] >= 600
-    assert all("sha256" not in item for item in payload["inventory"])
+    assert "a" * 64 not in json.dumps(payload)
     assert all("sha256" in item for item in context.inventory)
 
 

@@ -2,7 +2,7 @@
 
 Tasksmith inspects a merged PR, builds its real repository on Modal or Daytona, designs a human-facing request and deterministic verifier, and runs the shared quality loop. The coding agent is Pi or OpenCode; LangGraph routes the stages. All pipeline and adapter code lives in Repo2RLEnv.
 
-The first supported profile is CPU Python with changes to existing source files. Unsupported source changes are reported explicitly. The current pilot is five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. This is a development pilot, not evidence of universal conversion yield.
+The first supported profile is CPU Python with changes to existing source files. Unsupported source changes are reported explicitly. The first development pilot covered five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. Its yield is not evidence of universal PR conversion.
 
 The [completed pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated and 5/5 usable**, with baseline/reference controls, semantic probes, Sonnet rollouts, repairs, costs and remaining coverage gaps.
 
@@ -31,6 +31,8 @@ flowchart TD
     DECIDE -->|Yes| TASK["Usable Harbor revision<br/>Evidence, lineage and cost report"]
     DECIDE -->|"Limit or unresolved defect"| RETAIN["Retained candidate<br/>Explicit failure and next diagnosis"]
 ```
+
+The [HF bootstrap and scale campaign](tasksmith_hf_scale.md) extends this work to the supplied 114-PR inventory. All six repositories have passed CPU and GPU-host bootstrap checks; the initial ten-task generation panel is running. GPU-host readiness remains separate from the currently supported CPU task-generation profile.
 
 ## What each model is asked
 
@@ -90,7 +92,7 @@ uv run repo2rlenv tasksmith run configs/tasksmith/cpu-hf-pilot.json \
   --env-file .env
 ```
 
-The previous panel must match exactly. Before paid work, the importer checks each task's hash, PR URL, head/base, source diff and containment within the original run directory. It retains previously executed semantic probes, so improving a review does not discard known counterexamples. Generated inputs are reused and the current quality loop runs again. Inputs that never produced a task still enter normal generation. A draft with a blocking reference conflict also enters fresh generation; its old probes remain attached to the original draft and are not relabeled. Source and oracle paths remain immutable during Tasksmith quality repairs. Instructions and private verification can change in a new revision. The report retains the source run and task hash.
+The previous panel must match exactly. Before paid work, the importer checks each task's hash, PR URL, head/base, source diff and containment within the original run directory. It retains previously executed semantic probes, so improving a review does not discard known counterexamples. Generated inputs are reused and the current quality loop runs again. Add `--reuse-evidence` to also import checksum-bound baseline, reference and matching-model solver results from the unchanged bundle. Infrastructure failures are rerun, semantic probes still execute, and an edited revision needs fresh controls. Without the flag, validation runs afresh. Inputs that never produced a task still enter normal generation. A draft with a blocking reference conflict also enters fresh generation; its old probes remain attached to the original draft and are not relabeled. Source and oracle paths remain immutable during Tasksmith quality repairs. Instructions and private verification can change in a new revision. The report retains the source run and task hash.
 
 Tasksmith allows up to four semantic probes, while usually needing only one wrong solution and one valid alternative. Extra capacity preserves a discovered counterexample when a repair also needs a specific laziness or tolerance check. The reviewer sees which controls already exist and must reserve space for the missing control kinds. A blocking defect can be repaired before probe authoring; requests for missing code are serviced before demanding probe scripts.
 
@@ -100,7 +102,7 @@ The campaign must already have an explicitly initialized budget. Tasksmith reser
 
 ## Caching and recovery limits
 
-Repository readiness uses the existing bootstrap implementation. A separate, source-independent Docker prefix identifies base image and dependency installation layers; subsequent PRs can reuse it on the same provider worker. Source readiness remains bound to the individual head. Bootstrap also builds the filtered public workspace, catching excluded README/build inputs before authoring or quality review. The current cache survives for the worker lifetime. It is **not yet a persistent cross-campaign registry or provider snapshot cache**.
+Repository readiness uses the existing bootstrap implementation. A separate, source-independent Docker prefix identifies base image and dependency installation layers; subsequent PRs can reuse it on the same provider worker. Source readiness remains bound to the individual head. Bootstrap also builds the filtered public workspace, catching excluded README/build inputs before authoring or quality review. A normal cache survives for the worker lifetime. The HF bootstrap command can preserve the CPU Docker cache in a Modal filesystem snapshot; `worker_snapshot` restores it and `bootstrap_hints` supplies recorded source-free dependencies. Snapshot identity and expiry are recorded, and each PR still needs its own readiness check. The snapshot is an account-scoped cache rather than a public registry image.
 
 LangGraph checkpoints stage state. Artifact receipts additionally bind the schema, prompt, source inputs and runtime. Remote jobs have durable supervisor paths and are observed rather than blindly relaunched after a lost response. An incomplete author call requires reconciliation. Changed configuration or worker code requires a new run directory; previous evidence remains available. Unknown worker creation or termination must be resolved before another worker is allocated.
 

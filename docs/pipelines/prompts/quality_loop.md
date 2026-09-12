@@ -371,7 +371,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `b327d4ffda8bba28d7a9e1c9651d20fef66abfd2622419e510af7f3357ea1cc8`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `36b17498c02c0b550315a04f88c22237f30514bdb46f1ca3caaa10de19525aa4`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -621,6 +621,7 @@ class EvidenceContext:
             )
 
     def read_more(self, requests: list[ReadRequest]):
+        additions = {}
         for request in requests:
             if request.path not in self._paths and request.path not in self._texts:
                 raise ValueError(f"Requested file is not in evidence inventory: {request.path}")
@@ -654,9 +655,53 @@ class EvidenceContext:
                 else f"L{request.start_line}-L{request.end_line}"
             )
             key = f"{request.path}:{suffix}"
-            self.documents[key] = text
-        if sum(map(len, self.documents.values())) > self.limit:
+            additions[key] = text
+        updated = {**self.documents, **additions}
+        if sum(map(len, updated.values())) > self.limit:
             raise ValueError("Additional reads exceeded context budget")
+        self.documents = updated
+
+    def _inventory_payload(self) -> dict:
+        entries = [{"path": item["path"], "bytes": item["bytes"]} for item in self.inventory]
+        if len(json.dumps(entries)) <= 30000:
+            return {"inventory": entries}
+        # Trial captures repeat long directory prefixes for hundreds of modules.
+        # Group them losslessly; all full paths remain available to read_more.
+        directories: dict[str, dict[str, int]] = {}
+        for item in entries:
+            prefix, _, name = item["path"].rpartition("/")
+            directories.setdefault(prefix, {})[name] = item["bytes"]
+        if len(json.dumps(directories)) > 30000:
+            # Large repositories still need a bounded first review. Keep every
+            # path addressable through a searchable catalogue instead of dropping
+            # files or refusing the review before the model can request evidence.
+            key = "evidence/full-file-inventory.jsonl"
+            if key in self._paths:
+                raise ValueError("Task uses the reserved quality inventory path")
+            self._texts[key] = "\n".join(json.dumps(item) for item in entries) + "\n"
+            counts = [
+                {"directory": name, "files": len(items)} for name, items in directories.items()
+            ]
+            return {
+                "inventory_document": key,
+                "inventory_files": len(entries),
+                "inventory_directories": counts[:100],
+                "inventory_directories_omitted": max(0, len(counts) - 100),
+                "inventory_format": (
+                    "The complete JSONL catalogue is available through read requests: "
+                    "one file path and byte count per line. Search it by filename or "
+                    "request bounded line ranges, then read the required source file. "
+                    "All original file paths remain directly readable."
+                ),
+            }
+        return {
+            "inventory_by_directory": directories,
+            "inventory_format": (
+                "Each directory maps filenames to byte counts. Read a file using "
+                "directory/filename (or filename for the empty directory). "
+                "This is the complete inventory, without omitted paths."
+            ),
+        }
 
     def payload(self, **extra) -> str:
         result = json.dumps(
@@ -664,9 +709,7 @@ class EvidenceContext:
                 "documents": self.documents,
                 # Hashes remain in the local evidence record. They add no useful
                 # review context and repeat for every source copy and trial.
-                "inventory": [
-                    {"path": item["path"], "bytes": item["bytes"]} for item in self.inventory
-                ],
+                **self._inventory_payload(),
                 "omitted": [item for item in self.omitted if not item.endswith(": context budget")],
                 "budget_omissions": {
                     "count": sum(item.endswith(": context budget") for item in self.omitted),
