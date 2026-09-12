@@ -154,6 +154,9 @@ nav:
       - "cve_patches (experimental)": pipelines/cve_patches.md
       - Owned recipes: pipelines/owned_recipes.md
       - Follow the prompts: pipelines/prompt_reference.md
+      - Harbor review and repair: pipelines/quality_loop.md
+      - Quality pilot results: pipelines/quality_pilot.md
+      - Tasksmith lessons: pipelines/tasksmith_pilot_learnings.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md
       - "task_evolve / seta_evol (experimental)": pipelines/task_evolve.md
@@ -170,6 +173,7 @@ nav:
       - "reasoning_synth / scaler (experimental)": pipelines/scaler.md
       - Complete prompt reference:
           - Shared terminal stages: pipelines/prompts/shared_terminal.md
+          - Review and repair: pipelines/prompts/quality_loop.md
           - SWE-smith: pipelines/prompts/swe_smith.md
           - SETA Seed2Synth: pipelines/prompts/seta_seed2synth.md
           - SETA Evol: pipelines/prompts/seta_evol.md
@@ -212,6 +216,7 @@ nav:
       - "0024 — r2e_gym recipe": rfcs/0024-r2e-gym-recipe.md
       - "0025 — sec_bench recipe": rfcs/0025-sec-bench-recipe.md
       - "0026 — scaler recipe": rfcs/0026-scaler-recipe.md
+      - "0027 — Harbor review and repair": rfcs/0027-harbor-quality-loop.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

@@ -97,6 +97,7 @@ jobs:
           tests/test_dataarc_recipe.py tests/test_history_recipes.py
           tests/test_scaler_recipe.py
           tests/test_remote_job.py tests/test_verifier_driver.py
+          tests/test_quality_loop.py
 
   build:
     name: Build sdist + wheel

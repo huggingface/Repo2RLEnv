@@ -159,6 +159,25 @@ def shared() -> str:
     return result.rstrip() + "\n"
 
 
+def quality_loop() -> str:
+    root = ROOT / "src/repo2rlenv/quality/loop"
+    result = (
+        "# Harbor review and repair: complete prompt reference\n\n"
+        "Read the [component walkthrough](../quality_loop.md) for execution, "
+        "evidence and budget boundaries. These are the exact prompts, structured "
+        "outputs and owned code that assembles evidence and decides when to repair.\n\n"
+    )
+    for relative in (
+        "prompts/review.md",
+        "prompts/repair.md",
+        "models.py",
+        "context.py",
+        "runner.py",
+    ):
+        result += block(root / relative)
+    return result.rstrip() + "\n"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if committed references differ")
@@ -168,6 +187,7 @@ def main() -> None:
         OUTPUT / f"{recipe}.md": render(recipe, catalog[recipe]["title"]) for recipe in ASSEMBLY
     }
     expected[OUTPUT / "shared_terminal.md"] = shared()
+    expected[OUTPUT / "quality_loop.md"] = quality_loop()
     changed = [
         path for path, text in expected.items() if not path.exists() or path.read_text() != text
     ]

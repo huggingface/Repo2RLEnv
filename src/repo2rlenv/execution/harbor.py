@@ -17,6 +17,7 @@ from repo2rlenv.execution.artifacts import unpack_evidence
 from repo2rlenv.execution.base import RemoteWorker
 from repo2rlenv.execution.jobs import launch_job, observe_job
 from repo2rlenv.execution.lifecycle import now, save_record
+from repo2rlenv.llm import completion_token_limit
 from repo2rlenv.spec.input import LLMSpec
 
 
@@ -90,7 +91,7 @@ def run_trial(
     if not (1 <= max_turns <= 100 and 256 <= max_tokens <= 8192 and 30 <= timeout_sec <= 3600):
         raise ValueError("Trial limits are outside the supported bounded range")
     identity = inspect_bundle(task)
-    if not identity["integrity_passed"]:
+    if identity["claimed_hash"] is not None and not identity["integrity_passed"]:
         raise ValueError("Task has changed since emission")
     from harbor.models.task.task import Task
 
@@ -182,7 +183,7 @@ def run_trial(
                     "--ak",
                     "record_terminal_session=false",
                     "--ak",
-                    "llm_call_kwargs=" + json.dumps({"max_tokens": max_tokens}),
+                    "llm_call_kwargs=" + json.dumps(completion_token_limit(model, max_tokens)),
                 ]
             )
         record.update(state="dispatched", command=command)

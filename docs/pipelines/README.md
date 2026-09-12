@@ -14,6 +14,9 @@ The [quality pilot and scaling report](quality_pilot.md) records sampled task
 reviews, Sonnet rollouts, verifier defects and measured cost estimates. See
 [Tasksmith lessons](tasksmith_pilot_learnings.md) for recommended harness changes.
 
+Use the shared [Harbor review and repair loop](quality_loop.md) to review an
+existing task/rollout or run bounded remote validation and repairs from the CLI.
+
 ## Common shape
 
 Every pipeline follows the same skeleton — only the box labelled "synthesize" varies.
