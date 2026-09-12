@@ -1,6 +1,6 @@
 # RFC 0028: Tasksmith PR pilot
 
-Status: implemented; live pilot in progress. This follows the owned recipe implementations and RFC 0027.
+Status: implemented; five-PR pilot complete. This follows the owned recipe implementations and RFC 0027. The [pilot report](../pipelines/tasksmith_cpu_hf_pilot.md) records 5/5 generated and usable tasks, evidence, costs and limitations.
 
 ## Goal
 

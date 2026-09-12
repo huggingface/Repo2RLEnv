@@ -4,6 +4,8 @@ Tasksmith inspects a merged PR, builds its real repository on Modal or Daytona, 
 
 The first supported profile is CPU Python with changes to existing source files. Unsupported source changes are reported explicitly. The current pilot is five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. This is a development pilot, not evidence of universal conversion yield.
 
+The [completed pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated and 5/5 usable**, with baseline/reference controls, semantic probes, Sonnet rollouts, repairs, costs and remaining coverage gaps.
+
 ```mermaid
 flowchart TD
     PR["Fixed PR panel"] --> PIN["Intake • GitHub metadata<br/>Pin head, base and complete diff"]
@@ -69,6 +71,8 @@ uv run repo2rlenv tasksmith run configs/tasksmith/cpu-hf-pilot.json \
 ```
 
 Use `--provider daytona` for the same remote execution contract, or `--author opencode` for the alternative coding runtime. An `--options` JSON file can set author stage limits and the nested `quality` options, including separate OpenAI/Anthropic review and repair models. The current author bridge routes Anthropic models; author-model support should not be confused with the broader quality-model support.
+
+The tested runtime uses Harbor **0.20.0** and task schema **1.3**. Remote trials use the owned `OfflineDockerEnvironment`, which enforces permanent Docker network isolation and avoids Harbor's dynamic firewall dependency on `nft_fib`, unavailable in the tested Modal kernel. The emitted bundle contains its own Dockerfiles, reference and verifier scripts. This pilot exercises the Modal execution path; the shared Daytona provider and OpenCode runtime remain selectable, with their contracts covered by the repository tests.
 
 `--stop-after 1` runs the first frozen input while keeping five as the report denominator. Repeating the same invocation reuses matching completed artifacts. `tasksmith show OUTPUT` reads the saved report without paid effects. `--json` provides structured CLI output.
 
