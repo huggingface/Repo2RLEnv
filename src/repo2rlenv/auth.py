@@ -60,24 +60,31 @@ def resolve_hf_token(auth: AuthSpec) -> str | None:
     return os.environ.get(auth.hf_token_env)
 
 
-def resolve_llm_api_key(provider: str, llm_api_key_env: str | None = None) -> str | None:
-    """Return an LLM provider API key based on the provider name."""
-    if llm_api_key_env:
-        v = os.environ.get(llm_api_key_env)
-        if v:
-            return v
+# Provider → env var for the hosted providers we resolve ourselves, so a missing
+# key fails fast with the var named. Everything else (Bedrock, Vertex, self-hosted
+# vLLM / Ollama, …) resolves inside LiteLLM — and the self-hosted ones need none.
+LLM_KEY_ENV_DEFAULTS: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "huggingface": "HF_TOKEN",
+    "together": "TOGETHER_API_KEY",
+    "groq": "GROQ_API_KEY",
+}
 
-    defaults = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "huggingface": "HF_TOKEN",
-        "together": "TOGETHER_API_KEY",
-        "groq": "GROQ_API_KEY",
-    }
-    env_name = defaults.get(provider.lower())
-    if env_name:
-        return os.environ.get(env_name)
-    return None
+
+def resolve_llm_api_key(provider: str, llm_api_key_env: str | None = None) -> str | None:
+    """Return the API key for `provider` from the environment, or None.
+
+    `llm_api_key_env` names the var explicitly and never falls through: if it
+    is unset the result is None, not some other provider's key. Without it,
+    only `LLM_KEY_ENV_DEFAULTS` providers are looked up here — for the rest
+    LiteLLM does its own (`HOSTED_VLLM_API_KEY`, `OLLAMA_API_KEY`, AWS
+    credentials, …). A blank value counts as unset; `.env.example` ships blanks.
+    """
+    env_name = llm_api_key_env or LLM_KEY_ENV_DEFAULTS.get(provider.lower())
+    if not env_name:
+        return None
+    return os.environ.get(env_name) or None
 
 
 def auth_clone_url(repo_url: str, token: str | None) -> str:

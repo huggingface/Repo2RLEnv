@@ -55,7 +55,96 @@ def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
     return out
 
 
+def _split_provider_model(value: str, flag: str) -> tuple[str, str]:
+    if "/" not in value:
+        raise SystemExit(f"{flag} expects provider/model, got {value!r}")
+    provider, model = value.split("/", 1)
+    return provider, model
+
+
+def _llm_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    """The `llm` config block from --llm / --llm-fallback / --llm-endpoint / --llm-key-env.
+
+    Empty when none are given, so a config file's `llm:` block is left alone.
+    --llm-endpoint / --llm-key-env apply to the primary model only.
+    """
+    out: dict[str, Any] = {}
+    if args.llm:
+        out["provider"], out["model"] = _split_provider_model(args.llm, "--llm")
+    if getattr(args, "llm_fallback", None):
+        fb_provider, fb_model = _split_provider_model(args.llm_fallback, "--llm-fallback")
+        out["fallback"] = {"provider": fb_provider, "model": fb_model}
+    if getattr(args, "llm_endpoint", None):
+        out["endpoint"] = args.llm_endpoint
+    if getattr(args, "llm_key_env", None):
+        out["api_key_env"] = args.llm_key_env
+    if out and not args.llm and not getattr(args, "config", None):
+        raise SystemExit(
+            "--llm-fallback / --llm-endpoint / --llm-key-env need --llm "
+            "(or an `llm:` block in --config)"
+        )
+    return out
+
+
+def _drop_config_llm_extras(gen_input, args: argparse.Namespace, config_path: Path):
+    """`--llm` over a config whose `llm:` block names a different model.
+
+    `merge` is recursive, so the block's `endpoint` / `api_key_env` would stay
+    attached to the new model. They belong to the old one — keep only what the
+    CLI re-supplied.
+    """
+    from repo2rlenv.config import load_config_file
+
+    if gen_input.llm is None:
+        return gen_input
+    cfg_llm = load_config_file(config_path).get("llm") or {}
+    if (cfg_llm.get("provider"), cfg_llm.get("model")) == (
+        gen_input.llm.provider,
+        gen_input.llm.model,
+    ):
+        return gen_input
+    llm = gen_input.llm.model_copy(
+        update={
+            "endpoint": getattr(args, "llm_endpoint", None) or None,
+            "api_key_env": getattr(args, "llm_key_env", None) or None,
+        }
+    )
+    return gen_input.model_copy(update={"llm": llm})
+
+
+def _add_llm_args(parser: argparse.ArgumentParser, *, required: bool, fallback: bool) -> None:
+    parser.add_argument(
+        "--llm",
+        required=required,
+        help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-6)",
+    )
+    if fallback:
+        parser.add_argument(
+            "--llm-fallback",
+            help=(
+                "fallback LLM as provider/model — used automatically when the primary "
+                "returns 5xx / rate-limit / network errors"
+            ),
+        )
+    parser.add_argument(
+        "--llm-endpoint",
+        metavar="URL",
+        help=(
+            "base URL of a self-hosted OpenAI-compatible server for the primary --llm "
+            "(vLLM, Ollama, …), e.g. http://localhost:8000/v1. No API key needed; the "
+            "provider-default key is never sent there — use --llm-key-env to send one"
+        ),
+    )
+    parser.add_argument(
+        "--llm-key-env",
+        metavar="VAR",
+        help="env var holding the API key for the primary --llm (overrides the provider default)",
+    )
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
+    from pydantic import ValidationError
+
     from repo2rlenv.config import load_generation_input
     from repo2rlenv.pipelines import PIPELINES
     from repo2rlenv.spec.options import parse_options
@@ -69,18 +158,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
             "name": args.pipeline,
             "options": _parse_pipeline_opts(args.pipeline_opt),
         }
-    if args.llm:
-        if "/" not in args.llm:
-            raise SystemExit(f"--llm expects provider/model, got {args.llm!r}")
-        provider, model = args.llm.split("/", 1)
-        overrides["llm"] = {"provider": provider, "model": model}
-        if getattr(args, "llm_fallback", None):
-            if "/" not in args.llm_fallback:
-                raise SystemExit(
-                    f"--llm-fallback expects provider/model, got {args.llm_fallback!r}"
-                )
-            fb_provider, fb_model = args.llm_fallback.split("/", 1)
-            overrides["llm"]["fallback"] = {"provider": fb_provider, "model": fb_model}
+    llm_overrides = _llm_overrides(args)
+    if llm_overrides:
+        overrides["llm"] = llm_overrides
     if args.out:
         overrides["output"] = {
             "destination": args.out,
@@ -90,7 +170,16 @@ def cmd_generate(args: argparse.Namespace) -> int:
         }
 
     config_path = Path(args.config) if args.config else None
-    gen_input = load_generation_input(config_path, overrides)
+    try:
+        gen_input = load_generation_input(config_path, overrides)
+    except ValidationError as exc:
+        # e.g. --llm-endpoint with a config that has no `llm:` block — show the
+        # field errors, not a traceback.
+        console.error(f"invalid generation input:\n{exc}")
+        return 2
+
+    if args.llm and config_path is not None:
+        gen_input = _drop_config_llm_extras(gen_input, args, config_path)
 
     pipeline_cls = PIPELINES.get(gen_input.pipeline.name.value)
     if pipeline_cls is None:
@@ -172,7 +261,14 @@ def cmd_generate(args: argparse.Namespace) -> int:
     if getattr(pipeline_cls, "requires_bootstrap", False):
         from repo2rlenv.bootstrap import LanguageHint, ensure_bootstrap
         from repo2rlenv.bootstrap.runner import BootstrapError
+        from repo2rlenv.llm import check_provider
         from repo2rlenv.ui.views.bootstrap import bootstrap_view_or_plain
+
+        try:
+            check_provider(gen_input.llm)
+        except RuntimeError as exc:
+            console.error(str(exc))
+            return 2
 
         # Mutate spec with CLI overrides (language / base-image / budget / force / --bootstrap-opt)
         bspec = gen_input.bootstrap.model_copy(deep=True)
@@ -732,13 +828,17 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     from repo2rlenv.bootstrap import LanguageHint, ensure_bootstrap
     from repo2rlenv.bootstrap.language import base_image_for
     from repo2rlenv.bootstrap.runner import BootstrapError
+    from repo2rlenv.llm import check_provider
     from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
     from repo2rlenv.ui.views.bootstrap import bootstrap_view_or_plain
 
-    if not args.llm or "/" not in args.llm:
+    if not args.llm:
         raise SystemExit("--llm is required as provider/model (e.g. anthropic/claude-sonnet-4-6)")
-    provider, model = args.llm.split("/", 1)
-    llm = LLMSpec(provider=provider, model=model)
+    llm = LLMSpec.model_validate(_llm_overrides(args))
+    try:
+        check_provider(llm)
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
     repo = RepoSpec(url=args.repo, ref=args.ref, access=args.access)
     # --max-spend-usd=0 means "no cap"; map to None so the agent loop skips the check
@@ -860,14 +960,7 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="pipeline-specific kwarg, repeatable (key=value)",
     )
-    g.add_argument("--llm", help="LLM as provider/model (e.g. anthropic/claude-sonnet-4-6)")
-    g.add_argument(
-        "--llm-fallback",
-        help=(
-            "fallback LLM as provider/model — used automatically when the primary "
-            "returns 5xx / rate-limit / network errors"
-        ),
-    )
+    _add_llm_args(g, required=False, fallback=True)
     g.add_argument("--out", help="output directory")
     g.add_argument("--org", help="task.org for Harbor")
     g.add_argument("--dataset-name", help="dataset name")
@@ -1029,7 +1122,7 @@ def main(argv: list[str] | None = None) -> int:
     bs.add_argument("--repo", required=True, help="GitHub repo (owner/name or URL)")
     bs.add_argument("--ref", default="HEAD", help="branch/tag/commit (default: HEAD)")
     bs.add_argument("--access", choices=["public", "private", "auto"], default="auto")
-    bs.add_argument("--llm", required=True, help="provider/model, e.g. anthropic/claude-sonnet-4-6")
+    _add_llm_args(bs, required=True, fallback=False)
     bs.add_argument("--max-iterations", type=int, default=25)
     bs.add_argument("--max-seconds", type=int, default=1800)
     bs.add_argument(

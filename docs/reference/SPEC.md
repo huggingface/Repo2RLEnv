@@ -24,7 +24,7 @@ class GenerationInput(BaseModel):
 |---|---|---|
 | `RepoSpec` | `url` | `access ∈ {public, private, auto}`, optional `auth_token_env`, `ref` defaults to `HEAD` |
 | `PipelineSpec` | `name`, `options` | `name` is an enum (see [pipelines/](./pipelines/)); `options` is validated against the named pipeline's Options model with `extra="forbid"` |
-| `LLMSpec` | `provider`, `model` | `provider/model` resolves to a LiteLLM identifier; supports `endpoint` for self-hosted vLLM/Ollama |
+| `LLMSpec` | `provider`, `model` | `provider/model` resolves to a LiteLLM identifier; `endpoint` (CLI: `--llm-endpoint`) targets a self-hosted vLLM/Ollama server, `api_key_env` (CLI: `--llm-key-env`) names a non-default key var |
 | `OutputSpec` | `destination`, `org`, `dataset_name` | `destination` is a local path; publish separately via `repo2rlenv push` |
 | `QASpec` | (none) | Defaults to `[diff_parse]` for the lite path; full pipelines opt into `[determinism, oracle_consistency, llm_judge, false_negative]` |
 | `SandboxSpec` | (none) | See "Sandbox model" below — `none` for lite, `harbor` for full pipelines (delegates), `local`/`e2b` for lite consumer-side runners |

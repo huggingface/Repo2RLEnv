@@ -60,3 +60,26 @@ def test_hf_token_falls_back_to_env():
         # Patch the cache file path so we don't accidentally pick up real cache
         auth = AuthSpec(use_hf_cli=False)
         assert resolve_hf_token(auth) == "hf_xxx"
+
+
+def test_llm_api_key_unknown_provider_returns_none_without_raising():
+    """Providers outside LLM_KEY_ENV_DEFAULTS are LiteLLM's to resolve."""
+    with mock.patch.dict(os.environ, {}, clear=True):
+        assert resolve_llm_api_key("hosted_vllm") is None
+        assert resolve_llm_api_key("ollama") is None
+        assert resolve_llm_api_key("bedrock") is None
+
+
+def test_llm_api_key_explicit_env_works_for_unknown_provider():
+    with mock.patch.dict(os.environ, {"VLLM_KEY": "secret"}, clear=True):
+        assert resolve_llm_api_key("hosted_vllm", "VLLM_KEY") == "secret"
+
+
+def test_llm_api_key_explicit_env_never_falls_through():
+    with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-personal"}, clear=True):
+        assert resolve_llm_api_key("openai", "PROXY_KEY") is None
+
+
+def test_llm_api_key_blank_counts_as_unset():
+    with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}, clear=True):
+        assert resolve_llm_api_key("anthropic") is None

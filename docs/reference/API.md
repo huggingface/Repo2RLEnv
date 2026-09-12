@@ -85,7 +85,7 @@ response = complete(
 print(response.content)
 ```
 
-Single-shot LiteLLM call. Honors `spec.endpoint` for self-hosted backends; auto-points HF provider at `https://router.huggingface.co/v1`.
+Single-shot LiteLLM call. Honors `spec.endpoint` for self-hosted backends — no key required, and the provider-default key is never forwarded there unless `spec.api_key_env` names it; auto-points HF provider at `https://router.huggingface.co/v1`. Providers outside `auth.LLM_KEY_ENV_DEFAULTS` resolve their credentials inside LiteLLM. `check_provider(spec)` fails fast on an unknown provider anywhere in the fallback chain.
 
 ## `repo2rlenv.reward`
 

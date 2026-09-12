@@ -107,7 +107,9 @@ LiteLLM resolves provider keys from provider-default env vars:
 | Together | `TOGETHER_API_KEY` |
 | Groq | `GROQ_API_KEY` |
 
-Override with `llm.api_key_env` in your config if you have non-default names.
+Override with `--llm-key-env VAR` (or `llm.api_key_env` in config) if you have non-default names. Providers not in the table are resolved by LiteLLM's own per-provider lookup.
+
+**Self-hosted models need no key.** Point `--llm-endpoint` (or `llm.endpoint`) at any OpenAI-compatible server and use `hosted_vllm/<model>` or `openai/<model>`. The provider-default key is never forwarded to a custom endpoint — `openai/` gets a placeholder, `hosted_vllm/` honours `HOSTED_VLLM_API_KEY` if set. Pass `--llm-key-env VAR` to send a specific key. `ollama/<model>` reads `OLLAMA_API_BASE` on its own.
 
 ### Container registry (image distribution for `_runtime` datasets)
 
