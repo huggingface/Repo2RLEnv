@@ -72,6 +72,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0024 | `commit_runtime` / `r2e_gym` | accepted design | [0024-r2e-gym-recipe.md](./0024-r2e-gym-recipe.md) | — |
 | 0025 | `cve_patches` / `sec_bench` | accepted design | [0025-sec-bench-recipe.md](./0025-sec-bench-recipe.md) | — |
 | 0026 | `reasoning_synth` / `scaler` | accepted design | [0026-scaler-recipe.md](./0026-scaler-recipe.md) | — |
+| 0028 | Tasksmith PR pilot | in progress | [0028-tasksmith-pr-pilot.md](./0028-tasksmith-pr-pilot.md) | — |
 | 0027 | Harbor review and repair | implemented | [0027-harbor-quality-loop.md](./0027-harbor-quality-loop.md) | — |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->

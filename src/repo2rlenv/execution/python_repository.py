@@ -50,7 +50,7 @@ def test_image(
         "python",
         "-m",
         "pytest",
-        *options.test_paths,
+        *(options.test_selectors or options.test_paths),
         "-q",
         "--tb=short",
         "--junitxml=/tmp/results.xml",
@@ -126,7 +126,7 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
         + "COPY . /workspace\n"
         f"RUN {options.install_command}\n"
         "RUN rm -rf /workspace/.git /root/.cache/pip\n"
-        "ENV PYTHONDONTWRITEBYTECODE=1\n"
+        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
     )
     digest = hashlib.sha256(dockerfile.encode()).hexdigest()
     profile = Path("/work/bootstrap-profiles") / f"{digest}.Dockerfile"

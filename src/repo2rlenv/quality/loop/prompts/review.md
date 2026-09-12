@@ -76,3 +76,5 @@ if either is absent.
 If no rollout is provided, use not_run. If evidence is incomplete, say so. Return
 empty read_requests when the supplied evidence is sufficient. Only propose probes
 when probe_limit is positive; otherwise return an empty list.
+
+For leakage, inspect instruction.md itself as well as the filesystem boundary. A request may name the public API, describe the observed failure, give input/output examples and state compatibility requirements. It must not prescribe the fix: exact internal edits, new guards, early returns, where to move a try/except, or an implementation algorithm. For a small PR, such advice can disclose the whole solution. Mark this as a blocking instruction/leakage defect and request removal of the remedy while preserving the behavioral requirements. Do not claim leakage is absent merely because solution/ and tests/ are private. Difficulty may be low and still useful; this rule concerns supplying the implementation, not ease of the underlying bug.

@@ -32,3 +32,5 @@ copy the reference verbatim just to obtain a passing alternative. Keep the origi
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
 repair may have edits=[] and must leave the task/verifier unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
+
+Do not solve the requested task in the learner starting source. Preserve the intentional defect and the fail-to-pass contrast. When a container failed to build, use the actual exception message to repair packaging; do not infer a missing test or missing target fix from an unsuccessful multiword literal search. A missing README referenced by package metadata is a packaging defect, not a reason to alter task behavior or oracle code.

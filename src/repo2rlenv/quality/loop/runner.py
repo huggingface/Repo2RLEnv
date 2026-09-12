@@ -97,13 +97,16 @@ class QualityLoop:
         directory: Path,
         ledger: BudgetLedger,
         *,
+        budget: RunBudget | None = None,
+        protected_paths: tuple[str, ...] = (),
         model_client=None,
         trial_runner=None,
         on_event: Callable[[ProgressEvent], None] | None = None,
     ):
         self.options, self.directory = options, directory.resolve()
+        self.protected_paths = tuple(Path(value) for value in protected_paths)
         prefix = "quality-" + hashlib.sha256(str(self.directory).encode()).hexdigest()[:16]
-        self.budget = RunBudget(ledger, prefix, options.max_spend_usd)
+        self.budget = budget or RunBudget(ledger, prefix, options.max_spend_usd)
         self.model = model_client or JsonModel(
             self.directory / "calls",
             self.budget,
@@ -207,9 +210,16 @@ class QualityLoop:
                         failures=reasons,
                         retained_probes=[probe.model_dump() for probe in probes],
                         patch_feedback=feedback,
+                        protected_paths=[str(path) for path in self.protected_paths],
                     ),
                     f"r{revision}-repair" + (f"-correction{attempt}" if attempt else ""),
                 )
+                for edit in repair.edits:
+                    if any(
+                        Path(edit.path) == path or Path(edit.path).is_relative_to(path)
+                        for path in self.protected_paths
+                    ):
+                        raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
                 updated_probes = probes
                 if repair.probe_replacements:
                     if not any(issue.category == "probe" for issue in review.issues):
@@ -318,6 +328,7 @@ class QualityLoop:
             if path
         ]
         configuration = {
+            "protected_paths": [str(path) for path in self.protected_paths],
             "source_hash": source_hash,
             "source": str(source),
             "options": self.options.model_dump(mode="json"),

@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `45c0b5cc9b05ee277137f31dd606692035fef0854dc6a43725ad6e3108f1b8fa`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `bf02e94876125b66cfb9d6947d74eaeddd03ad3de87333514d23a25c2b8add79`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -90,13 +90,15 @@ if either is absent.
 If no rollout is provided, use not_run. If evidence is incomplete, say so. Return
 empty read_requests when the supplied evidence is sufficient. Only propose probes
 when probe_limit is positive; otherwise return an empty list.
+
+For leakage, inspect instruction.md itself as well as the filesystem boundary. A request may name the public API, describe the observed failure, give input/output examples and state compatibility requirements. It must not prescribe the fix: exact internal edits, new guards, early returns, where to move a try/except, or an implementation algorithm. For a small PR, such advice can disclose the whole solution. Mark this as a blocking instruction/leakage defect and request removal of the remedy while preserving the behavioral requirements. Do not claim leakage is absent merely because solution/ and tests/ are private. Difficulty may be low and still useful; this rule concerns supplying the implementation, not ease of the underlying bug.
 ````
 
 </details>
 
 ### repair.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `9fd065cfad04fca68501d6beed2c10664ec384b5853f4aedf81ffc82b57b107e`
+[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `f6fccc15d15e98c2449da6fcc3ee58c46d69ffc1e0f3afaa11ad902b528a1c2a`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -138,13 +140,15 @@ copy the reference verbatim just to obtain a passing alternative. Keep the origi
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
 repair may have edits=[] and must leave the task/verifier unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
+
+Do not solve the requested task in the learner starting source. Preserve the intentional defect and the fail-to-pass contrast. When a container failed to build, use the actual exception message to repair packaging; do not infer a missing test or missing target fix from an unsuccessful multiword literal search. A missing README referenced by package metadata is a packaging defect, not a reason to alter task behavior or oracle code.
 ````
 
 </details>
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `619d7bc33a271a91aa1e2ac1934d14caf3beae9590be63278eefa49ea672ade7`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `92a03fa1c0960a6dd17efaac5884a4ac56f0c4082023878165d72687ce37a482`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -189,7 +193,9 @@ class Issue(Record):
 
 class ReadRequest(Record):
     path: str
-    query: str | None
+    query: str | None = Field(
+        description="One exact literal substring to search, not a regex or a list of words. Use separate read requests for different terms."
+    )
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
 
@@ -348,7 +354,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `0ab836a7d2b944dd22b257c2d00f3eb8404e7648865c5ac7261c3e3310a9dcce`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `f2c86f7297557cce233569bf2e4b3f261ea5655b3f1ed05c59111e0fb6f43d0e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -399,7 +405,21 @@ class EvidenceContext:
         symbols = set(re.findall(r"\bdef\s+([A-Za-z_]\w*)", instruction))
         if not symbols:
             symbols.update(re.findall(r"`([A-Za-z_]\w*)\(", instruction))
-        for key, path in self._paths.items():
+        contract = self._paths.get("tests/contract.json")
+        if contract is not None:
+            try:
+                identities = json.loads(contract.read_text()).get("expected_passes", [])
+                symbols.update(
+                    identity.rsplit("::", 1)[-1].split("[", 1)[0] for identity in identities[:64]
+                )
+            except (ValueError, AttributeError):
+                pass
+        # Put selected private tests before duplicate source copies, so a large
+        # library module cannot crowd its actual regression cases out of context.
+        ordered = sorted(
+            self._paths.items(), key=lambda item: (not item[0].startswith("tests/source/"), item[0])
+        )
+        for key, path in ordered:
             if (
                 key not in self.documents
                 and path.suffix == ".py"
@@ -416,6 +436,11 @@ class EvidenceContext:
                 raise ValueError("Trial result changed since ingestion")
             prefix = f"evidence/{index}-{trial.role}/"
             summary = trial.model_dump(mode="json")
+            native = json.loads(path.read_text())
+            message = (native.get("exception_info") or {}).get("exception_message")
+            if message:
+                summary["exception_message_tail"] = str(message)[-6000:]
+
             if trial.probe:
                 script_key = prefix + "probe-script.sh"
                 script = summary["probe"].pop("script")
@@ -518,7 +543,9 @@ class EvidenceContext:
         chunks = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
-                symbol.lower() in node.name.lower() for symbol in symbols if len(symbol) >= 3
+                symbol.lower().replace("_", "") in node.name.lower().replace("_", "")
+                for symbol in symbols
+                if len(symbol) >= 3
             ):
                 start = max(1, node.lineno - 1)
                 end = min(node.end_lineno or node.lineno, start + 399)
@@ -615,7 +642,7 @@ class EvidenceContext:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `a69f69b28bc0e76ce5300bba636f47fb1e1b6792d2df6d62a59c5910d7985835`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `aa6578f4b660b336c56009cdcba6a2d94475e4b6dc0514b88071e784b99db14e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -722,13 +749,16 @@ class QualityLoop:
         directory: Path,
         ledger: BudgetLedger,
         *,
+        budget: RunBudget | None = None,
+        protected_paths: tuple[str, ...] = (),
         model_client=None,
         trial_runner=None,
         on_event: Callable[[ProgressEvent], None] | None = None,
     ):
         self.options, self.directory = options, directory.resolve()
+        self.protected_paths = tuple(Path(value) for value in protected_paths)
         prefix = "quality-" + hashlib.sha256(str(self.directory).encode()).hexdigest()[:16]
-        self.budget = RunBudget(ledger, prefix, options.max_spend_usd)
+        self.budget = budget or RunBudget(ledger, prefix, options.max_spend_usd)
         self.model = model_client or JsonModel(
             self.directory / "calls",
             self.budget,
@@ -832,9 +862,16 @@ class QualityLoop:
                         failures=reasons,
                         retained_probes=[probe.model_dump() for probe in probes],
                         patch_feedback=feedback,
+                        protected_paths=[str(path) for path in self.protected_paths],
                     ),
                     f"r{revision}-repair" + (f"-correction{attempt}" if attempt else ""),
                 )
+                for edit in repair.edits:
+                    if any(
+                        Path(edit.path) == path or Path(edit.path).is_relative_to(path)
+                        for path in self.protected_paths
+                    ):
+                        raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
                 updated_probes = probes
                 if repair.probe_replacements:
                     if not any(issue.category == "probe" for issue in review.issues):
@@ -943,6 +980,7 @@ class QualityLoop:
             if path
         ]
         configuration = {
+            "protected_paths": [str(path) for path in self.protected_paths],
             "source_hash": source_hash,
             "source": str(source),
             "options": self.options.model_dump(mode="json"),

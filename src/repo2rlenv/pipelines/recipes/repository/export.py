@@ -11,6 +11,28 @@ from repo2rlenv.emitter.bundle import TaskBundle, TaskFile, write_bundle
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
+def repository_build(options: PythonRepositoryProfile) -> str:
+    """Shared install recipe for public readiness and final Harbor images."""
+    return (
+        f"FROM {options.base_image}\nWORKDIR /workspace\n"
+        + (
+            f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
+            if options.dependencies
+            else ""
+        )
+        + "COPY source /workspace\n"
+        f"RUN {options.install_command}\n"
+        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
+    )
+
+
+def private_asset(relative: PurePosixPath, options: PythonRepositoryProfile) -> bool:
+    return any(
+        relative == root or root in relative.parents
+        for root in map(PurePosixPath, options.test_paths + options.public_exclude)
+    )
+
+
 def export_repository_task(
     *,
     base: Path,
@@ -54,11 +76,11 @@ def export_repository_task(
         content = defective.get(str(relative), path.read_bytes())
         asset = TaskFile(content, bool(path.stat().st_mode & 0o111))
         assets[f"tests/source/{relative}"] = asset
-        private_test = any(relative == root or root in relative.parents for root in hidden_roots)
-        if not private_test:
+        hidden_asset = private_asset(relative, options)
+        if not hidden_asset:
             assets[f"environment/source/{relative}"] = asset
         if (
-            not private_test
+            not hidden_asset
             and path.suffix == ".py"
             and any(relative == root or root in relative.parents for root in source_roots)
         ):
@@ -72,17 +94,7 @@ def export_repository_task(
             raise ValueError("Private verifier additions must not replace repository files")
         assets[f"tests/source/{relative}"] = TaskFile(content)
 
-    build = (
-        f"FROM {options.base_image}\nWORKDIR /workspace\n"
-        + (
-            f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
-            if options.dependencies
-            else ""
-        )
-        + "COPY source /workspace\n"
-        f"RUN {options.install_command}\n"
-        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
-    )
+    build = repository_build(options)
     assets["environment/Dockerfile"] = TaskFile.text(
         build
         + "RUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\n"
@@ -109,7 +121,7 @@ def export_repository_task(
         json.dumps(
             {
                 "submitted_files": collected,
-                "test_paths": options.test_paths,
+                "test_paths": options.test_selectors or options.test_paths,
                 "expected_passes": contrast["FAIL_TO_PASS"] + contrast["PASS_TO_PASS"],
                 "timeout_sec": options.test_timeout_sec,
             },

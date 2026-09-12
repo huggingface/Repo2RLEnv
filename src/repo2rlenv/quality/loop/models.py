@@ -35,7 +35,9 @@ class Issue(Record):
 
 class ReadRequest(Record):
     path: str
-    query: str | None
+    query: str | None = Field(
+        description="One exact literal substring to search, not a regex or a list of words. Use separate read requests for different terms."
+    )
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
 

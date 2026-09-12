@@ -691,3 +691,82 @@ def test_large_baseline_inventory_cannot_hide_later_probe_failure(task, tmp_path
     script_path = "evidence/1-probe/probe-script.sh"
     context.read_more([ReadRequest(path=script_path, query=None, start_line=1, end_line=2)])
     assert context.documents[script_path + ":L1-L2"] == probes()[1].script
+
+
+def test_immutable_oracle_cannot_be_changed_by_component_repair(task, tmp_path):
+    class OracleEditingModel(Model):
+        def ask(self, schema, model, system, user, key):
+            if schema is Repair:
+                return Repair(
+                    explanation="Attempt to alter the oracle",
+                    addressed_issues=["Weak check"],
+                    edits=[
+                        Edit(
+                            path="solution/solve.sh",
+                            old="printf '4'",
+                            new="printf '5'",
+                            executable=True,
+                        )
+                    ],
+                )
+            return super().ask(schema, model, system, user, key)
+
+    before = task_identity(task)
+    loop = QualityLoop(
+        LoopOptions(repair=True),
+        tmp_path / "quality",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="20"),
+        model_client=OracleEditingModel(),
+        trial_runner=Trials(tmp_path / "evidence"),
+        protected_paths=("solution", "environment/source"),
+    )
+    result = loop.run(task)
+    assert result.status == "needs_evidence"
+    assert "immutable source or oracle" in result.reasons[0]
+    assert task_identity(task) == before
+    assert not (tmp_path / "quality/revisions/r1").exists()
+
+
+def test_selected_unittest_methods_are_in_initial_review_context(task):
+    path = task / "tests/source/tests/test_large.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "class InterleaveEvenlyTests:\n    def test_no_iterables(self):\n        assert result == []\n"
+    )
+    (task / "tests/contract.json").write_text(
+        json.dumps(
+            {"expected_passes": ["tests.test_large.InterleaveEvenlyTests::test_no_iterables"]}
+        )
+    )
+    context = EvidenceContext(task, [], limit=100000)
+    assert "test_no_iterables" in context.documents["tests/source/tests/test_large.py"]
+
+
+def test_real_build_failure_text_is_available_without_guessing(task, tmp_path):
+    path = tmp_path / "evidence/result.json"
+    path.parent.mkdir()
+    path.write_text(
+        json.dumps(
+            {
+                "exception_info": {
+                    "exception_message": "ConfigError: Description file README.rst does not exist"
+                }
+            }
+        )
+    )
+    trial = TrialRecord(
+        role="oracle",
+        bundle_hash=task_identity(task),
+        result=str(path),
+        result_sha256=digest(path),
+        agent="oracle",
+        model=None,
+        reward=None,
+        exception_type="RuntimeError",
+        binding="receipt",
+    )
+    context = EvidenceContext(task, [trial], limit=100000)
+    assert (
+        "Description file README.rst does not exist"
+        in context.documents["evidence/0-oracle/result.json"]
+    )

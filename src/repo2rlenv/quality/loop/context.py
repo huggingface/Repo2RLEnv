@@ -41,7 +41,21 @@ class EvidenceContext:
         symbols = set(re.findall(r"\bdef\s+([A-Za-z_]\w*)", instruction))
         if not symbols:
             symbols.update(re.findall(r"`([A-Za-z_]\w*)\(", instruction))
-        for key, path in self._paths.items():
+        contract = self._paths.get("tests/contract.json")
+        if contract is not None:
+            try:
+                identities = json.loads(contract.read_text()).get("expected_passes", [])
+                symbols.update(
+                    identity.rsplit("::", 1)[-1].split("[", 1)[0] for identity in identities[:64]
+                )
+            except (ValueError, AttributeError):
+                pass
+        # Put selected private tests before duplicate source copies, so a large
+        # library module cannot crowd its actual regression cases out of context.
+        ordered = sorted(
+            self._paths.items(), key=lambda item: (not item[0].startswith("tests/source/"), item[0])
+        )
+        for key, path in ordered:
             if (
                 key not in self.documents
                 and path.suffix == ".py"
@@ -58,6 +72,11 @@ class EvidenceContext:
                 raise ValueError("Trial result changed since ingestion")
             prefix = f"evidence/{index}-{trial.role}/"
             summary = trial.model_dump(mode="json")
+            native = json.loads(path.read_text())
+            message = (native.get("exception_info") or {}).get("exception_message")
+            if message:
+                summary["exception_message_tail"] = str(message)[-6000:]
+
             if trial.probe:
                 script_key = prefix + "probe-script.sh"
                 script = summary["probe"].pop("script")
@@ -160,7 +179,9 @@ class EvidenceContext:
         chunks = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
-                symbol.lower() in node.name.lower() for symbol in symbols if len(symbol) >= 3
+                symbol.lower().replace("_", "") in node.name.lower().replace("_", "")
+                for symbol in symbols
+                if len(symbol) >= 3
             ):
                 start = max(1, node.lineno - 1)
                 end = min(node.end_lineno or node.lineno, start + 399)

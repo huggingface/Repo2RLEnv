@@ -11,12 +11,14 @@ class PythonRepositoryProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_paths: list[str] = Field(min_length=1)
     test_paths: list[str] = Field(min_length=1)
+    test_selectors: list[str] = Field(default_factory=list)
+    public_exclude: list[str] = Field(default_factory=list)
     base_image: str = "python:3.12-slim"
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3"])
     install_command: str = "python -m pip install --no-cache-dir -e ."
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
 
-    @field_validator("source_paths", "test_paths")
+    @field_validator("source_paths", "test_paths", "public_exclude", "test_selectors")
     @classmethod
     def safe_paths(cls, values: list[str]) -> list[str]:
         from repo2rlenv.emitter.bundle import relative_asset_path
