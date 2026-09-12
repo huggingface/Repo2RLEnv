@@ -98,6 +98,8 @@ jobs:
           tests/test_scaler_recipe.py
           tests/test_remote_job.py tests/test_verifier_driver.py
           tests/test_quality_loop.py tests/test_tasksmith.py tests/test_tasksmith_bridge.py
+          tests/test_tasksmith_reuse.py tests/test_tasksmith_bootstrap.py
+          tests/test_hf_bootstrap_resume.py tests/test_quality_context_scale.py
 
   tasksmith-runtimes:
     name: Tasksmith coding runtime contracts

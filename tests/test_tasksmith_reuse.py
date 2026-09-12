@@ -123,7 +123,7 @@ def test_reference_conflict_requires_fresh_design_without_relabeling_probes(gene
 
 @pytest.mark.parametrize("change", [None, "result", "task", "outside", "infrastructure"])
 def test_execution_reuse_requires_unchanged_bound_results(generation, tmp_path, change):
-    from harbor.models.task.task import Task
+    Task = pytest.importorskip("harbor.models.task.task").Task
 
     from repo2rlenv.quality.loop.artifacts import import_trial
 
