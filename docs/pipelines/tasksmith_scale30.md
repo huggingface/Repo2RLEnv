@@ -2,9 +2,11 @@
 
 **Target: 30 total accepted tasks in this HF campaign — retain the existing ten and generate twenty more, including three Transformers tasks.** Earlier pilots and other reproduction pipelines do not count toward this target. The proposed additions are **12 CPU tasks, six single-L4 tasks and two tasks using two L4s**. This is a source-audited selection, not twenty completed PR-specific bootstraps.
 
-Audit date: September 13, 2026. The [candidate manifest](evidence/tasksmith-scale30-panel.json) records every selected PR's source pin, source-diff hash, proposed task, verification idea and wave. Seventeen selections fit the existing source profile; three Transformers selections require the added-Python-source extension below. Eighteen other currently compatible candidates remain in reserve. The [bootstrap audit](evidence/tasksmith-scale30-bootstrap.json) records fresh execution, the failed first distributed launch, its correction, cleanup and cost. The [Transformers source audit](evidence/tasksmith-scale30-transformers.json) adds fresh merged-PR metadata, complete source-diff identities and test entry points.
+Audit date: September 13, 2026. The [candidate manifest](evidence/tasksmith-scale30-panel.json) records every selected PR's source pin, source-diff hash, proposed task, verification idea and wave. Seventeen selections fit the original source profile; three Transformers selections required the added-Python-source extension described below. Eighteen other candidates remain in reserve. The [bootstrap audit](evidence/tasksmith-scale30-bootstrap.json) records fresh execution, the failed first distributed launch, its correction, cleanup and cost. The [Transformers source audit](evidence/tasksmith-scale30-transformers.json) adds fresh merged-PR metadata, complete source-diff identities and test entry points.
 
-The last unresolved intake, Tokenizers #1928, was retried successfully during this audit and classified as Rust source changes. All **114 inputs are now accounted for: 45 structurally supported and 69 outside the current source profile, with no unresolved retrieval errors**. The earlier intake file is retained as historical evidence.
+Execution update, September 13 at 08:20 UTC: **11 accepted tasks**, including PEFT #3212. Its baseline failed, fixed reference passed, valid alternative passed and wrong implementation failed. Sonnet failed legitimately, so acceptance did not require making the task easier. The [progress evidence](evidence/tasksmith-scale30-progress.json) records identities and rewards. Native GPU execution and added-module support are implemented and have passed the [execution contract checks](evidence/tasksmith-scale30-native-contract.json). Actual GPU and Transformers tasks remain in campaign validation. TRL #6116 exposed a conflict between its idempotence claim and the merged reference; that candidate is not counted as accepted.
+
+The last unresolved intake, Tokenizers #1928, was retried successfully during the initial audit and classified as Rust source changes. Before the added-source extension, all **114 inputs were accounted for: 45 structurally supported and 69 outside that source profile, with no unresolved retrieval errors**. These historical counts are not a fresh classification under the expanded implementation.
 
 ## What is complete
 
@@ -14,7 +16,7 @@ The last unresolved intake, Tokenizers #1928, was retried successfully during th
 | Six CPU repository images | Restored the existing remote Docker cache and reran all six behavioral checks with `docker --network none`. All passed and loaded their source from `/workspace`. |
 | Six GPU-host images | Prior completed L4 bootstrap covers all six repositories; five exercise CUDA and Tokenizers remains CPU software. Those six checks were not needlessly rebuilt. |
 | Two-GPU runtime | Fresh cached Accelerate and PEFT images passed NCCL all-reduce and real distributed training checks on two L4s, with outbound networking blocked. Accelerate verified equal model weights after an optimizer step; PEFT verified equal adapter gradients. |
-| Cleanup/accounting | Four audit allocations, including the failed first GPU launch, are terminated; no audit reservations remain. Estimate: **$4.343529**, no model calls. Campaign available: **$148.644776**. Historical unresolved reservations remain intact. |
+| Cleanup/accounting at initial audit | Four audit allocations, including the failed first GPU launch, are terminated; no audit reservations remain. Estimate: **$4.343529**, no model calls. Campaign available then: **$148.644776**. This predates generation spending; historical unresolved reservations remain intact. |
 
 The original CPU cache was created September 12 at 22:27:23 UTC, with a seven-day TTL. Its nominal expiry is September 19 at 22:27:23 UTC. Restoration was checked today. Recheck expiry and dependency identity at dispatch; account-scoped snapshot IDs are accelerators for construction, not portable deliverables.
 
@@ -29,11 +31,11 @@ python -m torch.distributed.run \
 
 This establishes single-host collective/DDP readiness. It does **not** establish FSDP2, tensor-parallel adapters, Liger, FlashAttention, vLLM, or every historical PR's compatibility. Each selected PR must exercise its own actual implementation before authoring proceeds. Distributed timeouts are infrastructure failures, not task rewards.
 
-## The implementation gap
+## Execution implementation
 
-Tasksmith currently declares `Profile.resource` as CPU-only, bootstraps through its Docker worker, and hardcodes `OfflineDockerEnvironment` for Harbor trials. Changing one resource string would leave construction and validation on the wrong execution path.
+Tasksmith now validates CPU or GPU profiles against the requested device count. CPU tasks retain remote Docker execution. GPU bootstrap, construction and Harbor trials use native Modal environments through owned adapters, with an offline learner and separate offline verifier. The investigator still uses a private CPU worker to inspect source.
 
-Transformers exposes another implementation gap: intake rejects added Python source, construction assumes every reversed source file still exists, and the exporter only transfers replacements of existing files. The selected Transformers PRs are still classified as unsupported by that current profile. They are promoted into the plan with an explicit prerequisite, not relabeled as already runnable.
+Intake records added Python files, construction represents their genuine absence, and directory collection accepts newly implemented Python modules. The oracle restores directories and files from the fixed PR head. Existing non-Python source assets remain fixed. The selected Transformers PRs can now enter generation; each still needs compatible historical dependencies and a sound verifier.
 
 Installed versions inspected during this audit: Harbor **0.20.0**, Modal **1.5.5**, Daytona **0.198.0**. Harbor already has GPU fields and a native Modal provider, plus separate verifier environments. Reuse those contracts through owned repository code. Modal VM Sandboxes do not support GPUs; GPU trials must use native sandboxes with a single-container image, not the existing VM/Docker composition. [Harbor task contract](https://www.harborframework.com/docs/tasks), [Modal VM limitations](https://modal.com/docs/guide/vm-sandboxes), [Modal GPU allocation](https://modal.com/docs/guide/gpu).
 
@@ -51,7 +53,7 @@ These three are from the original candidate file. Their merged source and tests 
 
 The upstream tests are starting points. Helium inherits model tests from Gemma, so preserve its private test dependencies. DINOv2 and MetaCLIP 2 already have small synthetic model testers; their downloaded-weight integration tests are separate. Supplement these tests with behavior-specific assertions and semantic controls rather than treating an import or output shape as sufficient validation. Architecture details needed by a developer must be stated in the instruction or public API documentation; knowing a model's name is not a complete task specification.
 
-Implement added-source support before the first Helium run:
+The added-source contract implemented before the Helium campaign is:
 
 1. Record explicit added/modified file operations and complete diff identities. All three inspected PRs need additions and modifications; renamed/deleted source and Rust remain separate capabilities.
 2. Reverse every selected source change, including both generated `modeling_*.py` and `modular_*.py` implementations. Newly added model files must actually be absent in the learner baseline. Remove answer-bearing docs and cached source; leaving the modular implementation would expose the solution.
@@ -130,7 +132,7 @@ Wave 1 targets **16 total**, wave 2 **23**, wave 3 **30**. Wave 3 contains the l
 
 Reserves include the three displaced tasks, PEFT tensor-parallel PRs #3079/#3091/#3096, Accelerate #4059 and Diffusers #13064. Hardware-specific exclusions include Accelerate Neuron #3935, AMD ROCm #4025, MXFP8 #3688 and specialized Diffusers attention-kernel work. These are limitations of this campaign's capabilities, not judgments that the PRs cannot become useful environments. The three Transformers selections explicitly depend on the added-source extension; Tokenizers still needs Rust support. Merely bootstrapping their repositories does not implement those source profiles.
 
-## Changes to make, in order
+## Implementation and completion checklist
 
 | Work | Existing implementation to extend | Completion check |
 |---|---|---|

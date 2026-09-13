@@ -207,10 +207,12 @@ def clean_snapshot(base: Path, options: PythonRepositoryProfile, destination: Pa
     save_record(destination / "snapshot-document-links.json", {"materialized": links})
     # A snapshot may contain bytecode or generated build files. Keep them out of
     # task source archives; all links not explicitly materialized remain unsupported.
-    for path in sorted(base.rglob("*"), reverse=True):
-        if path.is_symlink():
-            raise ValueError(
-                f"Repository snapshot has a symlink requiring explicit support: {path.relative_to(base)}"
-            )
+    paths = sorted(base.rglob("*"), reverse=True)
+    linked = [path.relative_to(base).as_posix() for path in paths if path.is_symlink()]
+    if linked:
+        raise ValueError(
+            "Repository snapshot has symlinks requiring explicit support: " + ", ".join(linked)
+        )
+    for path in paths:
         if path.is_dir() and path.name in {".git", "__pycache__", ".pytest_cache", "build", "dist"}:
             shutil.rmtree(path)

@@ -71,6 +71,8 @@ def resolve_pr(url: str) -> dict:
         "repo": f"https://github.com/{owner}/{name}",
         "base": pull["base"]["sha"],
         "title": pull["title"],
+        "created_at": pull.get("created_at"),
+        "merged_at": pull["merged_at"],
         "body": (pull.get("body") or "")[:10000],
         "source_files": source_files,
         "source_operations": [

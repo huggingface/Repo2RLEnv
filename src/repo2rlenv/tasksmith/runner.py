@@ -336,6 +336,15 @@ class Tasksmith:
                     raise ValueError(
                         "Profile resource must match the campaign's explicit GPU requirement"
                     )
+                previous = state.get("profile", {}).get("options", {})
+                retained_links = set(previous.get("materialize_document_links", []))
+                if missing_links := retained_links - set(
+                    profile.options.materialize_document_links
+                ):
+                    raise ValueError(
+                        "The frozen checkout still needs the previously identified document links: "
+                        + ", ".join(sorted(missing_links))
+                    )
                 roots = [PurePosixPath(path) for path in profile.options.source_paths]
                 for name in source["source_files"]:
                     path = PurePosixPath(name)

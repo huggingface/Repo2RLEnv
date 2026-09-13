@@ -233,7 +233,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `bda1ce0acdf5b71c4bd183e7d995775da62bbb0ee253c63f9aa5ca9f1dcb5537`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `a3743d288bd228a93cb5c00426ba0c09eab91e0afed638065069921b28a1af49`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -578,6 +578,15 @@ class Tasksmith:
                 if profile.resource != ("gpu" if self.options.gpus else "cpu"):
                     raise ValueError(
                         "Profile resource must match the campaign's explicit GPU requirement"
+                    )
+                previous = state.get("profile", {}).get("options", {})
+                retained_links = set(previous.get("materialize_document_links", []))
+                if missing_links := retained_links - set(
+                    profile.options.materialize_document_links
+                ):
+                    raise ValueError(
+                        "The frozen checkout still needs the previously identified document links: "
+                        + ", ".join(sorted(missing_links))
                     )
                 roots = [PurePosixPath(path) for path in profile.options.source_paths]
                 for name in source["source_files"]:

@@ -1,0 +1,80 @@
+{
+  "schema_version": "1",
+  "recorded_at": "2026-09-13T08:27:07.465068+00:00",
+  "target_total": 30,
+  "retained_accepted": 10,
+  "new_accepted": 1,
+  "accepted_total": 11,
+  "new_tasks": [
+    {
+      "pr": "https://github.com/huggingface/peft/pull/3212",
+      "source_head": "13cb6f1ce69e60f1cebd323466a321aa948ddcac",
+      "source_diff_sha256": "331dbe7b96688b787d60a661adb38cbd4a69cbf1b57421e90904507ca32c149f",
+      "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 3
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "da75c6569499b85ff76f3623b36b70766dff7e40bcda91c2464f8ff1765a17f1",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "2f035850c785fd3be1c2a27c50c1debb6bf49f4addb6001ed31a017f1fea322d",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:d81a2d0f74fafd58a4fddea3cf5c3ecae161c4fa91ce6512adb969ffef2141c8",
+          "result_sha256": "013bbd64d6d641aeff2e4d2841f35865bd12e7e6671e989856377fcbe364ee44",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:6b428560e571ee979a7a2f3a0c1d48f84b1297640593ddd2b537ae8acb34d1d8",
+          "result_sha256": "7c949fd75967788e3787c33c06fbc23325080da4093d41599538142d36ea1f18",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "8ce50c67c436b5104b34ce4af8dd5c5cc1f6a40b1d11d7ad2c62b57145dbe023",
+          "probe_kind": null
+        }
+      ],
+      "recovery_compute_and_model_usd": "3.732279",
+      "recovery_reserved_usd": "0",
+      "cost_scope": "This targeted recovery only; initial generation and unsuccessful repairs remain charged to the original CPU wave.",
+      "repair": "Pin Transformers 5.7.0 and tokenizers 0.22.2, use an actual local CLIPTextModel conversion fixture with both memory modes, and align expected test identities after parameterization. Preserve starting source and the actual PR reference."
+    }
+  ],
+  "known_failure": {
+    "pr": "https://github.com/huggingface/trl/pull/6116",
+    "status": "reference_conflict",
+    "finding": "The fixed reference fails its stated idempotence promise for already-tokenized DPO inputs with KeyError chosen. The separate verifier also needs independent expectations. A generated bundle is not an accepted task.",
+    "evidence": "workspace/tasksmith-scale30/wave1-cpu-v1/candidates/0816da569af6/quality/result.json"
+  },
+  "limitations": [
+    "This is a dated progress snapshot, not the final 30-task delivery.",
+    "GPU and Transformers bundles require their own completed controls and rollout reviews before acceptance.",
+    "A legitimate Sonnet failure can be accepted; it is not repaired into an easier task."
+  ]
+}
