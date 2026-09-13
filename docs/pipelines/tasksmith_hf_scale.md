@@ -82,6 +82,8 @@ uv run repo2rlenv tasksmith run configs/tasksmith/hf-first-ten.json \
 
 Snapshots are trusted builder caches containing repository images, not learner base images. Final Harbor bundles retain their ordinary portable Docker install recipe, private verifier and real PR reference. They do not require the private Modal snapshot or a worker-local image tag. The snapshot expires after seven days; readiness evidence and recipes remain. [Modal snapshot retention](https://modal.com/docs/guide/sandbox-snapshots).
 
+Some PEFT and TRL revisions contain internal documentation symlinks, including `AGENTS.md`, `CLAUDE.md` and contribution guides. The investigator can select these explicitly with the Python profile's `materialize_document_links` list. After export, the snapshot builder resolves each selected link to an existing document inside the snapshot, copies its bytes into a regular file and records its target and SHA-256 in `snapshot-document-links.json`. It validates every selection before changing any file. Missing, cyclic, escaping, directory and source-code targets remain errors; unselected symlinks remain unsupported. `public_exclude` governs the later learner view and cannot repair a failed snapshot export.
+
 | Responsibility | Owned implementation |
 |---|---|
 | Matrix schema, Dockerfiles, remote CPU build and dependency record | `src/repo2rlenv/tasksmith/bootstrap_matrix.py` |
@@ -100,6 +102,8 @@ Model estimates come from recorded token usage. Compute estimates conservatively
 For large repositories, the reviewer groups paths by directory and uses a bounded searchable catalogue. Every file remains addressable; an oversized read leaves the previous context intact. Literal searches also bound characters per match: a minified JSON trajectory can otherwise return its entire contents as one matching line. Truncated search excerpts identify the original line and columns and explicitly label omitted text.
 
 These fixes came from completed tasks whose execution succeeded but whose final review could not read enough evidence. Saved bundles were reviewed again with their bound execution receipts. The sixth candidate completed before switching the remaining four original PRs to the corrected runtime; its worker was terminated, and the next inspection was interrupted before an author model call. Original attempts, reviews and the ten-PR selection remain intact.
+
+A manual audit also found that two generated PEFT tests invented module paths that their fake model could not resolve. Those tests rejected an otherwise valid path-lookup strategy. The quality review prompt now explicitly checks whether test doubles preserve relevant real API invariants. That task stays outside the accepted set until corrected fixtures, an additional valid implementation and a nested-module overmatching counterexample have been exercised. A model's usable label alone is not treated as proof when contradictory execution evidence exists.
 
 For a resumed generation, `--generation-run PREVIOUS_RUN --reuse-evidence` can reuse unchanged baseline, reference and matching-model rollout results. The importer checks both the task identity and original result checksum; infrastructure failures execute again. Semantic probes run under the current review policy. No old reward is attributed to an edited task revision. Omit `--reuse-evidence` when fresh trials are wanted.
 

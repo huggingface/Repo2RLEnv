@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `41a243cbd1abd7165c34c24907cbcc6f4f8cfb56141883ed6474d1d3874536e6`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `0877510252e5a8247db69e5efc311220c14157e2bcbcb8511c4f6d33961275e9`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -23,6 +23,8 @@ Keep full test directory roots private even when selecting a few node IDs. Exclu
 A previous failure, if supplied, is evidence for correcting only the profile. Do not weaken the task or remove a failing behavior to make the build pass. Submit the artifact as soon as the profile is supported by the inspected files.
 
 Packaging matters: never exclude a README, license or other file referenced by pyproject/setup metadata merely because it is prose. The bootstrap builds the public workspace separately and will reject missing installation inputs. Use pinned dependencies (for example pytest==9.0.3 and a compatible pinned build backend); query versions if uncertain. Do not repeat dependency installation inside install_command. Prefer `python -m pip install --no-cache-dir --no-deps --no-build-isolation -e .` when the backend supports it.
+
+Inspect all checkout symlinks before submitting, including documentation links such as CONTRIBUTING.md, AGENTS.md and CLAUDE.md. Read their targets and list every required document link in `options.materialize_document_links`; do not address only the first link reported by a failed snapshot. This explicitly preserves its document contents as a regular snapshot file, even if public_exclude hides it from the learner. Only .md, .rst and .txt links to regular document files inside the repository are supported; source-code links, directory links, missing targets and escapes remain unsupported. Public exclusions alone do not resolve snapshot symlinks. Do not remove or rewrite production source in install_command to bypass packaging checks.
 
 Efficiency: use the supplied full PR diff, especially its added tests, to locate the affected behavior before browsing. Batch related metadata/source/test reads into a few shell calls. If the PR regression itself calls an external service, do not repeatedly search for a nonexistent offline version: select a small existing offline readiness test for the package and explain that the next design stage must supply a faithful local fixture for the changed behavior. For filesystem/cache fixes, a constructed on-disk cache is faithful; downloading a live hosted model is unnecessary. Avoid testing unrelated API integrations or installing the project's entire optional ML dependency stack.
 

@@ -95,3 +95,10 @@ change the fixed reference to satisfy an invented requirement. Do not propose th
 unchanged PR behavior itself as a wrong-solution probe for such a draft. If the
 original PR intent itself conflicts with the reference, report that grounded
 reference defect instead of hiding it by weakening the task.
+
+Test doubles must preserve the real API invariants relevant to the assertion. A
+mock that invents object paths, missing attributes, impossible states or an
+inconsistent protocol can falsely reject valid solutions. When a rollout fails
+such a mock, compare it with the real object or a faithful small fixture before
+calling it a solver mistake. Repair an invalid fixture while preserving the
+public behavior being checked; keep independent expected values and counterexamples.
