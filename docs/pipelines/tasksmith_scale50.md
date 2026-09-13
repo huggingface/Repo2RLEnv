@@ -3,8 +3,8 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. After V6, **30 independently accepted tasks**
-are available; 40 unique PRs have generated Harbor tasks in the expansion panel.
+with at most two GPU controllers. After V7, **32 independently accepted tasks**
+are available; 43 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
@@ -288,11 +288,55 @@ Shared changes address observed failures:
 - CPU construction emits source directories as artifacts with strict required
   and immutable-file contracts. One earlier control spent 178 seconds collecting
   964 individual files and 150 seconds preparing verification, versus 29 seconds
-  in pytest. The new cloud speedup remains to be measured.
+  in pytest. A fresh Sana CPU control subsequently took 73 seconds overall,
+  including 12 seconds collecting/stopping and four seconds preparing grading.
+  This is a cross-task comparison, not a controlled same-task speedup estimate.
 
 The integrated runtime passes **1,364 local tests**, with four opt-in live checks
 skipped. Ruff, all 17 prompt references, documentation and the wheel build pass.
 These implementation checks do not establish acceptance of the queued tasks.
+
+## V7 outcomes and prepared V8 recovery
+
+V7 finished all 18 admitted PRs and then drained. It spent **$64.26**, with no
+remaining reservations for that wave. Eleven candidates produced Harbor tasks;
+seven received automated passes. Independent inspection accepted two additional
+PRs, bringing the total to **32**:
+
+| Accepted PR | Evidence |
+| --- | --- |
+| Accelerate #3720 | Real two-rank CUDA/NCCL ownership and mesh caching; reference and valid alternative pass 24 checks, wrong cache behavior fails two. Sonnet passes 23 and omits one required state field. |
+| Transformers #35348 | Real tiny DINO model; reference and valid alternative pass 14 checks. The wrong classifier formula fails the numerical assertion. Sonnet leaves the requested exports incomplete. |
+
+Nine prepared recovery copies retain their original source, reference and failed
+execution records. They remain **assisted and unverified**:
+
+| PR | Prepared correction |
+| --- | --- |
+| PEFT #2661 | Observe actual DoRA work reuse and invalidation without requiring a particular private cache field. |
+| PEFT #2939 | Preserve numerical LoKr rank checks while removing undocumented exception-message matches. |
+| PEFT #2952 | Describe the existing initialization option required by the verifier. |
+| Diffusers #11602 | Check the initial SCM image/noise mixture numerically before the scheduler updates it. |
+| Diffusers #13226 | Exercise public scheduler/pipeline behavior, actual token writeback and unequal-entropy loss inputs; clarify required constructor options. |
+| Transformers #36790 | Execute real processor token expansion and numerical image/projector behavior without requiring a private merger implementation. |
+| Transformers #36521 | Correct numerical fixture variables and alternative-probe installation; remove private projector-field requirements. |
+| TRL #6001 | Call real constructors, production batch methods and async scheduling; replace source-regex grading and an invalid alternative. |
+| TRL #6187 | Remove the exact patch from the instruction and require successful two-GPU generation/synchronization before scoring observations. |
+
+The prepared V8 wave admits up to eight controllers, at most two GPU controllers,
+under a shared **$100** allowance. These tasks reuse existing build artifacts and
+run fresh baseline/reference controls, exact prepared probes and blind Sonnet 4.6
+rollouts. Opus 4.6 handles review and repair in this wave; repeated Sonnet reviews
+had missed concrete contract and verifier defects. Repairs remain bounded at
+three. The practical acceptance bar requires meaningful behavioral evidence,
+without demanding exhaustive coverage or solver success.
+
+The runtime also incorporates the observed failures: review checks undocumented
+constraints, generated fixtures must complete the intended production path,
+repairs can append exact test IDs without reconstructing large contract lists,
+and a narrow static guard rejects direct implementation-source grading in the
+generated behavioral test. **1,406 local tests pass**, with four opt-in live
+checks skipped; prompt references, Ruff, docs and wheel validation pass.
 
 ## Execution and budget
 
@@ -301,7 +345,7 @@ flowchart TD
     Old[24 existing verified PR tasks] --> Target[Target: 50 unique verified PR tasks]
     Inputs[114 original candidate PRs] --> Panel[70-PR campaign panel]
     Panel --> Freeze[Freeze sources, resource options, controller and runtime]
-    Freeze --> Budget[Global ledger: 1000 USD total; this batch: 200 USD]
+    Freeze --> Budget[Global ceiling: 1000 USD; V8 shared allowance: 100 USD]
     Budget --> Parallel[Up to eight isolated PR processes; at most two GPU]
     Parallel --> Fresh[Fresh source: investigate, bootstrap, design, construct]
     Parallel --> Recovery[Prepared task: verify source binding and reuse artifact]
@@ -315,12 +359,13 @@ flowchart TD
 ```
 
 The overall ceiling remains **$1,000**, including $22.43 of historical external
-cost. V7 activates the user-authorized $50 final expansion reserve: all expansion
-waves together may use **$250**, covering failures, auxiliary checks and held
-reservations as well as accepted outputs. The ordinary global ledger remains
-$977.57. Previous expenses are deducted before freezing the new wave's allowance;
-neither limit resets at a continuation. Historical uncertain reservations remain
-held. Compute accounting uses conservative estimates rather than provider invoices.
+cost; the ordinary global ledger remains $977.57. V7 used the earlier cumulative
+expansion allocation of $250. V8 allocates another $100 from unused headroom
+inside that same overall ceiling, raising the cumulative expansion allocation
+to **$350**. Its own shared allowance is $100, with at least $20 retained outside
+the wave at admission. Previous failures, auxiliary checks and uncertain holds
+remain charged against these limits. No ledger or allowance resets. Compute
+accounting uses conservative estimates rather than provider invoices.
 
 Reservations for builders, authoring, review, repair, solvers and native GPU
 allocations share the same SQLite transaction. Worker lifetimes are explicit:
@@ -328,13 +373,10 @@ allocations share the same SQLite transaction. Worker lifetimes are explicit:
 with $4 for larger workers. Model reservations are based on observed costs;
 reported overruns remain visible and reduce later headroom.
 
-The coding runtime is Pi with Sonnet; review and blind rollouts use Sonnet,
-with one bounded Opus escalation for unresolved review. V4 uses Opus 4.6 for
-needed repairs within the existing candidate and quality spending caps. Repairs
-remain capped at three. Prepared-task recoveries cover Accelerate mesh ownership,
-TRL environment pooling, Diffusers LoRA loading and PEFT cache lifecycle.
-Each receives fresh quality checks. New tasks may need more work than the batch
-can fund; fifty independently accepted tasks remain a target, not a guarantee.
+The coding runtime for new construction remains Pi with Sonnet. V8 uses Opus
+review/repair and blind Sonnet rollouts for the prepared tasks listed above.
+Each receives fresh quality checks. Fifty independently accepted tasks remain
+the target; current counts distinguish prepared inputs from validated outputs.
 
 ## Inspect or resume
 
