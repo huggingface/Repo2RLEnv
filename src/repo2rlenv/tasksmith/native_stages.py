@@ -25,6 +25,7 @@ from repo2rlenv.quality.loop.artifacts import refresh_identity, task_identity
 from repo2rlenv.quality.python_evidence import test_excerpts
 from repo2rlenv.quality.test_results import execution_contrast, parse_junit
 from repo2rlenv.tasksmith.models import Design, Profile
+from repo2rlenv.tasksmith.readiness import validate_readiness_paths
 
 
 async def check_context(
@@ -180,6 +181,7 @@ class NativeStages:
         profile = Profile.model_validate(profile)
         base = Path(prepared["local"]) / prepared["value"]["base_relative"]
         try:
+            validate_readiness_paths(base, profile.options)
             context = build_context(base, profile, output / "merged-context")
             healthy = asyncio.run(
                 check_context(

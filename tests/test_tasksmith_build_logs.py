@@ -162,6 +162,7 @@ def test_public_build_log_redacts_authenticated_urls(tmp_path):
 def test_public_image_failure_is_recorded_before_bootstrap_returns(tmp_path, monkeypatch):
     base = tmp_path / "base"
     base.mkdir()
+    monkeypatch.setattr(worker, "materialize_source", lambda *args: base)
     monkeypatch.setattr(worker, "dependency_image", lambda *args: {})
     monkeypatch.setattr(
         worker, "bootstrap_snapshot", lambda *args: (SimpleNamespace(image_digest="merged"), base)
@@ -179,7 +180,10 @@ def test_public_image_failure_is_recorded_before_bootstrap_returns(tmp_path, mon
     )
     with pytest.raises(ValueError, match="Asset exceeds download allowance"):
         worker.bootstrap(
-            {"repo": "https://github.com/org/repo", "head": "a" * 40}, profile, tmp_path
+            {"repo": "https://github.com/org/repo", "head": "a" * 40},
+            profile,
+            tmp_path,
+            checkout=tmp_path / "checkout",
         )
     assert CAUSE in (tmp_path / "public-build.stderr").read_text()
     assert (tmp_path / "public-build.logs.json").is_file()

@@ -528,7 +528,12 @@ class Tasksmith:
                 result = self.remote(
                     root,
                     f"bootstrap-{state['profile_attempt']}",
-                    {"stage": "bootstrap", "source": source, "profile": state["profile"]},
+                    {
+                        "stage": "bootstrap",
+                        "source": source,
+                        "profile": state["profile"],
+                        "checkout": checkout,
+                    },
                 )
             if result["status"] != "completed":
                 return {"failure": result, "status": "bootstrap_failed"}

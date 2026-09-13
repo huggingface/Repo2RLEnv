@@ -26,6 +26,7 @@ from repo2rlenv.quality.test_results import execution_contrast
 from repo2rlenv.spec.input import RepoSpec
 from repo2rlenv.tasksmith.build_logs import build_excerpt, save_build_logs
 from repo2rlenv.tasksmith.models import BootstrapHint, Design, Profile
+from repo2rlenv.tasksmith.readiness import validate_readiness_paths
 
 
 def run(argv, *, cwd=None, timeout=120, build_log: Path | None = None):
@@ -135,7 +136,10 @@ def build_dependency_image(
     return record
 
 
-def bootstrap(source: dict, profile: Profile, output: Path) -> dict:
+def bootstrap(source: dict, profile: Profile, output: Path, *, checkout: Path) -> dict:
+    preflight = output / "readiness-input"
+    preflight.mkdir()
+    materialize_source(source, profile, checkout, preflight)
     cached = dependency_image(profile, output)
     boot, base = bootstrap_snapshot(
         RepoSpec(url=source["repo"], ref=source["head"], access="public"), profile.options, output
@@ -210,10 +214,10 @@ def reverse_source(source: dict, base: Path, output: Path) -> tuple[Path, tuple[
     return defective, removed
 
 
-def prepare_native(source: dict, profile: Profile, checkout: Path, output: Path) -> dict:
-    """Export a pinned clean snapshot on the remote builder, without a CPU build."""
+def materialize_source(source: dict, profile: Profile, checkout: Path, output: Path) -> Path:
+    """Archive the pinned head; author-created files cannot satisfy readiness."""
     if run(["git", "-C", str(checkout), "rev-parse", "HEAD"]).strip() != source["head"]:
-        raise ValueError("Native source preparation requires the frozen PR checkout")
+        raise ValueError("Source preparation requires the frozen PR checkout")
     archive = output / "repository.tar"
     run(
         [
@@ -232,6 +236,13 @@ def prepare_native(source: dict, profile: Profile, checkout: Path, output: Path)
         stream.extractall(base, filter="data")
     archive.unlink()
     clean_snapshot(base, profile.options, output)
+    validate_readiness_paths(base, profile.options)
+    return base
+
+
+def prepare_native(source: dict, profile: Profile, checkout: Path, output: Path) -> dict:
+    """Export a pinned clean snapshot on the remote builder, without a CPU build."""
+    base = materialize_source(source, profile, checkout, output)
     _, removed = reverse_source(source, base, output)
     return {
         "base_relative": "snapshot",
@@ -339,7 +350,12 @@ def main():
         elif stage == "inspect":
             value = inspect_source(data["source"], args.output)
         elif stage == "bootstrap":
-            value = bootstrap(data["source"], Profile.model_validate(data["profile"]), args.output)
+            value = bootstrap(
+                data["source"],
+                Profile.model_validate(data["profile"]),
+                args.output,
+                checkout=Path(data["checkout"]),
+            )
         elif stage == "prepare_native":
             value = prepare_native(
                 data["source"],
