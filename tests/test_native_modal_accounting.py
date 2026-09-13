@@ -1,5 +1,7 @@
 """Native lifecycle accounting must retain uncertain provider outcomes."""
 
+import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -55,3 +57,33 @@ async def test_lost_create_response_is_single_dispatch_and_retains_budget(monkey
     assert "secrets" not in calls[0] and "volumes" not in calls[0]
     assert ledger.status()["reserved_usd"] == "3.000000"
     assert ledger.status()["operations"][0]["status"] == "uncertain"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_uncertainty_does_not_swallow_controller_cancellation(monkeypatch, tmp_path):
+    from harbor.trial.trial import Trial
+
+    from repo2rlenv.execution.harbor_modal import ACCOUNTING
+    from repo2rlenv.quality.loop import native
+    from repo2rlenv.quality.loop.models import LoopOptions
+
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="10")
+    budget = RunBudget(ledger, "cancel-test", "10")
+    runner = native.NativeModalTrials(tmp_path, budget, LoopOptions())
+    monkeypatch.setattr(native, "task_identity", lambda _: "sha256:fixture")
+
+    async def stop():
+        pass
+
+    async def create(_):
+        ACCOUNTING.get().environments.append(
+            SimpleNamespace(record={"state": "creation_uncertain"}, stop=stop)
+        )
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(Trial, "create", create)
+    output = tmp_path / "trials/baseline"
+    with pytest.raises(asyncio.CancelledError):
+        await runner._run(tmp_path / "task", "baseline", "baseline", output)
+    assert json.loads((output / "trial.json").read_text())["state"] == "cleanup_uncertain"
+    assert ACCOUNTING.get() is None

@@ -86,6 +86,8 @@ Each native allocation has a unique provider name, a reservation before dispatch
 
 The [recorded execution checks](evidence/tasksmith-scale30-native-contract.json) passed on two L4s: baseline reward 0, reference 1, wrong solution 0 and a blind Sonnet rollout 1. Both learner and verifier allocations were offline and terminated. A separate native bootstrap check passed three CUDA/offline tests. The CPU added-module check also accepted a valid implementation using a new helper file. These are small harness fixtures, not additions to the accepted PR-task count.
 
+GPU task exports collect each allowed source directory in one transfer. Transferring dozens of individual Python files caused substantial provider overhead in the first real PR trial. Directory transfer retains required original files and hashes of fixed non-Python assets, while allowing new Python helpers. Imported GPU bundles can enter review without starting a CPU inspection worker. Cancellation propagates out of the campaign even when an allocation needs reconciliation; uncertain provider costs remain reserved.
+
 `--stop-after 1` runs the first frozen input while keeping five as the report denominator. Repeating the same invocation reuses matching completed artifacts. `tasksmith show OUTPUT` reads the saved report without paid effects. `--json` provides structured CLI output.
 
 For an independent review while retaining Sonnet authoring and rollouts, the example `configs/tasksmith/pilot-options.json` selects the already supported OpenAI reviewer/repair route. Pass it with `--options`; provider/author flags that conflict with that file are rejected.

@@ -216,7 +216,8 @@ class Tasksmith:
         )
 
     def review_candidate(self, root: Path, source: dict, constructed: dict):
-        self.ready_worker()
+        if not self.options.gpus:
+            self.ready_worker()
         self.event(
             "quality",
             f"{source['id']} review, controls, probes and {self.options.quality.solver_model.qualified_name} rollout",

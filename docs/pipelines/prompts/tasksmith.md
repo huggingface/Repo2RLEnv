@@ -233,7 +233,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `fbcaa45fccf37c3cebb2591141d9386bff1ce9cc6b115bd9c0433a0a35a2d92e`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `bda1ce0acdf5b71c4bd183e7d995775da62bbb0ee253c63f9aa5ca9f1dcb5537`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -459,7 +459,8 @@ class Tasksmith:
         )
 
     def review_candidate(self, root: Path, source: dict, constructed: dict):
-        self.ready_worker()
+        if not self.options.gpus:
+            self.ready_worker()
         self.event(
             "quality",
             f"{source['id']} review, controls, probes and {self.options.quality.solver_model.qualified_name} rollout",

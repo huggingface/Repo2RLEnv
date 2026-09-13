@@ -125,6 +125,11 @@ def test_construct_runs_both_gpu_contrasts_and_reuses_only_identical_inputs(tmp_
     task = Task(tmp_path / "candidate/native/construct-1" / result["value"]["task_relative"])
     assert task.config.environment.gpus == task.config.verifier.environment.gpus == 2
     assert task.config.verifier.environment_mode.value == "separate"
+    assert len(task.config.artifacts) == 1
+    assert task.config.artifacts[0].source == "/workspace/lib"
+    contract = json.loads((task.task_dir / "tests/contract.json").read_text())
+    assert contract["submitted_roots"] == ["lib"]
+    assert contract["submitted_files"] == ["lib/core.py"]
     assert stages.construct(*args) == result
     assert len(seen) == 2
     changed = design.model_dump()

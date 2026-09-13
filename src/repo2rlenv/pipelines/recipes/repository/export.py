@@ -49,6 +49,7 @@ def export_repository_task(
     single_reference: bool = False,
     resume: bool = False,
     verifier_source: dict[str, bytes] | None = None,
+    collect_source_directories: bool = False,
 ) -> Path:
     """Materialize a tested repository contrast with private reference files.
 
@@ -62,8 +63,9 @@ def export_repository_task(
     source_roots = [PurePosixPath(path) for path in options.source_paths]
     hidden_roots = [PurePosixPath(path) for path in options.test_paths]
     added = sorted(path for path, content in defective.items() if content is None)
+    directory_collection = bool(added) or collect_source_directories
     immutable = {}
-    if added:
+    if directory_collection:
         # Directory collection must never replace private tests or hidden assets.
         for root in source_roots:
             if any(
@@ -99,7 +101,7 @@ def export_repository_task(
             assets[f"tests/source/{relative}"] = asset
             if not hidden_asset:
                 assets[f"environment/source/{relative}"] = asset
-            if added and in_source and path.suffix != ".py":
+            if directory_collection and in_source and path.suffix != ".py":
                 immutable[str(relative)] = hashlib.sha256(content).hexdigest()
         if not hidden_asset and path.suffix == ".py" and in_source:
             collected.append(str(relative))
@@ -155,7 +157,7 @@ def export_repository_task(
                         "optional_files": added,
                         "immutable_assets": immutable,
                     }
-                    if added
+                    if directory_collection
                     else {}
                 ),
             },
@@ -176,7 +178,11 @@ def export_repository_task(
     assets["solution/solve.sh"] = TaskFile.text(solve, executable=True)
     instruction = instruction.rstrip() + (
         "\n\nWork in `/workspace`. Submit your fix in "
-        + ("Python source files under " if added else "the existing Python source files under ")
+        + (
+            "Python source files under "
+            if directory_collection
+            else "the existing Python source files under "
+        )
         + ", ".join(f"`{root}`" for root in options.source_paths)
         + ". Preserve the other public behavior. The environment is offline; dependencies are preinstalled. "
         "Grading runs the relevant repository tests in a fresh environment, using your submitted source files.\n"
@@ -203,9 +209,13 @@ def export_repository_task(
         artifacts=[
             {
                 "source": "/workspace/" + path,
-                **({"exclude": ["__pycache__", "*.pyc", ".pytest_cache"]} if added else {}),
+                **(
+                    {"exclude": ["__pycache__", "*.pyc", ".pytest_cache"]}
+                    if directory_collection
+                    else {}
+                ),
             }
-            for path in (options.source_paths if added else collected)
+            for path in (options.source_paths if directory_collection else collected)
         ],
         verifier_timeout_sec=options.test_timeout_sec + 30,
     )

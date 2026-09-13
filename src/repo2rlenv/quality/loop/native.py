@@ -118,6 +118,7 @@ class NativeModalTrials:
         )
         accounting = NativeAccounting(self.budget, output / "allocations")
         token = ACCOUNTING.set(accounting)
+        cancelled = False
         try:
             trial = await Trial.create(configuration)
             record["state"] = "dispatched"
@@ -142,7 +143,8 @@ class NativeModalTrials:
                     self.budget.mark_uncertain(
                         operation, f"Native model usage needs reconciliation: {receipt}"
                     )
-        except BaseException:
+        except BaseException as exc:
+            cancelled = isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt, SystemExit))
             record.update(state="interrupted", interrupted_at=now())
             save_record(receipt, record)
             if model:
@@ -161,9 +163,10 @@ class NativeModalTrials:
                 ):
                     record["state"] = "cleanup_uncertain"
                     save_record(receipt, record)
-                    raise RuntimeError(
-                        "Native GPU cleanup needs reconciliation; retained allocation receipts"
-                    )
+                    if not cancelled:
+                        raise RuntimeError(
+                            "Native GPU cleanup needs reconciliation; retained allocation receipts"
+                        )
             finally:
                 ACCOUNTING.reset(token)
 

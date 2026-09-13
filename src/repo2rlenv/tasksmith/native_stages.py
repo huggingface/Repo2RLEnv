@@ -303,6 +303,7 @@ class NativeStages:
                     "upstream_test_policy": design.upstream_test_policy,
                 },
                 verifier_source=additions,
+                collect_source_directories=True,
             )
             config_path = task / "task.toml"
             config = tomllib.loads(config_path.read_text())
