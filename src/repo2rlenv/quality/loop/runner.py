@@ -16,6 +16,7 @@ from repo2rlenv.campaigns.budget import BudgetExceeded, BudgetLedger
 from repo2rlenv.campaigns.events import EventJournal, ProgressEvent
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.artifacts import (
+    EXPECTED_PASSES_CONTRACT,
     apply_repair,
     import_trial,
     parse_task,
@@ -443,14 +444,19 @@ class QualityLoop:
                         {"proposed": repair.model_dump(), "normalized": normalized.model_dump()},
                     )
                     repair = normalized
-                for edit in repair.edits:
+                changed_paths = [edit.path for edit in repair.edits]
+                if repair.append_expected_passes:
+                    changed_paths.append(EXPECTED_PASSES_CONTRACT)
+                for changed_path in changed_paths:
                     if any(
-                        Path(edit.path) == path or Path(edit.path).is_relative_to(path)
+                        Path(changed_path) == path or Path(changed_path).is_relative_to(path)
                         for path in self.protected_paths
                     ):
-                        raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
+                        raise ValueError(
+                            f"Repair changes immutable source or oracle: {changed_path}"
+                        )
                 if (
-                    repair.edits
+                    changed_paths
                     and (uninstalled or nonbehavioral)
                     and not any(issue.category != "probe" for issue in review.issues)
                 ):
@@ -518,7 +524,8 @@ class QualityLoop:
                     saved = json.loads((destination.parent / "repair.json").read_text())
                     if (
                         saved["parent_hash"] != task_identity(task)
-                        or saved["repair"] != repair.model_dump()
+                        or Repair.model_validate(saved["repair"]).model_dump()
+                        != repair.model_dump()
                     ):
                         raise ValueError("Stored repair differs from the requested revision")
                     if task_identity(destination) != saved["bundle_hash"]:
@@ -574,6 +581,12 @@ class QualityLoop:
                     except ValueError as read_error:
                         feedback.append(f"Cited-source excerpt unavailable: {read_error}")
                 if repair is not None:
+                    if any(edit.path == EXPECTED_PASSES_CONTRACT for edit in repair.edits):
+                        feedback.append(
+                            "To register new expected cases, use append_expected_passes with "
+                            "only their exact IDs and omit the tests/contract.json text edit. "
+                            "Existing IDs and their order are preserved automatically."
+                        )
                     # Supply real source around the requested edit, never a fuzzy
                     # application. Unknown provider effects bypass this correction.
                     for edit in repair.edits:

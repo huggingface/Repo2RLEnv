@@ -147,6 +147,14 @@ additional repair source exceeds the context limit, the controller includes that
 failure in the correction feedback instead of discarding the correction call.
 Unknown provider outcomes are never retried this way.
 
+When registering new cases in an existing `tests/contract.json`, a repair can use
+`append_expected_passes` with only the new exact IDs. This preserves the old IDs,
+their order and all other contract fields; it rejects duplicate/empty IDs, invalid
+contracts and a simultaneous text edit of that contract. The append is a verifier
+change: protected-path rules still apply, it creates a new unverified task hash,
+and the usual controls, probes and rollout must validate that revision. Mechanical
+correction recommends this operation within the existing two-call limit.
+
 Before accepting a completed review, the controller checks that a legitimate
 success or failure agrees with the latest supplied solver reward and configured
 success threshold. Missing rewards or infrastructure exceptions cannot establish
@@ -223,7 +231,7 @@ The full prompts ship with the package and are reproduced in the
 | Initial review | Public instruction, build inputs, private reference/tests, available controls/rollout | Task/verifier/leakage assessments, grounded issues, bounded read requests, semantic probes | [review.md](prompts/quality_loop.md#reviewmd) |
 | Evidence read / escalation | Same evidence pack plus requested excerpts or protocol correction | Completed grounded review | Same review prompt |
 | Post-execution review | Task plus actual control/probe/solver results, logs and captured artifacts | Legitimate success/failure, task defect, grading shortcut, infrastructure issue or insufficient evidence | Same review prompt |
-| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, optionally a corrected valid-alternative probe, and rationale | [repair.md](prompts/quality_loop.md#repairmd) |
+| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, appended expected case IDs, eligible probe corrections, and rationale | [repair.md](prompts/quality_loop.md#repairmd) |
 
 Every citation must quote text actually supplied to the model. Scores range from
 0–4 and are descriptive; code derives the final disposition from evidence. A

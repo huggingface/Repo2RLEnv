@@ -35,6 +35,7 @@ def task(tmp_path):
                 "environment/Dockerfile": TaskFile.text("FROM python:3.12-slim\n"),
                 "solution/solve.sh": TaskFile.text("#!/bin/sh\nexit 0\n", executable=True),
                 "tests/test.sh": TaskFile.text("#!/bin/sh\n# weak check\n", executable=True),
+                "tests/contract.json": TaskFile.text('{"expected_passes": ["z", "a"]}\n'),
             },
         ),
         tmp_path / "tasks",
@@ -115,6 +116,69 @@ def loop(tmp_path, model):
         BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="10"),
         model_client=model,
     )
+
+
+def test_contract_list_correction_uses_append_without_reconstructing_existing_order(task, tmp_path):
+    rejected = Repair(
+        explanation="Register a new test.",
+        addressed_issues=["Missing case"],
+        edits=[
+            Edit(
+                path="tests/contract.json",
+                old='["a", "z"]',
+                new='["a", "z", "new"]',
+                executable=False,
+            )
+        ],
+    )
+    corrected = rejected.model_copy(update={"edits": [], "append_expected_passes": ["new"]})
+    model = Model([rejected, corrected])
+    runner = loop(tmp_path, model)
+    destination, retained = runner._repair(
+        task, review(), runner._context(task, []), probes(), 0, []
+    )
+    assert json.loads((destination / "tests/contract.json").read_text())["expected_passes"] == [
+        "z",
+        "a",
+        "new",
+    ]
+    assert retained == probes()
+    assert len(model.calls) == 2
+    assert model.calls[1]["previous_repair"] == rejected.model_dump()
+    assert any("append_expected_passes" in value for value in model.calls[1]["patch_feedback"])
+    assert model.calls[1]["correction_calls_remaining"] == 0
+
+
+@pytest.mark.parametrize("protected", ["tests/contract.json", "tests"])
+def test_contract_append_obeys_protected_inputs(task, tmp_path, protected):
+    from pathlib import Path
+
+    proposal = Repair(
+        explanation="Register cases.",
+        addressed_issues=["Missing case"],
+        edits=[],
+        append_expected_passes=["new"],
+    )
+    model = Model([proposal, proposal])
+    runner = loop(tmp_path, model)
+    runner.protected_paths = (Path(protected),)
+    with pytest.raises(ValueError, match="immutable source or oracle"):
+        runner._repair(task, review(), runner._context(task, []), probes(), 0, [])
+    assert len(model.calls) == 2
+    assert not (runner.directory / "revisions/r1").exists()
+
+
+def test_legacy_saved_repair_replay_accepts_absent_empty_append_field(task, tmp_path):
+    model = Model([patch(), patch()])
+    runner = loop(tmp_path, model)
+    destination, _ = runner._repair(task, review(), runner._context(task, []), probes(), 0, [])
+    path = destination.parent / "repair.json"
+    saved = json.loads(path.read_text())
+    del saved["repair"]["append_expected_passes"]
+    path.write_text(json.dumps(saved))
+    replay, _ = runner._repair(task, review(), runner._context(task, []), probes(), 0, [])
+    assert replay == destination
+    assert len(model.calls) == 2
 
 
 def test_verifier_repair_correction_retains_probes_and_receives_rejected_draft(task, tmp_path):

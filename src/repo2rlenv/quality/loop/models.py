@@ -110,12 +110,24 @@ class Repair(Record):
     explanation: str = Field(max_length=1500)
     addressed_issues: list[str] = Field(min_length=1)
     edits: list[Edit] = Field(max_length=16)
+    append_expected_passes: list[str] = Field(
+        default_factory=list,
+        max_length=256,
+        description=(
+            "Append only new exact case IDs to existing tests/contract.json.expected_passes; "
+            "preserve all existing IDs and do not also text-edit that contract."
+        ),
+    )
     probe_replacements: list[SemanticProbe] = Field(default_factory=list, max_length=4)
 
     @model_validator(mode="after")
     def targeted_changes(self):
-        if not self.edits and not self.probe_replacements:
+        if not self.edits and not self.append_expected_passes and not self.probe_replacements:
             raise ValueError("A repair must change task files or a diagnosed invalid probe")
+        if any(not value.strip() for value in self.append_expected_passes):
+            raise ValueError("Appended expected-pass IDs must be nonempty")
+        if len(set(self.append_expected_passes)) != len(self.append_expected_passes):
+            raise ValueError("Duplicate appended expected-pass IDs")
         # Replacement eligibility depends on preserved execution evidence and is
         # enforced by QualityLoop, never inferred from a model-authored patch.
         return self

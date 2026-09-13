@@ -27,6 +27,13 @@ learner and separate verifier Dockerfiles; they can have different dependencies.
 Use a targeted replacement even for a large file. Existing files keep their modes.
 Use the module's actual imports and aliases. When adding tests, inspect the grading
 entrypoint and register them in any explicit test manifest that controls the reward.
+For an existing tests/contract.json.expected_passes list, prefer append_expected_passes
+with only the new exact test IDs. The controller appends them in order, preserving
+every existing ID and other contract fields. Do not reconstruct the old list or
+also text-edit tests/contract.json in that proposal. Duplicate, empty or already
+registered IDs and malformed/missing contracts are rejected. Use edits=[] when
+registering existing tests is the only required change; otherwise include the
+targeted test-file edits. Leave append_expected_passes=[] for unrelated repairs.
 If patch_feedback is present, correct that mechanical error using the supplied
 source excerpts. Do not repeat the rejected old string or invent missing context.
 
@@ -47,7 +54,8 @@ change collected source. Previously installed counterexamples remain immutable,
 including those that exposed verifier gaps. Use an empty list otherwise. Do not
 copy the reference verbatim just to obtain a passing alternative. Keep the original
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
-repair may have edits=[] and must leave the task/verifier unchanged. If instruction
+repair must have edits=[] and append_expected_passes=[] and leave the task/verifier
+unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
 An uninstalled probe alone never justifies editing a task or verifier to reject it.
 

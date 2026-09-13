@@ -209,6 +209,61 @@ def test_repairs_copy_and_revalidate_everything(task, tmp_path):
     assert remote.closed
 
 
+def test_append_only_registration_revalidates_new_task_and_preserves_existing_probes(
+    task, tmp_path
+):
+    contract_path = task / "tests/contract.json"
+    contract_path.write_text('{"expected_passes": ["old-case"]}')
+    original_hash = refresh_identity(task)
+
+    class AppendModel(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            if schema is Repair:
+                return Repair(
+                    explanation="Register the existing behavioral case in the reward manifest.",
+                    addressed_issues=["Weak arithmetic check"],
+                    edits=[],
+                    append_expected_passes=["new-case"],
+                )
+            payload = json.loads(user)
+            broken = "new-case" not in payload["documents"]["tests/contract.json"]
+            rolled = any("rollout/result.json" in path for path in payload["documents"])
+            return review(
+                broken=broken,
+                propose=payload["probe_limit"] > 0,
+                rollout="legitimate_success" if rolled else "not_run",
+            )
+
+    class AppendTrials(Trials):
+        def run(self, current, role, key):
+            trial = super().run(current, role, key)
+            if role == "probe" and "probe0" in key:
+                registered = json.loads((current / "tests/contract.json").read_text())[
+                    "expected_passes"
+                ]
+                trial.reward = 0.0 if "new-case" in registered else 1.0
+            return trial
+
+    remote = AppendTrials(tmp_path / "evidence")
+    runner = make_loop(tmp_path, model=AppendModel(), remote=remote, repair=True)
+    result = runner.run(task)
+    assert result.status == "usable", result.reasons
+    assert result.repairs == 1
+    assert task_identity(task) == original_hash != result.bundle_hash
+    assert json.loads(contract_path.read_text())["expected_passes"] == ["old-case"]
+    assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
+        "baseline",
+        "oracle",
+        "probe",
+        "probe",
+        "rollout",
+    ]
+    assert len(remote.calls) == 9
+    assert [trial.probe for trial in result.trials if trial.role == "probe"] == probes()
+    assert remote.closed
+
+
 def test_false_positive_cannot_be_outvoted_by_model(task, tmp_path):
     result = make_loop(
         tmp_path, remote=Trials(tmp_path / "evidence"), model=Model(honest=False), run_rollout=True

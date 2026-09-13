@@ -17,6 +17,8 @@ from repo2rlenv.emitter.evaluation import generated_evaluation
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.models import Repair, SemanticProbe, TrialRecord
 
+EXPECTED_PASSES_CONTRACT = "tests/contract.json"
+
 
 def digest(path: Path) -> str:
     with path.open("rb") as handle:
@@ -79,12 +81,20 @@ def edit_path(value: str) -> str:
 
 
 def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
-    """Apply exact replacements to a copy; no generated code executes locally."""
+    """Apply exact replacements and case-ID appends to a new, unverified copy."""
     task_identity(task)
     if destination.exists():
         raise FileExistsError(destination)
-    if sum(len(edit.new) for edit in repair.edits) > 150000:
+    if (
+        sum(len(edit.new) for edit in repair.edits)
+        + sum(len(value) for value in repair.append_expected_passes)
+        > 150000
+    ):
         raise ValueError("Repair exceeds the text-edit limit")
+    if repair.append_expected_passes and any(
+        edit_path(edit.path) == EXPECTED_PASSES_CONTRACT for edit in repair.edits
+    ):
+        raise ValueError("Cannot append expected passes and text-edit tests/contract.json together")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".repair-", dir=destination.parent) as temporary:
         copied = Path(temporary) / task.name
@@ -101,6 +111,8 @@ def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
                 with path.open("x") as handle:
                     handle.write(edit.new)
                 path.chmod(0o755 if edit.executable else 0o644)
+        if repair.append_expected_passes:
+            _append_expected_passes(copied, repair.append_expected_passes)
         if not (copied / "instruction.md").read_text().strip():
             raise ValueError("Repair erased the task instruction")
         new_hash = refresh_identity(copied)
@@ -116,6 +128,32 @@ def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
         },
     )
     return destination
+
+
+def _append_expected_passes(task: Path, additions: list[str]) -> None:
+    def unique_fields(pairs):
+        fields = {}
+        for key, value in pairs:
+            if key in fields:
+                raise ValueError(f"tests/contract.json contains duplicate field: {key}")
+            fields[key] = value
+        return fields
+
+    path = task / EXPECTED_PASSES_CONTRACT
+    if not path.is_file():
+        raise ValueError("Appending expected passes requires an existing tests/contract.json file")
+    contract = json.loads(path.read_text(), object_pairs_hook=unique_fields)
+    existing = contract.get("expected_passes") if isinstance(contract, dict) else None
+    if not isinstance(existing, list) or any(
+        not isinstance(value, str) or not value.strip() for value in existing
+    ):
+        raise ValueError("tests/contract.json must contain a list of nonempty expected-pass IDs")
+    if len(set(existing)) != len(existing):
+        raise ValueError("tests/contract.json contains duplicate expected-pass IDs")
+    if set(existing).intersection(additions):
+        raise ValueError("Appended expected-pass IDs already exist in tests/contract.json")
+    contract["expected_passes"] = [*existing, *additions]
+    path.write_text(json.dumps(contract, indent=2) + "\n")
 
 
 def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:

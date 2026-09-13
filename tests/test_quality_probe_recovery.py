@@ -372,19 +372,25 @@ def test_attempt_journal_refuses_rewritten_installation_on_resume(task, tmp_path
         record_attempt(tmp_path / "quality", "r0-probe0", task_identity(task), trial)
 
 
-def test_noop_probe_alone_cannot_authorize_task_edits(task, tmp_path):
+@pytest.mark.parametrize("append_only", [False, True])
+def test_noop_probe_alone_cannot_authorize_task_edits(task, tmp_path, append_only):
     class TaskEditModel(Model):
         def ask(self, schema, *args):
             response = super().ask(schema, *args)
             if schema is Repair:
-                response.edits = [
-                    Edit(
-                        path="tests/test.sh",
-                        old="check arithmetic",
-                        new="reject no-op",
-                        executable=True,
-                    )
-                ]
+                response.edits = (
+                    []
+                    if append_only
+                    else [
+                        Edit(
+                            path="tests/test.sh",
+                            old="check arithmetic",
+                            new="reject no-op",
+                            executable=True,
+                        )
+                    ]
+                )
+                response.append_expected_passes = ["reject-no-op"] if append_only else []
             return response
 
     model = TaskEditModel()

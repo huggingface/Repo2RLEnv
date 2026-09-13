@@ -213,7 +213,7 @@ of the code the learner must implement before accepting its coverage.
 
 ### repair.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `a53ba20dd17b10c63a3601f8445d212b580a9327474265efb0c7c9e5ad14c838`
+[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `8208b323827a89750ff1b484a903623b5c0540bd3925a4d19518b5e3c185cb3a`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -250,6 +250,13 @@ learner and separate verifier Dockerfiles; they can have different dependencies.
 Use a targeted replacement even for a large file. Existing files keep their modes.
 Use the module's actual imports and aliases. When adding tests, inspect the grading
 entrypoint and register them in any explicit test manifest that controls the reward.
+For an existing tests/contract.json.expected_passes list, prefer append_expected_passes
+with only the new exact test IDs. The controller appends them in order, preserving
+every existing ID and other contract fields. Do not reconstruct the old list or
+also text-edit tests/contract.json in that proposal. Duplicate, empty or already
+registered IDs and malformed/missing contracts are rejected. Use edits=[] when
+registering existing tests is the only required change; otherwise include the
+targeted test-file edits. Leave append_expected_passes=[] for unrelated repairs.
 If patch_feedback is present, correct that mechanical error using the supplied
 source excerpts. Do not repeat the rejected old string or invent missing context.
 
@@ -270,7 +277,8 @@ change collected source. Previously installed counterexamples remain immutable,
 including those that exposed verifier gaps. Use an empty list otherwise. Do not
 copy the reference verbatim just to obtain a passing alternative. Keep the original
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
-repair may have edits=[] and must leave the task/verifier unchanged. If instruction
+repair must have edits=[] and append_expected_passes=[] and leave the task/verifier
+unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
 An uninstalled probe alone never justifies editing a task or verifier to reject it.
 
@@ -281,7 +289,7 @@ Do not solve the requested task in the learner starting source. Preserve the int
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `e481cd48a2c582e206d287373ff2dad8c013bd2351a0d03ef199fc986c685b4c`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `4b1ce9242c2122854699ee034231fe2d487c8efdb4c1b063b17720fc01a239f4`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -401,12 +409,24 @@ class Repair(Record):
     explanation: str = Field(max_length=1500)
     addressed_issues: list[str] = Field(min_length=1)
     edits: list[Edit] = Field(max_length=16)
+    append_expected_passes: list[str] = Field(
+        default_factory=list,
+        max_length=256,
+        description=(
+            "Append only new exact case IDs to existing tests/contract.json.expected_passes; "
+            "preserve all existing IDs and do not also text-edit that contract."
+        ),
+    )
     probe_replacements: list[SemanticProbe] = Field(default_factory=list, max_length=4)
 
     @model_validator(mode="after")
     def targeted_changes(self):
-        if not self.edits and not self.probe_replacements:
+        if not self.edits and not self.append_expected_passes and not self.probe_replacements:
             raise ValueError("A repair must change task files or a diagnosed invalid probe")
+        if any(not value.strip() for value in self.append_expected_passes):
+            raise ValueError("Appended expected-pass IDs must be nonempty")
+        if len(set(self.append_expected_passes)) != len(self.append_expected_passes):
+            raise ValueError("Duplicate appended expected-pass IDs")
         # Replacement eligibility depends on preserved execution evidence and is
         # enforced by QualityLoop, never inferred from a model-authored patch.
         return self
@@ -1349,7 +1369,7 @@ def behavioral_failure(trial: TrialRecord, success: float = 1.0) -> str | None:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `85b2f9ee48f70d5f4ead17465fd76fcd22676621edfea08cce3396efc1085511`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `fd8f60bbb39e88317880392d109c6fce339b7a0a44246bd3f19c4a4d2dda06db`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1375,6 +1395,7 @@ from repo2rlenv.campaigns.budget import BudgetExceeded, BudgetLedger
 from repo2rlenv.campaigns.events import EventJournal, ProgressEvent
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.artifacts import (
+    EXPECTED_PASSES_CONTRACT,
     apply_repair,
     import_trial,
     parse_task,
@@ -1802,14 +1823,19 @@ class QualityLoop:
                         {"proposed": repair.model_dump(), "normalized": normalized.model_dump()},
                     )
                     repair = normalized
-                for edit in repair.edits:
+                changed_paths = [edit.path for edit in repair.edits]
+                if repair.append_expected_passes:
+                    changed_paths.append(EXPECTED_PASSES_CONTRACT)
+                for changed_path in changed_paths:
                     if any(
-                        Path(edit.path) == path or Path(edit.path).is_relative_to(path)
+                        Path(changed_path) == path or Path(changed_path).is_relative_to(path)
                         for path in self.protected_paths
                     ):
-                        raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
+                        raise ValueError(
+                            f"Repair changes immutable source or oracle: {changed_path}"
+                        )
                 if (
-                    repair.edits
+                    changed_paths
                     and (uninstalled or nonbehavioral)
                     and not any(issue.category != "probe" for issue in review.issues)
                 ):
@@ -1877,7 +1903,8 @@ class QualityLoop:
                     saved = json.loads((destination.parent / "repair.json").read_text())
                     if (
                         saved["parent_hash"] != task_identity(task)
-                        or saved["repair"] != repair.model_dump()
+                        or Repair.model_validate(saved["repair"]).model_dump()
+                        != repair.model_dump()
                     ):
                         raise ValueError("Stored repair differs from the requested revision")
                     if task_identity(destination) != saved["bundle_hash"]:
@@ -1933,6 +1960,12 @@ class QualityLoop:
                     except ValueError as read_error:
                         feedback.append(f"Cited-source excerpt unavailable: {read_error}")
                 if repair is not None:
+                    if any(edit.path == EXPECTED_PASSES_CONTRACT for edit in repair.edits):
+                        feedback.append(
+                            "To register new expected cases, use append_expected_passes with "
+                            "only their exact IDs and omit the tests/contract.json text edit. "
+                            "Existing IDs and their order are preserved automatically."
+                        )
                     # Supply real source around the requested edit, never a fuzzy
                     # application. Unknown provider effects bypass this correction.
                     for edit in repair.edits:
