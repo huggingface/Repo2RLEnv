@@ -69,6 +69,7 @@ class EvidenceContext:
         symbols = set(re.findall(r"\bdef\s+([A-Za-z_]\w*)", instruction))
         symbols.update(re.findall(r"`(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)\s*(?:\(|`)", instruction))
         test_symbols: dict[str, set[str]] = {}
+        whole_test_files: set[str] = set()
         contract = self._paths.get("tests/contract.json")
         if contract is not None:
             try:
@@ -81,6 +82,8 @@ class EvidenceContext:
                     path, *nodes = selector.split("::")
                     selected = {node.split("[", 1)[0] for node in nodes} or methods
                     test_symbols.setdefault("tests/source/" + path, set()).update(selected)
+                    if not nodes and path.endswith(".py"):
+                        whole_test_files.add("tests/source/" + path)
                 for key in self._paths:
                     if (
                         key in test_symbols
@@ -116,7 +119,13 @@ class EvidenceContext:
                 and path.suffix == ".py"
                 and path.stat().st_size < 2_000_000
             ):
-                self._include_symbols(key, path, test_symbols.get(key, symbols))
+                if key in whole_test_files and path.stat().st_size <= 24000:
+                    # Small selected suites include their fixture helpers and
+                    # final assertions, avoiding needless reads of omitted tests.
+                    # Larger or individually selected suites retain symbol excerpts.
+                    self._include(key, path, maximum=24000)
+                else:
+                    self._include_symbols(key, path, test_symbols.get(key, symbols))
         # Reserve an execution share before reading large repository files. Collect
         # every trial first: a baseline's long test inventory must not crowd out a
         # later counterexample's actual assertion failure.

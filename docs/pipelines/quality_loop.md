@@ -139,7 +139,7 @@ characters of document context, 6,000 output tokens per review/repair call, and
 24 solver turns at 4,096 tokens per call. Context includes a file inventory, selected
 task files, trace excerpts and explicit omissions. Reviewers can request up to six
 400-line excerpts or bounded literal searches in each reading round. Python tasks
-start with matching function/test excerpts and their module headers;
+start with matching function/test excerpts and their module headers. When a whole selected test file is at most 24 KB, the initial pack includes its complete body and fixture helpers if the context allowance permits; any truncation remains explicit. Individually selected nodes and larger modules keep targeted excerpts;
 When trials are present, the initial task files use at most 35% of the document
 allowance; execution evidence can fill the next 35%. Actual assertion failures
 precede verbose baseline inventories and captured source. Probe scripts remain

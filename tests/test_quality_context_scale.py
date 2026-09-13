@@ -51,3 +51,28 @@ def test_rejected_large_read_does_not_poison_next_review(tmp_path):
     context.read_more([ReadRequest(path="large.txt", start_line=1, end_line=1, query=None)])
     assert context.documents["large.txt:L1-L1"] == "x" * 1000 + "\n"
     context.payload()
+
+
+@pytest.mark.parametrize("limit", [16000, 64000])
+def test_selected_small_suite_keeps_helpers_and_final_assertions_within_budget(tmp_path, limit):
+    (tmp_path / "instruction.md").write_text("Implement the requested public behavior.")
+    tests = tmp_path / "tests/source/tests"
+    tests.mkdir(parents=True)
+    content = (
+        "def fixture_helper():\n    return 'independent fixture'\n\n"
+        + "# Additional fixture explanation.\n" * 450
+        + "def test_final_behavior():\n    assert fixture_helper() == 'independent fixture'\n"
+    )
+    (tests / "behavior.py").write_text(content)
+    (tmp_path / "tests/contract.json").write_text(
+        json.dumps({"test_paths": ["tests/behavior.py"], "expected_passes": []})
+    )
+    context = EvidenceContext(tmp_path, [], limit=limit)
+    name = "tests/source/tests/behavior.py"
+    assert "def fixture_helper" in context.documents[name]
+    if limit == 64000:
+        assert context.documents[name] == content
+    else:
+        assert name + ": partial text; request line ranges if needed" in context.omitted
+        assert sum(map(len, context.documents.values())) <= limit
+    context.payload()

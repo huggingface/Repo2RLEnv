@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
-  "recorded_at": "2026-09-13T08:50:17.258464+00:00",
+  "recorded_at": "2026-09-13T09:10:48.764641+00:00",
   "target_total": 30,
   "retained_accepted": 10,
-  "new_accepted": 2,
-  "accepted_total": 12,
+  "new_accepted": 3,
+  "accepted_total": 13,
   "new_tasks": [
     {
       "pr": "https://github.com/huggingface/peft/pull/3212",
@@ -132,6 +132,65 @@
       "recovery_reserved_usd": "0",
       "cost_scope": "Final targeted recovery only; earlier GPU generation and unsuccessful repairs remain charged to their original attempts.",
       "repair": "Observe actual tensor copies and conversions; exclude genuine no-op Tensor.to calls. Preserve source/reference/instruction and rerun both retained valid alternatives plus the wrong implementation."
+    },
+    {
+      "pr": "https://github.com/huggingface/trl/pull/6228",
+      "source_head": "96d543da3a4259c6a1d6f87c91fc89e5f71937eb",
+      "source_diff_sha256": "b3b62c1571b0300879118cfb252101344e2627a1b84edd43872a66e332a13dd7",
+      "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+      "status": "usable",
+      "gpus": 0,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "c37d0b649e38fef7b77973bb263eb0a15b206706b41f8734d8bcffac8bf903d9",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "5359a0baeb715dac42f5a2ceb4afe3f448c819ca5935b2cb22ed938295d98e5e",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:7febe54a81d24f06e9cdc32baf2677e8a2b59919b29b6832d3663a36f1a1fea4",
+          "result_sha256": "9d6fc7b5ac6d80c85c4592fd73488d068ea3c5bbe1797e5396c969c3ef8a4b86",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:52af658577489c8ba5032fb6f4a676768a334f6d8d96eab0a54d7de9143f9ece",
+          "result_sha256": "a0442f98807198c82e3edcc76587e3ccceafcfaf6485311b745808945a84e314",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "ff082e12d19c4857ab13cbf1f943bf0a3f3ff1fd3b335f7d5a28287675fa7c1f",
+          "probe_kind": null
+        }
+      ],
+      "final_review_and_rollout_usd": "1.499622",
+      "cost_scope": "Final recovery model calls only. All four prior controls were reused by exact hash. Shared recovery worker cost and original generation/repairs remain in the campaign ledger.",
+      "repair": "No further task edits. Finish the missing Sonnet rollout after the prior local quality cap prevented its reservation."
     }
   ],
   "known_failure": {
@@ -161,20 +220,27 @@
     }
   },
   "delivery": {
-    "tasks": 12,
-    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-12.tar.gz",
-    "sha256": "aa25f2d59824fe340222e7b92f36912b98f5ee9a3cd2722a457aba7ffe568781",
-    "bytes": 115660727,
+    "tasks": 13,
+    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-13.tar.gz",
+    "sha256": "b7f9a95713324347512245d580ef8967b2834680bdddc6e42e16caf9af04bb06",
+    "bytes": 122712812,
     "audit": {
-      "tasks": 12,
-      "trials": 65,
-      "new_protected_trees_unchanged": 2,
+      "tasks": 13,
+      "trials": 70,
+      "new_protected_trees_unchanged": 3,
       "credential_scan": {
-        "files": 17540,
+        "files": 19227,
         "configured_values_checked": 7,
         "matches": 0
       },
       "scope": "Byte integrity and recorded execution checks; no target code executed on controller."
     }
+  },
+  "budget_checkpoint": {
+    "accounted_including_prior_external_usd": "420.077567",
+    "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
+    "authorized_usd": "500.00",
+    "available_usd": "29.109950",
+    "reserved_usd": "50.812483"
   }
 }
