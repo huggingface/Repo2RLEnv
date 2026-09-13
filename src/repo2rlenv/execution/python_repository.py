@@ -52,6 +52,8 @@ def test_image(
         "python",
         "-m",
         "pytest",
+        "-o",
+        "addopts=",
         *(options.test_selectors or options.test_paths),
         "-q",
         "--tb=short",

@@ -419,6 +419,21 @@ def test_probe_keeps_task_and_verifier_bytes(task, tmp_path):
     ).read_bytes()
 
 
+def test_repository_probe_audits_the_collected_submission(task, tmp_path):
+    contract = task / "tests/contract.json"
+    contract.write_text(json.dumps({"submitted_files": ["answer.txt"], "expected_passes": ["private"]}))
+    refresh_identity(task)
+    revised = probe_variant(task, probes()[0], tmp_path / "probe" / task.name)
+    wrapper = (revised / "solution/solve.sh").read_text()
+    assert wrapper.index("before\n") < wrapper.index(probes()[0].script)
+    assert wrapper.index("after\n") < wrapper.index("__QUALITY_PROBE_COMPLETED__")
+    assert (revised / "solution/quality-probe-audit.py").is_file()
+    boundary = json.loads((revised / "solution/quality-probe-contract.json").read_text())
+    assert boundary["submitted_files"] == ["answer.txt"]
+    assert "expected_passes" not in boundary
+    assert (revised / "tests/contract.json").read_bytes() == contract.read_bytes()
+
+
 def test_fabricated_citation_is_rejected(task):
     context = EvidenceContext(task, [], limit=16000)
     value = review()

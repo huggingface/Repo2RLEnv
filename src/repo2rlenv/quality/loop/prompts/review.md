@@ -58,6 +58,12 @@ should be written to disk, not invoked by the probe. Include a public requiremen
 citation explaining why the behavior is wrong or valid. Do not use syntax damage as
 the sole semantic counterexample. Never invent a missing binary or external asset.
 These are semantic controls, not evidence of the learner's privilege boundary.
+A valid alternative must install a distinct implementation in the submitted files.
+Running extra assertions against the unchanged reference, printing a success message,
+or changing only comments is not an alternative. Prefer small source mutations with
+an exact-match assertion before writing. Do not import the target package merely to
+install a mutation: the shell's default Python may differ from the task interpreter.
+After installation the private verifier, not an inline test, evaluates that change.
 
 When required_probe_focus includes lazy_output, the wrong-solution probe MUST target
 eager evaluation: for example, wrap the correct generator so it materializes all
@@ -109,3 +115,11 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+
+Check execution coverage against the requested resources. A CUDA allocation smoke
+test at bootstrap does not show that the final verifier exercises the feature on
+CUDA. A GPU task needs real device computations in its graded tests; distributed
+behavior needs actual ranks and collectives. Similarly, tests that manually perform
+pool checkout, retries or tool binding instead of calling the submitted production
+path do not verify those behaviors. Trace each central assertion to an invocation
+of the code the learner must implement before accepting its coverage.

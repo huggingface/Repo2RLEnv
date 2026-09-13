@@ -13,6 +13,30 @@ from repo2rlenv.execution.harbor_modal import (
     compute_estimate,
 )
 from repo2rlenv.quality.loop.client import RunBudget
+from repo2rlenv.quality.loop.native import model_was_not_dispatched
+
+
+def test_model_hold_is_releasable_only_with_proven_pre_dispatch_denial(tmp_path):
+    allocations = tmp_path / "allocations"
+    allocations.mkdir()
+    result = tmp_path / "result.json"
+    data = {
+        "agent_execution": None,
+        "agent_result": None,
+        "exception_info": {"exception_type": "BudgetExceeded"},
+    }
+    result.write_text(json.dumps(data))
+    assert not model_was_not_dispatched(result, allocations)
+    claim = allocations / "learner.json"
+    claim.write_text(json.dumps({"state": "reservation_failed"}))
+    assert model_was_not_dispatched(result, allocations)
+    claim.write_text(json.dumps({"state": "creation_uncertain"}))
+    assert not model_was_not_dispatched(result, allocations)
+    claim.write_text(json.dumps({"state": "reservation_failed"}))
+    result.write_text(json.dumps({**data, "agent_execution": {"started_at": "2026-09-13"}}))
+    assert not model_was_not_dispatched(result, allocations)
+    result.write_text(json.dumps({**data, "agent_result": {"cost_usd": 0.1}}))
+    assert not model_was_not_dispatched(result, allocations)
 
 
 def test_sandbox_pricing_and_cleanup_requirement():

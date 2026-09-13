@@ -1,12 +1,13 @@
 # Tasksmith recovery: offline assets and bounded repairs
 
-September 13, 2026, 12:36 UTC checkpoint. The user authorized an additional $100,
+September 13, 2026, 13:27 UTC checkpoint. The user authorized an additional $100,
 raising the total campaign cap to **$600**. The authorization is recorded without
 resetting any charged operation or unresolved reservation.
 
-**16 of 30 tasks have completed acceptance.** This includes the ten original tasks,
+**19 of 30 tasks have completed acceptance.** This includes the ten original tasks,
 the four additions in the preceding delivery, Transformers #35669 (Helium), and
-TRL #6150 (KTO margins). Recovery and generation remain in progress. The existing
+TRL #6150 (KTO margins), TRL #5501 (logging), TRL #5575 (CUDA activation memory),
+and Accelerate #3142 (scaler dispatch). Recovery and generation remain in progress. The existing
 14-task archive remains an earlier delivery; a running task is not included in
 the accepted count. The machine-readable checkpoint is
 [tasksmith-scale30-recovery.json](evidence/tasksmith-scale30-recovery.json).
@@ -65,6 +66,20 @@ uploads now verify the archive checksum before extraction and permit up to three
 transfers of the same temporary file. A corrupt transfer does not trigger a new
 sandbox allocation or solver run; cancellation is not retried.
 
+Repository semantic controls now hash their explicitly collected mutable submission
+before and after the probe. A script that only runs extra assertions, writes outside
+the collection boundary or rewrites identical bytes cannot count as an installed
+control. The audit does not import target code. Changed bytes alone do not establish
+a meaningful alternative; the reviewer still checks semantics. Existing frozen
+receipts are retained and are not retroactively relabeled by this new guard.
+
+Bootstrap and private grading clear repository pytest `addopts` before applying
+explicit test selections. This prevents optional coverage plugins from breaking an
+isolated run with plugin autoload disabled. The native adapter releases a solver
+hold only when all allocation receipts prove a pre-dispatch reservation denial and
+Harbor explicitly records no agent execution or result. Other unknown outcomes keep
+their reservations.
+
 ## What the remote checks establish
 
 | Check | Observed result | Limit of the evidence |
@@ -84,14 +99,17 @@ readiness receipts remain available.
 The ongoing GPU investigations also demonstrate why an oracle pass and a numerical
 quality score are insufficient. Accelerate #3142 originally accepted a control
 that discarded FSDP dispatch information. Accelerate #3720 used incompatible
-distributed fixtures. TRL #5575's memory checks need to isolate the intended
-training workload from unrelated attention and retained graph allocations.
-These tasks remain unfinished until their concrete checks support acceptance;
-raising thresholds to match a failing reference is not an acceptance method.
+distributed fixtures. TRL #5575 now isolates the intended
+training workload and rejects retained dense vocabulary activations. Accelerate #3142
+now rejects both version-boundary and FSDP-dispatch regressions. Both have reviewed
+blind rollouts. The mesh task remains unfinished. Separately, final verifiers for
+TRL #5349 and Accelerate #4015 initially used CPU tensors or mocked sharding despite
+GPU resource declarations; real CUDA and distributed fixtures are now being checked.
+Raising thresholds to match a failing reference is not an acceptance method.
 
 ## Budget at the checkpoint
 
-**$501.00 accounted, $59.58 reserved, $39.42 unreserved.** The accounted figure
+**$554.05 accounted, $33.09 reserved, $12.86 unreserved.** The accounted figure
 includes the previously recorded $22.43 external cost. Compute amounts are
 conservative estimates, not provider invoices. Reservations include unresolved
 historical operations and currently owned workers/trials; they are not all charges.

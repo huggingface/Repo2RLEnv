@@ -22,7 +22,10 @@ def run(arguments: list[str]) -> int:
         if name.startswith("assert") and callable(value)
     }
     case = unittest.TestCase
-    code = int(pytest.main(arguments))
+    # The harness supplies selectors and reporting explicitly. Repository addopts
+    # often enable optional coverage/report plugins that are intentionally not
+    # auto-loaded in this isolated verifier; they are not test dependencies.
+    code = int(pytest.main(["-o", "addopts=", *arguments]))
     changed = []
     for name, (method, implementation) in original.items():
         current = getattr(case, name, None)

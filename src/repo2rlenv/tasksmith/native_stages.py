@@ -81,6 +81,8 @@ async def check_context(
             "python",
             "-m",
             "pytest",
+            "-o",
+            "addopts=",
             *(profile.options.test_selectors or profile.options.test_paths),
             "-q",
             "--tb=short",
@@ -91,7 +93,13 @@ async def check_context(
         )
         (output / "stdout.txt").write_text(result.stdout)
         (output / "stderr.txt").write_text(result.stderr)
-        await environment.download_file("/tmp/results.xml", output / "results.xml")
+        try:
+            await environment.download_file("/tmp/results.xml", output / "results.xml")
+        except Exception as exc:
+            raise ValueError(
+                f"Native pytest produced no readable report (exit {result.return_code}); "
+                "inspect the saved stdout.txt and stderr.txt"
+            ) from exc
         parsed = parse_junit((output / "results.xml").read_text(), returncode=result.return_code)
         save_record(
             output / "results.json", {"returncode": parsed.returncode, "statuses": parsed.statuses}

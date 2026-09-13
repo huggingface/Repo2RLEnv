@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from pathlib import Path
 
 from repo2rlenv.auth import resolve_llm_api_key
@@ -12,6 +13,21 @@ from repo2rlenv.execution.lifecycle import now, save_record
 from repo2rlenv.llm import completion_token_limit
 from repo2rlenv.quality.loop.artifacts import parse_task, task_identity
 from repo2rlenv.quality.loop.remote import RemoteTrials
+
+
+def model_was_not_dispatched(result: Path, allocations: Path) -> bool:
+    """Prove a reservation denial happened before any learner sandbox/model run."""
+    data = json.loads(result.read_text())
+    claims = [json.loads(path.read_text()) for path in allocations.glob("*.json")]
+    return (
+        bool(claims)
+        and all(claim.get("state") == "reservation_failed" for claim in claims)
+        and "agent_execution" in data
+        and data["agent_execution"] is None
+        and "agent_result" in data
+        and data["agent_result"] is None
+        and (data.get("exception_info") or {}).get("exception_type") == "BudgetExceeded"
+    )
 
 
 class NativeModalTrials:
@@ -135,7 +151,11 @@ class NativeModalTrials:
             )
             save_record(receipt, record)
             if model:
-                if evidence.completed and evidence.cost_usd is not None and evidence.cost_usd > 0:
+                if model_was_not_dispatched(evidence.result, output / "allocations"):
+                    record["model_dispatch"] = "not_started"
+                    save_record(receipt, record)
+                    self.budget.settle(operation, "0", evidence=str(receipt.resolve()))
+                elif evidence.completed and evidence.cost_usd is not None and evidence.cost_usd > 0:
                     self.budget.settle(
                         operation, evidence.cost_usd, evidence=str(receipt.resolve())
                     )

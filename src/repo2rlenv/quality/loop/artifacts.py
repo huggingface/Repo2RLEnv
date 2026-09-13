@@ -122,10 +122,37 @@ def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:
     if private.exists():
         raise ValueError("Task already uses the reserved probe filename")
     (destination / "solution/solve.sh").rename(private)
+    before, after = "", ""
+    contract_path = task / "tests/contract.json"
+    if contract_path.is_file():
+        contract = json.loads(contract_path.read_text())
+        if contract.get("submitted_files") or contract.get("submitted_roots"):
+            # Scope this guard to the explicit collection contract of owned
+            # repository tasks. Other Harbor tasks may have different boundaries.
+            audit = destination / "solution/quality-probe-audit.py"
+            boundary = destination / "solution/quality-probe-contract.json"
+            if audit.exists() or boundary.exists():
+                raise ValueError("Task already uses a reserved probe audit filename")
+            shutil.copyfile(Path(__file__).with_name("probe_audit.py"), audit)
+            boundary.write_text(
+                json.dumps(
+                    {
+                        key: contract.get(key, {} if key == "immutable_assets" else [])
+                        for key in ("submitted_files", "submitted_roots", "immutable_assets")
+                    }
+                )
+            )
+            command = (
+                "python /solution/quality-probe-audit.py "
+                "/solution/quality-probe-contract.json /tmp/quality-probe-before.json "
+            )
+            before, after = command + "before\n", "\n" + command + "after\n"
     wrapper = destination / "solution/solve.sh"
     wrapper.write_text(
         "#!/bin/bash\nset -eu\nbash /solution/quality-original-solve.sh\n"
+        + before
         + probe.script
+        + after
         + "\nprintf '__QUALITY_PROBE_COMPLETED__\\n'\n"
     )
     wrapper.chmod(0o755)

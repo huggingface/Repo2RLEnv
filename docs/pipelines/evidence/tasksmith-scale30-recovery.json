@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-09-13T12:36:37.876272+00:00",
+  "recorded_at": "2026-09-13T13:27:44.449660+00:00",
   "target": 30,
-  "accepted": 16,
+  "accepted": 19,
   "authorization": {
     "user_reply": "Additional $100 ($600 total)",
     "total_cap_usd": "600.00",
@@ -9,11 +9,11 @@
     "existing_operations_preserved": true
   },
   "budget": {
-    "accounted_including_prior_external_usd": "500.998634",
+    "accounted_including_prior_external_usd": "554.054035",
     "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
     "authorized_usd": "600.000000",
-    "available_usd": "39.419030",
-    "reserved_usd": "59.582336"
+    "available_usd": "12.857649",
+    "reserved_usd": "33.088316"
   },
   "new_acceptances": [
     {
@@ -51,6 +51,123 @@
         {
           "probe": "wrong_solution",
           "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "rollout"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5575",
+      "bundle_hash": "sha256:112736f474108bab319d21805ec74c1ec5e522185350b978f6adb3137321a736",
+      "quality": "workspace/tasksmith-scale30/memory-finish-repair-v4/quality/result.json",
+      "quality_sha256": "014d0d5d36d71d629a784746e184c35a76881b3921a4feaea38511ebd14540b3",
+      "rollout": "legitimate_failure",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "rollout"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3142",
+      "bundle_hash": "sha256:1970d66af74570699eec48d94c2287e7e2c2de2cc1402aa315326beeb03468d6",
+      "quality": "workspace/tasksmith-scale30/scaler-finish-repair-v4/quality/result.json",
+      "quality_sha256": "c7957c68754dc606b03759f3537d31ef6e22a72b49bd80c00f8e78abf9649f1b",
+      "rollout": "legitimate_failure",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "rollout"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5501",
+      "bundle_hash": "sha256:01ebcfd509b48ca2d67e1398b1672f1a18666c304656147edfb2c7a62fa5649c",
+      "quality": "workspace/tasksmith-scale30/logging-fixture-repair-v3/quality/result.json",
+      "quality_sha256": "3e2051fd6130f1e63b41eb2c3ddf8830629a0099e74c1fa5b722cf07f2a9a7c3",
+      "rollout": "legitimate_failure",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
           "role": "probe"
         },
         {
