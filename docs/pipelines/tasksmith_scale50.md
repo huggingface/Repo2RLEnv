@@ -3,7 +3,8 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. Continuations run four independent PR controllers,
-with at most two GPU controllers, and starts from **27 independently accepted tasks**.
+with at most two GPU controllers. After V5, **29 independently accepted tasks**
+are available; 39 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
@@ -198,6 +199,58 @@ campaign authorization. The user authorized a small final overrun, bounded here
 to **$50**: up to $250 for the expansion and $1,050 overall only if needed after
 the ordinary allowance is exhausted. This reserve is not activated by V5
 preparation; historical uncertain holds remain intact.
+
+## V5 results and V6 continuation
+
+V5 finished seven PR attempts. Diffusers #13168 and Accelerate #4059 passed
+independent inspection, increasing acceptance from 27 to **29**. Two other
+automated profile passes remain on exact-revision holds:
+
+| PR | Independent finding | Next action |
+| --- | --- | --- |
+| PEFT #2952 | Its wrong-solution control fails during import with an indentation error. Hidden `init_weights` requirements are missing from the instruction, and central numerical coverage is incomplete. | Repair the instruction and behavioral tests, then obtain a functioning semantic counterexample. |
+| Diffusers #13226 | Token-selection and entropy assertions do not establish their claimed behavior. Hidden API requirements also account for many solver failures. | Align the public contract and private tests; exercise the actual predicted values and intended entropy distinction. |
+
+Transformers #44160 failed bootstrap. Transformers #36790 reached a successful
+bootstrap but exhausted construction repairs. Diffusers #11602 also established
+a working bootstrap before stopping without a task. Their source-bound successful
+profiles and failure evidence remain available for continuation.
+
+The refreshed panel contains **70 PRs: 29 accepted, ten generated but not
+accepted, nine attempted without a task, and 22 unattempted**. Generation yield
+is 39/48 (81%) and acceptance yield is 29/48 (60%) among attempted PRs. These
+include prior accepted tasks; V5 alone accepted two of seven attempts. Task
+copies, revisions and semantic controls do not increase the unique-PR count.
+
+V6 carries two shared fixes:
+
+- Behavioral negative controls need syntax-valid mutations and an actual
+  assertion failure during verifier execution. Import/collection failures cannot
+  establish rejection of an incorrect algorithm, and review cannot downgrade
+  this missing evidence into an optional improvement. This is an execution
+  requirement; independent review still checks whether the assertion measures
+  the claimed behavior.
+- Learner images restore the task virtual environment in both login shells and
+  noninteractive Bash. A real L4 smoke identified `su learner` as the boundary
+  that replaced PATH. All six checks now pass across direct execution, login
+  shells and Harbor tmux, using both `python` and `python3`. See
+  [learner runtime](learner_runtime.md) for the emitted setup and validation.
+
+Accelerate #3529's earlier compiled-execution proof predates the new evidence
+journal. A bounded revalidation reran its two controls: the broken forward failed
+a numerical assertion, and the valid alternative passed. The task and its earlier
+baseline, reference and Sonnet evidence remain unchanged. This refresh cost
+**$1.438431**; the two learner-runtime smoke attempts cost **$0.777260** combined.
+Both amounts are included in the cumulative expansion budget, with their workers
+terminated and reservations released.
+
+The final implementation passes **1,324 tests**, with four opt-in integration
+checks skipped, and all 17 generated prompt references match their sources. The
+next queue pairs retained CPU repairs with small fresh GPU PRs, before large model
+additions. Prepared task copies receive the shared runtime correction when
+needed and must earn fresh quality evidence. The default three-repair limit,
+four-controller limit and two-GPU-controller limit remain unchanged. The queue
+continues to retain unsuccessful tasks and diagnoses.
 
 ## Execution and budget
 
