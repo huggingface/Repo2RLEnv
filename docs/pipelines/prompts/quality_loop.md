@@ -1172,7 +1172,7 @@ def replacement_evidence(
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `771976fa46379873fa0414365fd1fca5fa7c4c7b681ec1b278c94a8ad8576572`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `74cf4aa459a2c4ab420660e99083b171aff3fe12ceabf124b26703a4bbf4205b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1277,6 +1277,33 @@ def probe_failures(trials: list[TrialRecord], success: float) -> list[str]:
         ):
             failures.append(f"Probe {trial.probe.name}: {trial.probe.kind} earned {trial.reward}")
     return failures
+
+
+def validate_rollout_outcome(review: Review, trials: list[TrialRecord], success: float) -> None:
+    """A legitimate outcome must agree with the latest supplied solver reward."""
+    if review.rollout not in {"legitimate_success", "legitimate_failure"}:
+        return
+    rollouts = [(index, trial) for index, trial in enumerate(trials) if trial.role == "rollout"]
+    if not rollouts:
+        raise ValueError(
+            f"Review rollout={review.rollout} has no supplied rollout evidence; use not_run."
+        )
+    index, trial = rollouts[-1]
+    evidence = f"evidence/{index}-rollout/result.json"
+    if trial.reward is None or trial.exception_type not in {None, "AgentTimeoutError"}:
+        raise ValueError(
+            f"Review rollout={review.rollout} is unsupported: {evidence} records "
+            f"reward={trial.reward}, exception_type={trial.exception_type!r}. "
+            "Diagnose missing execution evidence or infrastructure failure before claiming legitimacy."
+        )
+    if (review.rollout == "legitimate_success") != (trial.reward >= success):
+        raise ValueError(
+            f"Review rollout={review.rollout} contradicts {evidence}: "
+            f"reward={trial.reward}, success_reward={success}. "
+            "Success must meet the reward threshold; failure must fall below it. "
+            "Use a legitimate label only if the trace supports it; retain task-defect "
+            "or reward-hack diagnoses when appropriate."
+        )
 
 
 def _reusable_probe_trial(
@@ -1425,6 +1452,7 @@ class QualityLoop:
                         "Requested file ranges are now included; finish the review if sufficient."
                     )
                     continue
+                validate_rollout_outcome(review, trials, self.options.success_reward)
                 normalized = distinct_probes(review.probes, existing)
                 if normalized != review.probes:
                     save_record(

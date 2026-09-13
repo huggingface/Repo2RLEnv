@@ -177,7 +177,11 @@ New and repaired neural-model tasks explicitly request `model_behavior` coverage
 The wrong implementation must preserve interfaces and shapes while corrupting a
 promised computation. Independent assertions must reject it. Applying that
 requirement changes the task identity and requires fresh execution evidence.
-The combined runtime passes **1,280 local tests**, with four opt-in integration
+Settled rollout success/failure labels must also agree with the recorded reward.
+Contradictions enter the existing bounded review correction path; a legitimate
+solver failure can still support task acceptance. The 27 earlier accepted tasks
+have no label/reward disagreements in their rehashed rollout results.
+The combined runtime passes **1,297 local tests**, with four opt-in integration
 checks skipped; Ruff, generated prompt references, documentation and wheel build
 also pass. This is implementation validation, not acceptance of pending tasks.
 

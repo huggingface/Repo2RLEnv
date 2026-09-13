@@ -142,6 +142,15 @@ additional repair source exceeds the context limit, the controller includes that
 failure in the correction feedback instead of discarding the correction call.
 Unknown provider outcomes are never retried this way.
 
+Before accepting a completed review, the controller checks that a legitimate
+success or failure agrees with the latest supplied solver reward and configured
+success threshold. Missing rewards or infrastructure exceptions cannot establish
+either outcome; an agent timeout with a recorded reward retains the existing
+failure/success semantics. Contradictions receive the exact evidence path and
+reward through the existing bounded review correction or configured escalation.
+This check does not infer whether a failure reveals a task defect or whether a
+success exploits the verifier: those diagnoses still require the reviewer.
+
 A wrong-solution probe whose mutation never finished can be corrected within the
 same repair limit. The controller independently checks its exact variant, completed
 execution receipt, result checksum, nonzero agent exit and absent completion marker.
