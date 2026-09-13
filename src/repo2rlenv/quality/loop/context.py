@@ -12,6 +12,33 @@ from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
 
 
+def _search_excerpts(lines: list[str], query: str) -> str:
+    """Bound both match count and characters, including minified JSON traces."""
+    excerpts = []
+    for index, line in enumerate(lines):
+        match = line.find(query)
+        if match < 0:
+            continue
+        start, end = max(0, index - 5), min(len(lines), index + 26)
+        surrounding = "".join(lines[start:end])
+        if len(surrounding) <= 3000:
+            excerpts.append(f"[Lines {start + 1}-{end}]\n" + surrounding)
+        else:
+            # One line can contain an entire trajectory. Retain literal bytes
+            # around each hit and label omissions instead of expanding that line.
+            while match >= 0 and len(excerpts) < 8:
+                left = max(0, match - 1000)
+                right = min(len(line), left + 3000)
+                excerpts.append(
+                    f"[Line {index + 1}, columns {left + 1}-{right}; "
+                    "surrounding text omitted]\n" + line[left:right]
+                )
+                match = line.find(query, right)
+        if len(excerpts) >= 8:
+            break
+    return "\n".join(excerpts) or "[No literal matches found]"
+
+
 class EvidenceContext:
     def __init__(self, task: Path, trials: list[TrialRecord], *, limit: int):
         self.task, self.limit = task, limit
@@ -255,15 +282,7 @@ class EvidenceContext:
             if request.query is not None:
                 if not request.query.strip() or len(request.query) > 200:
                     raise ValueError("Search query must have 1-200 characters")
-                matches = [index for index, line in enumerate(lines) if request.query in line][:8]
-                text = (
-                    "\n".join(
-                        f"[Lines {max(1, index - 4)}-{min(len(lines), index + 26)}]\n"
-                        + "".join(lines[max(0, index - 5) : index + 26])
-                        for index in matches
-                    )
-                    or "[No literal matches found]"
-                )
+                text = _search_excerpts(lines, request.query)
             else:
                 text = "".join(lines[request.start_line - 1 : request.end_line])
             if not text:
