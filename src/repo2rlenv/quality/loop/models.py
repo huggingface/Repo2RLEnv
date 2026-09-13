@@ -13,7 +13,9 @@ class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-ProbeFocus = Literal["general", "lazy_output", "numeric_tolerance", "compiled_execution"]
+ProbeFocus = Literal[
+    "general", "lazy_output", "numeric_tolerance", "compiled_execution", "model_behavior"
+]
 
 
 class Citation(Record):
@@ -113,9 +115,9 @@ class Repair(Record):
     @model_validator(mode="after")
     def targeted_changes(self):
         if not self.edits and not self.probe_replacements:
-            raise ValueError("A repair must change task files or an invalid alternative probe")
-        if any(probe.kind != "valid_alternative" for probe in self.probe_replacements):
-            raise ValueError("Previously demonstrated wrong-solution probes cannot be replaced")
+            raise ValueError("A repair must change task files or a diagnosed invalid probe")
+        # Replacement eligibility depends on preserved execution evidence and is
+        # enforced by QualityLoop, never inferred from a model-authored patch.
         return self
 
 

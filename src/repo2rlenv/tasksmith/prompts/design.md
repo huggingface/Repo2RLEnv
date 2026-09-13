@@ -20,6 +20,15 @@ Before submitting tests, check that every important assertion can execute. For a
 
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
 
+When required_probe_focus includes model_behavior, cover the central new model
+behavior with assertions that distinguish a shape-preserving wrong implementation.
+Use small independent expectations for the promised computation or token ordering.
+For an adapter, exercise a nonzero adaptation rather than only its initial zero gate;
+for sampling, test the promised modes rather than only deterministic evaluation.
+If checkpoint regeneration is promised, compare loading into identical base weights
+in each promised save mode. For gradients, check the relevant nonzero dependency,
+not merely that a gradient object exists. Keep these tests within the PR's scope.
+
 When required_probe_focus includes compiled_execution, the final verifier must
 invoke the real compiled callable on tiny deterministic inputs and assert its
 numerical result against an independent expectation. Exercise backward gradients

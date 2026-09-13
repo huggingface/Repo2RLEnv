@@ -101,7 +101,7 @@ jobs:
           tests/test_tasksmith_reuse.py tests/test_tasksmith_bootstrap.py
           tests/test_hf_bootstrap_resume.py tests/test_quality_context_scale.py
           tests/test_native_modal_accounting.py tests/test_native_verifier_recovery.py
-          tests/test_tasksmith_native_stages.py
+          tests/test_tasksmith_native_stages.py tests/test_tasksmith_build_logs.py
           tests/test_task_labels.py tests/test_quality_publication.py tests/test_tasksmith_batch.py
           tests/test_hub_asset_aliases.py tests/test_quality_requirements.py
           tests/test_tasksmith_worker_release.py tests/test_tasksmith_quality_input.py
@@ -109,6 +109,7 @@ jobs:
           tests/test_quality_citation_paths.py tests/test_quality_review_corrections.py
           tests/test_tasksmith_artifact_seed.py tests/test_tasksmith_prepared_profiles.py
           tests/test_quality_context_budget.py tests/test_quality_repair_protocol.py
+          tests/test_quality_probe_recovery.py
           tests/test_quality_context_priority.py
           tests/test_repository_source_collection.py
 

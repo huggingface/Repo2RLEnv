@@ -35,6 +35,12 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.probe_recovery import (
+    failed_installations,
+    grounded_diagnosis,
+    record_attempt,
+    replacement_evidence,
+)
 from repo2rlenv.quality.loop.protocol import (
     distinct_probes,
     resolve_json_citations,
@@ -176,7 +182,8 @@ class QualityLoop:
         existing_probes: list[SemanticProbe] | None = None,
         revision: int = 0,
     ):
-        context = self._context(task, trials)
+        uninstalled = failed_installations(task, trials)
+        context = self._context(task, trials, uninstalled_probes=uninstalled)
         save_record(
             self.directory / "inventories" / f"{key}.json",
             {"bundle_hash": task_identity(task), "files": context.inventory},
@@ -266,6 +273,18 @@ class QualityLoop:
                         raise ValueError(
                             f"Reserve probe slots for missing control kinds: {sorted(missing_kinds)}"
                         )
+                unresolved = [
+                    failure
+                    for failure in uninstalled
+                    if not grounded_diagnosis(failure, review, context)
+                ]
+                if unresolved:
+                    raise ValueError(
+                        "Diagnose the proven uninstalled controls with category='probe' and "
+                        "an exact citation to their summary or oracle log: "
+                        + ", ".join(f"{item['name']} ({item['log_path']})" for item in unresolved)
+                        + ". Reward after a failed installation does not establish a verifier defect."
+                    )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
                 return review, context
             except (ValidationError, ValueError) as exc:
@@ -275,24 +294,53 @@ class QualityLoop:
             + (feedback[-1] if feedback else "no grounded response")
         )
 
-    def _repair(self, task, review, context, probes, revision, reasons):
+    def _repair(
+        self,
+        task,
+        review,
+        context,
+        probes,
+        revision,
+        reasons,
+        *,
+        probe_history=(),
+        immutable_probe_names=(),
+    ):
         feedback = []
         previous_repair = None
         probe_diagnosis = any(issue.category == "probe" for issue in review.issues)
+        uninstalled = json.loads(context.documents["evidence/checks.json"]).get(
+            "uninstalled_probes", []
+        )
+        wrong_replacements = {
+            probe.name: evidence
+            for probe in probes
+            if probe.name not in immutable_probe_names
+            and (
+                evidence := replacement_evidence(
+                    task, probe, probe_history, uninstalled, review, context
+                )
+            )
+            is not None
+        }
         probe_policy = {
             "allowed_replacements": [
                 {"name": probe.name, "kind": probe.kind, "focus": probe.focus}
                 for probe in probes
-                if probe.kind == "valid_alternative" and probe_diagnosis
+                if (probe.kind == "valid_alternative" and probe_diagnosis)
+                or probe.name in wrong_replacements
             ],
             "immutable_wrong_solution_probes": [
-                probe.name for probe in probes if probe.kind == "wrong_solution"
+                probe.name
+                for probe in probes
+                if probe.kind == "wrong_solution" and probe.name not in wrong_replacements
             ],
             "rule": (
                 "Use probe_replacements=[] for task/verifier defects; repair the task with edits "
                 "while retaining probe scripts. Only a grounded probe diagnosis permits the "
-                "listed valid alternatives to change. Never change a verifier merely to reject "
-                "a no-op probe; an invalid wrong-solution probe remains unresolved in this run."
+                "listed controls to change. A wrong solution may change only when its original "
+                "installation failed with bound evidence and no prior installation under its "
+                "name completed. Never change a task or verifier merely to reject a no-op probe."
             ),
         }
         for attempt in range(2):
@@ -333,11 +381,20 @@ class QualityLoop:
                         for path in self.protected_paths
                     ):
                         raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
+                if (
+                    repair.edits
+                    and uninstalled
+                    and not any(issue.category != "probe" for issue in review.issues)
+                ):
+                    raise ValueError(
+                        "An uninstalled probe alone does not justify task/verifier edits. "
+                        "Correct only the eligible probe or diagnose an independent task defect."
+                    )
                 updated_probes = probes
                 if repair.probe_replacements:
                     if not probe_diagnosis:
                         raise ValueError(
-                            "Alternative-probe replacement requires a grounded probe diagnosis. "
+                            "Probe replacement requires a grounded probe diagnosis. "
                             "Set probe_replacements=[] and repair the task/verifier through edits; "
                             "retain the existing alternative's script unchanged."
                         )
@@ -348,11 +405,30 @@ class QualityLoop:
                     for replacement_index, (name, replacement) in enumerate(replacements.items()):
                         if (
                             name not in known
-                            or known[name].kind != "valid_alternative"
+                            or known[name].kind != replacement.kind
                             or known[name].focus != replacement.focus
                         ):
                             raise ValueError(
                                 "Probe repair must preserve its name, kind and requirement focus"
+                            )
+                        if replacement.kind == "wrong_solution" and name not in wrong_replacements:
+                            raise ValueError(
+                                "Installed or unproven wrong-solution probes cannot be replaced"
+                            )
+                        if (
+                            replacement.kind == "wrong_solution"
+                            and replacement_evidence(
+                                task, known[name], probe_history, uninstalled, review, context
+                            )
+                            != wrong_replacements[name]
+                        ):
+                            raise ValueError("Probe installation evidence changed during repair")
+                        if (
+                            replacement.kind == "wrong_solution"
+                            and replacement.script == known[name].script
+                        ):
+                            raise ValueError(
+                                "Correcting an uninstalled probe must change its script"
                             )
                         for citation_index, citation in enumerate(replacement.evidence):
                             document = context.documents.get(citation.path, "")
@@ -361,7 +437,7 @@ class QualityLoop:
                             ):
                                 invalid_citation = citation
                                 raise ValueError(
-                                    "Alternative-probe replacement has ungrounded evidence at "
+                                    "Probe replacement has ungrounded evidence at "
                                     f"probe_replacements[{replacement_index}] ({name})"
                                     f".evidence[{citation_index}]: path={citation.path!r}, "
                                     f"quote={citation.quote!r}. Use an exact quote from a cited "
@@ -383,6 +459,19 @@ class QualityLoop:
                     apply_repair(task, repair, destination)
                 if task_probe_focus(task) - task_probe_focus(destination):
                     raise ValueError("Repair removed explicit task probe requirements")
+                if any(p.kind == "wrong_solution" for p in repair.probe_replacements):
+                    authorization = {
+                        "parent_hash": task_identity(task),
+                        "replacements": {
+                            p.name: wrong_replacements[p.name]
+                            for p in repair.probe_replacements
+                            if p.kind == "wrong_solution"
+                        },
+                    }
+                    path = destination.parent / "probe-replacement-evidence.json"
+                    if path.exists() and json.loads(path.read_text()) != authorization:
+                        raise ValueError("Stored probe replacement authorization changed")
+                    save_record(path, authorization)
                 return destination, updated_probes
             except (ValueError, FileNotFoundError, FileExistsError) as exc:
                 if attempt:
@@ -517,6 +606,14 @@ class QualityLoop:
             save_record(receipt, {"configuration": configuration, "state": "running"})
         task = snapshot(source, self.directory / "revisions/r0" / source.name)
         trials, review, revision, reasons = imported, None, 0, []
+        probe_history = []
+        # Imported definitions omit earlier execution history. A later failed
+        # installation cannot authorize replacing those unknown counterexamples.
+        immutable_probe_names = {
+            probe.name
+            for probe in (known_probes.probes if known_probes else [])
+            if probe.kind == "wrong_solution"
+        }
         probes = list(known_probes.probes) if known_probes else []
         status = "needs_evidence"
         try:
@@ -584,7 +681,11 @@ class QualityLoop:
                                 raise ValueError("Stored semantic probe changed")
                         self.event("probe", f"Run {probe.kind}: {probe.name}", state="started")
                         result = self.remote.run(destination, "probe", key)
-                        trials.append(result.model_copy(update={"probe": probe}))
+                        trial = result.model_copy(update={"probe": probe})
+                        trials.append(trial)
+                        probe_history.append(
+                            record_attempt(self.directory, key, parent_hash, trial)
+                        )
                         if result.exception_type == "BudgetExceeded":
                             raise BudgetExceeded("Probe allocation denied")
                     if (
@@ -649,7 +750,16 @@ class QualityLoop:
                     status = "needs_evidence"
                     break
                 self.event("repair", f"Author targeted repair {revision + 1}", state="started")
-                destination, probes = self._repair(task, review, context, probes, revision, reasons)
+                destination, probes = self._repair(
+                    task,
+                    review,
+                    context,
+                    probes,
+                    revision,
+                    reasons,
+                    probe_history=probe_history,
+                    immutable_probe_names=immutable_probe_names,
+                )
                 parent_hash = task_identity(destination)
                 same_task = parent_hash == task_identity(task)
                 task = destination

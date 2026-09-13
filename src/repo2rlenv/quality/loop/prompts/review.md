@@ -82,7 +82,16 @@ not only whether the object has generator type. Label its focus lazy_output. A
 different obviously wrong flattening implementation does not cover this requirement.
 For numeric_tolerance, use a wrong answer just outside the declared tolerance and
 a valid alternative inside it; label both numeric_tolerance. Do not probe exact
-equality alone. Otherwise use focus general. These are explicit requirement checks,
+equality alone. For model_behavior, preserve valid interfaces and tensor shapes
+while corrupting a central promised computation: for example token placement,
+pooling values, adapter contribution, sampling policy or a relevant gradient.
+Choose behavior actually required by this task and cite it. A dimension mismatch,
+missing class or broken import does not cover model_behavior. The mutation must
+install and reach real model execution; setup failure is not a verifier rejection.
+Require an independent expected value or behavioral comparison that detects it;
+shape checks, a non-None gradient and comparing a model only to its own reload are
+insufficient for those numerical claims. Label the wrong probe model_behavior.
+Otherwise use focus general. These are explicit requirement checks,
 not assumptions that any function accepting a generator must return a generator.
 
 When required_probe_focus includes compiled_execution, inspect actual invocation
@@ -104,6 +113,13 @@ conflict explicitly instead of silently dropping it. Explain probe failures usin
 the actual logs: a probe installation error is not proof that the verifier rejected
 the wrong behavior. Submitted output transcripts are not independent proof that a
 command ran. Judge rollout quality from recorded commands, source changes and checks.
+
+When evidence/checks.json lists uninstalled_probes, inspect each named oracle log
+or trial summary and give a grounded category=probe diagnosis before settling the
+review. A nonzero installation exit or a no-op mutation is instrumentation failure,
+even if the unchanged reference earns reward 1. Cite that attempt's actual summary
+or log. Do not invent a task defect to make the invalid control fail. The repair
+policy separately decides whether correction is permitted from the full history.
 
 A generated valid-alternative probe may itself contain a bug. Use category probe
 with the exact failing case and conflicting code when that happens. A successful

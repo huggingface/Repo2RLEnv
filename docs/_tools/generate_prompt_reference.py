@@ -172,6 +172,7 @@ def quality_loop() -> str:
         "prompts/repair.md",
         "models.py",
         "context.py",
+        "probe_recovery.py",
         "runner.py",
     ):
         result += block(root / relative)

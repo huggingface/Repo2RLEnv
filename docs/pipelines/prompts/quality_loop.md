@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `7c63accc799fcd2e633da90ff834f5eeaa72262a5a2a826daa028f72051e129f`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `98178839e92817573903fe0f1d6ddf4ca17329516620fcf45887d9fb9b8a31f6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -96,7 +96,16 @@ not only whether the object has generator type. Label its focus lazy_output. A
 different obviously wrong flattening implementation does not cover this requirement.
 For numeric_tolerance, use a wrong answer just outside the declared tolerance and
 a valid alternative inside it; label both numeric_tolerance. Do not probe exact
-equality alone. Otherwise use focus general. These are explicit requirement checks,
+equality alone. For model_behavior, preserve valid interfaces and tensor shapes
+while corrupting a central promised computation: for example token placement,
+pooling values, adapter contribution, sampling policy or a relevant gradient.
+Choose behavior actually required by this task and cite it. A dimension mismatch,
+missing class or broken import does not cover model_behavior. The mutation must
+install and reach real model execution; setup failure is not a verifier rejection.
+Require an independent expected value or behavioral comparison that detects it;
+shape checks, a non-None gradient and comparing a model only to its own reload are
+insufficient for those numerical claims. Label the wrong probe model_behavior.
+Otherwise use focus general. These are explicit requirement checks,
 not assumptions that any function accepting a generator must return a generator.
 
 When required_probe_focus includes compiled_execution, inspect actual invocation
@@ -118,6 +127,13 @@ conflict explicitly instead of silently dropping it. Explain probe failures usin
 the actual logs: a probe installation error is not proof that the verifier rejected
 the wrong behavior. Submitted output transcripts are not independent proof that a
 command ran. Judge rollout quality from recorded commands, source changes and checks.
+
+When evidence/checks.json lists uninstalled_probes, inspect each named oracle log
+or trial summary and give a grounded category=probe diagnosis before settling the
+review. A nonzero installation exit or a no-op mutation is instrumentation failure,
+even if the unchanged reference earns reward 1. Cite that attempt's actual summary
+or log. Do not invent a task defect to make the invalid control fail. The repair
+policy separately decides whether correction is permitted from the full history.
 
 A generated valid-alternative probe may itself contain a bug. Use category probe
 with the exact failing case and conflicting code when that happens. A successful
@@ -173,7 +189,7 @@ of the code the learner must implement before accepting its coverage.
 
 ### repair.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `d2f9ad6ee4aeaa914dcfd25d90b1c496e5abcd3b6d13ec715fb129d7ccc14ceb`
+[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `a53ba20dd17b10c63a3601f8445d212b580a9327474265efb0c7c9e5ad14c838`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -220,14 +236,19 @@ an unconditional success or a comparison to the observed Sonnet answer. A legiti
 solver bug needs no task edit. Private answers stay private. Previously collected
 counterexamples and valid alternatives will be rerun against this revision.
 
-If the review explicitly diagnoses a defective valid-alternative probe (category
-probe), probe_replacements may correct that implementation. Preserve its name,
-kind=valid_alternative and focus; cite the actual failure and public/source contract.
-Use an empty list otherwise. Never replace or remove a wrong-solution probe. Do not
+For a grounded category=probe diagnosis, probe_replacements may correct only the
+controls listed in probe_replacement_policy.allowed_replacements. Preserve name,
+kind and focus; cite the actual failure and public/source contract. A wrong-solution
+probe is eligible only when trusted execution evidence proves its installation
+failed and no earlier installation under that name completed. Keep its intended
+wrong behavior and fix only the mutation script; assert the expected match and
+change collected source. Previously installed counterexamples remain immutable,
+including those that exposed verifier gaps. Use an empty list otherwise. Do not
 copy the reference verbatim just to obtain a passing alternative. Keep the original
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
 repair may have edits=[] and must leave the task/verifier unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
+An uninstalled probe alone never justifies editing a task or verifier to reject it.
 
 Do not solve the requested task in the learner starting source. Preserve the intentional defect and the fail-to-pass contrast. When a container failed to build, use the actual exception message to repair packaging; do not infer a missing test or missing target fix from an unsuccessful multiword literal search. A missing README referenced by package metadata is a packaging defect, not a reason to alter task behavior or oracle code.
 ````
@@ -236,7 +257,7 @@ Do not solve the requested task in the learner starting source. Preserve the int
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `6bda0f888c5de779c439facc3fff0857c5ffc1f504a4ad6ece6fbf2efb7ecc8f`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `e481cd48a2c582e206d287373ff2dad8c013bd2351a0d03ef199fc986c685b4c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -259,7 +280,9 @@ class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-ProbeFocus = Literal["general", "lazy_output", "numeric_tolerance", "compiled_execution"]
+ProbeFocus = Literal[
+    "general", "lazy_output", "numeric_tolerance", "compiled_execution", "model_behavior"
+]
 
 
 class Citation(Record):
@@ -359,9 +382,9 @@ class Repair(Record):
     @model_validator(mode="after")
     def targeted_changes(self):
         if not self.edits and not self.probe_replacements:
-            raise ValueError("A repair must change task files or an invalid alternative probe")
-        if any(probe.kind != "valid_alternative" for probe in self.probe_replacements):
-            raise ValueError("Previously demonstrated wrong-solution probes cannot be replaced")
+            raise ValueError("A repair must change task files or a diagnosed invalid probe")
+        # Replacement eligibility depends on preserved execution evidence and is
+        # enforced by QualityLoop, never inferred from a model-authored patch.
         return self
 
 
@@ -950,9 +973,206 @@ class EvidenceContext:
 
 </details>
 
+### probe_recovery.py
+
+[Source: `src/repo2rlenv/quality/loop/probe_recovery.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/probe_recovery.py) · SHA-256 `ddf0ca10f22588a6c39759c31f4a617bd63d93ad20148e72099084a1c58a6082`
+
+Source hash covers the original file; trailing whitespace is omitted below.
+
+<details class="example" markdown="1">
+<summary>Read probe_recovery.py</summary>
+
+````python
+"""Evidence-bound correction of controls that never completed installation."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from repo2rlenv.execution.lifecycle import save_record
+from repo2rlenv.quality.loop.artifacts import digest, import_trial, task_identity
+from repo2rlenv.quality.loop.models import SemanticProbe, TrialRecord
+
+
+def _files(trial: TrialRecord) -> dict[str, str | None]:
+    result = Path(trial.result)
+    paths = [
+        result,
+        result.parents[2] / "trial.json",
+        result.parent / "agent/oracle.txt",
+        result.parent / "agent/exit-code.txt",
+    ]
+    hashes = {}
+    for path in paths:
+        if any(component.is_symlink() for component in (path, *path.parents)) or (
+            path.exists() and not path.is_file()
+        ):
+            raise ValueError("Probe installation evidence must be regular files")
+        hashes[str(path)] = digest(path) if path.exists() else None
+    return hashes
+
+
+def capture_attempt(parent_hash: str, trial: TrialRecord) -> dict:
+    return {
+        "parent_hash": parent_hash,
+        "trial": trial.model_dump(mode="json"),
+        "files": _files(trial),
+    }
+
+
+def record_attempt(directory: Path, key: str, parent_hash: str, trial: TrialRecord) -> dict:
+    """Keep prior installations even after current-revision trials are discarded."""
+    attempt = capture_attempt(parent_hash, trial)
+    path = directory / "probe-attempts" / f"{key}.json"
+    if path.exists():
+        if path.is_symlink() or json.loads(path.read_text()) != attempt:
+            raise ValueError("Preserved probe installation evidence changed")
+    else:
+        save_record(path, attempt)
+    return attempt
+
+
+def installation(attempt: dict) -> bool:
+    """Reconstruct completion from the owned receipt, exact variant and saved logs.
+
+    An absent receipt/log or uncertain exit is not proof of a failed installation.
+    These are content bindings, not attestations for externally supplied evidence.
+    """
+    trial = TrialRecord.model_validate(attempt["trial"])
+    if trial.role != "probe" or trial.probe is None or trial.binding != "receipt":
+        raise ValueError("Probe correction requires an owned probe execution receipt")
+    if attempt["files"] != _files(trial) or any(
+        value is None for value in attempt["files"].values()
+    ):
+        raise ValueError("Probe installation evidence is missing or changed")
+    result = Path(trial.result)
+    if digest(result) != trial.result_sha256:
+        raise ValueError("Probe result changed after collection")
+    raw = json.loads(result.read_text())
+    variant = Path(raw.get("config", {}).get("task", {}).get("path", ""))
+    if not variant.is_dir():
+        variant = result.parents[4] / "probes" / result.parents[2].name / variant.name
+    manifest_path = variant.parent / "probe.json"
+    if (
+        any(component.is_symlink() for component in (manifest_path, *manifest_path.parents))
+        or not manifest_path.is_file()
+    ):
+        raise ValueError("Probe creation receipt is unavailable")
+    manifest = json.loads(manifest_path.read_text())
+    if (
+        manifest
+        != {
+            "parent_hash": attempt["parent_hash"],
+            "bundle_hash": trial.bundle_hash,
+            "probe": trial.probe.model_dump(mode="json"),
+        }
+        or task_identity(variant) != trial.bundle_hash
+    ):
+        raise ValueError("Probe installation belongs to another definition or parent")
+    imported = import_trial(result.parents[2] / "trial.json", variant, "oracle")
+    expected = trial.model_copy(update={"role": "oracle", "probe": None, "probe_installed": None})
+    if imported != expected:
+        raise ValueError("Probe summary disagrees with its execution evidence")
+    log = result.parent / "agent/oracle.txt"
+    if log.stat().st_size > 16 * 1024 * 1024:
+        raise ValueError("Probe installation log exceeds the evidence limit")
+    completed = "__QUALITY_PROBE_COMPLETED__" in log.read_text()
+    if completed != trial.probe_installed or trial.agent_exit_code is None:
+        raise ValueError("Probe installation summary disagrees with its completion evidence")
+    if not completed and trial.agent_exit_code == 0:
+        raise ValueError("Missing marker without a failed agent exit is inconclusive")
+    return completed
+
+
+def failed_installations(task: Path, trials: list[TrialRecord]) -> list[dict]:
+    """Only expose independently reconstructed failures to the model."""
+    failures = []
+    parent_hash = task_identity(task)
+    for index, trial in enumerate(trials):
+        if (
+            trial.role != "probe"
+            or trial.probe is None
+            or trial.probe.kind != "wrong_solution"
+            or trial.probe_installed is not False
+            or trial.agent_exit_code in {None, 0}
+        ):
+            continue
+        try:
+            attempt = capture_attempt(parent_hash, trial)
+            if installation(attempt):
+                continue
+        except (ValueError, OSError, KeyError, IndexError):
+            continue
+        failures.append(
+            {
+                "name": trial.probe.name,
+                "result": trial.result,
+                "result_sha256": trial.result_sha256,
+                "agent_exit_code": trial.agent_exit_code,
+                "summary_path": f"evidence/{index}-probe/result.json",
+                "log_path": f"evidence/{index}-probe/agent/oracle.txt",
+                "diagnosis": "Probe installation did not complete; reward is not a semantic control result.",
+            }
+        )
+    return failures
+
+
+def grounded_diagnosis(failure: dict, review, context) -> bool:
+    """Require a probe-category issue citing this attempt, not an unrelated defect."""
+    for issue in review.issues:
+        if issue.category != "probe":
+            continue
+        for citation in issue.evidence:
+            if citation.path not in {failure["summary_path"], failure["log_path"]}:
+                continue
+            document = context.documents.get(citation.path, "")
+            if document and " ".join(citation.quote.split()) in " ".join(document.split()):
+                return True
+    return False
+
+
+def replacement_evidence(
+    task: Path, probe: SemanticProbe, history: list[dict], failures: list[dict], review, context
+) -> dict | None:
+    """A completed installation under this name permanently closes this exception."""
+    if probe.kind != "wrong_solution" or not any(
+        failure["name"] == probe.name for failure in failures
+    ):
+        return None
+    attempts = [
+        attempt
+        for attempt in history
+        if (attempt["trial"].get("probe") or {}).get("name") == probe.name
+    ]
+    if not attempts:
+        return None
+    try:
+        if any(installation(attempt) for attempt in attempts):
+            return None
+    except (ValueError, OSError, KeyError, IndexError):
+        return None
+    exact = [
+        attempt
+        for attempt in attempts
+        if attempt["parent_hash"] == task_identity(task)
+        and attempt["trial"]["probe"] == probe.model_dump(mode="json")
+    ]
+    for failure in failures:
+        if (
+            failure["name"] == probe.name
+            and any(attempt["trial"]["result"] == failure["result"] for attempt in exact)
+            and grounded_diagnosis(failure, review, context)
+        ):
+            return {"probe": probe.model_dump(mode="json"), "attempts": attempts}
+    return None
+````
+
+</details>
+
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `802da6239eb3ee3fd0df9b10d74e4314a1ce5869e2d62e3286f00f78c6fa2bcf`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `771976fa46379873fa0414365fd1fca5fa7c4c7b681ec1b278c94a8ad8576572`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -996,6 +1216,12 @@ from repo2rlenv.quality.loop.models import (
     Review,
     SemanticProbe,
     TrialRecord,
+)
+from repo2rlenv.quality.loop.probe_recovery import (
+    failed_installations,
+    grounded_diagnosis,
+    record_attempt,
+    replacement_evidence,
 )
 from repo2rlenv.quality.loop.protocol import (
     distinct_probes,
@@ -1138,7 +1364,8 @@ class QualityLoop:
         existing_probes: list[SemanticProbe] | None = None,
         revision: int = 0,
     ):
-        context = self._context(task, trials)
+        uninstalled = failed_installations(task, trials)
+        context = self._context(task, trials, uninstalled_probes=uninstalled)
         save_record(
             self.directory / "inventories" / f"{key}.json",
             {"bundle_hash": task_identity(task), "files": context.inventory},
@@ -1228,6 +1455,18 @@ class QualityLoop:
                         raise ValueError(
                             f"Reserve probe slots for missing control kinds: {sorted(missing_kinds)}"
                         )
+                unresolved = [
+                    failure
+                    for failure in uninstalled
+                    if not grounded_diagnosis(failure, review, context)
+                ]
+                if unresolved:
+                    raise ValueError(
+                        "Diagnose the proven uninstalled controls with category='probe' and "
+                        "an exact citation to their summary or oracle log: "
+                        + ", ".join(f"{item['name']} ({item['log_path']})" for item in unresolved)
+                        + ". Reward after a failed installation does not establish a verifier defect."
+                    )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
                 return review, context
             except (ValidationError, ValueError) as exc:
@@ -1237,24 +1476,53 @@ class QualityLoop:
             + (feedback[-1] if feedback else "no grounded response")
         )
 
-    def _repair(self, task, review, context, probes, revision, reasons):
+    def _repair(
+        self,
+        task,
+        review,
+        context,
+        probes,
+        revision,
+        reasons,
+        *,
+        probe_history=(),
+        immutable_probe_names=(),
+    ):
         feedback = []
         previous_repair = None
         probe_diagnosis = any(issue.category == "probe" for issue in review.issues)
+        uninstalled = json.loads(context.documents["evidence/checks.json"]).get(
+            "uninstalled_probes", []
+        )
+        wrong_replacements = {
+            probe.name: evidence
+            for probe in probes
+            if probe.name not in immutable_probe_names
+            and (
+                evidence := replacement_evidence(
+                    task, probe, probe_history, uninstalled, review, context
+                )
+            )
+            is not None
+        }
         probe_policy = {
             "allowed_replacements": [
                 {"name": probe.name, "kind": probe.kind, "focus": probe.focus}
                 for probe in probes
-                if probe.kind == "valid_alternative" and probe_diagnosis
+                if (probe.kind == "valid_alternative" and probe_diagnosis)
+                or probe.name in wrong_replacements
             ],
             "immutable_wrong_solution_probes": [
-                probe.name for probe in probes if probe.kind == "wrong_solution"
+                probe.name
+                for probe in probes
+                if probe.kind == "wrong_solution" and probe.name not in wrong_replacements
             ],
             "rule": (
                 "Use probe_replacements=[] for task/verifier defects; repair the task with edits "
                 "while retaining probe scripts. Only a grounded probe diagnosis permits the "
-                "listed valid alternatives to change. Never change a verifier merely to reject "
-                "a no-op probe; an invalid wrong-solution probe remains unresolved in this run."
+                "listed controls to change. A wrong solution may change only when its original "
+                "installation failed with bound evidence and no prior installation under its "
+                "name completed. Never change a task or verifier merely to reject a no-op probe."
             ),
         }
         for attempt in range(2):
@@ -1295,11 +1563,20 @@ class QualityLoop:
                         for path in self.protected_paths
                     ):
                         raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
+                if (
+                    repair.edits
+                    and uninstalled
+                    and not any(issue.category != "probe" for issue in review.issues)
+                ):
+                    raise ValueError(
+                        "An uninstalled probe alone does not justify task/verifier edits. "
+                        "Correct only the eligible probe or diagnose an independent task defect."
+                    )
                 updated_probes = probes
                 if repair.probe_replacements:
                     if not probe_diagnosis:
                         raise ValueError(
-                            "Alternative-probe replacement requires a grounded probe diagnosis. "
+                            "Probe replacement requires a grounded probe diagnosis. "
                             "Set probe_replacements=[] and repair the task/verifier through edits; "
                             "retain the existing alternative's script unchanged."
                         )
@@ -1310,11 +1587,30 @@ class QualityLoop:
                     for replacement_index, (name, replacement) in enumerate(replacements.items()):
                         if (
                             name not in known
-                            or known[name].kind != "valid_alternative"
+                            or known[name].kind != replacement.kind
                             or known[name].focus != replacement.focus
                         ):
                             raise ValueError(
                                 "Probe repair must preserve its name, kind and requirement focus"
+                            )
+                        if replacement.kind == "wrong_solution" and name not in wrong_replacements:
+                            raise ValueError(
+                                "Installed or unproven wrong-solution probes cannot be replaced"
+                            )
+                        if (
+                            replacement.kind == "wrong_solution"
+                            and replacement_evidence(
+                                task, known[name], probe_history, uninstalled, review, context
+                            )
+                            != wrong_replacements[name]
+                        ):
+                            raise ValueError("Probe installation evidence changed during repair")
+                        if (
+                            replacement.kind == "wrong_solution"
+                            and replacement.script == known[name].script
+                        ):
+                            raise ValueError(
+                                "Correcting an uninstalled probe must change its script"
                             )
                         for citation_index, citation in enumerate(replacement.evidence):
                             document = context.documents.get(citation.path, "")
@@ -1323,7 +1619,7 @@ class QualityLoop:
                             ):
                                 invalid_citation = citation
                                 raise ValueError(
-                                    "Alternative-probe replacement has ungrounded evidence at "
+                                    "Probe replacement has ungrounded evidence at "
                                     f"probe_replacements[{replacement_index}] ({name})"
                                     f".evidence[{citation_index}]: path={citation.path!r}, "
                                     f"quote={citation.quote!r}. Use an exact quote from a cited "
@@ -1345,6 +1641,19 @@ class QualityLoop:
                     apply_repair(task, repair, destination)
                 if task_probe_focus(task) - task_probe_focus(destination):
                     raise ValueError("Repair removed explicit task probe requirements")
+                if any(p.kind == "wrong_solution" for p in repair.probe_replacements):
+                    authorization = {
+                        "parent_hash": task_identity(task),
+                        "replacements": {
+                            p.name: wrong_replacements[p.name]
+                            for p in repair.probe_replacements
+                            if p.kind == "wrong_solution"
+                        },
+                    }
+                    path = destination.parent / "probe-replacement-evidence.json"
+                    if path.exists() and json.loads(path.read_text()) != authorization:
+                        raise ValueError("Stored probe replacement authorization changed")
+                    save_record(path, authorization)
                 return destination, updated_probes
             except (ValueError, FileNotFoundError, FileExistsError) as exc:
                 if attempt:
@@ -1479,6 +1788,14 @@ class QualityLoop:
             save_record(receipt, {"configuration": configuration, "state": "running"})
         task = snapshot(source, self.directory / "revisions/r0" / source.name)
         trials, review, revision, reasons = imported, None, 0, []
+        probe_history = []
+        # Imported definitions omit earlier execution history. A later failed
+        # installation cannot authorize replacing those unknown counterexamples.
+        immutable_probe_names = {
+            probe.name
+            for probe in (known_probes.probes if known_probes else [])
+            if probe.kind == "wrong_solution"
+        }
         probes = list(known_probes.probes) if known_probes else []
         status = "needs_evidence"
         try:
@@ -1546,7 +1863,11 @@ class QualityLoop:
                                 raise ValueError("Stored semantic probe changed")
                         self.event("probe", f"Run {probe.kind}: {probe.name}", state="started")
                         result = self.remote.run(destination, "probe", key)
-                        trials.append(result.model_copy(update={"probe": probe}))
+                        trial = result.model_copy(update={"probe": probe})
+                        trials.append(trial)
+                        probe_history.append(
+                            record_attempt(self.directory, key, parent_hash, trial)
+                        )
                         if result.exception_type == "BudgetExceeded":
                             raise BudgetExceeded("Probe allocation denied")
                     if (
@@ -1611,7 +1932,16 @@ class QualityLoop:
                     status = "needs_evidence"
                     break
                 self.event("repair", f"Author targeted repair {revision + 1}", state="started")
-                destination, probes = self._repair(task, review, context, probes, revision, reasons)
+                destination, probes = self._repair(
+                    task,
+                    review,
+                    context,
+                    probes,
+                    revision,
+                    reasons,
+                    probe_history=probe_history,
+                    immutable_probe_names=immutable_probe_names,
+                )
                 parent_hash = task_identity(destination)
                 same_task = parent_hash == task_identity(task)
                 task = destination

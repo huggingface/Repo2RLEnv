@@ -138,6 +138,13 @@ LangGraph checkpoints stage state. Artifact receipts additionally bind the schem
 
 Bootstrap/design retries receive the previous complete artifact alongside the failure, so they can preserve working fields. The author sees its remaining call allowance after each shell tool result. The last two model calls are reserved for artifact submission and correction; further shell exploration is declined. These limits bound investigation without spending the entire allowance before producing a usable profile.
 
+Dependency and public-image builds retain private stdout and stderr on failure or
+timeout as well as success. The retry feedback includes selected exception lines
+alongside the beginning and end of each stream, so a long echoed Docker command
+does not hide the underlying failure. Retained streams redact credentials and are
+capped at 4 MiB each; a checksum receipt explicitly records any truncation. Build
+commands, timeouts and cache identities are unchanged.
+
 ## Offline model and tokenizer assets
 
 Choose the smallest faithful task fixture. Trainer bookkeeping, loss computation and

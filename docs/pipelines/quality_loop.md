@@ -34,7 +34,7 @@ flowchart TD
     M -->|Defect| P[Ground the failure in concrete evidence]
     O -->|Defect| P
     P --> Q{Repair enabled and budget remains?}
-    Q -->|Yes| R[Targeted task edit or diagnosed alternative-probe correction]
+    Q -->|Yes| R[Targeted task edit or eligible probe correction]
     R --> F
     Q -->|No| S[Report needs repair or evidence]
     O -->|Sound| T[Select under practical-generation-v1]
@@ -142,6 +142,22 @@ additional repair source exceeds the context limit, the controller includes that
 failure in the correction feedback instead of discarding the correction call.
 Unknown provider outcomes are never retried this way.
 
+A wrong-solution probe whose mutation never finished can be corrected within the
+same repair limit. The controller independently checks its exact variant, completed
+execution receipt, result checksum, nonzero agent exit and absent completion marker.
+The reviewer must diagnose that specific attempt as a probe defect using its logs
+or trial summary. Missing or mismatched evidence does not authorize replacement.
+An append-only `probe-attempts/` journal preserves every attempt and log hash across
+task revisions and resume. Once any installation under the same probe name completes,
+the counterexample remains immutable, even when it exposes a verifier gap or a later
+attempt fails. Eligible corrections preserve name, kind and focus, retain the old
+receipts, and record authorization in `probe-replacement-evidence.json` beside the new
+repair. A broken probe alone cannot justify task/verifier edits. The corrected probe
+runs again; unchanged controls use the existing strict evidence importer. Neither
+the default three repair rounds nor the two patch-proposal calls is increased.
+Imported wrong-probe definitions remain immutable: a probe manifest alone does not
+establish that no earlier installation completed in its original run.
+
 The initial evidence pack places selected private assertions before large reference
 patches and generic grading helpers. Reviews must assess those assertions, rather
 than inferring coverage from test names or pass counts. All omitted files remain
@@ -233,6 +249,15 @@ remain limited to the original PR's behavior. No fixed speedup or extra hardware
 is required. Without the explicit field, historical tasks keep their existing
 requirements. Tasksmith's `required_probe_focus` option annotates a new input copy
 before controls and never transfers old evidence to the changed hash.
+
+For neural model tasks, `model_behavior` targets a wrong implementation that keeps
+valid interfaces and tensor shapes while changing a central promised computation,
+such as register placement, pooling values, adapter output or sampling behavior.
+The verifier must detect that change through independent numerical or behavioral
+assertions. A dimension error or a missing import does not establish this coverage.
+This requirement is opt-in and changes the task hash; previous evidence cannot be
+carried onto the annotated copy. Probe focus remains a reviewed coverage constraint,
+not an automatic proof that every mathematical requirement has been tested.
 
 Alternative implementations are judged by their public behavior. A failing test
 that prescribes a private flag's representation may be a verifier defect; it is

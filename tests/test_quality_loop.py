@@ -763,10 +763,11 @@ def test_generator_input_does_not_imply_lazy_output(task, tmp_path):
     assert required_probe_focus(revised) == set()
 
 
-def test_explicit_compiled_requirement_rejects_generic_probes(task, tmp_path):
-    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_explicit_requirement_rejects_generic_probes(task, tmp_path, focus):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
     assert required_probe_focus(task) == set()
-    assert required_probe_focus(revised) == {"compiled_execution"}
+    assert required_probe_focus(revised) == {focus}
     result = make_loop(
         tmp_path,
         remote=Trials(tmp_path / "results"),
@@ -775,41 +776,43 @@ def test_explicit_compiled_requirement_rejects_generic_probes(task, tmp_path):
         max_read_rounds=0,
     ).run(revised)
     assert result.status == "needs_evidence"
-    assert "compiled_execution" in result.reasons[0]
+    assert focus in result.reasons[0]
     assert not any(item.role in {"rollout", "probe"} for item in result.trials)
 
 
-def test_explicit_probe_requirement_survives_task_repair(task, tmp_path):
-    class CompileModel(Model):
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_explicit_probe_requirement_survives_task_repair(task, tmp_path, focus):
+    class FocusedModel(Model):
         def ask(self, *args):
             result = super().ask(*args)
             if isinstance(result, Review):
                 for probe in result.probes:
                     if probe.kind == "wrong_solution":
-                        probe.focus = "compiled_execution"
+                        probe.focus = focus
             return result
 
-    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
     result = make_loop(
-        tmp_path, remote=Trials(tmp_path / "results"), model=CompileModel(), repair=True
+        tmp_path, remote=Trials(tmp_path / "results"), model=FocusedModel(), repair=True
     ).run(revised)
     assert result.status == "usable", result.reasons
     assert result.repairs == 1
     assert result.bundle_hash != task_identity(revised)
-    assert required_probe_focus(Path(result.task_path)) == {"compiled_execution"}
-    assert any(trial.probe and trial.probe.focus == "compiled_execution" for trial in result.trials)
+    assert required_probe_focus(Path(result.task_path)) == {focus}
+    assert any(trial.probe and trial.probe.focus == focus for trial in result.trials)
 
 
-def test_repair_cannot_remove_explicit_probe_metadata(task, tmp_path):
-    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_repair_cannot_remove_explicit_probe_metadata(task, tmp_path, focus):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
     repair = Repair(
         explanation="Try to bypass the requirement",
-        addressed_issues=["compiled control"],
-        edits=[Edit(path="task.toml", old="compiled_execution", new="general", executable=False)],
+        addressed_issues=["required control"],
+        edits=[Edit(path="task.toml", old=focus, new="general", executable=False)],
     )
     with pytest.raises(ValueError):
         apply_repair(revised, repair, tmp_path / "revision" / task.name)
-    assert required_probe_focus(revised) == {"compiled_execution"}
+    assert required_probe_focus(revised) == {focus}
     assert not (tmp_path / "revision" / task.name).exists()
 
 
@@ -840,14 +843,16 @@ def test_openai_schema_requires_focus_even_for_legacy_read_defaults():
     assert "default" not in schema["$defs"]["SemanticProbe"]["properties"]["focus"]
 
 
-def test_wrong_solution_counterexample_cannot_be_replaced():
-    with pytest.raises(ValueError, match="cannot be replaced"):
-        Repair(
-            explanation="Discard an inconvenient counterexample",
-            addressed_issues=["probe"],
-            edits=[],
-            probe_replacements=[probes()[0]],
-        )
+def test_wrong_solution_proposal_requires_runtime_evidence_authorization():
+    # The schema accepts a proposal; only the loop can inspect its execution
+    # history. Missing proof and installed controls are rejected in protocol tests.
+    proposal = Repair(
+        explanation="Correct a control whose installation failed",
+        addressed_issues=["probe"],
+        edits=[],
+        probe_replacements=[probes()[0]],
+    )
+    assert proposal.probe_replacements[0].kind == "wrong_solution"
 
 
 class AlternativeRepairModel(Model):

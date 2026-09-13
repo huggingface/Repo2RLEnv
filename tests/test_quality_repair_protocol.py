@@ -152,7 +152,7 @@ def test_wrong_probe_replacement_stays_forbidden_even_with_probe_diagnosis(task,
     with pytest.raises(ValueError, match="wrong-solution probes cannot be replaced"):
         runner._repair(task, review("probe"), runner._context(task, []), retained, 0, [])
     assert len(model.calls) == 2
-    assert model.calls[1]["previous_repair"] is None
+    assert model.calls[1]["previous_repair"] == invalid
     policy = model.calls[1]["probe_replacement_policy"]
     assert policy["allowed_replacements"] == [
         {"name": "valid-format", "kind": "valid_alternative", "focus": "general"}

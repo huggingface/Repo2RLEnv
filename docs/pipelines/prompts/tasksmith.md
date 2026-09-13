@@ -69,7 +69,7 @@ failure is only a cache-name mismatch.
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `bea47a2032407785a729c192ee7de168425ef9271002d1da1be779b4f3147336`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `857f10037eaaa0bd655b414e1559a1897da783d856431d8bb02a2e1b7183069a`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -98,6 +98,15 @@ State only compatibility and edge-case requirements supported by the original PR
 Before submitting tests, check that every important assertion can execute. For an expected exception, inspect its message, identity or side effects after the pytest.raises block, not after the raising call inside that block. Check meaningful behavior rather than merely successful setup: for a selection policy, call it on both selected and unrelated inputs; for retries, verify both retryable failures and immediate propagation of unrelated errors. Exercise alternate public calling forms before promising they all support the same option; an existing limitation outside this PR must not become a new requirement.
 
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
+
+When required_probe_focus includes model_behavior, cover the central new model
+behavior with assertions that distinguish a shape-preserving wrong implementation.
+Use small independent expectations for the promised computation or token ordering.
+For an adapter, exercise a nonzero adaptation rather than only its initial zero gate;
+for sampling, test the promised modes rather than only deterministic evaluation.
+If checkpoint regeneration is promised, compare loading into identical base weights
+in each promised save mode. For gradients, check the relevant nonzero dependency,
+not merely that a gradient object exists. Keep these tests within the PR's scope.
 
 When required_probe_focus includes compiled_execution, the final verifier must
 invoke the real compiled callable on tiny deterministic inputs and assert its

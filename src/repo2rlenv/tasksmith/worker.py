@@ -24,16 +24,29 @@ from repo2rlenv.pipelines.recipes.repository.export import (
 from repo2rlenv.quality.python_evidence import test_excerpts
 from repo2rlenv.quality.test_results import execution_contrast
 from repo2rlenv.spec.input import RepoSpec
+from repo2rlenv.tasksmith.build_logs import build_excerpt, save_build_logs
 from repo2rlenv.tasksmith.models import BootstrapHint, Design, Profile
 
 
-def run(argv, *, cwd=None, timeout=120):
-    result = subprocess.run(
-        argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
-    )
+def run(argv, *, cwd=None, timeout=120, build_log: Path | None = None):
+    try:
+        result = subprocess.run(
+            argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        if build_log is None:
+            raise
+        detail = save_build_logs(build_log, exc.stdout, exc.stderr)
+        raise ValueError(f"Command {argv[0]} timed out after {timeout}s:\n{detail}") from None
+    detail = save_build_logs(build_log, result.stdout, result.stderr) if build_log else None
     if result.returncode:
         raise ValueError(
-            f"Command {argv[0]} failed ({result.returncode}): {result.stderr[-6000:]}\n{result.stdout[-2000:]}"
+            f"Command {argv[0]} failed ({result.returncode}): "
+            + (
+                detail
+                if detail is not None
+                else f"{result.stderr[-6000:]}\n{result.stdout[-2000:]}"
+            )
         )
     return result.stdout
 
@@ -103,8 +116,11 @@ def build_dependency_image(
         context = output / "dependency-context"
         context.mkdir()
         (context / "Dockerfile").write_text(recipe)
-        log = run(["docker", "build", "-t", tag, str(context)], timeout=600)
-        (output / "dependency-build.stdout").write_text(log)
+        run(
+            ["docker", "build", "-t", tag, str(context)],
+            timeout=600,
+            build_log=output / "dependency-build",
+        )
     image_id = run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"]).strip()
     record = {
         "key": key,
@@ -142,8 +158,11 @@ def bootstrap(source: dict, profile: Profile, output: Path) -> dict:
             shutil.copyfile(path, destination)
     (context / "Dockerfile").write_text(repository_build(profile.options))
     public_tag = "tasksmith-public:" + hashlib.sha256(str(output).encode()).hexdigest()[:20]
-    log = run(["docker", "build", "-t", public_tag, str(context)], timeout=600)
-    (output / "public-build.stdout").write_text(log)
+    run(
+        ["docker", "build", "-t", public_tag, str(context)],
+        timeout=600,
+        build_log=output / "public-build",
+    )
     shutil.rmtree(context)
     # Record the actual resolved environment; tasks retain the explicit install recipe.
     freeze = run(
@@ -345,6 +364,13 @@ def main():
             for pattern in ("**/stdout.txt", "**/stderr.txt", "**/results.json")
             for path in args.output.glob(pattern)
         }
+        logs.update(
+            {
+                path.name: build_excerpt(path.read_text(errors="replace"))
+                for pattern in ("*-build.stdout", "*-build.stderr")
+                for path in args.output.glob(pattern)
+            }
+        )
         result = {"status": "failed", "error": f"{type(exc).__name__}: {exc}", "logs": logs}
         (args.output / "traceback.txt").write_text(traceback.format_exc())
     result["seconds"] = time.time() - started

@@ -37,13 +37,18 @@ an unconditional success or a comparison to the observed Sonnet answer. A legiti
 solver bug needs no task edit. Private answers stay private. Previously collected
 counterexamples and valid alternatives will be rerun against this revision.
 
-If the review explicitly diagnoses a defective valid-alternative probe (category
-probe), probe_replacements may correct that implementation. Preserve its name,
-kind=valid_alternative and focus; cite the actual failure and public/source contract.
-Use an empty list otherwise. Never replace or remove a wrong-solution probe. Do not
+For a grounded category=probe diagnosis, probe_replacements may correct only the
+controls listed in probe_replacement_policy.allowed_replacements. Preserve name,
+kind and focus; cite the actual failure and public/source contract. A wrong-solution
+probe is eligible only when trusted execution evidence proves its installation
+failed and no earlier installation under that name completed. Keep its intended
+wrong behavior and fix only the mutation script; assert the expected match and
+change collected source. Previously installed counterexamples remain immutable,
+including those that exposed verifier gaps. Use an empty list otherwise. Do not
 copy the reference verbatim just to obtain a passing alternative. Keep the original
 alternative's distinct approach and correct only its diagnosed defect. A probe-only
 repair may have edits=[] and must leave the task/verifier unchanged. If instruction
 ambiguity also needs repair, clarify the intended public behavior in task edits.
+An uninstalled probe alone never justifies editing a task or verifier to reject it.
 
 Do not solve the requested task in the learner starting source. Preserve the intentional defect and the fail-to-pass contrast. When a container failed to build, use the actual exception message to repair packaging; do not infer a missing test or missing target fix from an unsuccessful multiword literal search. A missing README referenced by package metadata is a packaging defect, not a reason to alter task behavior or oracle code.
