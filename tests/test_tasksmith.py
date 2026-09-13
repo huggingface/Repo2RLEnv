@@ -189,6 +189,48 @@ async def test_incomplete_author_never_blindly_replays(monkeypatch, tmp_path):
     assert calls == 1
 
 
+@pytest.mark.asyncio
+async def test_completed_truncation_recovers_within_original_allowance(monkeypatch, tmp_path):
+    from repo2rlenv.tasksmith.author import artifact
+    from repo2rlenv.tasksmith.author.bridge import ProviderOutputError
+
+    class Artifact(BaseModel):
+        title: str
+
+    calls = []
+
+    async def agent(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            charge = kwargs["budget"].reserve(0.2, "completed response")
+            kwargs["budget"].settle(charge, 0.2)
+            kwargs["trace"].write_text('{"kind":"model_request"}\n' * 2)
+            raise ProviderOutputError("Provider response truncated")
+        assert kwargs["max_turns"] == 2
+        assert kwargs["max_cost"] == pytest.approx(0.8)
+        assert "Partial tool arguments were not executed" in kwargs["prompt"]
+        await kwargs["handlers"]["submit_artifact"](title="complete")
+
+    monkeypatch.setattr(artifact, "run_agent", agent)
+    budget = RunBudget(BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="10"), "ts-test", "5")
+    result = await artifact.artifact_stage(
+        schema=Artifact,
+        stage="design",
+        inputs={},
+        system="test",
+        prompt="test",
+        root=tmp_path / "artifact",
+        budget=AuthorBudget(budget, tmp_path / "charges", "design"),
+        model="anthropic/claude-sonnet-4-6",
+        runtime="pi",
+        max_cost=1,
+        max_turns=4,
+        deadline=time.time() + 30,
+    )
+    assert result.title == "complete" and len(calls) == 2
+    assert budget.totals()["accounted_usd"] == "0.2"
+
+
 def test_graph_repairs_bootstrap_before_design_without_replacing_input(monkeypatch, tmp_path):
     pytest.importorskip("langgraph.checkpoint.sqlite")
     from types import SimpleNamespace

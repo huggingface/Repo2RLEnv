@@ -2,6 +2,11 @@
 
 September 13, 2026. The [audited blocker inventory](evidence/tasksmith-scale30-blockers.json) records each selected PR, its latest evidence, recovery action and budget snapshot. This audit made no model calls and executed no target code locally.
 
+This is the checkpoint **before** the additional $100 authorization. Recovery is
+now running under the $600 total cap; see the
+[recovery implementation and execution checkpoint](tasksmith_scale30_recovery_progress.md).
+The counts and budget below describe the earlier stopped campaign.
+
 The campaign has **14 accepted tasks: ten retained and four newly accepted**. There are **22 generated Harbor bundles in total**, including eight additional bundles that have not passed acceptance. No campaign jobs are running; the last CPU and GPU workers have terminated and their compute estimates are reconciled.
 
 ## Disposition of the twenty selected additions

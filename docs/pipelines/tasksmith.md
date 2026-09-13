@@ -122,6 +122,49 @@ LangGraph checkpoints stage state. Artifact receipts additionally bind the schem
 
 Bootstrap/design retries receive the previous complete artifact alongside the failure, so they can preserve working fields. The author sees its remaining call allowance after each shell tool result. The last two model calls are reserved for artifact submission and correction; further shell exploration is declined. These limits bound investigation without spending the entire allowance before producing a usable profile.
 
+## Offline model and tokenizer assets
+
+Choose the smallest faithful task fixture. Trainer bookkeeping, loss computation and
+parameter updates usually need a real tiny locally initialized model and local
+dataset. Tokenizer parsing or pretrained-weight behavior can instead require real
+files. Declare those as `options.hub_assets` in the investigated profile: a public
+`repo_id`, immutable 40-character `revision`, exact `filenames`, `max_bytes` and
+`purpose`. Include a compatible `huggingface-hub==` pin in `dependencies`.
+
+The remote image builder checks file sizes before downloading and fetches only the
+declared model/tokenizer data, including standalone chat templates when required.
+It records file hashes in `/opt/tasksmith-hf/hub/tasksmith-assets.json`. Its offline
+`main` alias resolves to the declared commit, so upstream tests that omit a revision
+can use the prepared cache. No provider token is forwarded to this public download.
+Missing or gated assets require a different prepared fixture. Pinning and cache
+lookup follow the [Hub download contract](https://huggingface.co/docs/huggingface_hub/en/guides/download).
+
+The asset layer precedes repository source, so changing task instructions or tests
+does not invalidate it. CPU workers key their dependency images by the rendered
+recipe and resolved base image; native Modal builds reuse matching Docker layers
+under [Modal's image caching rules](https://modal.com/docs/guide/images). New versions
+or asset pins produce a different recipe. Cache evidence distinguishes an observed
+CPU cache hit from native cache behavior that the provider does not report.
+Bootstrap, learner and verifier images set `HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE`
+and `HF_DATASETS_OFFLINE`; the actual executions also retain their network isolation.
+
+## Bounded repair and provider recovery
+
+The independent quality component defaults to **three repair rounds**. Set
+`quality.max_repairs` in Tasksmith options or `quality run --max-repairs N` in the
+standalone CLI. Reviewers receive the remaining review calls and repair rounds;
+repairers receive the current round and limit. Prompts require one consolidated
+repair for all grounded blockers and a prompt conclusion once evidence is sufficient.
+The limit never authorizes weakening a verifier or accepting an unfinished task.
+
+An author response that completed, was metered, and then failed because it was
+truncated or empty gets at most one recovery attempt. It uses the remaining original
+turn, cost and time allowance and retains its trace and unvalidated draft. Partial
+tool arguments never execute. Unknown transport outcomes stop for reconciliation
+and retain reservations; they are not treated as free requests. The response handling
+distinguishes [Claude stop reasons](https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons)
+from interrupted provider requests. Already committed artifacts remain reusable.
+
 ## Code map and credit
 
 | Responsibility | Owned code |

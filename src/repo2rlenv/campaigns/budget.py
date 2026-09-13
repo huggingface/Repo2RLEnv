@@ -104,6 +104,36 @@ class BudgetLedger:
                 (operation_id, description, amount),
             )
 
+    def increase_limit(self, new_limit_usd, *, expected_limit_usd, evidence: str) -> None:
+        """Record an explicitly authorized increase without changing operations."""
+        new_limit, expected = _micros(new_limit_usd), _micros(expected_limit_usd)
+        if new_limit <= expected or not evidence.strip():
+            raise ValueError("A budget increase requires a higher limit and authorization evidence")
+        with self._transaction() as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS budget_increases ("
+                "evidence TEXT PRIMARY KEY, previous_micros INTEGER NOT NULL, "
+                "new_micros INTEGER NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+            )
+            prior = db.execute(
+                "SELECT previous_micros,new_micros FROM budget_increases WHERE evidence=?",
+                (evidence,),
+            ).fetchone()
+            if prior is not None:
+                if tuple(prior) == (expected, new_limit):
+                    return
+                raise ValueError("Authorization evidence already records a different increase")
+            current = db.execute("SELECT limit_micros FROM budget WHERE id=1").fetchone()[0]
+            if current != expected:
+                raise ValueError(
+                    "Budget limit changed; inspect it before authorizing another increase"
+                )
+            db.execute("UPDATE budget SET limit_micros=? WHERE id=1", (new_limit,))
+            db.execute(
+                "INSERT INTO budget_increases(evidence,previous_micros,new_micros) VALUES (?,?,?)",
+                (evidence, expected, new_limit),
+            )
+
     def mark_uncertain(self, operation_id: str, evidence: str) -> None:
         if not evidence.strip():
             raise ValueError("An uncertain operation needs recovery evidence")

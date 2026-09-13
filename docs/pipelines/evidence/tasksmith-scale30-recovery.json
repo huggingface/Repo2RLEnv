@@ -1,0 +1,123 @@
+{
+  "recorded_at": "2026-09-13T12:36:37.876272+00:00",
+  "target": 30,
+  "accepted": 16,
+  "authorization": {
+    "user_reply": "Additional $100 ($600 total)",
+    "total_cap_usd": "600.00",
+    "previous_cap_usd": "500.00",
+    "existing_operations_preserved": true
+  },
+  "budget": {
+    "accounted_including_prior_external_usd": "500.998634",
+    "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
+    "authorized_usd": "600.000000",
+    "available_usd": "39.419030",
+    "reserved_usd": "59.582336"
+  },
+  "new_acceptances": [
+    {
+      "source": "https://github.com/huggingface/transformers/pull/35669",
+      "bundle_hash": "sha256:70d07ec66da3591cfb2331b927bbbfdc46f7c33856920f105c171cb8f457ee4f",
+      "quality": "workspace/tasksmith-scale30/recovery-cpu-first-v1/candidates/333d8be2d5aa/quality/result.json",
+      "quality_sha256": "37bf8920515acb7c1b5bd6f55cf31ad98d5430e8784d8db632a5f49c4142716f",
+      "rollout": "legitimate_failure",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "rollout"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6150",
+      "bundle_hash": "sha256:e651df0e2ef69eb60767ecb16e967521f412530688ec570c32630f7562cb318e",
+      "quality": "workspace/tasksmith-scale30/recovery-offline-trl-v1/candidates/466b1e8e082b/quality/result.json",
+      "quality_sha256": "ba1a90be29434f734a74b97684b7f954c5bdc343d56aee533d2905aa3325d625",
+      "rollout": "legitimate_success",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ]
+    }
+  ],
+  "remote_asset_checks": [
+    {
+      "run": "recovery-asset-smoke-v1",
+      "evidence": "workspace/tasksmith-scale30/recovery-asset-smoke-v1/result.json",
+      "evidence_sha256": "91d453ac4a5b8b1bf1faff1faff8476d63ab9555aa05568e9a22f60c573e2963",
+      "image_id": "sha256:21b0a543268b07e6ac8940c4209b4be56bade9991cd455df3fa2b6bc0d780a6a",
+      "offline_stdout": "{\"tokens\": 4, \"decoded\": \"Tasksmith offline tokenizer\"}\n",
+      "cache_hit": true
+    },
+    {
+      "run": "recovery-asset-grader-smoke-v2",
+      "evidence": "workspace/tasksmith-scale30/recovery-asset-grader-smoke-v2/result.json",
+      "evidence_sha256": "58f69a0d70a8ea2b7115dca6b3aab2342785e8e874668f8d0d23609923d8cc46",
+      "image_id": "sha256:3035ce8cb72f3f0228a0178a18ab9c6a8b24ab2725c622f90789fe8d3a665d35",
+      "offline_stdout": "{\"tokens\": 4, \"decoded\": \"Tasksmith offline tokenizer\"}\n",
+      "cache_hit": true
+    }
+  ],
+  "verification": {
+    "unit_suite": "992 passed, 3 skipped",
+    "documentation": "MkDocs build passed using requirements-docs.txt; existing documentation warnings remain",
+    "remote_grader_asset_test": "Passed as UID1001 with network disabled",
+    "target_execution": "Remote only"
+  },
+  "state": "Recovery and generation running; not a completed 30-task delivery"
+}

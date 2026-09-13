@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `3af4f8828ce55f3a9bcdce56ba45bc611f04de73a8c3f0dbb226ba7864147752`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `a649b086e1778c8c4dc056a6568e1a81cb55356d7ac42ae45514479584becebd`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -36,14 +36,29 @@ For a historical PR, inspect its dependency_versions_table.py (when present), bu
 
 For added Python modules, select disjoint directory source roots. New modules will be absent from the learner baseline, and collection permits new Python helpers within those roots; non-Python assets remain fixed. Public exclusions and private tests must not lie inside submitted source roots. Inspect every added implementation, including generated modeling and modular files, and exclude answer-bearing documentation outside the source roots.
 
-When requested_resources.gpus is positive, set resource="gpu". The builder shell is still a private CPU inspection worker; the deterministic stages run tests on native Modal with the specified one or two L4 GPUs. Prefer the verified pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime base and options.use_system_site_packages=true to retain its CUDA PyTorch inside a writable virtual environment. Inspect the PR's version requirements before choosing additional pinned dependencies; do not install CPU torch or replace working CUDA packages. Select real offline CUDA behavior using tiny local models, not downloaded checkpoints or GPU mocks. For same-host distributed tests, use explicit localhost rendezvous and NCCL_SOCKET_IFNAME=lo/GLOO_SOCKET_IFNAME=lo; the offline sandbox hostname is not a rendezvous service. The fixed verifier Python process may launch bounded local ranks when needed.
+When requested_resources.gpus is positive, set resource="gpu". The builder shell is still a private CPU inspection worker; the deterministic stages run tests on native Modal with the specified one or two L4 GPUs. Prefer the verified pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime base and options.use_system_site_packages=true to retain its CUDA PyTorch inside a writable virtual environment. Inspect the PR's version requirements before choosing additional pinned dependencies; do not install CPU torch or replace working CUDA packages. Select real offline CUDA behavior using tiny local models or declared pinned assets; do not use GPU mocks or fetch unprepared checkpoints during execution. For same-host distributed tests, use explicit localhost rendezvous and NCCL_SOCKET_IFNAME=lo/GLOO_SOCKET_IFNAME=lo; the offline sandbox hostname is not a rendezvous service. The fixed verifier Python process may launch bounded local ranks when needed.
+For model/tokenizer downloads, decide the asset strategy before selecting readiness
+tests. Prefer tiny locally initialized real models when trained weights are not
+part of the feature. When real tokenizer files or weights are required, inspect
+public Hub metadata through the remote shell, resolve an immutable 40-character
+commit, and declare options.hub_assets with repo_id, revision, exact filenames,
+max_bytes and purpose. Include a compatible huggingface-hub== dependency pin.
+Download only required data files, never repository code or unrelated weights.
+The controller fetches these assets during remote image construction, reuses the
+same source-independent layer when its inputs match, records sizes/hashes and
+maps offline main lookups to the declared commit. Bootstrap, learner and verifier
+then run with HF_HUB_OFFLINE=1. A gated/unavailable model needs an accessible,
+faithful local fixture; do not select tests that will download unprepared assets.
+Document which selected tests need each asset. Inspect the fixture/setup methods
+as well as the test body. A working repository cache does not prove those assets
+exist. Do not repeat a network failure without changing its missing-asset plan.
 ````
 
 </details>
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `6352a5e4a38248f8787b6e84b39463e71c2b8174076669c8f65a478661320fb1`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `662af1701039a301d02858e9dda7c68cb2cd1d5dd9d9e32f11424175953851a2`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -74,13 +89,21 @@ Before submitting tests, check that every important assertion can execute. For a
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
 
 For a GPU request, the final learner and separate verifier receive the requested real L4 device count. Tests must assert CUDA availability and exercise the feature on CUDA with small local fixtures. Do not skip when GPUs are absent or substitute CPU outputs. Validate numerical results and gradients independently before assessing memory efficiency; wall-clock speed is not a stable reward. Two-GPU requirements need actual distributed execution with explicit localhost rendezvous, not mocked process groups or configuration-only assertions.
+Conclude with a compact artifact once the PR contract and verifier are supported.
+Use small helper-based tests and a brief rationale; do not fill the output budget
+with exploratory reasoning or duplicate test cases. Address the required behavior
+and meaningful boundaries together. Use only assets declared in the ready profile:
+tiny locally initialized models, or its pinned Hub files available in the offline
+cache. Calls using an upstream model ID are valid only when every required file
+was prepared. Never require a downloaded checkpoint merely to construct a trainer
+whose relevant behavior can be exercised using a real tiny local model.
 ````
 
 </details>
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `ea585f0b2e6a7582a53cb25ab5a13656a7d0e1114fce8675f9f2d94009c64730`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `cff312706a3a2a4846a032d79664e0719b97843dc7002322fbf170c9c1321935`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -204,7 +227,7 @@ class Options(Record):
         default_factory=lambda: LoopOptions(
             repair=True,
             run_rollout=True,
-            max_repairs=2,
+            max_repairs=3,
             max_probes=4,
             max_turns=20,
             max_spend_usd="20.00",
@@ -233,7 +256,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `a3743d288bd228a93cb5c00426ba0c09eab91e0afed638065069921b28a1af49`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `fafe3eb2b5b7f66c2110b85e278ef8a3f42bcf5f0dde5492cc9194e78a82e405`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -561,6 +584,7 @@ class Tasksmith:
         if inspected["status"] != "completed":
             raise ValueError(inspected["error"])
         checkout = inspected["value"]["checkout"]
+        snapshot_links = inspected["value"].get("snapshot_links", [])
         # Avoid giving every author the full unrelated diff repeatedly; the
         # complete original remains in the frozen source artifact.
         source_context = {key: value for key, value in source.items() if key != "full_diff"}
@@ -581,11 +605,16 @@ class Tasksmith:
                     )
                 previous = state.get("profile", {}).get("options", {})
                 retained_links = set(previous.get("materialize_document_links", []))
+                retained_links.update(
+                    link["path"]
+                    for link in snapshot_links
+                    if PurePosixPath(link["path"]).suffix.lower() in {".md", ".rst", ".txt"}
+                )
                 if missing_links := retained_links - set(
                     profile.options.materialize_document_links
                 ):
                     raise ValueError(
-                        "The frozen checkout still needs the previously identified document links: "
+                        "The frozen checkout needs all identified document links before building: "
                         + ", ".join(sorted(missing_links))
                     )
                 roots = [PurePosixPath(path) for path in profile.options.source_paths]
@@ -605,6 +634,7 @@ class Tasksmith:
                 Profile,
                 {
                     "source": source_context,
+                    "snapshot_links": snapshot_links,
                     "previous_profile": state.get("profile"),
                     "previous_failure": state.get("failure"),
                     "repository_bootstrap_hint": hint.model_dump() if hint else None,
@@ -888,7 +918,7 @@ class Tasksmith:
 
 ### artifact.py
 
-[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `007d0e3d5122044618452673c8902be3f0bd48e6cefc44973e9acb4f41ccb9cf`
+[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `f96de540f133f5c5103950e0877a148b92ecdc716a33ab24f242dd7741d80991`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -911,6 +941,7 @@ from pydantic import BaseModel, ValidationError
 
 from repo2rlenv.campaigns.budget import BudgetExceeded
 from repo2rlenv.tasksmith.author.agent import SHELL_TOOL, run_agent
+from repo2rlenv.tasksmith.author.bridge import ProviderOutputError
 from repo2rlenv.tasksmith.author.budget import AuthorBudget as Budget
 
 ARTIFACT_TOOL_PROTOCOL = 2
@@ -1153,18 +1184,58 @@ async def artifact_stage[Artifact: BaseModel](
     handlers.update(extra_handlers or {})
     try:
         async with asyncio.timeout(max(1, deadline - time.time())):
-            await run_agent(
-                model=model,
-                system=system,
-                prompt=prompt,
-                budget=budget,
-                tools=tools,
-                handlers=handlers,
-                trace=root / "trace.jsonl",
-                max_turns=max_turns,
-                max_cost=max_cost,
-                runtime=runtime,
-            )
+            used_turns = 0
+            recovery = ""
+            for provider_attempt in range(2):
+                trace = root / ("trace.jsonl" if not provider_attempt else "trace-recovery1.jsonl")
+                remaining_cost = max_cost - (budget.spent - operation["starting_spend"])
+                if remaining_cost <= 0 or used_turns >= max_turns:
+                    raise BudgetExceeded("Author recovery exhausted the original stage allowance")
+                try:
+                    await run_agent(
+                        model=model,
+                        system=system,
+                        prompt=prompt + recovery,
+                        budget=budget,
+                        tools=tools,
+                        handlers=handlers,
+                        trace=trace,
+                        max_turns=max_turns - used_turns,
+                        max_cost=remaining_cost,
+                        runtime=runtime,
+                    )
+                    break
+                except ProviderOutputError as exc:
+                    # Only complete, charged responses reach this path. Unknown
+                    # transport outcomes retain their holds and require recovery.
+                    if accepted is not None:
+                        break
+                    if provider_attempt:
+                        raise
+                    events = (
+                        [json.loads(line) for line in trace.read_text().splitlines()]
+                        if trace.exists()
+                        else []
+                    )
+                    used_turns += max(
+                        1, sum(event.get("kind") == "model_request" for event in events)
+                    )
+                    operation["provider_recovery"] = {
+                        "reason": str(exc),
+                        "trace": str(trace),
+                        "used_turns": used_turns,
+                    }
+                    save_json(operation_path, operation)
+                    recovery = (
+                        "\nThe previous response completed and was charged but could not be used: "
+                        + str(exc)
+                        + ". Finish concisely within the remaining original allowance. "
+                        "Use submit_artifact with a compact complete object; if a rejected draft "
+                        "exists, use revise_artifact with only changed fields. Avoid long reasoning "
+                        "and unrelated exploration. Partial tool arguments were not executed."
+                    )
+                    if draft is not None:
+                        recovery += "\nRetained unvalidated draft: " + json.dumps(draft)
         if accepted is None:
             raise ValueError(f"{stage}: worker ended without a validated artifact")
         operation["status"] = "completed"

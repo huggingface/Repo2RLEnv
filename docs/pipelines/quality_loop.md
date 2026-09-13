@@ -78,7 +78,7 @@ must match the input's Harbor checksum. Owned receipts must match its bundle has
 and the collected result hash. These are content checks, not cryptographic
 attestations that an external caller ran an honest experiment.
 
-Run the controls, review, probes, solver and up to two targeted repairs:
+Run the controls, review, probes, solver and up to three targeted repairs:
 
 ```bash
 repo2rlenv quality run ./tasks/example \
@@ -89,7 +89,7 @@ repo2rlenv quality run ./tasks/example \
   --review-model anthropic/claude-sonnet-4-6 \
   --repair-model anthropic/claude-opus-4-6 \
   --solver-model anthropic/claude-sonnet-4-6 \
-  --max-repairs 2 --max-spend-usd 15
+  --max-repairs 3 --max-spend-usd 15
 ```
 
 Switch to `--provider daytona` after installing `--extra daytona`. Alternatively,
@@ -134,7 +134,7 @@ models and omits unsupported temperature parameters; automatic SDK retries are
 disabled. Every model request has a durable request hash, response receipt and
 campaign reservation. Unknown usage retains its hold rather than becoming zero cost.
 
-Defaults: two repairs, two extra file-reading rounds, two semantic probes, 100,000
+Defaults: three repairs, two extra file-reading rounds, two semantic probes, 100,000
 characters of document context, 6,000 output tokens per review/repair call, and
 24 solver turns at 4,096 tokens per call. Context includes a file inventory, selected
 task files, trace excerpts and explicit omissions. Reviewers can request up to six

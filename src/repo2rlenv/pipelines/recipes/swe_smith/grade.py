@@ -18,6 +18,33 @@ import tempfile
 from pathlib import Path
 
 
+def child_environment(temporary: str) -> dict[str, str]:
+    """Preserve prepared runtime assets without inheriting controller credentials."""
+    return {
+        **{
+            key: os.environ[key]
+            for key in (
+                "LD_LIBRARY_PATH",
+                "CUDA_VISIBLE_DEVICES",
+                "NVIDIA_VISIBLE_DEVICES",
+                "NVIDIA_DRIVER_CAPABILITIES",
+                "NCCL_SOCKET_IFNAME",
+                "GLOO_SOCKET_IFNAME",
+                "HF_HOME",
+                "HF_HUB_CACHE",
+                "HF_HUB_OFFLINE",
+                "TRANSFORMERS_OFFLINE",
+                "HF_DATASETS_OFFLINE",
+            )
+            if key in os.environ
+        },
+        "PATH": str(Path(sys.executable).parent) + ":/usr/local/bin:/usr/bin:/bin",
+        "HOME": temporary,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+    }
+
+
 def validate_submission(workspace: Path, contract: dict) -> None:
     """Validate collected data before any learner-controlled Python is imported."""
     paths = set(contract["submitted_files"]) - set(contract.get("optional_files", []))
@@ -103,24 +130,7 @@ def main() -> None:
                 group=1001,
                 extra_groups=[],
                 start_new_session=True,
-                env={
-                    **{
-                        key: os.environ[key]
-                        for key in (
-                            "LD_LIBRARY_PATH",
-                            "CUDA_VISIBLE_DEVICES",
-                            "NVIDIA_VISIBLE_DEVICES",
-                            "NVIDIA_DRIVER_CAPABILITIES",
-                            "NCCL_SOCKET_IFNAME",
-                            "GLOO_SOCKET_IFNAME",
-                        )
-                        if key in os.environ
-                    },
-                    "PATH": str(Path(sys.executable).parent) + ":/usr/local/bin:/usr/bin:/bin",
-                    "HOME": temporary,
-                    "PYTHONDONTWRITEBYTECODE": "1",
-                    "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-                },
+                env=child_environment(temporary),
             )
             try:
                 code = process.wait(timeout=contract["timeout_sec"])

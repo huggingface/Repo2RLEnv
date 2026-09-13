@@ -17,7 +17,7 @@
     },
     "repair": true,
     "run_rollout": true,
-    "max_repairs": 2,
+    "max_repairs": 3,
     "max_turns": 20,
     "max_spend_usd": "20.00",
     "max_probes": 4,

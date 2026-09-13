@@ -173,11 +173,13 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
             options.base_image,
             options.dependencies,
             use_system_site_packages=options.use_system_site_packages,
+            hub_assets=options.hub_assets,
         )
         + "COPY . /workspace\n"
         f"RUN {options.install_command}\n"
         "RUN rm -rf /workspace/.git /root/.cache/pip\n"
         "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
+        "ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1\n"
     )
     digest = hashlib.sha256(dockerfile.encode()).hexdigest()
     profile = Path("/work/bootstrap-profiles") / f"{digest}.Dockerfile"

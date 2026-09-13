@@ -21,3 +21,11 @@ Before submitting tests, check that every important assertion can execute. For a
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
 
 For a GPU request, the final learner and separate verifier receive the requested real L4 device count. Tests must assert CUDA availability and exercise the feature on CUDA with small local fixtures. Do not skip when GPUs are absent or substitute CPU outputs. Validate numerical results and gradients independently before assessing memory efficiency; wall-clock speed is not a stable reward. Two-GPU requirements need actual distributed execution with explicit localhost rendezvous, not mocked process groups or configuration-only assertions.
+Conclude with a compact artifact once the PR contract and verifier are supported.
+Use small helper-based tests and a brief rationale; do not fill the output budget
+with exploratory reasoning or duplicate test cases. Address the required behavior
+and meaningful boundaries together. Use only assets declared in the ready profile:
+tiny locally initialized models, or its pinned Hub files available in the offline
+cache. Calls using an upstream model ID are valid only when every required file
+was prepared. Never require a downloaded checkpoint merely to construct a trainer
+whose relevant behavior can be exercised using a real tiny local model.

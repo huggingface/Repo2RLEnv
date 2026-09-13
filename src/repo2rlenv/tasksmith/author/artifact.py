@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 
 from repo2rlenv.campaigns.budget import BudgetExceeded
 from repo2rlenv.tasksmith.author.agent import SHELL_TOOL, run_agent
+from repo2rlenv.tasksmith.author.bridge import ProviderOutputError
 from repo2rlenv.tasksmith.author.budget import AuthorBudget as Budget
 
 ARTIFACT_TOOL_PROTOCOL = 2
@@ -255,18 +256,58 @@ async def artifact_stage[Artifact: BaseModel](
     handlers.update(extra_handlers or {})
     try:
         async with asyncio.timeout(max(1, deadline - time.time())):
-            await run_agent(
-                model=model,
-                system=system,
-                prompt=prompt,
-                budget=budget,
-                tools=tools,
-                handlers=handlers,
-                trace=root / "trace.jsonl",
-                max_turns=max_turns,
-                max_cost=max_cost,
-                runtime=runtime,
-            )
+            used_turns = 0
+            recovery = ""
+            for provider_attempt in range(2):
+                trace = root / ("trace.jsonl" if not provider_attempt else "trace-recovery1.jsonl")
+                remaining_cost = max_cost - (budget.spent - operation["starting_spend"])
+                if remaining_cost <= 0 or used_turns >= max_turns:
+                    raise BudgetExceeded("Author recovery exhausted the original stage allowance")
+                try:
+                    await run_agent(
+                        model=model,
+                        system=system,
+                        prompt=prompt + recovery,
+                        budget=budget,
+                        tools=tools,
+                        handlers=handlers,
+                        trace=trace,
+                        max_turns=max_turns - used_turns,
+                        max_cost=remaining_cost,
+                        runtime=runtime,
+                    )
+                    break
+                except ProviderOutputError as exc:
+                    # Only complete, charged responses reach this path. Unknown
+                    # transport outcomes retain their holds and require recovery.
+                    if accepted is not None:
+                        break
+                    if provider_attempt:
+                        raise
+                    events = (
+                        [json.loads(line) for line in trace.read_text().splitlines()]
+                        if trace.exists()
+                        else []
+                    )
+                    used_turns += max(
+                        1, sum(event.get("kind") == "model_request" for event in events)
+                    )
+                    operation["provider_recovery"] = {
+                        "reason": str(exc),
+                        "trace": str(trace),
+                        "used_turns": used_turns,
+                    }
+                    save_json(operation_path, operation)
+                    recovery = (
+                        "\nThe previous response completed and was charged but could not be used: "
+                        + str(exc)
+                        + ". Finish concisely within the remaining original allowance. "
+                        "Use submit_artifact with a compact complete object; if a rejected draft "
+                        "exists, use revise_artifact with only changed fields. Avoid long reasoning "
+                        "and unrelated exploration. Partial tool arguments were not executed."
+                    )
+                    if draft is not None:
+                        recovery += "\nRetained unvalidated draft: " + json.dumps(draft)
         if accepted is None:
             raise ValueError(f"{stage}: worker ended without a validated artifact")
         operation["status"] = "completed"

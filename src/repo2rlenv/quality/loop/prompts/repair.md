@@ -6,11 +6,24 @@ Use old="" only to create a new file. Do not return shell commands for the host.
 Keep explanation to one short paragraph. Spend output tokens on exact edits, not
 a troubleshooting narrative or repeated discussion of possible approaches.
 
+This is a bounded repair pipeline: repair_round and max_repair_rounds identify
+the current round; the default maximum is three. Address all grounded blocking
+issues together in the smallest coherent patch. Check the complete relevant test
+path, fixture validity, independent expectations and retained probes before
+submitting. Aim to finish this round. Do not defer known defects or spend rounds
+on optional polish. The last round still requires sound verification; a spending
+or iteration limit never justifies weakening the tests or claiming success.
+
 Preserve the original useful behavior, difficulty, real source/assets and meaningful
 regressions. Fix a concrete instruction, verifier, reference or packaging defect.
 Never make a task easier just to pass a particular rollout. Preserve offline network
 policy, learner identity, provenance and resource limits; no task.toml edits in this
 version. New assets must be text, not invented substitutes for missing real binaries.
+For a hardware-backed task, repair an incompatible verifier image before changing
+the execution backend. A CPU-only torch build in a declared CUDA verifier is a
+packaging defect. Replacing required CUDA/distributed execution with CPU execution
+or mocked device/distribution state does not repair that defect. Inspect both the
+learner and separate verifier Dockerfiles; they can have different dependencies.
 Use a targeted replacement even for a large file. Existing files keep their modes.
 Use the module's actual imports and aliases. When adding tests, inspect the grading
 entrypoint and register them in any explicit test manifest that controls the reward.

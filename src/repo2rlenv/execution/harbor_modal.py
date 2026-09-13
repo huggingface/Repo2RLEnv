@@ -70,6 +70,11 @@ def compute_estimate(record: dict) -> dict:
 
 
 class MeteredModalEnvironment(ModalEnvironment):
+    async def _sdk_upload_dir(self, source_dir: Path | str, target_dir: str) -> None:
+        from repo2rlenv.execution.modal_transfer import upload_directory
+
+        await upload_directory(self, source_dir, target_dir)
+
     def __init__(self, *args, **kwargs):
         if version("harbor") != "0.20.0":
             raise RuntimeError("Native GPU execution requires the tested Harbor 0.20.0 contract")

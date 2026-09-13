@@ -19,6 +19,10 @@ from repo2rlenv.tasksmith.author.inference import (
 )
 
 
+class ProviderOutputError(RuntimeError):
+    """Completed, metered response was unusable; a bounded new attempt is safe."""
+
+
 class AgentBridge:
     """Only model inference and explicitly registered remote tools cross this API.
 
@@ -319,13 +323,13 @@ class AgentBridge:
 def validate_provider_response(content, stop_reason):
     """A metered model turn needs usable text or a tool call, not just thinking."""
     if stop_reason in {"max_tokens", "length"}:
-        raise RuntimeError(f"Provider response truncated: stop_reason={stop_reason}")
+        raise ProviderOutputError(f"Provider response truncated: stop_reason={stop_reason}")
     if not any(
         (block.get("type") == "text" and (block.get("text") or "").strip())
         or block.get("type") == "tool_use"
         for block in content
     ):
-        raise RuntimeError(
+        raise ProviderOutputError(
             "Provider response contained no text or tool calls (thinking-only or empty)"
         )
 

@@ -20,10 +20,12 @@ def repository_build(options: PythonRepositoryProfile) -> str:
             options.base_image,
             options.dependencies,
             use_system_site_packages=options.use_system_site_packages,
+            hub_assets=options.hub_assets,
         )
         + "COPY source /workspace\n"
         f"RUN {options.install_command}\n"
         "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
+        "ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1\n"
     )
 
 

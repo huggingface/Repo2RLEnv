@@ -22,4 +22,19 @@ For a historical PR, inspect its dependency_versions_table.py (when present), bu
 
 For added Python modules, select disjoint directory source roots. New modules will be absent from the learner baseline, and collection permits new Python helpers within those roots; non-Python assets remain fixed. Public exclusions and private tests must not lie inside submitted source roots. Inspect every added implementation, including generated modeling and modular files, and exclude answer-bearing documentation outside the source roots.
 
-When requested_resources.gpus is positive, set resource="gpu". The builder shell is still a private CPU inspection worker; the deterministic stages run tests on native Modal with the specified one or two L4 GPUs. Prefer the verified pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime base and options.use_system_site_packages=true to retain its CUDA PyTorch inside a writable virtual environment. Inspect the PR's version requirements before choosing additional pinned dependencies; do not install CPU torch or replace working CUDA packages. Select real offline CUDA behavior using tiny local models, not downloaded checkpoints or GPU mocks. For same-host distributed tests, use explicit localhost rendezvous and NCCL_SOCKET_IFNAME=lo/GLOO_SOCKET_IFNAME=lo; the offline sandbox hostname is not a rendezvous service. The fixed verifier Python process may launch bounded local ranks when needed.
+When requested_resources.gpus is positive, set resource="gpu". The builder shell is still a private CPU inspection worker; the deterministic stages run tests on native Modal with the specified one or two L4 GPUs. Prefer the verified pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime base and options.use_system_site_packages=true to retain its CUDA PyTorch inside a writable virtual environment. Inspect the PR's version requirements before choosing additional pinned dependencies; do not install CPU torch or replace working CUDA packages. Select real offline CUDA behavior using tiny local models or declared pinned assets; do not use GPU mocks or fetch unprepared checkpoints during execution. For same-host distributed tests, use explicit localhost rendezvous and NCCL_SOCKET_IFNAME=lo/GLOO_SOCKET_IFNAME=lo; the offline sandbox hostname is not a rendezvous service. The fixed verifier Python process may launch bounded local ranks when needed.
+For model/tokenizer downloads, decide the asset strategy before selecting readiness
+tests. Prefer tiny locally initialized real models when trained weights are not
+part of the feature. When real tokenizer files or weights are required, inspect
+public Hub metadata through the remote shell, resolve an immutable 40-character
+commit, and declare options.hub_assets with repo_id, revision, exact filenames,
+max_bytes and purpose. Include a compatible huggingface-hub== dependency pin.
+Download only required data files, never repository code or unrelated weights.
+The controller fetches these assets during remote image construction, reuses the
+same source-independent layer when its inputs match, records sizes/hashes and
+maps offline main lookups to the declared commit. Bootstrap, learner and verifier
+then run with HF_HUB_OFFLINE=1. A gated/unavailable model needs an accessible,
+faithful local fixture; do not select tests that will download unprepared assets.
+Document which selected tests need each asset. Inspect the fixture/setup methods
+as well as the test body. A working repository cache does not prove those assets
+exist. Do not repeat a network failure without changing its missing-asset plan.

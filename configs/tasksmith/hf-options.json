@@ -40,7 +40,7 @@
     },
     "repair": true,
     "run_rollout": true,
-    "max_repairs": 2,
+    "max_repairs": 3,
     "max_read_rounds": 3,
     "max_probes": 4,
     "context_chars": 160000,

@@ -35,6 +35,11 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.protocol import (
+    distinct_probes,
+    resolve_json_citations,
+    resolve_verifier_paths,
+)
 
 
 def required_probe_focus(task: Path) -> set[str]:
@@ -150,6 +155,7 @@ class QualityLoop:
         probe_limit: int,
         prior: Review | None = None,
         existing_probes: list[SemanticProbe] | None = None,
+        revision: int = 0,
     ):
         context = self._context(task, trials)
         save_record(
@@ -179,6 +185,9 @@ class QualityLoop:
                     prompt("review"),
                     context.payload(
                         probe_limit=probe_limit,
+                        repair_rounds_remaining=max(0, self.options.max_repairs - revision),
+                        max_repair_rounds=self.options.max_repairs,
+                        review_calls_remaining=max(0, rounds - index - 1),
                         protected_paths=[str(path) for path in self.protected_paths],
                         required_probe_focus=sorted(needed_focus),
                         required_probe_kinds=sorted(needed_kinds) if probe_limit else [],
@@ -190,6 +199,12 @@ class QualityLoop:
                     ),
                     f"{key}-{index}",
                 )
+                review, corrections = resolve_json_citations(review, context.documents)
+                if corrections:
+                    save_record(
+                        self.directory / "protocol" / f"{key}-{index}-citations.json",
+                        {"corrections": corrections},
+                    )
                 context.validate_review(review)
                 if review.read_requests:
                     context.read_more(review.read_requests)
@@ -197,13 +212,18 @@ class QualityLoop:
                         "Requested file ranges are now included; finish the review if sufficient."
                     )
                     continue
+                normalized = distinct_probes(review.probes, existing)
+                if normalized != review.probes:
+                    save_record(
+                        self.directory / "protocol" / f"{key}-{index}-probes.json",
+                        {
+                            "proposed": [p.model_dump() for p in review.probes],
+                            "normalized": [p.model_dump() for p in normalized],
+                        },
+                    )
+                    review = review.model_copy(update={"probes": normalized})
                 if len(review.probes) > probe_limit:
                     raise ValueError("Proposed probes exceed the remaining probe limit")
-                names = [probe.name for probe in [*existing, *review.probes]]
-                if len(names) != len(set(names)):
-                    raise ValueError(
-                        "New probes must have distinct names and not repeat retained probes"
-                    )
                 if probe_limit and review.sound:
                     missing = needed_focus - {
                         probe.focus for probe in review.probes if probe.kind == "wrong_solution"
@@ -244,6 +264,9 @@ class QualityLoop:
                     prompt("repair"),
                     context.payload(
                         review=review.model_dump(),
+                        repair_round=revision + 1,
+                        max_repair_rounds=self.options.max_repairs,
+                        repair_rounds_remaining=max(0, self.options.max_repairs - revision - 1),
                         failures=reasons,
                         retained_probes=[probe.model_dump() for probe in probes],
                         patch_feedback=feedback,
@@ -251,6 +274,13 @@ class QualityLoop:
                     ),
                     f"r{revision}-repair" + (f"-correction{attempt}" if attempt else ""),
                 )
+                normalized = resolve_verifier_paths(task, repair)
+                if normalized != repair:
+                    save_record(
+                        self.directory / "protocol" / f"r{revision}-repair{attempt}-paths.json",
+                        {"proposed": repair.model_dump(), "normalized": normalized.model_dump()},
+                    )
+                    repair = normalized
                 for edit in repair.edits:
                     if any(
                         Path(edit.path) == path or Path(edit.path).is_relative_to(path)
@@ -427,6 +457,7 @@ class QualityLoop:
                     f"r{revision}-before",
                     probe_limit=max(0, self.options.max_probes - len(probes)),
                     existing_probes=probes,
+                    revision=revision,
                 )
                 if len(probes) < self.options.max_probes:
                     names = {probe.name for probe in probes}
@@ -463,7 +494,12 @@ class QualityLoop:
                         trials.append(self.remote.run(task, "rollout", f"r{revision}-rollout"))
                 if len(trials) != before:
                     review, context = self._review(
-                        task, trials, f"r{revision}-after", probe_limit=0, prior=review
+                        task,
+                        trials,
+                        f"r{revision}-after",
+                        probe_limit=0,
+                        prior=review,
+                        revision=revision,
                     )
                 reasons = [*controls, *probe_failures(trials, self.options.success_reward)]
                 reasons += [

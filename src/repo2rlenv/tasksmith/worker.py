@@ -61,6 +61,7 @@ def dependency_image(profile: Profile, output: Path) -> dict:
         profile.options.dependencies,
         output,
         use_system_site_packages=profile.options.use_system_site_packages,
+        hub_assets=profile.options.hub_assets,
     )
 
 
@@ -70,10 +71,14 @@ def build_dependency_image(
     output: Path,
     *,
     use_system_site_packages: bool = False,
+    hub_assets=(),
 ) -> dict:
     """Shared prefix for repository bootstrap and per-PR construction."""
     recipe = dependency_recipe(
-        base_image, dependencies, use_system_site_packages=use_system_site_packages
+        base_image,
+        dependencies,
+        use_system_site_packages=use_system_site_packages,
+        hub_assets=hub_assets,
     )
     base = subprocess.run(
         ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"],

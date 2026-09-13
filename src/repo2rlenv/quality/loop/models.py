@@ -127,7 +127,7 @@ class LoopOptions(Record):
     )
     repair: bool = False
     run_rollout: bool = False
-    max_repairs: int = Field(default=2, ge=0, le=5)
+    max_repairs: int = Field(default=3, ge=0, le=5)
     max_read_rounds: int = Field(default=2, ge=0, le=4)
     max_probes: int = Field(default=2, ge=0, le=4)
     context_chars: int = Field(default=100000, ge=16000, le=250000)

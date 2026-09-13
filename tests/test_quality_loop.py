@@ -31,6 +31,11 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.protocol import (
+    distinct_probes,
+    resolve_json_citations,
+    resolve_verifier_paths,
+)
 from repo2rlenv.quality.loop.runner import (
     QualityLoop,
     control_failures,
@@ -267,6 +272,116 @@ def test_repeated_invalid_patch_stops_without_changing_task(task, tmp_path):
     assert result.repairs == 0
     assert len([key for key in model.calls if "repair" in key]) == 2
     assert result.bundle_hash == task_identity(task)
+
+
+def test_probe_collisions_preserve_distinct_scripts_and_retained_controls():
+    retained = probes()
+    collision = retained[0].model_copy(update={"script": "printf '8' > /workspace/answer.txt"})
+    repeated = retained[1].model_copy(update={"name": "renamed-repeat"})
+    before = [p.model_dump() for p in retained]
+    normalized = distinct_probes([collision, repeated, collision], retained)
+    assert len(normalized) == 1
+    assert normalized[0].name not in {p.name for p in retained}
+    assert normalized[0].model_dump(exclude={"name"}) == collision.model_dump(exclude={"name"})
+    assert distinct_probes([collision], retained) == normalized
+    assert [p.model_dump() for p in retained] == before
+
+
+@pytest.mark.parametrize(
+    ("quote", "data"),
+    [
+        ('"test_result": "failed"', {"statuses": {"tests.behavior::test_result": "failed"}}),
+        (
+            '"probe_failures": ["wrong solution passed"]',
+            {"probe_failures": ["wrong solution passed"]},
+        ),
+    ],
+)
+def test_json_citation_resolution_keeps_decisions_and_uses_actual_bytes(quote, data):
+    decision = review()
+    decision.verifier = decision.verifier.model_copy(deep=True)
+    decision.verifier.evidence = [Citation(path="evidence/checks.json", quote=quote)]
+    before = decision.model_dump()
+    document = json.dumps(data, indent=2)
+    normalized, changes = resolve_json_citations(decision, {"evidence/checks.json": document})
+    assert len(changes) == 1
+    assert normalized.verifier.evidence[0].quote in document
+    assert normalized.verifier.status == decision.verifier.status
+    assert normalized.verifier.explanation == decision.verifier.explanation
+    assert decision.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"a::test_result": "failed", "b::test_result": "failed"},
+        {"a::test_result": "passed"},
+        {"a::another_test": "failed"},
+        {"message": 'the text says "test_result": "failed"'},
+    ],
+)
+def test_json_citations_do_not_resolve_ambiguous_or_unsupported_claims(data):
+    decision = review()
+    decision.verifier.evidence = [
+        Citation(path="evidence/checks.json", quote='"test_result": "failed"')
+    ]
+    normalized, changes = resolve_json_citations(
+        decision, {"evidence/checks.json": json.dumps(data)}
+    )
+    assert not changes and normalized == decision
+
+
+def test_short_verifier_path_requires_unique_exact_match(task):
+    path = task / "tests/source/tests/contract.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("assert actual == expected\n")
+    repair = Repair(
+        explanation="Fix fixture",
+        addressed_issues=["fixture"],
+        edits=[
+            Edit(
+                path="tests/contract.py",
+                old="assert actual == expected",
+                new="assert result == expected",
+                executable=False,
+            )
+        ],
+    )
+    resolved = resolve_verifier_paths(task, repair)
+    assert resolved.edits[0].path == "tests/source/tests/contract.py"
+    assert repair.edits[0].path == "tests/contract.py"
+    assert path.read_text() == "assert actual == expected\n"
+    other = task / "tests/other/contract.py"
+    other.parent.mkdir()
+    other.write_text(path.read_text())
+    assert resolve_verifier_paths(task, repair) == repair
+    other.unlink()
+    path.write_text("assert actual == unexpected\n")
+    assert resolve_verifier_paths(task, repair) == repair
+    repair.edits[0].old = ""
+    assert resolve_verifier_paths(task, repair) == repair
+
+
+def test_path_resolution_never_redirects_to_source_or_outside_task(task, tmp_path):
+    outside = tmp_path / "contract.py"
+    outside.write_text("original")
+    (task / "tests/contract.py").symlink_to(outside)
+    repair = Repair(
+        explanation="Fixture",
+        addressed_issues=["fixture"],
+        edits=[
+            Edit(
+                path="tests/missing/contract.py",
+                old="original",
+                new="replacement",
+                executable=False,
+            )
+        ],
+    )
+    assert resolve_verifier_paths(task, repair) == repair
+    repair.edits[0].path = "tests/../solution/solve.sh"
+    with pytest.raises(ValueError):
+        resolve_verifier_paths(task, repair)
 
 
 @pytest.mark.parametrize(

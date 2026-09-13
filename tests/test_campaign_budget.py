@@ -56,6 +56,25 @@ def test_opening_ledger_cannot_reset_limit(tmp_path):
         BudgetLedger(ledger.path, limit_usd="100")
 
 
+def test_authorized_increase_retains_costs_holds_and_is_idempotent(tmp_path):
+    ledger = BudgetLedger(tmp_path / "budget.db", limit_usd="1")
+    ledger.reserve("paid", "0.25", "completed model call")
+    ledger.settle("paid", "0.20", evidence="usage")
+    ledger.reserve("unknown", "0.50", "interrupted request")
+    ledger.mark_uncertain("unknown", "provider outcome unresolved")
+    operations = ledger.status()["operations"]
+    ledger.increase_limit("2", expected_limit_usd="1", evidence="user approval 1")
+    ledger.increase_limit("2", expected_limit_usd="1", evidence="user approval 1")
+    assert ledger.status()["operations"] == operations
+    assert ledger.status()["remaining_usd"] == "1.300000"
+    with pytest.raises(ValueError, match="changed"):
+        ledger.increase_limit("3", expected_limit_usd="1", evidence="user approval 2")
+    with pytest.raises(ValueError, match="different increase"):
+        ledger.increase_limit("3", expected_limit_usd="1", evidence="user approval 1")
+    with pytest.raises(ValueError, match="higher limit"):
+        ledger.increase_limit("1", expected_limit_usd="2", evidence="decrease")
+
+
 @pytest.mark.parametrize("amount", ["NaN", "Infinity", "-1"])
 def test_invalid_amounts_rejected(amount, tmp_path):
     with pytest.raises(ValueError, match="finite and nonnegative"):
