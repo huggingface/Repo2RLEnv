@@ -56,7 +56,8 @@ def export_repository_task(
     """Materialize a tested repository contrast with private reference files.
 
     A None baseline value means the PR added that file. Such tasks collect source
-    directories so a valid implementation may introduce other Python modules.
+    directories and explicitly selected Python files. New helpers are permitted
+    within directory roots; selecting one file never expands its parent scope.
     """
     if not defective or defective.keys() != reference.keys():
         raise ValueError("Defective and reference snapshots must replace the same source files")
@@ -66,6 +67,7 @@ def export_repository_task(
     hidden_roots = [PurePosixPath(path) for path in options.test_paths]
     added = sorted(path for path, content in defective.items() if content is None)
     directory_collection = bool(added) or collect_source_directories
+    directory_roots = []
     immutable = {}
     if directory_collection:
         # Directory collection must never replace private tests or hidden assets.
@@ -75,8 +77,11 @@ def export_repository_task(
                 for other in source_roots
             ):
                 raise ValueError("Submitted source directories must not overlap")
-            if not (base / str(root)).is_dir():
-                raise ValueError("Added-source tasks require directory source roots")
+            path = base / str(root)
+            if path.is_dir():
+                directory_roots.append(str(root))
+            elif not (path.is_file() and path.suffix == ".py"):
+                raise ValueError("Submitted source roots must be directories or Python files")
             if any(
                 root == hidden or root in hidden.parents or hidden in root.parents
                 for hidden in map(PurePosixPath, options.test_paths + options.public_exclude)
@@ -155,7 +160,7 @@ def export_repository_task(
                 "timeout_sec": options.test_timeout_sec,
                 **(
                     {
-                        "submitted_roots": options.source_paths,
+                        "submitted_roots": directory_roots,
                         "optional_files": added,
                         "immutable_assets": immutable,
                     }

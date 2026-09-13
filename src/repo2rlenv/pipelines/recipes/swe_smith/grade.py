@@ -47,7 +47,17 @@ def child_environment(temporary: str) -> dict[str, str]:
 
 def validate_submission(workspace: Path, contract: dict) -> None:
     """Validate collected data before any learner-controlled Python is imported."""
-    paths = set(contract["submitted_files"]) - set(contract.get("optional_files", []))
+    submitted = set(contract["submitted_files"])
+    optional = submitted & set(contract.get("optional_files", []))
+    paths = submitted - optional
+    for relative in optional:
+        path = workspace / relative
+        if any(component.is_symlink() for component in (path, *path.parents)):
+            raise ValueError("Submitted source contains a symlink")
+        # Added standalone modules may be absent in the baseline. If supplied,
+        # apply the same regular-file and size checks as every required module.
+        if path.exists():
+            paths.add(relative)
     roots = contract.get("submitted_roots", [])
     immutable = contract.get("immutable_assets", {})
     paths.update(immutable)

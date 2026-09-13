@@ -110,6 +110,7 @@ jobs:
           tests/test_tasksmith_artifact_seed.py tests/test_tasksmith_prepared_profiles.py
           tests/test_quality_context_budget.py tests/test_quality_repair_protocol.py
           tests/test_quality_context_priority.py
+          tests/test_repository_source_collection.py
 
   tasksmith-runtimes:
     name: Tasksmith coding runtime contracts
