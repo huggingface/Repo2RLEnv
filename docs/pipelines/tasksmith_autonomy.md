@@ -70,8 +70,11 @@ repair strategy.
 
 The new components have local controller tests and saved-evidence replay. The
 24-task archive predates these new autonomous recovery paths and includes assisted
-work. A new paid canary was not started: the authorized campaign currently has
-$3.47 unreserved, with $16.09 in unresolved historical holds.
+work. The later [50-task expansion](tasksmith_scale50.md) raises the global
+authorization to $1,000, with a separate $200 limit for that batch. It starts
+fresh parallel runs through the owned CLI and retains three prepared tasks for
+fresh review. Prior unresolved holds remain reserved. New unattended acceptance
+must be measured from that batch rather than inferred from the historical archive.
 
 ## Next measurement
 

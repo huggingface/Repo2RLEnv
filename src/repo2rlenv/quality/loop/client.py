@@ -30,16 +30,15 @@ class RunBudget:
             "reserved_usd": str(Decimal(held) / 1000000),
         }
 
-    def reserve(self, operation_id, amount_usd, description):
+    def reserve(self, operation_id, amount_usd, description, *, scopes=()):
         if self.prefix not in operation_id:
             raise ValueError("Quality operation must belong to this run")
-        totals = self.totals()
-        used = sum(Decimal(value) for value in totals.values())
-        if used + Decimal(str(amount_usd)) > self.limit:
-            raise BudgetExceeded(
-                "Quality run spending limit reached; completed evidence is retained"
-            )
-        self.ledger.reserve(operation_id, amount_usd, description)
+        self.ledger.reserve(
+            operation_id,
+            amount_usd,
+            description,
+            scopes=(*scopes, (self.prefix, self.limit)),
+        )
 
     def status(self):
         return self.ledger.status()

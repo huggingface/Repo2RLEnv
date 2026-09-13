@@ -13,6 +13,7 @@ from pathlib import Path
 import tomli_w
 
 from repo2rlenv.emitter.bundle import inspect_bundle, relative_asset_path
+from repo2rlenv.emitter.evaluation import generated_evaluation
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.models import Repair, SemanticProbe, TrialRecord
 
@@ -58,7 +59,14 @@ def refresh_identity(task: Path) -> str:
     config = tomllib.loads(config_path.read_text())
     metadata = config.get("metadata", {}).get("repo2env", {})
     if "bundle_hash" in metadata:
-        metadata["bundle_hash"] = inspect_bundle(task)["bundle_hash"]
+        identity = inspect_bundle(task)["bundle_hash"]
+        if identity != metadata["bundle_hash"]:
+            metadata["evaluation"] = {
+                **generated_evaluation(subject_bundle_hash=identity),
+                "reason_codes": ["task_changed"],
+                "detail": "Task content changed; validate this revision before acceptance.",
+            }
+        metadata["bundle_hash"] = identity
         config_path.write_text(tomli_w.dumps(config))
     return task_identity(task)
 

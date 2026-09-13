@@ -155,6 +155,9 @@ nav:
       - Owned recipes: pipelines/owned_recipes.md
       - Follow the prompts: pipelines/prompt_reference.md
       - Harbor review and repair: pipelines/quality_loop.md
+      - Task evaluation labels: pipelines/task_evaluation_labels.md
+      - Parallel Tasksmith campaigns: pipelines/tasksmith_parallel_campaigns.md
+      - Tasksmith expansion to 50: pipelines/tasksmith_scale50.md
       - Quality pilot results: pipelines/quality_pilot.md
       - Tasksmith PR harness: pipelines/tasksmith.md
       - Tasksmith five-PR results: pipelines/tasksmith_cpu_hf_pilot.md

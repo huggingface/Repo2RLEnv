@@ -107,6 +107,7 @@ class Options(Record):
     worker_reservation_usd: str = "12.00"
     worker_cpus: int = Field(default=2, ge=1, le=16)
     worker_memory_mb: int = Field(default=4096, ge=1024, le=65536)
+    worker_timeout_sec: int = Field(default=14400, ge=300, le=14400)
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)

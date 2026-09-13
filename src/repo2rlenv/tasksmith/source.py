@@ -10,6 +10,47 @@ from pathlib import PurePosixPath
 from repo2rlenv.github import _run_gh, fetch_pr_diff
 
 
+def validate_source_records(records: list[dict], urls: list[str]) -> list[dict]:
+    """Check frozen intake identities without fetching or executing target code."""
+    if [row.get("url") for row in records] != urls:
+        raise ValueError("Frozen PR records must match panel URLs in order")
+    for row in records:
+        url = row["url"]
+        match = re.fullmatch(r"https://github.com/([\w.-]+)/([\w.-]+)/pull/([1-9][0-9]*)", url)
+        if not match or row.get("repo") != f"https://github.com/{match[1]}/{match[2]}":
+            raise ValueError("Frozen PR repository does not match its URL")
+        if any(
+            not re.fullmatch(r"[0-9a-f]{40}", str(row.get(key, ""))) for key in ("base", "head")
+        ):
+            raise ValueError("Frozen PR records require immutable base and head commits")
+        identity = {key: row.get(key) for key in ("url", "head", "source_diff")}
+        if not isinstance(identity["source_diff"], str) or not identity["source_diff"]:
+            raise ValueError("Frozen PR source diff is missing")
+        expected = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12]
+        if row.get("id") != expected:
+            raise ValueError("Frozen PR source identity changed")
+        paths = row.get("source_files", [])
+        operations = row.get("source_operations", [])
+        if not paths or len(set(paths)) != len(paths) or len(operations) != len(paths):
+            raise ValueError("Frozen PR source inventory is incomplete")
+        for path in paths:
+            pure = PurePosixPath(path)
+            if pure.is_absolute() or ".." in pure.parts or pure.suffix != ".py":
+                raise ValueError("Frozen PR source paths must be relative Python files")
+        if {entry.get("path") for entry in operations} != set(paths) or any(
+            entry.get("operation") not in {"added", "modified"} for entry in operations
+        ):
+            raise ValueError("Frozen PR source operations are unsupported or incomplete")
+        headers = re.findall(r"^diff --git a/(.+) b/(.+)$", row["source_diff"], re.MULTILINE)
+        if len(headers) != len(paths) or {
+            before for before, after in headers if before == after
+        } != set(paths):
+            raise ValueError("Frozen PR diff does not cover its source inventory")
+        if row.get("workspace_strategy") != "head_minus_source_patch":
+            raise ValueError("Frozen PR workspace strategy is unsupported")
+    return records
+
+
 def resolve_pr(url: str) -> dict:
     match = re.fullmatch(r"https://github.com/([\w.-]+)/([\w.-]+)/pull/([1-9][0-9]*)/?", url)
     if not match:

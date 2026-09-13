@@ -38,6 +38,59 @@ def test_concurrent_reservations_cannot_overspend(tmp_path):
     assert BudgetLedger(path).status()["reserved_usd"] == "0.600000"
 
 
+def test_parallel_children_share_atomic_batch_cap(tmp_path):
+    from threading import Barrier
+
+    from repo2rlenv.quality.loop.client import RunBudget
+
+    path = tmp_path / "budget.db"
+    BudgetLedger(path, limit_usd="100")
+    start = Barrier(4)
+
+    def reserve(index):
+        batch = RunBudget(BudgetLedger(path), "batch50-", "1")
+        child = RunBudget(batch, f"batch50-child{index}", "1")
+        start.wait()
+        try:
+            child.reserve(f"batch50-child{index}:model", "0.60", "model")
+            return True
+        except BudgetExceeded:
+            return False
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(reserve, range(4)))
+    assert sum(results) == 1
+    assert BudgetLedger(path).status()["reserved_usd"] == "0.600000"
+
+
+def test_scoped_budget_preserves_uncertainty_and_actual_overruns(tmp_path):
+    from repo2rlenv.quality.loop.client import RunBudget
+
+    ledger = BudgetLedger(tmp_path / "budget.db", limit_usd="100")
+    batch = RunBudget(ledger, "batch-", "2")
+    child = RunBudget(batch, "batch-child-", "1")
+    child.reserve("batch-child-first", "0.60", "model")
+    child.mark_uncertain("batch-child-first", "lost response")
+    with pytest.raises(BudgetExceeded):
+        child.reserve("batch-child-next", "0.50", "model")
+    child.settle("batch-child-first", "1.20", evidence="metered overrun")
+    with pytest.raises(BudgetExceeded):
+        child.reserve("batch-child-next", "0.01", "model")
+    sibling = RunBudget(batch, "batch-other-", "2")
+    sibling.reserve("batch-other-one", "0.70", "model")
+    with pytest.raises(BudgetExceeded):
+        sibling.reserve("batch-other-two", "0.20", "model")
+    assert ledger.status()["accounted_usd"] == "1.200000"
+    assert ledger.status()["reserved_usd"] == "0.700000"
+
+
+def test_scope_membership_is_checked_before_any_reservation(tmp_path):
+    ledger = BudgetLedger(tmp_path / "budget.db", limit_usd="100")
+    with pytest.raises(ValueError, match="each budget scope"):
+        ledger.reserve("other-task", "1", "model", scopes=(("batch-", "5"),))
+    assert not ledger.status()["operations"]
+
+
 def test_actual_overrun_is_not_hidden(tmp_path):
     ledger = BudgetLedger(tmp_path / "budget.db", limit_usd="1")
     ledger.reserve("request", "0.50", "provider")

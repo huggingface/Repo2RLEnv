@@ -46,7 +46,9 @@ def test_probe_tracks_new_and_removed_modules_but_not_immutable_assets(tmp_path)
     assert changes["src/helper.py"]["before"] is None
 
 
-@pytest.mark.parametrize("name", ["../answer.py", "/answer.py", "src/../answer.py", "src\\answer.py"])
+@pytest.mark.parametrize(
+    "name", ["../answer.py", "/answer.py", "src/../answer.py", "src\\answer.py"]
+)
 def test_probe_rejects_noncanonical_paths(tmp_path, name):
     with pytest.raises(ValueError, match="canonical"):
         submission_files(tmp_path, {"submitted_files": [name]})

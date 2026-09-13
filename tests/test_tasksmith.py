@@ -16,6 +16,36 @@ from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Panel, Profile
 
 
+def test_frozen_pr_records_bind_source_inventory_before_dispatch():
+    import hashlib
+
+    from repo2rlenv.tasksmith.source import validate_source_records
+
+    source = {
+        "url": "https://github.com/example/project/pull/7",
+        "repo": "https://github.com/example/project",
+        "base": "a" * 40,
+        "head": "b" * 40,
+        "source_diff": "diff --git a/src/core.py b/src/core.py\n--- a/src/core.py\n+++ b/src/core.py\n@@ -1 +1 @@\n-value = 1\n+value = 2\n",
+        "source_files": ["src/core.py"],
+        "source_operations": [{"path": "src/core.py", "operation": "modified"}],
+        "workspace_strategy": "head_minus_source_patch",
+    }
+    identity = {key: source[key] for key in ("url", "head", "source_diff")}
+    source["id"] = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12]
+    assert validate_source_records([source], [source["url"]]) == [source]
+    for changed in (
+        {**source, "head": "c" * 40},
+        {**source, "repo": "https://github.com/other/project"},
+        {**source, "source_operations": [{"path": "src/core.py", "operation": "removed"}]},
+        {**source, "source_files": ["../outside.py"]},
+    ):
+        with pytest.raises(ValueError):
+            validate_source_records([changed], [source["url"]])
+    with pytest.raises(ValueError, match="panel URLs"):
+        validate_source_records([source], ["https://github.com/example/project/pull/8"])
+
+
 def test_component_spend_and_uncertainty_share_one_campaign(tmp_path):
     ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="10")
     pilot = RunBudget(ledger, "ts-one", "5")

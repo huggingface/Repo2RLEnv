@@ -115,6 +115,10 @@ def _identity(configuration: dict, files: dict[str, TaskFile]) -> str:
 
     normalized = tomllib.loads(tomli_w.dumps(configuration))
     normalized.get("metadata", {}).get("repo2env", {}).pop(_HASH_FIELD, None)
+    # Evaluation is an advisory overlay, not executable task content. Excluding
+    # only this namespace preserves existing unlabeled bundle identities; every
+    # other configuration field and every task file remains bound to the hash.
+    normalized.get("metadata", {}).get("repo2env", {}).pop("evaluation", None)
     record = {
         "configuration": normalized,
         "files": {
@@ -166,6 +170,11 @@ def write_bundle(bundle: TaskBundle, destination: Path, *, resume: bool = False)
     """Publish a fully materialized task, refusing existing targets or collisions."""
     configuration = bundle.configuration()
     configuration["metadata"]["repo2env"][_HASH_FIELD] = bundle_hash(bundle)
+    from repo2rlenv.emitter.evaluation import generated_evaluation
+
+    configuration["metadata"]["repo2env"]["evaluation"] = generated_evaluation(
+        subject_bundle_hash=configuration["metadata"]["repo2env"][_HASH_FIELD]
+    )
     files = {
         "instruction.md": TaskFile.text(bundle.instruction),
         "task.toml": TaskFile.text(tomli_w.dumps(configuration)),

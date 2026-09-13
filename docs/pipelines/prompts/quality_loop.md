@@ -853,7 +853,7 @@ class EvidenceContext:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `86d2270d2ff4a3fef481fb4890f95c27112409960aa86cda8690fd84b8218762`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `82c0f2fbe582b9fa8cb1f43209ba0066962b159f156930524a31e66423182808`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1447,6 +1447,14 @@ class QualityLoop:
         save_record(self.directory / "result.json", result.model_dump(mode="json"))
         save_record(
             receipt, {"configuration": configuration, "state": "completed", "status": status}
+        )
+        from repo2rlenv.quality.loop.publication import publish_label
+
+        publication = publish_label(self.directory)
+        self.event(
+            "label",
+            f"Labeled task export: {publication['state']}",
+            state="completed" if publication["state"] == "completed" else "failed",
         )
         self.event("result", f"{status}: {revision} repairs", state="completed")
         return result

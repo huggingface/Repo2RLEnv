@@ -84,13 +84,23 @@ class BudgetLedger:
         return limit, spent, reserved
 
     def reserve(
-        self, operation_id: str, amount_usd: Decimal | str | float, description: str
+        self,
+        operation_id: str,
+        amount_usd: Decimal | str | float,
+        description: str,
+        *,
+        scopes: tuple[tuple[str, Decimal | str | float], ...] = (),
     ) -> None:
         if not operation_id.strip() or not description.strip():
             raise ValueError("Reservation requires an operation ID and description")
         amount = _micros(amount_usd)
         if amount == 0:
             raise ValueError("Paid operations require a positive reservation")
+        limits = []
+        for prefix, limit in scopes:
+            if not prefix or prefix not in operation_id:
+                raise ValueError("Operation must belong to each budget scope")
+            limits.append((prefix, _micros(limit)))
         with self._transaction() as db:
             if db.execute("SELECT 1 FROM operations WHERE id=?", (operation_id,)).fetchone():
                 raise OperationAlreadyRecorded(operation_id)
@@ -99,6 +109,18 @@ class BudgetLedger:
                 raise BudgetExceeded(
                     f"{operation_id}: requested ${_usd(amount)}, remaining ${_usd(limit - spent - reserved)}"
                 )
+            for prefix, scoped_limit in limits:
+                used = db.execute(
+                    "SELECT COALESCE(SUM(COALESCE(actual_micros,0) + "
+                    "CASE WHEN status != 'settled' THEN reserved_micros ELSE 0 END),0) "
+                    "FROM operations WHERE instr(id, ?) > 0",
+                    (prefix,),
+                ).fetchone()[0]
+                if used + amount > scoped_limit:
+                    raise BudgetExceeded(
+                        f"Budget scope {prefix}: requested ${_usd(amount)}, "
+                        f"remaining ${_usd(scoped_limit - used)}; completed evidence retained"
+                    )
             db.execute(
                 "INSERT INTO operations(id,description,reserved_micros,status) VALUES (?,?,?,'reserved')",
                 (operation_id, description, amount),

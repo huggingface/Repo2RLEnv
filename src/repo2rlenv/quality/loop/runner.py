@@ -585,5 +585,13 @@ class QualityLoop:
         save_record(
             receipt, {"configuration": configuration, "state": "completed", "status": status}
         )
+        from repo2rlenv.quality.loop.publication import publish_label
+
+        publication = publish_label(self.directory)
+        self.event(
+            "label",
+            f"Labeled task export: {publication['state']}",
+            state="completed" if publication["state"] == "completed" else "failed",
+        )
         self.event("result", f"{status}: {revision} repairs", state="completed")
         return result

@@ -9,7 +9,53 @@ from repo2rlenv.tasksmith.models import Options, Panel
 from repo2rlenv.ui import console
 
 
+def _show_batch(report: dict, *, as_json: bool) -> int:
+    if as_json:
+        console.json(report)
+    else:
+        from rich.table import Table
+
+        table = Table(title="Tasksmith batch")
+        for column in ("PR", "State", "Detail"):
+            table.add_column(column)
+        for url, row in report["candidates"].items():
+            table.add_row(url, row["status"], row.get("reason", ""))
+        console.print(table)
+        console.kv(
+            {
+                "verified": f"{report['verified']}/{report['target_verified']}",
+                "new_verified": report["new_verified"],
+                "generated_unverified": report["generated_unverified"],
+                "stop_reason": report.get("stop_reason", "running"),
+                **report["budget"],
+                "available_usd": report["available_usd"],
+            },
+            title="Batch progress",
+        )
+    return int(report.get("stop_reason") != "target_reached")
+
+
 def command(args):
+    if args.action == "batch":
+        from dotenv import load_dotenv
+
+        from repo2rlenv.tasksmith.batch import BatchPlan, run_batch
+
+        if args.env_file:
+            if not args.env_file.is_file():
+                raise ValueError("Credentials file does not exist")
+            load_dotenv(args.env_file, override=False)
+        plan = BatchPlan.model_validate_json(args.plan.read_text())
+        report = run_batch(
+            plan,
+            args.output,
+            args.campaign,
+            args.runtime_wheel,
+            on_event=(lambda _: None)
+            if args.json
+            else lambda message: console.print(message, markup=False),
+        )
+        return _show_batch(report, as_json=args.json)
     if args.action == "bootstrap":
         return _bootstrap(args)
     if args.action == "install-runtime":
@@ -19,6 +65,8 @@ def command(args):
         return 0
     if args.action == "show":
         report = json.loads((args.output / "report.json").read_text())
+        if "target_verified" in report:
+            return _show_batch(report, as_json=args.json)
     else:
         from dotenv import load_dotenv
 
@@ -57,6 +105,10 @@ def command(args):
             limit=args.stop_after,
             generation_run=args.generation_run,
             reuse_evidence=args.reuse_evidence,
+            source_records=json.loads(args.sources.read_text())
+            if getattr(args, "sources", None)
+            else None,
+            prepared_task=getattr(args, "prepared_task", None),
         )
     if args.json:
         console.json(report)
@@ -71,7 +123,8 @@ def command(args):
             table.add_row(
                 row["source"] if isinstance(row["source"], str) else row["source"]["url"],
                 row["status"],
-                row.get("quality", {}).get(
+                (row.get("label_export") or {}).get("task_path")
+                or row.get("quality", {}).get(
                     "task_path", row.get("constructed", {}).get("local", "")
                 ),
             )
@@ -153,6 +206,15 @@ def add_parser(subparsers):
         "tasksmith", help="Build faithful Harbor tasks from PRs with a remote coding agent"
     )
     actions = parser.add_subparsers(dest="action", required=True)
+    batch = actions.add_parser(
+        "batch", help="Run a bounded parallel PR campaign and retain every generated task"
+    )
+    batch.add_argument("plan", type=Path)
+    for name in ("campaign", "output", "runtime-wheel"):
+        batch.add_argument("--" + name, required=True, type=Path)
+    batch.add_argument("--env-file", type=Path)
+    batch.add_argument("--json", action="store_true")
+    batch.set_defaults(func=command)
     bootstrap = actions.add_parser(
         "bootstrap", help="Build and smoke-test pinned HF repositories on remote CPU/GPU workers"
     )
@@ -173,6 +235,14 @@ def add_parser(subparsers):
     show.set_defaults(func=command)
     run = actions.add_parser("run", help="Run or resume a fixed PR panel")
     run.add_argument("panel", type=Path)
+    run.add_argument(
+        "--sources", type=Path, help="Optional frozen PR source records, in panel order"
+    )
+    run.add_argument(
+        "--prepared-task",
+        type=Path,
+        help="Recover one task matching --sources with fresh quality checks; preserve the input",
+    )
     for name in ("campaign", "output", "runtime-wheel"):
         run.add_argument("--" + name, required=True, type=Path)
     run.add_argument(

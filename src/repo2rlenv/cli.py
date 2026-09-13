@@ -865,10 +865,12 @@ def main(argv: list[str] | None = None) -> int:
     from repo2rlenv.campaigns.cli import add_campaign_parsers
     from repo2rlenv.pipelines.recipes.cli import add_discovery_parser
     from repo2rlenv.quality.loop.cli import add_quality_parser
+    from repo2rlenv.task_labels import add_tasks_parser
 
     add_discovery_parser(sub)
     add_campaign_parsers(sub)
     add_quality_parser(sub)
+    add_tasks_parser(sub)
     from repo2rlenv.tasksmith.cli import add_parser as add_tasksmith_parser
 
     add_tasksmith_parser(sub)

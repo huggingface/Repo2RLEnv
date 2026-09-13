@@ -34,8 +34,8 @@ from repo2rlenv.quality.loop.runner import QualityLoop
 from repo2rlenv.tasksmith.author.artifact import artifact_stage, canonical_digest
 from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Design, Options, Panel, Profile
-from repo2rlenv.tasksmith.reuse import load_generation
-from repo2rlenv.tasksmith.source import resolve_pr
+from repo2rlenv.tasksmith.reuse import generation_task, load_generation
+from repo2rlenv.tasksmith.source import resolve_pr, validate_source_records
 
 
 class State(TypedDict, total=False):
@@ -90,7 +90,7 @@ class Tasksmith:
                 cpus=self.options.worker_cpus,
                 memory_mb=self.options.worker_memory_mb,
                 snapshot_id=self.options.worker_snapshot,
-                timeout_sec=14400,
+                timeout_sec=self.options.worker_timeout_sec,
             ),
             workers,
             self.budget,
@@ -241,6 +241,7 @@ class Tasksmith:
                 "source_diff": source.get("source_diff", "")[:24000],
                 "source_diff_truncated": len(source.get("source_diff", "")) > 24000,
                 "reference_policy": "fixed_pr_head",
+                "campaign_design_guidance": source.get("campaign_design_guidance"),
             },
             on_event=lambda event: self.event("quality/" + event.stage, event.message),
         )
@@ -279,7 +280,12 @@ class Tasksmith:
                 continue
             evidence[role] = Path(trial["result"])
         result = loop.run(task, probes=probes, resume=(output / "run.json").exists(), **evidence)
-        return {"quality": result.model_dump(mode="json"), "status": result.status}
+        publication = output / "labeled-task.json"
+        return {
+            "quality": result.model_dump(mode="json"),
+            "status": result.status,
+            "label_export": json.loads(publication.read_text()) if publication.is_file() else None,
+        }
 
     def candidate(self, source: dict):
         from langgraph.checkpoint.sqlite import SqliteSaver
@@ -529,17 +535,40 @@ class Tasksmith:
         limit: int | None = None,
         generation_run: Path | None = None,
         reuse_evidence: bool = False,
+        source_records: list[dict] | None = None,
+        prepared_task: Path | None = None,
     ):
         if reuse_evidence and generation_run is None:
             raise ValueError("Evidence reuse requires --generation-run")
+        if source_records is not None:
+            if generation_run is not None:
+                raise ValueError("Choose frozen source records or generation reuse, not both")
+            validate_source_records(source_records, panel.prs)
+        if prepared_task is not None:
+            if generation_run is not None or source_records is None or len(source_records) != 1:
+                raise ValueError("Prepared task recovery requires exactly one frozen source record")
+            source = source_records[0]
+            prepared_task = prepared_task.resolve()
+            imported = generation_task(
+                {
+                    "id": source["id"],
+                    "quality": {
+                        "task_path": str(prepared_task),
+                        "bundle_hash": task_identity(prepared_task),
+                    },
+                },
+                source,
+                prepared_task.parent,
+            )
+            self.imported = {source["id"]: imported}
         if limit is not None and not 1 <= limit <= len(panel.prs):
             raise ValueError("stop-after must be within the frozen panel size")
         self.directory.mkdir(parents=True, exist_ok=True)
         with (self.directory / ".lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return self._run(panel, limit, generation_run, reuse_evidence)
+            return self._run(panel, limit, generation_run, reuse_evidence, source_records)
 
-    def _run(self, panel, limit, generation_run, reuse_evidence=False):
+    def _run(self, panel, limit, generation_run, reuse_evidence=False, source_records=None):
         # Fail before provisioning if optional orchestration or credentials are absent.
         from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: F401
         from langgraph.graph import StateGraph  # noqa: F401
@@ -574,6 +603,8 @@ class Tasksmith:
             "ledger": str(self.ledger.path.resolve()),
             "runtime_sha256": check_runtime_wheel(self.wheel),
         }
+        if source_records is not None:
+            configuration["frozen_sources_digest"] = canonical_digest(source_records)
         if manifest.exists():
             saved = json.loads(manifest.read_text())
             if saved["configuration"] != configuration:
@@ -582,7 +613,7 @@ class Tasksmith:
                 )
             sources = saved["sources"]
         else:
-            sources = previous_sources or [resolve_pr(url) for url in panel.prs]
+            sources = previous_sources or source_records or [resolve_pr(url) for url in panel.prs]
             save_record(manifest, {"configuration": configuration, "sources": sources})
         reports = []
         try:
