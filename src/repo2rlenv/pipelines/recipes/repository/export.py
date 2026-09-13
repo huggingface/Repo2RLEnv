@@ -13,6 +13,30 @@ from repo2rlenv.execution.python_build import dependency_recipe
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
+def _learner_venv_login() -> str:
+    # Harbor's interactive learner starts `bash --login`, whose startup files
+    # can replace image ENV PATH. Preserve the original login script, then
+    # restore the task runtime after it (even if that script returns early).
+    setup = (
+        'set -eu; profile="$1/.bash_profile"; original=""; '
+        'if [ -e "$profile" ]; then '
+        "original=.repo2rlenv-original-bash-profile; "
+        'test ! -e "$1/$original"; mv "$profile" "$1/$original"; '
+        'elif [ -r "$1/.bash_login" ]; then original=.bash_login; '
+        'elif [ -r "$1/.profile" ]; then original=.profile; fi; '
+        'if [ -n "$original" ]; then '
+        'printf \'if [ -r "$HOME/%s" ]; then . "$HOME/%s"; fi\\n\' '
+        '"$original" "$original" > "$profile"; '
+        'else : > "$profile"; fi; '
+        'printf \'\\nexport PATH="%s/bin:$PATH"\\nexport VIRTUAL_ENV="%s"\\n\' '
+        '"$2" "$2" >> "$profile"'
+    )
+    return (
+        "RUN sh -c " + shlex.quote(setup) + " -- /home/learner /opt/tasksmith-venv"
+        " && chown learner:learner /home/learner/.bash_profile\n"
+    )
+
+
 def repository_build(options: PythonRepositoryProfile) -> str:
     """Shared install recipe for public readiness and final Harbor images."""
     return (
@@ -126,6 +150,7 @@ def export_repository_task(
         build
         + "RUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\n"
         "RUN useradd -m learner && chown -R learner:learner /workspace\n"
+        + (_learner_venv_login() if options.use_system_site_packages else "")
     )
     assets["tests/Dockerfile"] = TaskFile.text(
         build + "RUN useradd -m -u 1001 grader\n"
@@ -192,7 +217,12 @@ def export_repository_task(
         )
         + ", ".join(f"`{root}`" for root in options.source_paths)
         + ". Preserve the other public behavior. The environment is offline; dependencies are preinstalled. "
-        "Grading runs the relevant repository tests in a fresh environment, using your submitted source files.\n"
+        + (
+            "Use `/opt/tasksmith-venv/bin/python` for the preinstalled Python environment. "
+            if options.use_system_site_packages
+            else ""
+        )
+        + "Grading runs the relevant repository tests in a fresh environment, using your submitted source files.\n"
     )
     bundle = TaskBundle(
         name=name,
