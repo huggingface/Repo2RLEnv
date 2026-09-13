@@ -2,8 +2,8 @@
 
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
-11 reserves. The next continuation increases concurrency from two to four
-independent PR controllers, with at most two GPU controllers. The first
+11 reserves. The active v3 continuation runs four independent PR controllers,
+with at most two GPU controllers, and starts from **26 accepted tasks**. The first
 eight candidates use small CPU workloads; later candidates include real GPU
 execution. A task counts only after the shared quality profile verifies its exact
 revision. Solver failure can be legitimate and does not by itself reject a task.
@@ -90,16 +90,29 @@ implementation errors. Independent evidence review accepted this helper/API task
 bringing the accepted total to **25**; this does not claim complete
 Accelerator/DeepSpeed integration or performance reproduction.
 
-For faster expansion, the next frozen continuation uses four total PR controllers
+For faster expansion, the frozen v3 continuation uses four total PR controllers
 with at most two GPU controllers. The shared budget still covers all previous
 attempts. Sonnet remains the default; one metered Opus 4.6 escalation can resolve
 a review after its bounded Sonnet calls are exhausted. Literal evidence checks
 remain required. Improved feedback identifies quotes absent from every supplied
 document, and review guidance separates advisory labels from actual task evidence.
-The active v2 jobs finish before this concurrency change takes effect. Design
-retries can revise the previous draft directly; the seed remains unvalidated and
-every submission must pass normal validation. Review corrections and escalation
-receive the latest parsed draft, including after additional source reads.
+Both remaining v2 jobs finished and their workers were reconciled before the
+concurrency change. Design retries can revise the previous draft directly; the
+seed remains unvalidated and every submission must pass normal validation.
+Review corrections and escalation receive the latest parsed draft, including
+after additional source reads.
+
+Accelerate #3098 was also independently accepted, bringing the total to **26**.
+Its reference passed 23 tests with one hardware skip; Sonnet passed 22 and failed
+one because it retained a function that the instruction explicitly required
+removing. The wrong-behavior and valid-alternative probes both behaved as
+expected. Diffusers #13168 stopped at 26 passing tests and one invalid fixture;
+its next design receives the concrete component-loading correction.
+
+V3 starts with **$176.13069** after the first two phases accounted for $23.86931
+and released all their reservations. It has 35 pending PRs and initially admits
+four prepared-task recoveries: PEFT #2661, Diffusers #13921, TRL #6001 and
+Accelerate #3720. Every retained task receives fresh quality checks.
 
 ## Execution and budget
 
@@ -142,15 +155,17 @@ can fund; fifty successes within $200 is a target, not a measured guarantee.
 ## Inspect or resume
 
 ```bash
-repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v2
+repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v3
 repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
-The active continuation uses `workspace/tasksmith-scale50/batch-plan-v2.json`; its
+The active continuation uses `workspace/tasksmith-scale50/batch-plan-v3.json`; its
 configuration, frozen runtime, subprocess logs and live report are under
-`workspace/tasksmith-scale50/batch-v2/`. `continuation-v2.json` records its
-allowance after the first batch's costs. Completed attempts are not blindly
+`workspace/tasksmith-scale50/batch-v3/`. `continuation-v3.json` records its
+allowance after all prior phases. Do not resume admission for the drained v1/v2
+batches. Their parent reports may be stale; completed child receipts remain the
+source of truth. Completed attempts are not blindly
 repeated. Provider or child-process uncertainty stops dispatch until receipts
 are reconciled. The controller stops admitting work once the target or batch
 allowance is reached.
