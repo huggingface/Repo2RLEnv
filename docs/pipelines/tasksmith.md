@@ -143,6 +143,26 @@ than publishing a second repository copy.
 
 To preserve an exact PR's successful build recipe, pass `prepared_profiles` through the existing `--options-json` file (or a batch candidate's options). Key each entry by its frozen source ID and include `url`, `head`, `base`, `source_diff_sha256`, `workspace_strategy`, and the complete `profile` object. Tasksmith validates this binding, CPU/GPU selection and source coverage before remote work, then skips the first investigation and runs a fresh bootstrap. It still checks document links, readiness, construction and quality; no earlier execution evidence is imported. A new bootstrap failure can enter the existing bounded profile-repair loop. A prepared profile also avoids unrelated repository-hint dependency preparation. The full profile participates in the frozen run configuration, so changing it requires a new output directory.
 
+A batch candidate with a `prepared_task` can also provide `prepared_probes`: an
+inline `ProbeManifest` containing that task's `bundle_hash` and semantic probe
+definitions. This preserves useful incorrect implementations and valid
+alternatives for fresh execution after an assisted repair. The manifest contains
+definitions only; historical trial results and rewards are not accepted.
+Tasksmith checks the task identity, unique probe names, probe count and required
+focus before starting a provider worker. Required focus must already be annotated
+on the prepared task before calculating the binding hash. The definitions are
+frozen with the run configuration, so changing them requires a new output directory.
+
+The experimental batch runner supports up to eight independent PR controllers
+through `max_parallel`, with a separate `max_gpu_parallel` ceiling. These are
+cloud job limits, independent of the number of interactive coding subagents.
+Each job retains its own source, sandbox and evidence; all jobs share the campaign
+ledger and nested spending limits. Initial worker affordability does not guarantee
+enough remaining budget for later model calls or GPU trials. Allow room for those
+stages when choosing concurrency. A running batch uses a frozen plan: to change
+concurrency or runtime, write `drain-request.json` in its output directory, let
+active jobs finish, reconcile their receipts, and create a new continuation.
+
 LangGraph checkpoints stage state. Artifact receipts additionally bind the schema, prompt, source inputs and runtime. Remote jobs have durable supervisor paths and are observed rather than blindly relaunched after a lost response. An incomplete author call requires reconciliation. Changed configuration or worker code requires a new run directory; previous evidence remains available. Unknown worker creation or termination must be resolved before another worker is allocated.
 
 Bootstrap/design retries receive the previous complete artifact alongside the failure, so they can preserve working fields. The author sees its remaining call allowance after each shell tool result. The last two model calls are reserved for artifact submission and correction; further shell exploration is declined. These limits bound investigation without spending the entire allowance before producing a usable profile.
