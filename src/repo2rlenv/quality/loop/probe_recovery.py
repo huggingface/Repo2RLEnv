@@ -29,11 +29,16 @@ def _files(trial: TrialRecord) -> dict[str, str | None]:
 
 
 def capture_attempt(parent_hash: str, trial: TrialRecord) -> dict:
-    return {
+    from repo2rlenv.quality.loop.probe_behavior import BEHAVIOR_FOCI, behavior_files
+
+    attempt = {
         "parent_hash": parent_hash,
         "trial": trial.model_dump(mode="json"),
         "files": _files(trial),
     }
+    if trial.probe is not None and trial.probe.focus in BEHAVIOR_FOCI:
+        attempt["behavior_files"] = behavior_files(trial)
+    return attempt
 
 
 def record_attempt(directory: Path, key: str, parent_hash: str, trial: TrialRecord) -> dict:
@@ -41,8 +46,19 @@ def record_attempt(directory: Path, key: str, parent_hash: str, trial: TrialReco
     attempt = capture_attempt(parent_hash, trial)
     path = directory / "probe-attempts" / f"{key}.json"
     if path.exists():
-        if path.is_symlink() or json.loads(path.read_text()) != attempt:
+        if path.is_symlink():
             raise ValueError("Preserved probe installation evidence changed")
+        saved = json.loads(path.read_text())
+        # Older journals retain their original evidence boundary. Do not seal
+        # previously unbound verifier logs retroactively on resume.
+        compared = (
+            attempt
+            if "behavior_files" in saved
+            else {key: value for key, value in attempt.items() if key != "behavior_files"}
+        )
+        if saved != compared:
+            raise ValueError("Preserved probe installation evidence changed")
+        return saved
     else:
         save_record(path, attempt)
     return attempt
@@ -139,7 +155,11 @@ def grounded_diagnosis(failure: dict, review, context) -> bool:
         if issue.category != "probe":
             continue
         for citation in issue.evidence:
-            if citation.path not in {failure["summary_path"], failure["log_path"]}:
+            if citation.path not in {
+                failure["summary_path"],
+                failure["log_path"],
+                *failure.get("evidence_paths", []),
+            }:
                 continue
             document = context.documents.get(citation.path, "")
             if document and " ".join(citation.quote.split()) in " ".join(document.split()):

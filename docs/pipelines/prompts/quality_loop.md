@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `98178839e92817573903fe0f1d6ddf4ca17329516620fcf45887d9fb9b8a31f6`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `81fbea288ebda3b6e85089b080a823a045fdafa947a9e2e01ca86dc63e347620`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -127,6 +127,11 @@ conflict explicitly instead of silently dropping it. Explain probe failures usin
 the actual logs: a probe installation error is not proof that the verifier rejected
 the wrong behavior. Submitted output transcripts are not independent proof that a
 command ran. Judge rollout quality from recorded commands, source changes and checks.
+Before calling a solver failure legitimate, compare the first shared failure cause
+with the public instruction. Hidden fixture API names, constructor flags, defaults
+and False/None behavior must agree with that contract. Do not blame a solver for an
+undocumented or contradictory test requirement. A private-helper assertion needs an
+explicit task contract or a replacement test of observable public behavior.
 
 When evidence/checks.json lists uninstalled_probes, inspect each named oracle log
 or trial summary and give a grounded category=probe diagnosis before settling the
@@ -134,6 +139,14 @@ review. A nonzero installation exit or a no-op mutation is instrumentation failu
 even if the unchanged reference earns reward 1. Cite that attempt's actual summary
 or log. Do not invent a task defect to make the invalid control fail. The repair
 policy separately decides whether correction is permitted from the full history.
+
+When checks.json lists nonbehavioral_probes, give each a grounded blocking probe
+diagnosis. A model_behavior or compiled_execution control cannot count if its only
+rejection is invalid syntax, collection/setup or import failure. An installation
+marker and reward zero are insufficient. Keep the mutation importable and verify
+the claimed computation; do not weaken grading or call this an optional improvement.
+Missing bound execution evidence remains unresolved. Installed historical controls
+stay immutable; the repair policy decides whether a fresh correction is authorized.
 
 A generated valid-alternative probe may itself contain a bug. Use category probe
 with the exact failing case and conflicting code when that happens. A successful
@@ -468,7 +481,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `ef84d9bd3f27f508c969aa17a225ac274c910fc7adf13409ab654fa264753ee3`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `2c3217ce67a234dbaa864b8e11daf446d3c5db5b530cd44647c7ee6e7a878050`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -711,6 +724,7 @@ class EvidenceContext:
                 (3, "agent/oracle.txt", 4000),
                 (3, "agent/trajectory.json", 12000),
                 (4, "verifier/result.json", 3000),
+                (4, "verifier/results.xml", 4000),
             ]
             selected += (
                 [
@@ -975,7 +989,7 @@ class EvidenceContext:
 
 ### probe_recovery.py
 
-[Source: `src/repo2rlenv/quality/loop/probe_recovery.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/probe_recovery.py) · SHA-256 `ddf0ca10f22588a6c39759c31f4a617bd63d93ad20148e72099084a1c58a6082`
+[Source: `src/repo2rlenv/quality/loop/probe_recovery.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/probe_recovery.py) · SHA-256 `f066ac9fba089b0b378aec896fb0c63b0768cf1d4c8349edf6f6f1e862480549`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1014,11 +1028,16 @@ def _files(trial: TrialRecord) -> dict[str, str | None]:
 
 
 def capture_attempt(parent_hash: str, trial: TrialRecord) -> dict:
-    return {
+    from repo2rlenv.quality.loop.probe_behavior import BEHAVIOR_FOCI, behavior_files
+
+    attempt = {
         "parent_hash": parent_hash,
         "trial": trial.model_dump(mode="json"),
         "files": _files(trial),
     }
+    if trial.probe is not None and trial.probe.focus in BEHAVIOR_FOCI:
+        attempt["behavior_files"] = behavior_files(trial)
+    return attempt
 
 
 def record_attempt(directory: Path, key: str, parent_hash: str, trial: TrialRecord) -> dict:
@@ -1026,8 +1045,19 @@ def record_attempt(directory: Path, key: str, parent_hash: str, trial: TrialReco
     attempt = capture_attempt(parent_hash, trial)
     path = directory / "probe-attempts" / f"{key}.json"
     if path.exists():
-        if path.is_symlink() or json.loads(path.read_text()) != attempt:
+        if path.is_symlink():
             raise ValueError("Preserved probe installation evidence changed")
+        saved = json.loads(path.read_text())
+        # Older journals retain their original evidence boundary. Do not seal
+        # previously unbound verifier logs retroactively on resume.
+        compared = (
+            attempt
+            if "behavior_files" in saved
+            else {key: value for key, value in attempt.items() if key != "behavior_files"}
+        )
+        if saved != compared:
+            raise ValueError("Preserved probe installation evidence changed")
+        return saved
     else:
         save_record(path, attempt)
     return attempt
@@ -1124,7 +1154,11 @@ def grounded_diagnosis(failure: dict, review, context) -> bool:
         if issue.category != "probe":
             continue
         for citation in issue.evidence:
-            if citation.path not in {failure["summary_path"], failure["log_path"]}:
+            if citation.path not in {
+                failure["summary_path"],
+                failure["log_path"],
+                *failure.get("evidence_paths", []),
+            }:
                 continue
             document = context.documents.get(citation.path, "")
             if document and " ".join(citation.quote.split()) in " ".join(document.split()):
@@ -1170,9 +1204,141 @@ def replacement_evidence(
 
 </details>
 
+### probe_behavior.py
+
+[Source: `src/repo2rlenv/quality/loop/probe_behavior.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/probe_behavior.py) · SHA-256 `edceed6f08e97b79ad9939937a635af52aca2b0bb7e1cd781334e4bf76523ca3`
+
+Source hash covers the original file; trailing whitespace is omitted below.
+
+<details class="example" markdown="1">
+<summary>Read probe_behavior.py</summary>
+
+````python
+"""Minimum execution evidence for numerical and compiled-behavior controls."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from xml.etree import ElementTree
+
+from repo2rlenv.quality.loop.artifacts import digest
+from repo2rlenv.quality.loop.models import TrialRecord
+
+BEHAVIOR_FOCI = frozenset({"model_behavior", "compiled_execution"})
+_LIMIT = 16 * 1024 * 1024
+_IMPORT_ERROR = re.compile(
+    r"(?m)^(?:E\s+)?(?:builtins\.)?"
+    r"(?:SyntaxError|IndentationError|TabError|ImportError|ModuleNotFoundError)(?::|$)"
+)
+
+
+def _read(path: Path) -> str:
+    if (
+        any(part.is_symlink() for part in (path, *path.parents))
+        or not path.is_file()
+        or path.stat().st_size > _LIMIT
+    ):
+        raise ValueError("Behavioral probe evidence must be bounded regular files")
+    return path.read_text()
+
+
+def behavior_files(trial: TrialRecord) -> dict[str, str | None]:
+    """Bind structured verifier results when an owned attempt is first recorded."""
+    root = Path(trial.result).parent
+    files = {}
+    for relative in ("verifier/result.json", "verifier/results.xml"):
+        path = root / relative
+        if path.exists() or path.is_symlink():
+            _read(path)
+            files[str(path)] = digest(path)
+        else:
+            files[str(path)] = None
+    return files
+
+
+def _execution_problem(trial: TrialRecord) -> str | None:
+    from repo2rlenv.quality.labels import _trial_evidence
+
+    result = Path(trial.result)
+    journal = result.parents[4] / "probe-attempts" / f"{result.parents[2].name}.json"
+    attempt = json.loads(_read(journal))
+    if attempt["trial"] != trial.model_dump(mode="json"):
+        raise ValueError("Behavioral probe differs from its recorded attempt")
+    _trial_evidence(trial, attempt["parent_hash"])
+    log = result.parent / "agent/oracle.txt"
+    if attempt["files"].get(str(log)) != digest(log):
+        raise ValueError("Behavioral probe audit log changed after collection")
+    changes = [
+        json.loads(line.removeprefix("__QUALITY_PROBE_CHANGED_FILES__ "))
+        for line in _read(log).splitlines()
+        if line.startswith("__QUALITY_PROBE_CHANGED_FILES__ ")
+    ]
+    if len(changes) != 1 or not changes[0]:
+        raise ValueError("A collected-source mutation audit is required")
+    for name, change in changes[0].items():
+        before, after = change["before"], change["after"]
+        if (
+            name.endswith(".py")
+            and after is not None
+            and after["syntax_sha256"] is None
+            and (before is None or before["syntax_sha256"] is not None)
+        ):
+            return f"mutation introduced unparseable Python in {name}"
+    files = behavior_files(trial)
+    if attempt.get("behavior_files") != files or any(value is None for value in files.values()):
+        raise ValueError("Checksum-bound structured verifier execution evidence is unavailable")
+    summary = json.loads(_read(result.parent / "verifier/result.json"))
+    if summary.get("returncode") != 1:
+        return "verifier did not report completed failing test execution"
+    xml = _read(result.parent / "verifier/results.xml")
+    if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
+        raise ValueError("Verifier XML cannot contain document or entity declarations")
+    report = ElementTree.fromstring(xml)
+    for case in report.iter("testcase"):
+        failure = case.find("failure")
+        if failure is None:
+            continue
+        description = "\n".join(
+            [failure.get("type", ""), failure.get("message", ""), failure.text or ""]
+        )
+        if not _IMPORT_ERROR.search(description):
+            return None
+    return "verifier reports only collection, setup, import or syntax failures; no behavioral rejection"
+
+
+def behavioral_failure(trial: TrialRecord, success: float = 1.0) -> str | None:
+    """Reward zero alone cannot establish a required model/compiled counterexample.
+
+    This is an execution floor, not proof that an assertion measures the claimed
+    numerical contract. The reviewer still judges that relationship. Generic
+    controls and valid alternatives retain their existing policy.
+    """
+    if (
+        trial.role != "probe"
+        or trial.probe is None
+        or trial.probe.kind != "wrong_solution"
+        or trial.probe.focus not in BEHAVIOR_FOCI
+        or not trial.probe_installed
+        or trial.reward is None
+        or trial.reward >= success
+        or trial.exception_type is not None
+        or trial.agent_exit_code not in {None, 0}
+    ):
+        return None
+    try:
+        problem = _execution_problem(trial)
+    except (ValueError, OSError, KeyError, IndexError, TypeError, ElementTree.ParseError) as exc:
+        problem = f"behavioral execution evidence needs diagnosis ({type(exc).__name__})"
+    return f"Probe {trial.probe.name}: {problem}" if problem else None
+````
+
+</details>
+
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `74cf4aa459a2c4ab420660e99083b171aff3fe12ceabf124b26703a4bbf4205b`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `27d3ac298d31d51522e6a6ab712aaecdf1c3c8b5e2c3476ac057985c59b8ff70`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1217,6 +1383,7 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.probe_behavior import behavioral_failure
 from repo2rlenv.quality.loop.probe_recovery import (
     failed_installations,
     grounded_diagnosis,
@@ -1276,6 +1443,8 @@ def probe_failures(trials: list[TrialRecord], success: float) -> list[str]:
             trial.probe.kind == "wrong_solution" and trial.reward >= success
         ):
             failures.append(f"Probe {trial.probe.name}: {trial.probe.kind} earned {trial.reward}")
+        elif problem := behavioral_failure(trial, success):
+            failures.append(problem)
     return failures
 
 
@@ -1392,7 +1561,20 @@ class QualityLoop:
         revision: int = 0,
     ):
         uninstalled = failed_installations(task, trials)
-        context = self._context(task, trials, uninstalled_probes=uninstalled)
+        nonbehavioral = [
+            {
+                "name": trial.probe.name,
+                "diagnosis": problem,
+                "summary_path": f"evidence/{index}-probe/result.json",
+                "log_path": f"evidence/{index}-probe/agent/oracle.txt",
+                "evidence_paths": [f"evidence/{index}-probe/verifier/results.xml"],
+            }
+            for index, trial in enumerate(trials)
+            if (problem := behavioral_failure(trial, self.options.success_reward))
+        ]
+        context = self._context(
+            task, trials, uninstalled_probes=uninstalled, nonbehavioral_probes=nonbehavioral
+        )
         save_record(
             self.directory / "inventories" / f"{key}.json",
             {"bundle_hash": task_identity(task), "files": context.inventory},
@@ -1495,6 +1677,21 @@ class QualityLoop:
                         + ", ".join(f"{item['name']} ({item['log_path']})" for item in unresolved)
                         + ". Reward after a failed installation does not establish a verifier defect."
                     )
+                blocking_review = review.model_copy(
+                    update={
+                        "issues": [issue for issue in review.issues if issue.severity == "blocking"]
+                    }
+                )
+                if any(
+                    not grounded_diagnosis(failure, blocking_review, context)
+                    for failure in nonbehavioral
+                ):
+                    raise ValueError(
+                        "Required behavioral controls lack runtime rejection evidence. Diagnose "
+                        "each nonbehavioral_probes entry as a blocking category='probe' issue, "
+                        "citing its exact summary, audit log or structured verifier result. "
+                        "A syntax/import/collection failure cannot be downgraded to an improvement."
+                    )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
                 return review, context
             except (ValidationError, ValueError) as exc:
@@ -1521,6 +1718,9 @@ class QualityLoop:
         probe_diagnosis = any(issue.category == "probe" for issue in review.issues)
         uninstalled = json.loads(context.documents["evidence/checks.json"]).get(
             "uninstalled_probes", []
+        )
+        nonbehavioral = json.loads(context.documents["evidence/checks.json"]).get(
+            "nonbehavioral_probes", []
         )
         wrong_replacements = {
             probe.name: evidence
@@ -1593,11 +1793,11 @@ class QualityLoop:
                         raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
                 if (
                     repair.edits
-                    and uninstalled
+                    and (uninstalled or nonbehavioral)
                     and not any(issue.category != "probe" for issue in review.issues)
                 ):
                     raise ValueError(
-                        "An uninstalled probe alone does not justify task/verifier edits. "
+                        "An invalid probe alone does not justify task/verifier edits. "
                         "Correct only the eligible probe or diagnose an independent task defect."
                     )
                 updated_probes = probes

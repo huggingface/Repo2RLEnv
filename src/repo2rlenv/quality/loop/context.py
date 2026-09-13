@@ -233,6 +233,7 @@ class EvidenceContext:
                 (3, "agent/oracle.txt", 4000),
                 (3, "agent/trajectory.json", 12000),
                 (4, "verifier/result.json", 3000),
+                (4, "verifier/results.xml", 4000),
             ]
             selected += (
                 [

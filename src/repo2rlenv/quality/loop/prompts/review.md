@@ -113,6 +113,11 @@ conflict explicitly instead of silently dropping it. Explain probe failures usin
 the actual logs: a probe installation error is not proof that the verifier rejected
 the wrong behavior. Submitted output transcripts are not independent proof that a
 command ran. Judge rollout quality from recorded commands, source changes and checks.
+Before calling a solver failure legitimate, compare the first shared failure cause
+with the public instruction. Hidden fixture API names, constructor flags, defaults
+and False/None behavior must agree with that contract. Do not blame a solver for an
+undocumented or contradictory test requirement. A private-helper assertion needs an
+explicit task contract or a replacement test of observable public behavior.
 
 When evidence/checks.json lists uninstalled_probes, inspect each named oracle log
 or trial summary and give a grounded category=probe diagnosis before settling the
@@ -120,6 +125,14 @@ review. A nonzero installation exit or a no-op mutation is instrumentation failu
 even if the unchanged reference earns reward 1. Cite that attempt's actual summary
 or log. Do not invent a task defect to make the invalid control fail. The repair
 policy separately decides whether correction is permitted from the full history.
+
+When checks.json lists nonbehavioral_probes, give each a grounded blocking probe
+diagnosis. A model_behavior or compiled_execution control cannot count if its only
+rejection is invalid syntax, collection/setup or import failure. An installation
+marker and reward zero are insufficient. Keep the mutation importable and verify
+the claimed computation; do not weaken grading or call this an optional improvement.
+Missing bound execution evidence remains unresolved. Installed historical controls
+stay immutable; the repair policy decides whether a fresh correction is authorized.
 
 A generated valid-alternative probe may itself contain a bug. Use category probe
 with the exact failing case and conflicting code when that happens. A successful

@@ -782,24 +782,16 @@ def test_explicit_requirement_rejects_generic_probes(task, tmp_path, focus):
 
 @pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
 def test_explicit_probe_requirement_survives_task_repair(task, tmp_path, focus):
-    class FocusedModel(Model):
-        def ask(self, *args):
-            result = super().ask(*args)
-            if isinstance(result, Review):
-                for probe in result.probes:
-                    if probe.kind == "wrong_solution":
-                        probe.focus = focus
-            return result
-
     revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
-    result = make_loop(
-        tmp_path, remote=Trials(tmp_path / "results"), model=FocusedModel(), repair=True
-    ).run(revised)
-    assert result.status == "usable", result.reasons
-    assert result.repairs == 1
-    assert result.bundle_hash != task_identity(revised)
-    assert required_probe_focus(Path(result.task_path)) == {focus}
-    assert any(trial.probe and trial.probe.focus == focus for trial in result.trials)
+    loop = make_loop(tmp_path, repair=True)
+    retained = probes()
+    retained[0].focus = focus
+    repaired, resulting_probes = loop._repair(
+        revised, review(broken=True), loop._context(revised, []), retained, 0, ["Weak check"]
+    )
+    assert task_identity(repaired) != task_identity(revised)
+    assert required_probe_focus(repaired) == {focus}
+    assert resulting_probes == retained
 
 
 @pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])

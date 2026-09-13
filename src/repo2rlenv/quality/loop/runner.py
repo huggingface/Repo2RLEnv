@@ -35,6 +35,7 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.probe_behavior import behavioral_failure
 from repo2rlenv.quality.loop.probe_recovery import (
     failed_installations,
     grounded_diagnosis,
@@ -94,6 +95,8 @@ def probe_failures(trials: list[TrialRecord], success: float) -> list[str]:
             trial.probe.kind == "wrong_solution" and trial.reward >= success
         ):
             failures.append(f"Probe {trial.probe.name}: {trial.probe.kind} earned {trial.reward}")
+        elif problem := behavioral_failure(trial, success):
+            failures.append(problem)
     return failures
 
 
@@ -210,7 +213,20 @@ class QualityLoop:
         revision: int = 0,
     ):
         uninstalled = failed_installations(task, trials)
-        context = self._context(task, trials, uninstalled_probes=uninstalled)
+        nonbehavioral = [
+            {
+                "name": trial.probe.name,
+                "diagnosis": problem,
+                "summary_path": f"evidence/{index}-probe/result.json",
+                "log_path": f"evidence/{index}-probe/agent/oracle.txt",
+                "evidence_paths": [f"evidence/{index}-probe/verifier/results.xml"],
+            }
+            for index, trial in enumerate(trials)
+            if (problem := behavioral_failure(trial, self.options.success_reward))
+        ]
+        context = self._context(
+            task, trials, uninstalled_probes=uninstalled, nonbehavioral_probes=nonbehavioral
+        )
         save_record(
             self.directory / "inventories" / f"{key}.json",
             {"bundle_hash": task_identity(task), "files": context.inventory},
@@ -313,6 +329,21 @@ class QualityLoop:
                         + ", ".join(f"{item['name']} ({item['log_path']})" for item in unresolved)
                         + ". Reward after a failed installation does not establish a verifier defect."
                     )
+                blocking_review = review.model_copy(
+                    update={
+                        "issues": [issue for issue in review.issues if issue.severity == "blocking"]
+                    }
+                )
+                if any(
+                    not grounded_diagnosis(failure, blocking_review, context)
+                    for failure in nonbehavioral
+                ):
+                    raise ValueError(
+                        "Required behavioral controls lack runtime rejection evidence. Diagnose "
+                        "each nonbehavioral_probes entry as a blocking category='probe' issue, "
+                        "citing its exact summary, audit log or structured verifier result. "
+                        "A syntax/import/collection failure cannot be downgraded to an improvement."
+                    )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
                 return review, context
             except (ValidationError, ValueError) as exc:
@@ -339,6 +370,9 @@ class QualityLoop:
         probe_diagnosis = any(issue.category == "probe" for issue in review.issues)
         uninstalled = json.loads(context.documents["evidence/checks.json"]).get(
             "uninstalled_probes", []
+        )
+        nonbehavioral = json.loads(context.documents["evidence/checks.json"]).get(
+            "nonbehavioral_probes", []
         )
         wrong_replacements = {
             probe.name: evidence
@@ -411,11 +445,11 @@ class QualityLoop:
                         raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
                 if (
                     repair.edits
-                    and uninstalled
+                    and (uninstalled or nonbehavioral)
                     and not any(issue.category != "probe" for issue in review.issues)
                 ):
                     raise ValueError(
-                        "An uninstalled probe alone does not justify task/verifier edits. "
+                        "An invalid probe alone does not justify task/verifier edits. "
                         "Correct only the eligible probe or diagnose an independent task defect."
                     )
                 updated_probes = probes

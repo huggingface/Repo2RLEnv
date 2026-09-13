@@ -173,6 +173,7 @@ def quality_loop() -> str:
         "models.py",
         "context.py",
         "probe_recovery.py",
+        "probe_behavior.py",
         "runner.py",
     ):
         result += block(root / relative)

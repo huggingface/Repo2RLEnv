@@ -268,6 +268,16 @@ This requirement is opt-in and changes the task hash; previous evidence cannot b
 carried onto the annotated copy. Probe focus remains a reviewed coverage constraint,
 not an automatic proof that every mathematical requirement has been tested.
 
+`model_behavior` and `compiled_execution` negative controls also have a deterministic
+execution floor. New mutations cannot introduce unparseable Python into previously
+parseable submitted files. The attempt journal binds the mutation audit and the
+verifier's structured JSON/JUnit results; at least one failing test must reach beyond
+collection, setup and import errors. Missing or changed evidence blocks acceptance,
+reuse and publication. The reviewer must diagnose the failure as a blocking probe
+issue within the existing review limits. Generic controls keep their existing policy.
+Old journals remain unchanged and cannot acquire evidence bindings retroactively;
+previously installed counterexamples retain their replacement protection.
+
 Alternative implementations are judged by their public behavior. A failing test
 that prescribes a private flag's representation may be a verifier defect; it is
 not automatically proof that the alternative is invalid. Repairs must preserve

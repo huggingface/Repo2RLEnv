@@ -56,7 +56,7 @@ def submission_files(workspace: Path, contract: dict) -> dict[str, dict | None]:
     return result
 
 
-def changed_files(before: dict, after: dict) -> dict:
+def changed_files(before: dict, after: dict, *, require_valid_python: bool = False) -> dict:
     def identity(value):
         return None if value is None else value["syntax_sha256"] or value["sha256"]
 
@@ -67,16 +67,31 @@ def changed_files(before: dict, after: dict) -> dict:
     }
     if not changes:
         raise ValueError("Semantic probe left the collected submission unchanged")
+    if require_valid_python:
+        for name, change in changes.items():
+            previous, current = change["before"], change["after"]
+            if (
+                name.endswith(".py")
+                and current is not None
+                and current["syntax_sha256"] is None
+                and (previous is None or previous["syntax_sha256"] is not None)
+            ):
+                raise ValueError(f"Behavioral probe introduced unparseable Python: {name}")
     return changes
 
 
 def main() -> None:
     contract, state, phase = sys.argv[1:]
-    snapshot = submission_files(Path("/workspace"), json.loads(Path(contract).read_text()))
+    boundary = json.loads(Path(contract).read_text())
+    snapshot = submission_files(Path("/workspace"), boundary)
     if phase == "before":
         Path(state).write_text(json.dumps(snapshot, sort_keys=True))
     elif phase == "after":
-        changes = changed_files(json.loads(Path(state).read_text()), snapshot)
+        changes = changed_files(
+            json.loads(Path(state).read_text()),
+            snapshot,
+            require_valid_python=boundary.get("require_valid_python", False),
+        )
         print("__QUALITY_PROBE_CHANGED_FILES__ " + json.dumps(changes, sort_keys=True))
         Path(state).unlink()
     else:

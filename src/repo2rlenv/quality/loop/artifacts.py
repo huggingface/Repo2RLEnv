@@ -145,8 +145,12 @@ def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:
             boundary.write_text(
                 json.dumps(
                     {
-                        key: contract.get(key, {} if key == "immutable_assets" else [])
-                        for key in ("submitted_files", "submitted_roots", "immutable_assets")
+                        **{
+                            key: contract.get(key, {} if key == "immutable_assets" else [])
+                            for key in ("submitted_files", "submitted_roots", "immutable_assets")
+                        },
+                        "require_valid_python": probe.kind == "wrong_solution"
+                        and probe.focus in {"model_behavior", "compiled_execution"},
                     }
                 )
             )
