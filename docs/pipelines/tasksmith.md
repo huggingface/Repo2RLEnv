@@ -54,6 +54,13 @@ Read the exact author prompts: [investigation](prompts/tasksmith.md#investigatem
 
 The learner starts from the pinned PR head with **only the PR's source patch reversed**. This preserves compatible head-era fixtures and dependencies. It is recorded as `head_minus_source_patch`, not represented as an exact base-commit checkout. The oracle restores the actual changed source files from the head.
 
+Submission validation removes undeclared `.py.bak` and `.py~` editor backups
+from the verifier's private staging directory after validating all collected
+paths. The archived submission keeps those files. Backups cannot replace required
+source, bypass file-size or symlink checks, or change immutable assets; other
+non-Python additions remain invalid. Harmless backup files therefore do not
+prevent the behavioral tests from running.
+
 Full test directories remain private even when pytest selects just a few classes or functions. Release notes and other answer-bearing files can also be excluded from the public workspace. Git history, bytecode and cache directories are stripped; symlinks are rejected. The verifier receives only the allowlisted submitted source files. Tasksmith can add a private behavioral test file, but cannot replace the original oracle with an invented solution.
 
 For added-source tasks, the new files are absent from both starting source snapshots. Oracle restoration creates their parent directories. Harbor collects the declared source directories, allowing independently implemented Python helper modules, plus any explicitly selected standalone Python files such as `example.py`. Selecting a file does not expand collection to its parent directory. These roots cannot overlap private tests/exclusions. An added standalone file may remain absent in the baseline; if supplied, it must pass the same regular-file and size checks as required files. The trusted grader rejects symlinks, unbounded/special files and changed non-Python assets before importing submitted code. Missing feature modules are checked inside behavioral test functions, so an unsolved task produces reward zero instead of a collection exception. Both `modeling_*.py` and `modular_*.py` additions are reversed when present in a Transformers PR.
