@@ -2,7 +2,7 @@
 
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
-11 reserves. The v4 continuation runs four independent PR controllers,
+11 reserves. Continuations run four independent PR controllers,
 with at most two GPU controllers, and starts from **27 independently accepted tasks**.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
@@ -151,6 +151,49 @@ V1–v3 together accounted for **$57.529223**, leaving **$142.470777** for v4 un
 the same cumulative $200 ceiling. Historical unresolved holds remain separate
 and intact. The final runtime passed **1,226 local tests**, with six skipped
 (two optional-dependency suites and four opt-in integration checks).
+
+## V5 preparation: reuse working builds and test model behavior
+
+At the September 14 preparation checkpoint, independently accepted tasks remain
+**27**. V4 admission is drained while its active GPU jobs finish. Transformers
+#35348 and #36521 passed the automated profile, but independent review holds their
+exact revisions for missing numerical coverage of central model behavior. PEFT
+#2952 also needs adaptation, sampling and checkpoint-regeneration assertions.
+These findings preserve the original results and separate labeled diagnosis
+copies; they do not declare unexecuted escape hypotheses to be observed hacks.
+
+The next runtime adds three reusable corrections:
+
+- Mixed source roots include explicit standalone Python files without collecting
+  their entire parent directories. This resolves the export failure encountered
+  after Diffusers #13168 established 33 reference passes and eight baseline failures.
+- Proven uninstalled wrong-solution probes can be corrected within the existing
+  repair allowance. Bound receipts and a grounded diagnosis are required; an
+  earlier successful installation keeps the counterexample immutable.
+- Failed and timed-out builds retain bounded private stdout/stderr and causal
+  exception excerpts, so a long echoed Docker command cannot hide the error.
+
+New and repaired neural-model tasks explicitly request `model_behavior` coverage.
+The wrong implementation must preserve interfaces and shapes while corrupting a
+promised computation. Independent assertions must reject it. Applying that
+requirement changes the task identity and requires fresh execution evidence.
+The combined runtime passes **1,280 local tests**, with four opt-in integration
+checks skipped; Ruff, generated prompt references, documentation and wheel build
+also pass. This is implementation validation, not acceptance of pending tasks.
+
+V5 preparation preserves successful exact-PR profiles and the complete prior
+Diffusers #13168 design. Two source-bound recovery proposals correct a tokenizer
+download allowance and a missing test dependency. Nine additional CPU candidates
+have been inspected; a tenth reserve requires a separately prepared two-GPU
+configuration. None of these proposals constitutes a completed environment.
+The launcher must wait for all prior children and provider receipts to reconcile,
+then recompute the remaining allowance across every phase before dispatch.
+
+The ordinary expansion ceiling remains **$200**, within the original **$1,000**
+campaign authorization. The user authorized a small final overrun, bounded here
+to **$50**: up to $250 for the expansion and $1,050 overall only if needed after
+the ordinary allowance is exhausted. This reserve is not activated by V5
+preparation; historical uncertain holds remain intact.
 
 ## Execution and budget
 
