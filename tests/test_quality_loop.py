@@ -198,6 +198,7 @@ def test_repairs_copy_and_revalidate_everything(task, tmp_path):
     assert result.repairs == 1
     assert task_identity(task) == before != result.bundle_hash
     assert len(remote.calls) == 9
+    assert not any("after-rollout" in key for key in loop.model.calls)
     assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
         "baseline",
         "oracle",
@@ -241,6 +242,66 @@ def test_legitimate_solver_failure_keeps_a_sound_task(task, tmp_path):
     )
     assert result.status == "usable"
     assert next(trial for trial in result.trials if trial.role == "rollout").reward == 0
+
+
+@pytest.mark.parametrize("solver_failure", [False, True])
+def test_post_probe_review_can_unlock_one_rollout_on_same_revision(task, tmp_path, solver_failure):
+    class PassingProbes(Trials):
+        def run(self, task, role, key):
+            trial = super().run(task, role, key)
+            if role == "probe" and "probe0" in key:
+                trial.reward = 0.0
+            return trial
+
+    class ClearedAfterProbes(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            assert schema is Review
+            outcome = "legitimate_failure" if solver_failure else "legitimate_success"
+            return review(
+                broken=key.startswith("r0-before"),
+                propose=key.startswith("r0-before"),
+                rollout=outcome if key.startswith("r0-after-rollout") else "not_run",
+            )
+
+    remote = PassingProbes(tmp_path / "evidence", solver_failure=solver_failure)
+    model = ClearedAfterProbes()
+    result = make_loop(tmp_path, remote=remote, model=model, run_rollout=True).run(task)
+    assert result.status == "usable", result.reasons
+    assert result.repairs == 0 and result.bundle_hash == task_identity(task)
+    assert [role for role, _, _ in remote.calls] == [
+        "baseline",
+        "oracle",
+        "probe",
+        "probe",
+        "rollout",
+    ]
+    assert model.calls == ["r0-before-0", "r0-after-0", "r0-after-rollout-0"]
+    assert remote.closed
+
+
+def test_post_probe_rollout_budget_denial_skips_further_model_calls(task, tmp_path):
+    class DeniedRollout(Trials):
+        def run(self, task, role, key):
+            trial = super().run(task, role, key)
+            if role == "probe" and "probe0" in key:
+                trial.reward = 0.0
+            if role == "rollout":
+                trial.reward, trial.exception_type = None, "BudgetExceeded"
+            return trial
+
+    class ClearedAfterProbes(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            assert key in {"r0-before-0", "r0-after-0"}
+            return review(broken=key.startswith("r0-before"), propose=key.startswith("r0-before"))
+
+    remote = DeniedRollout(tmp_path / "evidence")
+    model = ClearedAfterProbes()
+    result = make_loop(tmp_path, remote=remote, model=model, run_rollout=True).run(task)
+    assert result.status == "budget_exhausted"
+    assert model.calls == ["r0-before-0", "r0-after-0"]
+    assert remote.closed
 
 
 def test_review_only_is_never_validated(task, tmp_path):
@@ -421,6 +482,41 @@ def test_large_private_pr_context_is_bounded_and_remains_searchable(task, tmp_pa
         in context.documents["evidence/task-context.json:search=UNIQUE_CONTRACT"]
     )
     assert "documents" in json.loads(context.payload())
+
+
+def test_saved_repair_findings_precede_long_pr_patch_without_more_context(task, tmp_path):
+    context_data = {
+        "kind": "merged_pr",
+        "source_diff": "unchanged line\n" * 30000 + "UNIQUE_SOURCE: retained patch",
+        "campaign_design_guidance": {
+            "current_diagnosis": "Distinct pixel values must reject the known naive reshape.",
+        },
+    }
+    original = json.dumps(context_data)
+    loop = QualityLoop(
+        LoopOptions(context_chars=16000),
+        tmp_path / "diagnosis-context",
+        BudgetLedger(tmp_path / "diagnosis.sqlite3", limit_usd="1"),
+        task_context=context_data,
+    )
+    context = loop._context(task, [])
+    excerpt = context.documents["evidence/task-context.json"]
+    assert "Distinct pixel values must reject the known naive reshape." in excerpt
+    assert "UNIQUE_SOURCE" not in excerpt
+    assert len(excerpt) <= 4000 and "Excerpt ends" in excerpt
+    assert sum(map(len, context.documents.values())) <= 16000
+    assert json.dumps(context_data) == original
+    context.read_more(
+        [
+            ReadRequest(
+                path="evidence/task-context.json", query="UNIQUE_SOURCE", start_line=1, end_line=1
+            )
+        ]
+    )
+    assert (
+        "UNIQUE_SOURCE: retained patch"
+        in context.documents["evidence/task-context.json:search=UNIQUE_SOURCE"]
+    )
 
 
 def test_short_verifier_path_requires_unique_exact_match(task):

@@ -46,8 +46,9 @@ def child_environment(temporary: str) -> dict[str, str]:
 
 
 def validate_submission(workspace: Path, contract: dict) -> None:
-    """Validate collected data before any learner-controlled Python is imported."""
+    """Validate private staging and remove inert backups before importing Python."""
     submitted = set(contract["submitted_files"])
+    backups: set[str] = set()
     optional = submitted & set(contract.get("optional_files", []))
     paths = submitted - optional
     for relative in optional:
@@ -72,7 +73,10 @@ def validate_submission(workspace: Path, contract: dict) -> None:
                 continue
             name = path.relative_to(workspace).as_posix()
             if path.suffix != ".py" and name not in immutable:
-                raise ValueError("Only Python source files may be added")
+                if name not in submitted and path.name.endswith((".py.bak", ".py~")):
+                    backups.add(name)
+                else:
+                    raise ValueError("Only Python source files may be added")
             paths.add(name)
     for relative in sorted(paths):
         path = workspace / relative
@@ -90,8 +94,14 @@ def validate_submission(workspace: Path, contract: dict) -> None:
             and hashlib.sha256(path.read_bytes()).hexdigest() != immutable[relative]
         ):
             raise ValueError("Non-Python source assets must remain unchanged")
-        os.chown(path, 0, 0)
-        path.chmod(0o644)
+        if relative not in backups:
+            os.chown(path, 0, 0)
+            path.chmod(0o644)
+    # Only the verifier's collected copy is cleaned. The learner workspace and
+    # archived submission retain their bytes. Validate every path first so a
+    # backup cannot bypass linked, oversized, required, or immutable file checks.
+    for relative in sorted(backups):
+        (workspace / relative).unlink()
 
 
 def main() -> None:

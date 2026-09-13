@@ -106,6 +106,11 @@ LiteLLM estimates. The budget is an accounting limit, not a provider-enforced bi
 Use `--run-rollout` without `--repair` to evaluate without editing. Supply an
 existing rollout alongside either flag to avoid repeating it on the original
 revision. A changed task always needs fresh controls, probes and a fresh rollout.
+If the initial review blocks a rollout but the post-probe review resolves that
+concern, the loop runs the now-eligible solver on the same revision and reviews
+its trace. It does not require an unrelated task edit or a new campaign to finish
+validation. Existing successful rollouts are reused; budget denial stops before
+another paid review.
 
 `--resume` reuses completed, identical model requests and trial evidence. It refuses
 changed inputs, execution settings, prompts or evidence. Interrupted/uncertain
@@ -203,7 +208,10 @@ uninspected text; this is not a claim that every byte of every repository was re
 Private PR context is also registered in the readable evidence inventory. Its initial
 excerpt uses at most 32,000 characters or one quarter of the document allowance,
 whichever is smaller. Large diffs remain available through bounded range/search
-requests instead of requiring a hand-truncated campaign prompt.
+requests instead of requiring a hand-truncated campaign prompt. Saved campaign
+repair guidance comes first in that same bounded excerpt, so a long source diff
+cannot push the current diagnosis out of the initial review input. The full
+context remains searchable and the document allowance does not increase.
 
 ## What the prompts ask
 

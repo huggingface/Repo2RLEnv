@@ -29,12 +29,13 @@ from repo2rlenv.execution.lifecycle import (
 )
 from repo2rlenv.quality.loop.artifacts import task_identity
 from repo2rlenv.quality.loop.client import RunBudget
+from repo2rlenv.quality.loop.models import ProbeManifest
 from repo2rlenv.quality.loop.remote import RemoteTrials
 from repo2rlenv.quality.loop.runner import QualityLoop
 from repo2rlenv.tasksmith.author.artifact import artifact_stage, canonical_digest
 from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Design, Options, Panel, Profile
-from repo2rlenv.tasksmith.reuse import generation_task, load_generation
+from repo2rlenv.tasksmith.reuse import generation_task, load_generation, prepared_probe_definitions
 from repo2rlenv.tasksmith.source import resolve_pr, validate_source_records
 
 
@@ -528,7 +529,12 @@ class Tasksmith:
                 result = self.remote(
                     root,
                     f"bootstrap-{state['profile_attempt']}",
-                    {"stage": "bootstrap", "source": source, "profile": state["profile"]},
+                    {
+                        "stage": "bootstrap",
+                        "source": source,
+                        "profile": state["profile"],
+                        "checkout": checkout,
+                    },
                 )
             if result["status"] != "completed":
                 return {"failure": result, "status": "bootstrap_failed"}
@@ -662,9 +668,12 @@ class Tasksmith:
         reuse_evidence: bool = False,
         source_records: list[dict] | None = None,
         prepared_task: Path | None = None,
+        prepared_probes: ProbeManifest | None = None,
     ):
         if reuse_evidence and generation_run is None:
             raise ValueError("Evidence reuse requires --generation-run")
+        if prepared_probes is not None and prepared_task is None:
+            raise ValueError("Prepared probes require a prepared task")
         if source_records is not None:
             if generation_run is not None:
                 raise ValueError("Choose frozen source records or generation reuse, not both")
@@ -674,6 +683,12 @@ class Tasksmith:
                 raise ValueError("Prepared task recovery requires exactly one frozen source record")
             source = source_records[0]
             prepared_task = prepared_task.resolve()
+            definitions = prepared_probe_definitions(
+                prepared_task,
+                prepared_probes,
+                max_probes=self.options.quality.max_probes,
+                required_focus=self.options.required_probe_focus,
+            )
             imported = generation_task(
                 {
                     "id": source["id"],
@@ -685,6 +700,8 @@ class Tasksmith:
                 source,
                 prepared_task.parent,
             )
+            if prepared_probes is not None:
+                imported["probes"] = definitions
             self.imported = {source["id"]: imported}
         if limit is not None and not 1 <= limit <= len(panel.prs):
             raise ValueError("stop-after must be within the frozen panel size")

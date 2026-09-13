@@ -54,6 +54,13 @@ Read the exact author prompts: [investigation](prompts/tasksmith.md#investigatem
 
 The learner starts from the pinned PR head with **only the PR's source patch reversed**. This preserves compatible head-era fixtures and dependencies. It is recorded as `head_minus_source_patch`, not represented as an exact base-commit checkout. The oracle restores the actual changed source files from the head.
 
+Submission validation removes undeclared `.py.bak` and `.py~` editor backups
+from the verifier's private staging directory after validating all collected
+paths. The archived submission keeps those files. Backups cannot replace required
+source, bypass file-size or symlink checks, or change immutable assets; other
+non-Python additions remain invalid. Harmless backup files therefore do not
+prevent the behavioral tests from running.
+
 Full test directories remain private even when pytest selects just a few classes or functions. Release notes and other answer-bearing files can also be excluded from the public workspace. Git history, bytecode and cache directories are stripped; symlinks are rejected. The verifier receives only the allowlisted submitted source files. Tasksmith can add a private behavioral test file, but cannot replace the original oracle with an invented solution.
 
 For added-source tasks, the new files are absent from both starting source snapshots. Oracle restoration creates their parent directories. Harbor collects the declared source directories, allowing independently implemented Python helper modules, plus any explicitly selected standalone Python files such as `example.py`. Selecting a file does not expand collection to its parent directory. These roots cannot overlap private tests/exclusions. An added standalone file may remain absent in the baseline; if supplied, it must pass the same regular-file and size checks as required files. The trusted grader rejects symlinks, unbounded/special files and changed non-Python assets before importing submitted code. Missing feature modules are checked inside behavioral test functions, so an unsolved task produces reward zero instead of a collection exception. Both `modeling_*.py` and `modular_*.py` additions are reversed when present in a Transformers PR.
@@ -132,7 +139,36 @@ The campaign must already have an explicitly initialized budget. Tasksmith reser
 
 Repository readiness uses the existing bootstrap implementation. A separate, source-independent Docker prefix identifies base image and dependency installation layers; subsequent PRs can reuse it on the same provider worker. Source readiness remains bound to the individual head. Failed native snapshot preparation returns its original cleanup diagnostic while keeping the incomplete snapshot remote; archive-link rejection must not hide a repairable profile error. Initial inspection records every tracked symlink without following its target. Profile validation requires the identified document links before starting Docker, so omitted links can be corrected within authoring. Snapshot cleanup still validates actual targets and refuses unsupported links. Bootstrap also builds the filtered public workspace, catching excluded README/build inputs before authoring or quality review. A normal cache survives for the worker lifetime. The HF bootstrap command can preserve the CPU Docker cache in a Modal filesystem snapshot; `worker_snapshot` restores it and `bootstrap_hints` supplies recorded source-free dependencies. Snapshot identity and expiry are recorded, and each PR still needs its own readiness check. The snapshot is an account-scoped cache rather than a public registry image.
 
+Before a dependency build or native GPU allocation, readiness selector file
+prefixes are checked against the materialized, pinned source snapshot. Existing
+files, directories and selectors with test node names are supported. A proposed
+future test file is rejected with its exact profile field and missing path;
+new private tests belong to the design stage. This check imports no target code.
+Pytest later validates node names and executes the actual readiness tests.
+CPU preflight uses a temporary snapshot that is removed before the build rather
+than publishing a second repository copy.
+
 To preserve an exact PR's successful build recipe, pass `prepared_profiles` through the existing `--options-json` file (or a batch candidate's options). Key each entry by its frozen source ID and include `url`, `head`, `base`, `source_diff_sha256`, `workspace_strategy`, and the complete `profile` object. Tasksmith validates this binding, CPU/GPU selection and source coverage before remote work, then skips the first investigation and runs a fresh bootstrap. It still checks document links, readiness, construction and quality; no earlier execution evidence is imported. A new bootstrap failure can enter the existing bounded profile-repair loop. A prepared profile also avoids unrelated repository-hint dependency preparation. The full profile participates in the frozen run configuration, so changing it requires a new output directory.
+
+A batch candidate with a `prepared_task` can also provide `prepared_probes`: an
+inline `ProbeManifest` containing that task's `bundle_hash` and semantic probe
+definitions. This preserves useful incorrect implementations and valid
+alternatives for fresh execution after an assisted repair. The manifest contains
+definitions only; historical trial results and rewards are not accepted.
+Tasksmith checks the task identity, unique probe names, probe count and required
+focus before starting a provider worker. Required focus must already be annotated
+on the prepared task before calculating the binding hash. The definitions are
+frozen with the run configuration, so changing them requires a new output directory.
+
+The experimental batch runner supports up to eight independent PR controllers
+through `max_parallel`, with a separate `max_gpu_parallel` ceiling. These are
+cloud job limits, independent of the number of interactive coding subagents.
+Each job retains its own source, sandbox and evidence; all jobs share the campaign
+ledger and nested spending limits. Initial worker affordability does not guarantee
+enough remaining budget for later model calls or GPU trials. Allow room for those
+stages when choosing concurrency. A running batch uses a frozen plan: to change
+concurrency or runtime, write `drain-request.json` in its output directory, let
+active jobs finish, reconcile their receipts, and create a new continuation.
 
 LangGraph checkpoints stage state. Artifact receipts additionally bind the schema, prompt, source inputs and runtime. Remote jobs have durable supervisor paths and are observed rather than blindly relaunched after a lost response. An incomplete author call requires reconciliation. Changed configuration or worker code requires a new run directory; previous evidence remains available. Unknown worker creation or termination must be resolved before another worker is allocated.
 

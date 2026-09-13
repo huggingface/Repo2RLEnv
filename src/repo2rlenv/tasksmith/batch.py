@@ -24,8 +24,9 @@ from repo2rlenv.execution.artifacts import check_runtime_wheel
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.client import RunBudget
-from repo2rlenv.quality.loop.models import LoopResult
+from repo2rlenv.quality.loop.models import LoopResult, ProbeManifest
 from repo2rlenv.tasksmith.models import Options, Panel, Record
+from repo2rlenv.tasksmith.reuse import prepared_probe_definitions
 
 
 def _url(value: str) -> str:
@@ -41,6 +42,10 @@ class Candidate(Record):
     reuse_evidence: bool = False
     source_record: dict | None = None
     prepared_task: Path | None = None
+    prepared_probes: ProbeManifest | None = Field(
+        default=None,
+        description="Exact task-bound probe definitions for fresh replay; no prior trial evidence.",
+    )
 
     @model_validator(mode="after")
     def inputs(self):
@@ -55,6 +60,12 @@ class Candidate(Record):
                     "Prepared tasks require frozen source evidence and cannot use generation_run"
                 )
             self.prepared_task = self.prepared_task.resolve()
+        prepared_probe_definitions(
+            self.prepared_task,
+            self.prepared_probes,
+            max_probes=self.options.quality.max_probes,
+            required_focus=self.options.required_probe_focus,
+        )
         return self
 
 
@@ -285,6 +296,7 @@ def _run_candidate(configuration: dict, item: dict) -> dict:
             reuse_evidence=candidate.reuse_evidence,
             source_records=[candidate.source_record] if candidate.source_record else None,
             prepared_task=candidate.prepared_task,
+            prepared_probes=candidate.prepared_probes,
         )
     except Exception as exc:
         failure = f"{type(exc).__name__}: inspect the preserved candidate receipts and logs"
