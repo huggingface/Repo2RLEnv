@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 
 import tomli_w
 
+from repo2rlenv.campaigns.budget import BudgetExceeded
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.pipelines.recipes.repository.export import (
     export_repository_task,
@@ -341,10 +342,16 @@ class NativeStages:
         for path in output.glob("**/allocations/*.json"):
             if not path.name.endswith(".cost.json"):
                 record = json.loads(path.read_text())
+                if record["state"] == "reservation_failed" and isinstance(exc, BudgetExceeded):
+                    # Reservation precedes provider dispatch. Retain the receipt,
+                    # but do not turn a known budget denial into an uncertain create.
+                    continue
                 if record["state"] not in {"terminated", "build_failed"}:
                     raise RuntimeError(
                         f"Reconcile native allocation before another attempt: {path}"
                     ) from exc
+        if isinstance(exc, BudgetExceeded):
+            raise exc
         from modal.exception import ImageBuildError
 
         if isinstance(exc, ImageBuildError):
