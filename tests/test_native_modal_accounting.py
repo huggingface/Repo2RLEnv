@@ -13,7 +13,11 @@ from repo2rlenv.execution.harbor_modal import (
     compute_estimate,
 )
 from repo2rlenv.quality.loop.client import RunBudget
-from repo2rlenv.quality.loop.native import model_was_not_dispatched
+from repo2rlenv.quality.loop.native import (
+    model_cost_after_verifier_denial,
+    model_was_not_dispatched,
+    settle_completed_agent,
+)
 
 
 def test_model_hold_is_releasable_only_with_proven_pre_dispatch_denial(tmp_path):
@@ -51,6 +55,66 @@ def test_sandbox_pricing_and_cleanup_requirement():
     assert cost["accounted_usd"] == "0.391680"
     with pytest.raises(ValueError, match="confirmed cleanup"):
         compute_estimate({**record, "state": "termination_uncertain"})
+
+
+def test_completed_model_usage_survives_a_denied_verifier(tmp_path):
+    allocations = tmp_path / "allocations"
+    allocations.mkdir()
+    claim = allocations / "verifier.json"
+    claim.write_text(json.dumps({"state": "reservation_failed", "provider_name": "trial__verifier__task"}))
+    (allocations / "learner.json").write_text(json.dumps({"state": "terminated"}))
+    result = tmp_path / "result.json"
+    data = {
+        "agent_execution": {"finished_at": "2026-09-13T13:46:21Z"},
+        "agent_result": {"cost_usd": 0.5612031},
+        "exception_info": {"exception_type": "BudgetExceeded"},
+    }
+    result.write_text(json.dumps(data))
+    assert str(model_cost_after_verifier_denial(result, allocations)) == "0.5612031"
+    assert not model_was_not_dispatched(result, allocations)
+    for cost in [None, True, -1, "NaN", "Infinity"]:
+        result.write_text(json.dumps({**data, "agent_result": {"cost_usd": cost}}))
+        assert model_cost_after_verifier_denial(result, allocations) is None
+    result.write_text(json.dumps({**data, "agent_execution": {"finished_at": None}}))
+    assert model_cost_after_verifier_denial(result, allocations) is None
+    result.write_text(json.dumps(data))
+    claim.write_text(json.dumps({"state": "reservation_failed", "provider_name": "trial__env"}))
+    assert model_cost_after_verifier_denial(result, allocations) is None
+
+
+def test_completed_agent_releases_unused_hold_before_verifier(tmp_path):
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="5.00")
+    ledger.reserve("trial:solver", "2.00", "solver")
+    data = {
+        "trial_name": "trial",
+        "agent_execution": {"finished_at": "2026-09-13T14:11:07Z"},
+        "agent_result": {"cost_usd": 0.1851843},
+        "exception_info": None,
+    }
+    receipt = tmp_path / "completed-agent.json"
+    assert settle_completed_agent(data, receipt, ledger, "trial:solver")
+    ledger.reserve("verifier", "3.00", "separate verifier")
+    assert ledger.status()["accounted_usd"] == "0.185185"
+    assert json.loads(receipt.read_text())["verifier_pending"] is True
+
+
+def test_unfinished_or_unmetered_agent_keeps_its_hold(tmp_path):
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="5.00")
+    ledger.reserve("trial:solver", "2.00", "solver")
+    complete = {
+        "agent_execution": {"finished_at": "2026-09-13T14:11:07Z"},
+        "agent_result": {"cost_usd": 0.2},
+        "exception_info": None,
+    }
+    candidates = [
+        {**complete, "exception_info": {"exception_type": "AgentTimeoutError"}},
+        {**complete, "agent_execution": None},
+        *({**complete, "agent_result": {"cost_usd": cost}} for cost in [None, True, -1, "NaN"]),
+    ]
+    for data in candidates:
+        assert not settle_completed_agent(data, tmp_path / "usage.json", ledger, "trial:solver")
+    assert ledger.status()["reserved_usd"] == "2.000000"
+    assert not (tmp_path / "usage.json").exists()
 
 
 @pytest.mark.asyncio

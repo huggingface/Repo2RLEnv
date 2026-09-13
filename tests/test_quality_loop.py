@@ -213,6 +213,24 @@ def test_false_positive_cannot_be_outvoted_by_model(task, tmp_path):
     assert any("wrong_solution earned 1" in reason for reason in result.reasons)
 
 
+def test_budget_denied_control_does_not_trigger_paid_diagnosis(task, tmp_path):
+    class DeniedTrials(Trials):
+        def run(self, task, role, key):
+            trial = super().run(task, role, key)
+            return trial.model_copy(update={"exception_type": "BudgetExceeded", "reward": None})
+
+    class NoModel:
+        def ask(self, *args):
+            pytest.fail("A budget denial does not need model diagnosis or repair")
+
+    remote = DeniedTrials(tmp_path / "evidence")
+    result = make_loop(tmp_path, remote=remote, model=NoModel(), run_rollout=True).run(task)
+    assert result.status == "budget_exhausted"
+    assert len(result.trials) == 1 and result.trials[0].exception_type == "BudgetExceeded"
+    assert [role for role, *_ in remote.calls] == ["baseline"]
+    assert remote.closed
+
+
 def test_legitimate_solver_failure_keeps_a_sound_task(task, tmp_path):
     remote = Trials(tmp_path / "evidence", solver_failure=True)
     result = make_loop(tmp_path, remote=remote, model=Model(solver_failure=True), repair=True).run(

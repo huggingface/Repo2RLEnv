@@ -160,6 +160,8 @@ nav:
       - Tasksmith five-PR results: pipelines/tasksmith_cpu_hf_pilot.md
       - Tasksmith HF bootstrap and scale: pipelines/tasksmith_hf_scale.md
       - Tasksmith plan for 30 HF tasks: pipelines/tasksmith_scale30.md
+      - Tasksmith recovery progress: pipelines/tasksmith_scale30_recovery_progress.md
+      - Tasksmith full-list budget: pipelines/tasksmith_full_list_budget.md
       - Tasksmith lessons: pipelines/tasksmith_pilot_learnings.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md

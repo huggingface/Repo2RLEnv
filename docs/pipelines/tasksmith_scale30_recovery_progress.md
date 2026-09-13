@@ -1,16 +1,30 @@
 # Tasksmith recovery: offline assets and bounded repairs
 
-September 13, 2026, 13:27 UTC checkpoint. The user authorized an additional $100,
-raising the total campaign cap to **$600**. The authorization is recorded without
-resetting any charged operation or unresolved reservation.
+September 13, 2026 recovery checkpoint. The user authorized an additional $100,
+raising the total campaign cap to **$600**. Authorization preserves charged
+operations and unresolved reservations.
 
-**19 of 30 tasks have completed acceptance.** This includes the ten original tasks,
-the four additions in the preceding delivery, Transformers #35669 (Helium), and
-TRL #6150 (KTO margins), TRL #5501 (logging), TRL #5575 (CUDA activation memory),
-and Accelerate #3142 (scaler dispatch). Recovery and generation remain in progress. The existing
-14-task archive remains an earlier delivery; a running task is not included in
-the accepted count. The machine-readable checkpoint is
-[tasksmith-scale30-recovery.json](evidence/tasksmith-scale30-recovery.json).
+**23 of 30 tasks have completed acceptance:** nine Accelerate, nine TRL, four PEFT,
+and one Transformers. This includes the original ten tasks and thirteen additions.
+The latest four additions cover TRL parsing and tokenization caching, chunked CUDA
+log-probabilities, and Accelerate FSDP2 embedding/norm sharding. Generation and
+recovery remain incomplete. The machine-readable timestamp and budget are in
+[the checkpoint](evidence/tasksmith-scale30-recovery.json).
+
+Sonnet 4.6 solved **10 of the 23 accepted tasks** in their recorded blind rollouts:
+Accelerate 5/9, TRL 3/9, PEFT 2/4 and Transformers 0/1. The other thirteen were
+reviewed as legitimate solver failures, with no infrastructure exception in their
+final results. This is one observed rollout per task, not a repeated estimate of
+solver success probability. See [the outcome records](evidence/tasksmith-sonnet-outcomes-23.json).
+
+The 23-task archive contains **128 bound trial records** and preserves source and
+reference trees from first construction. Its integrity audit scanned 55,457 files
+for the seven configured credential values and found no matches. Verifier-only
+continuations include original raw results, artifact hashes and portable provenance.
+The archive checksum and receipt are in the machine-readable checkpoint.
+
+The [full-list budget estimate](tasksmith_full_list_budget.md) covers the original
+114 PRs. It is a proposal for additional work, not an increase to the current cap.
 
 ## Changes to the pipeline
 
@@ -69,16 +83,33 @@ sandbox allocation or solver run; cancellation is not retried.
 Repository semantic controls now hash their explicitly collected mutable submission
 before and after the probe. A script that only runs extra assertions, writes outside
 the collection boundary or rewrites identical bytes cannot count as an installed
-control. The audit does not import target code. Changed bytes alone do not establish
-a meaningful alternative; the reviewer still checks semantics. Existing frozen
+control. For parseable Python it also compares syntax trees, ignoring comments and
+formatting; byte hashes remain recorded. Unsupported syntax falls back to byte
+comparison. The audit does not import target code, and changed syntax alone does not
+establish a meaningful alternative; the reviewer still checks semantics. Existing frozen
 receipts are retained and are not retroactively relabeled by this new guard.
 
 Bootstrap and private grading clear repository pytest `addopts` before applying
 explicit test selections. This prevents optional coverage plugins from breaking an
 isolated run with plugin autoload disabled. The native adapter releases a solver
 hold only when all allocation receipts prove a pre-dispatch reservation denial and
-Harbor explicitly records no agent execution or result. Other unknown outcomes keep
-their reservations.
+Harbor explicitly records no agent execution or result. If the learner completed
+and a subsequent verifier allocation was denied, the adapter retains its recorded
+model cost instead of the full solver hold. This requires completed agent timing,
+a finite nonnegative cost, and allocation receipts showing only verifier denials
+and terminated environments. A timed-out provider call does not satisfy this proof.
+Other unknown outcomes keep their reservations. For single-step native trials,
+Harbor's verification-start hook now records and settles a normally completed
+agent's usage before allocating the verifier. This releases unused model funds at
+the phase boundary. Multi-step trials and agents with errors retain the existing
+end-of-trial accounting path. The quality loop also stops on a budget-denied trial
+before requesting a paid diagnosis or repair.
+
+For TRL #5349, a recorded campaign continuation copied the completed learner's
+collected artifacts byte for byte into a fresh private verifier. It retained the
+original interrupted result and trace, recorded the separate continuation, and
+performed no new solver call. This is an audited campaign recovery; automatic
+verifier resumption is not yet exposed through the general CLI.
 
 ## What the remote checks establish
 
@@ -90,28 +121,44 @@ their reservations.
 | Helium | Accepted with baseline/reference, four retained semantic controls and reviewed rollout | One frozen PR and tested small configurations |
 | KTO margins | Accepted with local fixtures, semantic controls and reviewed rollout | No hosted dataset or pretrained checkpoint required |
 
-The tokenizer-dependent TRL #5791 run exposed a second, independent readiness problem:
-two upstream tests call the new tokenizer parser without its required `prefix`.
-The two actual TRL parsing tests pass offline. The next attempt retains those tests
-and requests additional prefix-aware behavioral coverage. The original failed
-readiness receipts remain available.
+The tokenizer-dependent TRL #5791 run exposed two upstream tests that call the
+new parser without its required `prefix`. The accepted task retains the actual
+TRL parsing tests and adds prefix-aware behavioral coverage. Its final valid
+control changes the executable version comparison; a previous comment-only control
+is explicitly held out. The cache task uses real dataset hashing and cache reuse
+across trainer state, including an unpicklable trainer attribute.
 
-The ongoing GPU investigations also demonstrate why an oracle pass and a numerical
-quality score are insufficient. Accelerate #3142 originally accepted a control
-that discarded FSDP dispatch information. Accelerate #3720 used incompatible
-distributed fixtures. TRL #5575 now isolates the intended
-training workload and rejects retained dense vocabulary activations. Accelerate #3142
-now rejects both version-boundary and FSDP-dispatch regressions. Both have reviewed
-blind rollouts. The mesh task remains unfinished. Separately, final verifiers for
-TRL #5349 and Accelerate #4015 initially used CPU tensors or mocked sharding despite
-GPU resource declarations; real CUDA and distributed fixtures are now being checked.
-Raising thresholds to match a failing reference is not an acceptance method.
+The GPU investigations demonstrate why an oracle pass and a numerical quality
+score are insufficient. Accelerate #3142 originally accepted a control that
+removed FSDP dispatch information. Its final verifier rejects version-boundary and
+FSDP-dispatch regressions. TRL #5575 isolates real CUDA training memory and rejects
+retained dense vocabulary activations. TRL #5349 checks real CUDA values, gradients
+and activation memory. Accelerate #4015 runs actual two-rank sharding. Each has a
+reviewed blind rollout. Raising thresholds to match a failing reference is not an
+acceptance method.
+
+The remaining work includes MetaCLIP controls/rollout, a prepared interpreter fix
+for the device-mesh verifier, Diffusers offline runtime repair, production-path
+coverage for TRL environment pooling, and unfinished model/compile/FP8 tasks.
+Prepared or partially passing candidates are not counted as accepted.
 
 ## Budget at the checkpoint
 
-**$554.05 accounted, $33.09 reserved, $12.86 unreserved.** The accounted figure
-includes the previously recorded $22.43 external cost. Compute amounts are
-conservative estimates, not provider invoices. Reservations include unresolved
-historical operations and currently owned workers/trials; they are not all charges.
-Every new operation is checked against the campaign ledger and its recovery/run
-allowances. No target images, models or repository tests execute on the local machine.
+2026-09-13T14:33:44.109548+00:00:
+**$579.01 accounted,
+$20.59 reserved, $0.40 unreserved.**
+The accounted figure includes the previously recorded $22.43 external cost.
+Compute amounts are conservative estimates, not provider invoices. Reservations
+include unresolved historical operations and active native trials; they are not
+all charges. Every new operation is checked against the campaign ledger and its
+recovery/run allowances.
+
+An older four-dollar solver reservation was reconciled to $0.314850 after confirming
+that the timeout occurred during a terminal command, with all completed model usage
+recorded. Other interrupted provider calls retain their reservations. This released
+$3.685150 within the existing cap. The MetaCLIP finishing attempt uses a $1.50 solver
+reservation: across the 23 accepted trials, recorded solver costs range from $0.04 to
+$0.77, with a $0.22 median. Turn/token limits and the three-dollar native allocation
+reservation are unchanged; all actual usage is still accounted.
+
+No target images, models or repository tests execute on the local machine.

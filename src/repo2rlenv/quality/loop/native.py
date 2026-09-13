@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from repo2rlenv.auth import resolve_llm_api_key
@@ -28,6 +29,63 @@ def model_was_not_dispatched(result: Path, allocations: Path) -> bool:
         and data["agent_result"] is None
         and (data.get("exception_info") or {}).get("exception_type") == "BudgetExceeded"
     )
+
+
+def model_cost_after_verifier_denial(result: Path, allocations: Path) -> Decimal | None:
+    """Retain completed solver usage even when its later verifier cannot allocate."""
+    data = json.loads(result.read_text())
+    execution = data.get("agent_execution") or {}
+    agent = data.get("agent_result") or {}
+    claims = [
+        json.loads(path.read_text())
+        for path in allocations.glob("*.json")
+        if not path.name.endswith(".cost.json")
+    ]
+    denied = [claim for claim in claims if claim.get("state") == "reservation_failed"]
+    if (
+        (data.get("exception_info") or {}).get("exception_type") != "BudgetExceeded"
+        or not execution.get("finished_at")
+        or not denied
+        or any("__verifier__" not in claim.get("provider_name", "") for claim in denied)
+        or any(claim.get("state") not in {"terminated", "reservation_failed"} for claim in claims)
+        or isinstance(agent.get("cost_usd"), bool)
+    ):
+        return None
+    try:
+        cost = Decimal(str(agent.get("cost_usd")))
+    except InvalidOperation:
+        return None
+    return cost if cost.is_finite() and cost >= 0 else None
+
+
+def settle_completed_agent(data: dict, receipt: Path, budget, operation: str) -> bool:
+    """Close model accounting before verification when the agent finished normally."""
+    agent = data.get("agent_result") or {}
+    if (
+        data.get("exception_info") is not None
+        or not (data.get("agent_execution") or {}).get("finished_at")
+        or isinstance(agent.get("cost_usd"), bool)
+    ):
+        return False
+    try:
+        cost = Decimal(str(agent.get("cost_usd")))
+    except InvalidOperation:
+        return False
+    if not cost.is_finite() or cost < 0:
+        return False
+    save_record(
+        receipt,
+        {
+            "operation_id": operation,
+            "trial_name": data.get("trial_name"),
+            "agent_execution": data["agent_execution"],
+            "agent_result": agent,
+            "accounted_model_cost_usd": str(cost),
+            "verifier_pending": True,
+        },
+    )
+    budget.settle(operation, cost, evidence=str(receipt.resolve()))
+    return True
 
 
 class NativeModalTrials:
@@ -69,6 +127,8 @@ class NativeModalTrials:
 
     async def _run(self, task, role, key, output):
         from harbor.models.trial.config import TrialConfig
+        from harbor.trial.hooks import TrialEvent
+        from harbor.trial.single_step import SingleStepTrial
         from harbor.trial.trial import Trial
 
         from repo2rlenv.execution.harbor_modal import ACCOUNTING, NativeAccounting
@@ -135,8 +195,25 @@ class NativeModalTrials:
         accounting = NativeAccounting(self.budget, output / "allocations")
         token = ACCOUNTING.set(accounting)
         cancelled = False
+        model_settled = False
+
+        async def before_verifier(event):
+            nonlocal model_settled
+            model_settled = settle_completed_agent(
+                event.result.model_dump(mode="json"),
+                output / "completed-agent.json",
+                self.budget,
+                operation,
+            )
+            if model_settled:
+                record["model_dispatch"] = "completed_before_verification"
+                save_record(receipt, record)
+
         try:
             trial = await Trial.create(configuration)
+            # A multi-step trial may call the model again after verification.
+            if model and isinstance(trial, SingleStepTrial):
+                trial.add_hook(TrialEvent.VERIFICATION_START, before_verifier)
             record["state"] = "dispatched"
             save_record(receipt, record)
             await asyncio.wait_for(trial.run(), timeout=self.options.trial_timeout_sec)
@@ -150,11 +227,19 @@ class NativeModalTrials:
                 exception_type=evidence.exception_type,
             )
             save_record(receipt, record)
-            if model:
+            if model and not model_settled:
+                completed_cost = model_cost_after_verifier_denial(
+                    evidence.result, output / "allocations"
+                )
                 if model_was_not_dispatched(evidence.result, output / "allocations"):
                     record["model_dispatch"] = "not_started"
                     save_record(receipt, record)
                     self.budget.settle(operation, "0", evidence=str(receipt.resolve()))
+                elif completed_cost is not None:
+                    record["model_dispatch"] = "completed_before_verifier_denial"
+                    record["model_cost_usd"] = str(completed_cost)
+                    save_record(receipt, record)
+                    self.budget.settle(operation, completed_cost, evidence=str(receipt.resolve()))
                 elif evidence.completed and evidence.cost_usd is not None and evidence.cost_usd > 0:
                     self.budget.settle(
                         operation, evidence.cost_usd, evidence=str(receipt.resolve())
@@ -167,7 +252,7 @@ class NativeModalTrials:
             cancelled = isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt, SystemExit))
             record.update(state="interrupted", interrupted_at=now())
             save_record(receipt, record)
-            if model:
+            if model and not model_settled:
                 self.budget.mark_uncertain(operation, f"Native rollout interrupted: {receipt}")
             raise
         finally:

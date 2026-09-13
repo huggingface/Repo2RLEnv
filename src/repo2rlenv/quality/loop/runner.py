@@ -450,6 +450,8 @@ class QualityLoop:
                         if not any(item.role == role for item in trials):
                             self.event(role, f"Run fresh {role} control", state="started")
                             trials.append(self.remote.run(task, role, f"r{revision}-{role}"))
+                            if trials[-1].exception_type == "BudgetExceeded":
+                                raise BudgetExceeded("Control allocation denied")
                 before = len(trials)
                 review, context = self._review(
                     task,
@@ -483,6 +485,8 @@ class QualityLoop:
                         self.event("probe", f"Run {probe.kind}: {probe.name}", state="started")
                         result = self.remote.run(destination, "probe", key)
                         trials.append(result.model_copy(update={"probe": probe}))
+                        if result.exception_type == "BudgetExceeded":
+                            raise BudgetExceeded("Probe allocation denied")
                     if (
                         review.sound
                         and not probe_failures(trials, self.options.success_reward)
@@ -492,6 +496,8 @@ class QualityLoop:
                             "rollout", "Run a blind solver on this revision", state="started"
                         )
                         trials.append(self.remote.run(task, "rollout", f"r{revision}-rollout"))
+                        if trials[-1].exception_type == "BudgetExceeded":
+                            raise BudgetExceeded("Rollout allocation denied")
                 if len(trials) != before:
                     review, context = self._review(
                         task,

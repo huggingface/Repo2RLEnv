@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import sys
 from pathlib import Path, PurePosixPath
 
 
-def submission_files(workspace: Path, contract: dict) -> dict[str, str | None]:
+def submission_files(workspace: Path, contract: dict) -> dict[str, dict | None]:
     """Track the mutable files collected by our repository-task verifier."""
     workspace = workspace.resolve()
 
@@ -39,16 +40,30 @@ def submission_files(workspace: Path, contract: dict) -> dict[str, str | None]:
         elif not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
             raise ValueError("Probe submission is not a bounded regular file")
         else:
-            with path.open("rb") as stream:
-                result[name] = hashlib.file_digest(stream, "sha256").hexdigest()
+            content = path.read_bytes()
+            fingerprint = hashlib.sha256(content).hexdigest()
+            syntax = None
+            if path.suffix == ".py":
+                try:
+                    syntax = hashlib.sha256(
+                        ast.dump(ast.parse(content), include_attributes=False).encode()
+                    ).hexdigest()
+                except (SyntaxError, ValueError, UnicodeError):
+                    # A task can target newer syntax than this audit interpreter.
+                    # Retain byte comparison; the verifier still validates code.
+                    pass
+            result[name] = {"sha256": fingerprint, "syntax_sha256": syntax}
     return result
 
 
 def changed_files(before: dict, after: dict) -> dict:
+    def identity(value):
+        return None if value is None else value["syntax_sha256"] or value["sha256"]
+
     changes = {
         name: {"before": before.get(name), "after": after.get(name)}
         for name in sorted(before.keys() | after.keys())
-        if before.get(name) != after.get(name)
+        if identity(before.get(name)) != identity(after.get(name))
     }
     if not changes:
         raise ValueError("Semantic probe left the collected submission unchanged")
