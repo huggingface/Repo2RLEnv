@@ -2,9 +2,11 @@
 
 This campaign starts from the supplied **114 PRs** across Transformers, Accelerate, TRL, Diffusers, PEFT and Tokenizers. It bootstraps all six repositories for CPU and GPU hosts before scaling task generation. Repository readiness is measured separately from per-PR task quality.
 
+The next phase is described in the [audited plan for thirty tasks](tasksmith_scale30.md): retain these ten, finish the GPU execution integration, and generate twenty proposed additions in three measured waves. The new audit includes fresh CPU cache restoration and two-GPU NCCL/DDP checks; it does not claim that the twenty PR-specific environments are already built.
+
 The bootstrap phase is complete: **6/6 CPU and 6/6 GPU-host checks passed** on September 13, 2026. Five repositories exercised CUDA operations on an NVIDIA L4; Tokenizers exercised its CPU implementation and a separate CUDA host check. All bootstrap workers are terminated. The conservative estimate across successful and failed bootstrap attempts is **$13.082577**, with no outstanding bootstrap reservations. [Exact bootstrap evidence](evidence/tasksmith-hf-bootstrap.json).
 
-The initial source audit found 45 PRs compatible with the current modified-Python-source profile. This is a structural intake result, not 45 validated CPU tasks. Added/deleted source and Rust/CUDA changes remain in the inventory with explicit reasons. After retrying transient GitHub errors, 68 inputs have an explicit structural exclusion and one remains an intake retrieval error. The first generation panel contains ten selected PRs from that original pool.
+The initial source audit found 45 PRs compatible with the current modified-Python-source profile. This is a structural intake result, not 45 validated CPU tasks. Added/deleted source and Rust/CUDA changes remain in the inventory with explicit reasons. At the end of this phase, 68 inputs had an explicit structural exclusion and one remained an intake retrieval error. The subsequent [thirty-task audit](tasksmith_scale30.md) resolved that last input as Rust source changes, bringing the exclusion count to 69. The first generation panel contains ten selected PRs from that original pool.
 
 The [intake inventory](evidence/tasksmith-hf-intake.json) preserves all 114 URLs, structural exclusions, and complete source pins/diff hashes for the 45 supported inputs. The CPU snapshot was restored successfully, and a separate import-origin audit confirmed that all six target packages load from their pinned source checkout inside `/workspace`.
 

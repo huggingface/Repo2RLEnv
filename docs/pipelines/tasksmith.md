@@ -32,7 +32,7 @@ flowchart TD
     DECIDE -->|"Limit or unresolved defect"| RETAIN["Retained candidate<br/>Explicit failure and next diagnosis"]
 ```
 
-The [HF bootstrap and scale campaign](tasksmith_hf_scale.md) extends this work to the supplied 114-PR inventory. All six repositories have passed CPU and GPU-host bootstrap checks; the initial ten-task generation panel is running. GPU-host readiness remains separate from the currently supported CPU task-generation profile.
+The [HF bootstrap and scale campaign](tasksmith_hf_scale.md) extends this work to the supplied 114-PR inventory. All six repositories have passed CPU and GPU-host bootstrap checks, and the initial panel delivered ten accepted CPU tasks. The [audited plan for thirty tasks](tasksmith_scale30.md) records fresh cache restoration, two-GPU runtime checks and twenty proposed additions. GPU-host readiness remains separate from the currently supported CPU task-generation profile.
 
 ## What each model is asked
 
