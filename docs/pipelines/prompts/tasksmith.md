@@ -140,7 +140,7 @@ whose relevant behavior can be exercised using a real tiny local model.
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `4d69052dab0a23f813e9933e8618535edbc1bd973ab45d75378804d077ba5180`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `caa70fbb46e284e076d8e5a469b1067e203feca713c118f865f495c624266225`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -160,6 +160,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from repo2rlenv.quality.loop.models import LoopOptions, ProbeFocus
+from repo2rlenv.quality.loop.verifier_policy import check_behavioral_verifier
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
@@ -219,6 +220,7 @@ class Design(Record):
     def replacement_requires_tests(self):
         if self.upstream_test_policy == "replace" and not self.additional_tests.strip():
             raise ValueError("Replacing the upstream grading selection requires private tests")
+        check_behavioral_verifier(self.additional_tests)
         return self
 
 

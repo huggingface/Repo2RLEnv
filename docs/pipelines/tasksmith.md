@@ -63,6 +63,14 @@ prevent the behavioral tests from running.
 
 Full test directories remain private even when pytest selects just a few classes or functions. Release notes and other answer-bearing files can also be excluded from the public workspace. Git history, bytecode and cache directories are stripped; symlinks are rejected. The verifier receives only the allowlisted submitted source files. Tasksmith can add a private behavioral test file, but cannot replace the original oracle with an invented solution.
 
+The generated behavioral test file is parsed before construction and after quality
+repairs. A narrow static check rejects direct reads of a module's `__file__` and
+`inspect.getsource`/`getsourcelines`: these enabled an observed repair to blacklist
+a known wrong implementation without exercising its behavior. Fixture-file reads
+and public signature inspection remain allowed. This check applies to Tasksmith's
+generated file, not upstream test suites or other recipes, and does not replace
+runtime controls or semantic review.
+
 For added-source tasks, the new files are absent from both starting source snapshots. Oracle restoration creates their parent directories. Harbor collects the declared source directories, allowing independently implemented Python helper modules, plus any explicitly selected standalone Python files such as `example.py`. Selecting a file does not expand collection to its parent directory. These roots cannot overlap private tests/exclusions. An added standalone file may remain absent in the baseline; if supplied, it must pass the same regular-file and size checks as required files. The trusted grader rejects symlinks, unbounded/special files and changed non-Python assets before importing submitted code. Missing feature modules are checked inside behavioral test functions, so an unsolved task produces reward zero instead of a collection exception. Both `modeling_*.py` and `modular_*.py` additions are reversed when present in a Transformers PR.
 
 Generation and acceptance are different counters. `generated` means execution contrast and a Harbor bundle exist. `usable` means `practical-generation-v1` found sound instructions and verification, a failing baseline, passing oracle, rejected wrong implementation, accepted valid alternative and a legitimate learner rollout. A legitimate model failure can still establish a useful task. The old strict acceptance policy is unchanged.

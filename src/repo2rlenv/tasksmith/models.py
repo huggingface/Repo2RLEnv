@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from repo2rlenv.quality.loop.models import LoopOptions, ProbeFocus
+from repo2rlenv.quality.loop.verifier_policy import check_behavioral_verifier
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
@@ -69,6 +70,7 @@ class Design(Record):
     def replacement_requires_tests(self):
         if self.upstream_test_policy == "replace" and not self.additional_tests.strip():
             raise ValueError("Replacing the upstream grading selection requires private tests")
+        check_behavioral_verifier(self.additional_tests)
         return self
 
 

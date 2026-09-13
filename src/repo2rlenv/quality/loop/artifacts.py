@@ -16,6 +16,10 @@ from repo2rlenv.emitter.bundle import inspect_bundle, relative_asset_path
 from repo2rlenv.emitter.evaluation import generated_evaluation
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.models import Repair, SemanticProbe, TrialRecord
+from repo2rlenv.quality.loop.verifier_policy import (
+    TASKSMITH_BEHAVIOR_PATH,
+    check_behavioral_verifier,
+)
 
 EXPECTED_PASSES_CONTRACT = "tests/contract.json"
 
@@ -115,6 +119,13 @@ def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
             _append_expected_passes(copied, repair.append_expected_passes)
         if not (copied / "instruction.md").read_text().strip():
             raise ValueError("Repair erased the task instruction")
+        config = tomllib.loads((copied / "task.toml").read_text())
+        behavior = copied / TASKSMITH_BEHAVIOR_PATH
+        if (
+            config.get("metadata", {}).get("repo2env", {}).get("recipe") == "tasksmith"
+            and behavior.is_file()
+        ):
+            check_behavioral_verifier(behavior.read_text())
         new_hash = refresh_identity(copied)
         if new_hash == task_identity(task) and not repair.probe_replacements:
             raise ValueError("Repair did not change the task")
