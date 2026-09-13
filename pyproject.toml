@@ -48,6 +48,11 @@ Repository = "https://github.com/huggingface/Repo2RLEnv"
 Issues = "https://github.com/huggingface/Repo2RLEnv/issues"
 
 [project.optional-dependencies]
+tasksmith = [
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-sqlite>=3,<4",
+    "aiohttp>=3.13,<4",
+]
 modal = [
     "modal==1.5.5",
 ]

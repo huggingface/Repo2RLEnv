@@ -12,6 +12,33 @@ from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
 
 
+def _search_excerpts(lines: list[str], query: str) -> str:
+    """Bound both match count and characters, including minified JSON traces."""
+    excerpts = []
+    for index, line in enumerate(lines):
+        match = line.find(query)
+        if match < 0:
+            continue
+        start, end = max(0, index - 5), min(len(lines), index + 26)
+        surrounding = "".join(lines[start:end])
+        if len(surrounding) <= 3000:
+            excerpts.append(f"[Lines {start + 1}-{end}]\n" + surrounding)
+        else:
+            # One line can contain an entire trajectory. Retain literal bytes
+            # around each hit and label omissions instead of expanding that line.
+            while match >= 0 and len(excerpts) < 8:
+                left = max(0, match - 1000)
+                right = min(len(line), left + 3000)
+                excerpts.append(
+                    f"[Line {index + 1}, columns {left + 1}-{right}; "
+                    "surrounding text omitted]\n" + line[left:right]
+                )
+                match = line.find(query, right)
+        if len(excerpts) >= 8:
+            break
+    return "\n".join(excerpts) or "[No literal matches found]"
+
+
 class EvidenceContext:
     def __init__(self, task: Path, trials: list[TrialRecord], *, limit: int):
         self.task, self.limit = task, limit
@@ -39,15 +66,56 @@ class EvidenceContext:
                 self._include(key, self._paths[key], maximum=12000, tail=key.endswith(".json"))
         instruction = (task / "instruction.md").read_text()
         symbols = set(re.findall(r"\bdef\s+([A-Za-z_]\w*)", instruction))
-        if not symbols:
-            symbols.update(re.findall(r"`([A-Za-z_]\w*)\(", instruction))
-        for key, path in self._paths.items():
+        symbols.update(re.findall(r"`(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)\s*(?:\(|`)", instruction))
+        test_symbols: dict[str, set[str]] = {}
+        contract = self._paths.get("tests/contract.json")
+        if contract is not None:
+            try:
+                data = json.loads(contract.read_text())
+                methods = {
+                    identity.rsplit("::", 1)[-1].split("[", 1)[0]
+                    for identity in data.get("expected_passes", [])[:64]
+                }
+                for selector in data.get("test_paths", []):
+                    path, *nodes = selector.split("::")
+                    selected = {node.split("[", 1)[0] for node in nodes} or methods
+                    test_symbols.setdefault("tests/source/" + path, set()).update(selected)
+                for key in self._paths:
+                    if (
+                        key in test_symbols
+                        or not key.startswith("tests/source/")
+                        or not key.endswith(".py")
+                    ):
+                        continue
+                    module = key.removeprefix("tests/source/")[:-3].replace("/", ".")
+                    nodes = set()
+                    for identity in data.get("expected_passes", [])[:64]:
+                        if identity.startswith((module + ".", module + "::")):
+                            nodes.update(identity[len(module) :].lstrip(".:").split("::"))
+                    if nodes:
+                        test_symbols[key] = nodes
+            except (ValueError, AttributeError):
+                pass
+        # Selected private tests precede source copies. Generic method names such
+        # as test_empty must never select unrelated source functions/classes.
+        ordered = sorted(
+            self._paths.items(),
+            key=lambda item: (
+                0
+                if item[0] in test_symbols
+                else 1
+                if item[0].startswith(("environment/", "solution/"))
+                else 2,
+                item[0],
+            ),
+        )
+        for key, path in ordered:
             if (
                 key not in self.documents
                 and path.suffix == ".py"
                 and path.stat().st_size < 2_000_000
             ):
-                self._include_symbols(key, path, symbols)
+                self._include_symbols(key, path, test_symbols.get(key, symbols))
         # Reserve an execution share before reading large repository files. Collect
         # every trial first: a baseline's long test inventory must not crowd out a
         # later counterexample's actual assertion failure.
@@ -58,6 +126,11 @@ class EvidenceContext:
                 raise ValueError("Trial result changed since ingestion")
             prefix = f"evidence/{index}-{trial.role}/"
             summary = trial.model_dump(mode="json")
+            native = json.loads(path.read_text())
+            message = (native.get("exception_info") or {}).get("exception_message")
+            if message:
+                summary["exception_message_tail"] = str(message)[-6000:]
+
             if trial.probe:
                 script_key = prefix + "probe-script.sh"
                 script = summary["probe"].pop("script")
@@ -158,12 +231,23 @@ class EvidenceContext:
             return
         lines = text.splitlines(keepends=True)
         chunks = []
+        covered = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
-                symbol.lower() in node.name.lower() for symbol in symbols if len(symbol) >= 3
+                symbol.lower().replace("_", "") == node.name.lower().replace("_", "")
+                or (
+                    isinstance(node, ast.ClassDef)
+                    and node.name.endswith("Tests")
+                    and symbol.lower().replace("_", "") == node.name[:-5].lower().replace("_", "")
+                )
+                for symbol in symbols
+                if len(symbol) >= 3
             ):
+                if any(start <= node.lineno <= end for start, end in covered):
+                    continue
                 start = max(1, node.lineno - 1)
                 end = min(node.end_lineno or node.lineno, start + 399)
+                covered.append((start, end))
                 chunks.append(f"[Lines {start}-{end}]\n" + "".join(lines[start - 1 : end]))
                 if sum(map(len, chunks)) >= 12000:
                     break
@@ -183,6 +267,7 @@ class EvidenceContext:
             )
 
     def read_more(self, requests: list[ReadRequest]):
+        additions = {}
         for request in requests:
             if request.path not in self._paths and request.path not in self._texts:
                 raise ValueError(f"Requested file is not in evidence inventory: {request.path}")
@@ -197,15 +282,7 @@ class EvidenceContext:
             if request.query is not None:
                 if not request.query.strip() or len(request.query) > 200:
                     raise ValueError("Search query must have 1-200 characters")
-                matches = [index for index, line in enumerate(lines) if request.query in line][:8]
-                text = (
-                    "\n".join(
-                        f"[Lines {max(1, index - 4)}-{min(len(lines), index + 26)}]\n"
-                        + "".join(lines[max(0, index - 5) : index + 26])
-                        for index in matches
-                    )
-                    or "[No literal matches found]"
-                )
+                text = _search_excerpts(lines, request.query)
             else:
                 text = "".join(lines[request.start_line - 1 : request.end_line])
             if not text:
@@ -216,16 +293,66 @@ class EvidenceContext:
                 else f"L{request.start_line}-L{request.end_line}"
             )
             key = f"{request.path}:{suffix}"
-            self.documents[key] = text
-        if sum(map(len, self.documents.values())) > self.limit:
+            additions[key] = text
+        updated = {**self.documents, **additions}
+        if sum(map(len, updated.values())) > self.limit:
             raise ValueError("Additional reads exceeded context budget")
+        self.documents = updated
+
+    def _inventory_payload(self) -> dict:
+        entries = [{"path": item["path"], "bytes": item["bytes"]} for item in self.inventory]
+        if len(json.dumps(entries)) <= 30000:
+            return {"inventory": entries}
+        # Trial captures repeat long directory prefixes for hundreds of modules.
+        # Group them losslessly; all full paths remain available to read_more.
+        directories: dict[str, dict[str, int]] = {}
+        for item in entries:
+            prefix, _, name = item["path"].rpartition("/")
+            directories.setdefault(prefix, {})[name] = item["bytes"]
+        if len(json.dumps(directories)) > 30000:
+            # Large repositories still need a bounded first review. Keep every
+            # path addressable through a searchable catalogue instead of dropping
+            # files or refusing the review before the model can request evidence.
+            key = "evidence/full-file-inventory.jsonl"
+            if key in self._paths:
+                raise ValueError("Task uses the reserved quality inventory path")
+            self._texts[key] = "\n".join(json.dumps(item) for item in entries) + "\n"
+            counts = [
+                {"directory": name, "files": len(items)} for name, items in directories.items()
+            ]
+            return {
+                "inventory_document": key,
+                "inventory_files": len(entries),
+                "inventory_directories": counts[:100],
+                "inventory_directories_omitted": max(0, len(counts) - 100),
+                "inventory_format": (
+                    "The complete JSONL catalogue is available through read requests: "
+                    "one file path and byte count per line. Search it by filename or "
+                    "request bounded line ranges, then read the required source file. "
+                    "All original file paths remain directly readable."
+                ),
+            }
+        return {
+            "inventory_by_directory": directories,
+            "inventory_format": (
+                "Each directory maps filenames to byte counts. Read a file using "
+                "directory/filename (or filename for the empty directory). "
+                "This is the complete inventory, without omitted paths."
+            ),
+        }
 
     def payload(self, **extra) -> str:
         result = json.dumps(
             {
                 "documents": self.documents,
-                "inventory": self.inventory,
-                "omitted": self.omitted,
+                # Hashes remain in the local evidence record. They add no useful
+                # review context and repeat for every source copy and trial.
+                **self._inventory_payload(),
+                "omitted": [item for item in self.omitted if not item.endswith(": context budget")],
+                "budget_omissions": {
+                    "count": sum(item.endswith(": context budget") for item in self.omitted),
+                    "note": "Inventory files absent from documents remain available through bounded reads.",
+                },
                 **extra,
             },
             ensure_ascii=False,

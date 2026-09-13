@@ -237,3 +237,5 @@ class Pipeline(Protocol):
 ```
 
 `tests/test_pipeline_contract.py` verifies every registered pipeline conforms to the Protocol — adding a new one without finishing the registration steps will fail there.
+
+The [Tasksmith PR harness](tasksmith.md) connects remote repository investigation, cached bootstrap, PR regression construction and the shared quality loop.

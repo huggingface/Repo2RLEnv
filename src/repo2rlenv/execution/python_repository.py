@@ -50,7 +50,7 @@ def test_image(
         "python",
         "-m",
         "pytest",
-        *options.test_paths,
+        *(options.test_selectors or options.test_paths),
         "-q",
         "--tb=short",
         "--junitxml=/tmp/results.xml",
@@ -113,6 +113,41 @@ def test_image(
         _run(["docker", "rm", "-f", name], timeout=30, check=False)
 
 
+def materialize_document_links(base: Path, options: PythonRepositoryProfile) -> list[dict]:
+    """Preserve explicitly selected document contents without exporting symlinks."""
+    base = base.resolve()
+    copies = []
+    for relative in options.materialize_document_links:
+        path = base / relative
+        try:
+            target = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f"Document link is missing or cyclic: {relative}") from exc
+        if (
+            not path.parent.resolve().is_relative_to(base)
+            or not target.is_relative_to(base)
+            or not target.is_file()
+            or target.suffix.lower() not in {".md", ".rst", ".txt"}
+        ):
+            raise ValueError(
+                f"Document link must resolve to a document file inside the snapshot: {relative}"
+            )
+        if path.is_symlink():
+            copies.append((path, target, target.read_bytes()))
+    records = []
+    for path, target, contents in copies:
+        path.unlink()
+        path.write_bytes(contents)
+        records.append(
+            {
+                "path": path.relative_to(base).as_posix(),
+                "target": target.relative_to(base).as_posix(),
+                "sha256": hashlib.sha256(contents).hexdigest(),
+            }
+        )
+    return records
+
+
 def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destination: Path):
     if os.environ.get("REPO2RLENV_REMOTE_WORKER") != "1":
         raise RuntimeError("Repository execution is remote only")
@@ -126,7 +161,7 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
         + "COPY . /workspace\n"
         f"RUN {options.install_command}\n"
         "RUN rm -rf /workspace/.git /root/.cache/pip\n"
-        "ENV PYTHONDONTWRITEBYTECODE=1\n"
+        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
     )
     digest = hashlib.sha256(dockerfile.encode()).hexdigest()
     profile = Path("/work/bootstrap-profiles") / f"{digest}.Dockerfile"
@@ -147,8 +182,10 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
         _run(["docker", "cp", f"{container}:/workspace", str(base)])
     finally:
         _run(["docker", "rm", container], check=False)
+    links = materialize_document_links(base, options)
+    save_record(destination / "snapshot-document-links.json", {"materialized": links})
     # A snapshot may contain bytecode or generated build files. Keep them out of
-    # task source archives and refuse links rather than dereferencing host paths.
+    # task source archives; all links not explicitly materialized remain unsupported.
     for path in sorted(base.rglob("*"), reverse=True):
         if path.is_symlink():
             raise ValueError(

@@ -1,0 +1,56 @@
+{
+  "provider": "modal",
+  "author_runtime": "pi",
+  "author_model": "anthropic/claude-sonnet-4-6",
+  "author_turns": 18,
+  "author_stage_usd": "3.00",
+  "max_spend_usd": "120.00",
+  "worker_reservation_usd": "12.00",
+  "worker_cpus": 4,
+  "worker_memory_mb": 16384,
+  "max_stage_attempts": 3,
+  "quality": {
+    "review_model": {
+      "provider": "openai",
+      "model": "gpt-6-astra",
+      "api_key_env": null,
+      "endpoint": null,
+      "max_concurrent": 5,
+      "timeout_sec": 120,
+      "fallback": null
+    },
+    "repair_model": {
+      "provider": "openai",
+      "model": "gpt-6-astra",
+      "api_key_env": null,
+      "endpoint": null,
+      "max_concurrent": 5,
+      "timeout_sec": 120,
+      "fallback": null
+    },
+    "escalation_model": null,
+    "solver_model": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "api_key_env": null,
+      "endpoint": null,
+      "max_concurrent": 5,
+      "timeout_sec": 120,
+      "fallback": null
+    },
+    "repair": true,
+    "run_rollout": true,
+    "max_repairs": 2,
+    "max_read_rounds": 3,
+    "max_probes": 4,
+    "context_chars": 160000,
+    "model_tokens": 6000,
+    "max_turns": 20,
+    "solver_tokens": 4096,
+    "trial_timeout_sec": 900,
+    "success_reward": 1.0,
+    "model_reservation_usd": "1.00",
+    "solver_reservation_usd": "4.00",
+    "max_spend_usd": "10.00"
+  }
+}

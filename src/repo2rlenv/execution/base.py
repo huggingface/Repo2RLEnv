@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class WorkerSpec(BaseModel):
@@ -17,7 +17,16 @@ class WorkerSpec(BaseModel):
     disk_gb: int = Field(default=10, ge=5, le=100)
     timeout_sec: int = Field(default=3600, ge=60, le=14400)
     image: str | None = None
+    snapshot_id: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     name: str = Field(pattern=r"^[a-z][a-z0-9-]{0,60}$")
+
+    @model_validator(mode="after")
+    def snapshot_provider(self):
+        if self.snapshot_id and (self.provider != "modal" or self.image):
+            raise ValueError(
+                "A Modal worker snapshot cannot be combined with another image/provider"
+            )
+        return self
 
 
 @dataclass(frozen=True)

@@ -869,6 +869,9 @@ def main(argv: list[str] | None = None) -> int:
     add_discovery_parser(sub)
     add_campaign_parsers(sub)
     add_quality_parser(sub)
+    from repo2rlenv.tasksmith.cli import add_parser as add_tasksmith_parser
+
+    add_tasksmith_parser(sub)
 
     # generate
     g = sub.add_parser("generate", help="Run a synthesis pipeline against a repo")

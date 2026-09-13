@@ -1,0 +1,1114 @@
+{
+  "candidate_file": "Environment-specific PRs 3921384ebcac80af866bdb78afc38b22.md",
+  "candidate_count": 114,
+  "repository_pins": [
+    {
+      "repo": "huggingface/transformers",
+      "ref": "415e6d2f596ef2bd44fdee4261799200a7fc02bf",
+      "branch": "main"
+    },
+    {
+      "repo": "huggingface/accelerate",
+      "ref": "f13f7c13b64c10b6eb7e2d73171ea1b94c748701",
+      "branch": "main"
+    },
+    {
+      "repo": "huggingface/trl",
+      "ref": "0b4b33d7faa2ad88b92db2bfac3880ece6de8a66",
+      "branch": "main"
+    },
+    {
+      "repo": "huggingface/diffusers",
+      "ref": "c419dac0152186060246c93a095bc1bfaea342b3",
+      "branch": "main"
+    },
+    {
+      "repo": "huggingface/peft",
+      "ref": "0e8d0ae8ab94f189f28b845e293d7452d7892d91",
+      "branch": "main"
+    },
+    {
+      "repo": "huggingface/tokenizers",
+      "ref": "6cfd9d385ca0ed91c10b49f0ce97d02cfde1b607",
+      "branch": "main"
+    }
+  ],
+  "supported_source_profile": 45,
+  "note": "Structural source compatibility only. All original URLs and initial failures are retained. A separate retry resolved four transient GitHub errors as unsupported Rust changes; one URL remains an intake error. Only supported inputs have complete pinned source diffs. Resource suitability is determined during investigation.",
+  "candidates": [
+    {
+      "url": "https://github.com/huggingface/transformers/pull/45821",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/generation/continuous_batching/distributed.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/34784",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/moonshine/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/39923",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/integrations/mxfp4.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/41251",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/deepseek_v32/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/43858",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/glm_moe_dsa/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/33770",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/emu3/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/37307",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/integrations/compressed_tensors.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/39429",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/voxtral/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/44160",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/pi0/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/45634",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/integrations/deepgemm.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/45919",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/sapiens2/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/46115",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/cohere2_moe/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/46540",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/diffusion_gemma/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/46600",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/integrations/msa_attention.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/29167",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/gemma/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/35348",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/dinov2_with_registers/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/35669",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/helium/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/36521",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/aya_vision/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/36790",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/mistral3/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/transformers/pull/39826",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/transformers/models/metaclip_2/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3585",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/fsdp2/fsdp2_fp8.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3529",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: benchmarks/torch.compile/regional_compilation.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3682",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/fsdp2/nd_parallel.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3700",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/fsdp2/nd_parallel_prepared_device_mesh.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3097",
+      "status": "supported",
+      "id": "ca616ed5d483",
+      "title": "POC: multiple model/configuration DeepSpeed support",
+      "head": "dd77813fb035e6b3b745b9f20c60e0b88fa05664",
+      "base": "d5b7b70e06f30f4cd821a98bb1542ea0c403a65d",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/state.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/dataclasses.py",
+        "src/accelerate/utils/deepspeed.py",
+        "src/accelerate/utils/imports.py"
+      ],
+      "source_diff_sha256": "1c17a9d5b82c1628cc87b15cded8d6f4231232f52a23403d2fe6afd133615612"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3150",
+      "status": "supported",
+      "id": "3960c9b5f1c6",
+      "title": "POC: Allow for a `data_seed`",
+      "head": "fc28ab07d76988b5c37ce8a2892c8f7b7da47932",
+      "base": "f4ee5a2dc77d5b6bfc889d0b74fbc0678ae56119",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/data_loader.py",
+        "src/accelerate/utils/dataclasses.py"
+      ],
+      "source_diff_sha256": "5d33d033da8ae116536cf215acb1a441ba88f6c1efc2d8f12d1c54d36f2fd9d1"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3348",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: benchmarks/fp8/torchao/ddp.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3674",
+      "status": "supported",
+      "id": "64b21f14793e",
+      "title": "Speedup model loading by 4-5x in Diffusers \u26a1",
+      "head": "bc3753dfb3020e651c7cc48d908f820996b65278",
+      "base": "d6c986c3f2dd8417c8689967a2d139576d617925",
+      "source_files": [
+        "src/accelerate/utils/modeling.py"
+      ],
+      "source_diff_sha256": "5f41ad9fbffab51273e3d54ba15bd785228f2a1191216c465a4fd67db5fd9ef7"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3688",
+      "status": "supported",
+      "id": "d535cc5d746a",
+      "title": "Add support for TE MXFP8 recipe in accelerate",
+      "head": "1fb8f76be765c34a6acdc367ae881877c569aee4",
+      "base": "9359a0194f210624f1e6e85c3d838fdd55c11152",
+      "source_files": [
+        "src/accelerate/state.py",
+        "src/accelerate/test_utils/__init__.py",
+        "src/accelerate/test_utils/testing.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/dataclasses.py",
+        "src/accelerate/utils/imports.py",
+        "src/accelerate/utils/transformer_engine.py"
+      ],
+      "source_diff_sha256": "f573e5fbb30127a7bfdfc3347b99489da6434296d161fef4dfc598801d2f4393"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3720",
+      "status": "supported",
+      "id": "b1dd32dfa88b",
+      "title": "Remove `ParallelismConfig` from `PartialState`",
+      "head": "29a6fd360f1feeeadb66103ec048fa869dfd117d",
+      "base": "898cad39e8a9f11cb18916497c720cf5fdc92754",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/parallelism_config.py",
+        "src/accelerate/state.py"
+      ],
+      "source_diff_sha256": "47d2779b80d40d2e7996eb17ddb3c0cec0e1426c62a4d71e31497db007fc58de"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3935",
+      "status": "supported",
+      "id": "2df383cc9d43",
+      "title": "Neuron integration",
+      "head": "30fa2927f75052f1976844e44d772d2661dd1f04",
+      "base": "ae36c7441db40808422f31d3e792e69a3abf0a20",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/big_modeling.py",
+        "src/accelerate/checkpointing.py",
+        "src/accelerate/commands/config/cluster.py",
+        "src/accelerate/commands/config/config_utils.py",
+        "src/accelerate/commands/config/default.py",
+        "src/accelerate/commands/env.py",
+        "src/accelerate/commands/launch.py",
+        "src/accelerate/local_sgd.py",
+        "src/accelerate/state.py",
+        "src/accelerate/test_utils/testing.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/constants.py",
+        "src/accelerate/utils/dataclasses.py",
+        "src/accelerate/utils/environment.py",
+        "src/accelerate/utils/imports.py",
+        "src/accelerate/utils/launch.py",
+        "src/accelerate/utils/memory.py",
+        "src/accelerate/utils/modeling.py",
+        "src/accelerate/utils/random.py"
+      ],
+      "source_diff_sha256": "3e07dbc57b98ffc5241d629932487d45705cba35a2d6207e573eac164dbe733f"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/4015",
+      "status": "supported",
+      "id": "3c27383dd8c3",
+      "title": "Fsdp2 fully_shard embedding and norm ",
+      "head": "176f516005569cabd26b2e9e9d7aa5553c6218e9",
+      "base": "92cc533ed77a07d73872ada977625b269c922c7c",
+      "source_files": [
+        "src/accelerate/utils/fsdp_utils.py"
+      ],
+      "source_diff_sha256": "9783bee320a6783e0fda70c0e1a08437cf9d4f8efc4bd1c76de1c24210132bec"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3075",
+      "status": "supported",
+      "id": "5d12db5414d2",
+      "title": "Fix FSDP auto_wrap using characters instead of full str for layers",
+      "head": "f8ff93658f99e46323218af834ecfd8fc30a4581",
+      "base": "b5235f21d83c7f714a44d876cfd6fd0b1339dd38",
+      "source_files": [
+        "src/accelerate/utils/dataclasses.py"
+      ],
+      "source_diff_sha256": "4ef90165b1282622cdf955e6ec99206b3138e2d0d502ac40bb5f578b1023b7b0"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3093",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: benchmarks/fp8/ms_amp/ddp.py"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3098",
+      "status": "supported",
+      "id": "ae8f12dc63d0",
+      "title": "\ud83d\udea8\ud83d\udea8\ud83d\udea8 The Great Deprecation \ud83d\udea8\ud83d\udea8\ud83d\udea8",
+      "head": "ef2ebc4b34cdd49fd8b81215ff86fbdbb68c1dd1",
+      "base": "d5b7b70e06f30f4cd821a98bb1542ea0c403a65d",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/commands/launch.py",
+        "src/accelerate/optimizer.py",
+        "src/accelerate/state.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/dataclasses.py",
+        "src/accelerate/utils/imports.py",
+        "src/accelerate/utils/launch.py",
+        "src/accelerate/utils/modeling.py",
+        "src/accelerate/utils/tqdm.py"
+      ],
+      "source_diff_sha256": "c543894244ad1244ea945c5260ada6ed7f822619c2a4a1d887bcd2867cb6cd5a"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3142",
+      "status": "supported",
+      "id": "5db757e91a6e",
+      "title": "Refactor scaler to util",
+      "head": "21cab59ff4aa2359aa65dc0d0e8a889c6c91031f",
+      "base": "127818fc27ebe5cb236357fff59ff1748326d643",
+      "source_files": [
+        "benchmarks/fp8/ms_amp/ddp.py",
+        "benchmarks/fp8/ms_amp/non_distributed.py",
+        "src/accelerate/accelerator.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/modeling.py",
+        "src/accelerate/utils/operations.py"
+      ],
+      "source_diff_sha256": "c7fe2c859612b9e447a03dcdc2c3758b48fd1f9f53e678c561c82aeeb8f40017"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3251",
+      "status": "supported",
+      "id": "58e016fc946a",
+      "title": "Allow for full dynamo config passed to Accelerator",
+      "head": "aa44e81e09f815e7554478e48d9d92427fee3c88",
+      "base": "08101b9dde2b1a9658c2e363e3e9f5663ba06073",
+      "source_files": [
+        "src/accelerate/accelerator.py"
+      ],
+      "source_diff_sha256": "ad2f04ae45c402841d662b1ebbf2e3c79401239f368f3463a1200c3cc1b3656f"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3684",
+      "status": "supported",
+      "id": "e38398f4d9df",
+      "title": "\u201cStop Halving My Batch!\u201d \u00b7 Default back-off 0.5 \u2192 0.9",
+      "head": "c93a0aa0187a0d97c7dbe0473826a8b4a5912496",
+      "base": "55e518a762b84f8927fe87599a545f9c917b7ce5",
+      "source_files": [
+        "src/accelerate/utils/memory.py"
+      ],
+      "source_diff_sha256": "7056ba404579e77e6bda60c082e298199cd66069711298b60b17421cae17b3e1"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3850",
+      "status": "supported",
+      "id": "3d762a2acfee",
+      "title": "Allow non-Tensor values in a batch with `dispatch_batches=True`",
+      "head": "bec8a3eda417b0f365a15f58556d4b66539935a2",
+      "base": "9a20895d4b7e7aa35ba9123a93c65948a53a6ec7",
+      "source_files": [
+        "src/accelerate/utils/operations.py"
+      ],
+      "source_diff_sha256": "55a2741ed13782d8697e9c282ffc46f595fb37e98c9c8b5b2b6b4fe765d3b81e"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/3969",
+      "status": "supported",
+      "id": "f1fb6bb8619d",
+      "title": "Feat: Support dynamic batch size in BatchSamplerShard with even_batches",
+      "head": "bac18660fa05e7f731d4f7bdaedf11750c2224c9",
+      "base": "77eb5cf6087d91227d77ebbe65121501eb56d098",
+      "source_files": [
+        "src/accelerate/data_loader.py"
+      ],
+      "source_diff_sha256": "33f38bf995a0d750e77dad7f3722e8f849657251b7c27593b21179eb5a74d24f"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/4022",
+      "status": "supported",
+      "id": "a74f604a952b",
+      "title": "Fix region compilation fsdpv2",
+      "head": "ba757be6c587e6a68bca7a91f715c434d291a7db",
+      "base": "d1d2bba464de5c8fd4d967b6881323be043cb4e7",
+      "source_files": [
+        "src/accelerate/accelerator.py",
+        "src/accelerate/commands/launch.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/other.py"
+      ],
+      "source_diff_sha256": "043dbc5302ebddc985b0405d32e03dd399fe3b2412d665579a8f03853e0b7e4e"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/4025",
+      "status": "supported",
+      "id": "822ff63f02d7",
+      "title": "Make accelerate work end-to-end on AMD ROCm ",
+      "head": "691d9fd673802fd0db4fabde4c4c7c65a4829174",
+      "base": "4ad096a39e26a8d849b2e361de5c6d2c9ed1c117",
+      "source_files": [
+        "src/accelerate/launchers.py",
+        "src/accelerate/utils/__init__.py",
+        "src/accelerate/utils/bnb.py",
+        "src/accelerate/utils/dataclasses.py",
+        "src/accelerate/utils/environment.py",
+        "src/accelerate/utils/imports.py"
+      ],
+      "source_diff_sha256": "d83995272e02531514513e20bd23dee5c02e75a077e201a82c9e8abcde279cee"
+    },
+    {
+      "url": "https://github.com/huggingface/accelerate/pull/4059",
+      "status": "supported",
+      "id": "6313a21e3910",
+      "title": "fix notebook launcher cuda init",
+      "head": "e7824bc04b379cff78f7ae6a932c1c8de195c120",
+      "base": "507ea7b29903546f7c773dbe36c8ca128f7c78bb",
+      "source_files": [
+        "src/accelerate/launchers.py",
+        "src/accelerate/utils/environment.py"
+      ],
+      "source_diff_sha256": "181f0f6a9842dc704a4050c62138f55750b7feb909d35a3e23acd50f8132886c"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5407",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: trl/experimental/distillation/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5575",
+      "status": "supported",
+      "id": "1c108f674e97",
+      "title": "Chunked cross-entropy loss for SFT (up to \u201350% VRAM)",
+      "head": "d87972c1b8a33322160b7f0f7061af1bd475b41c",
+      "base": "510a6f556c66860369839831f892e3ecb105addf",
+      "source_files": [
+        "trl/trainer/sft_config.py",
+        "trl/trainer/sft_trainer.py"
+      ],
+      "source_diff_sha256": "81c3f6ef4383fe7a98b08bd6758b7a56aeafcb9341bec4d6b62d9215ce96b4cc"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5615",
+      "status": "unsupported",
+      "reason": "PR has no modified Python source files"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5349",
+      "status": "supported",
+      "id": "4fc63afb85cd",
+      "title": "Add chunked LM head for memory-efficient log-prob computation  for AsyncGRPOTrainer",
+      "head": "5d907dbb97370b0153f9ad4e58216d3c28150c1a",
+      "base": "5449131b1a5a99f841b7cce8995161412391136c",
+      "source_files": [
+        "trl/experimental/async_grpo/async_grpo_trainer.py",
+        "trl/trainer/__init__.py",
+        "trl/trainer/utils.py"
+      ],
+      "source_diff_sha256": "b4851f57d647b348147776109d1d9cf362dea8dc9d565c191fc9a28930dc15d7"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5501",
+      "status": "supported",
+      "id": "0ea2241cceeb",
+      "title": "Add trackio support to `DistillationTrainer`",
+      "head": "e294047ca750a3267a0f93caba817c0115d1bc4c",
+      "base": "6f6440b41d4a16d19213ef21164a619467801635",
+      "source_files": [
+        "trl/experimental/distillation/distillation_trainer.py"
+      ],
+      "source_diff_sha256": "8c0898a8f8cf606aa0e3a790be6ae967834b12deb78b9e062964feb8bde43526"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5749",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: trl/experimental/async_grpo/weight_transfer.py"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6001",
+      "status": "supported",
+      "id": "0df9b3cd6191",
+      "title": "Support multiple environments [1/2]: Pool and build environment tool dicts at batch time",
+      "head": "0512050e8623069b58d50381f6c1929321340dd0",
+      "base": "61b9ba0868f6289a22992fdbcfd29742eec0a2ef",
+      "source_files": [
+        "trl/experimental/async_grpo/async_rollout_worker.py",
+        "trl/experimental/dppo/dppo_trainer.py",
+        "trl/experimental/gfpo/gfpo_trainer.py",
+        "trl/experimental/grpo_with_replay_buffer/grpo_with_replay_buffer_trainer.py",
+        "trl/trainer/grpo_trainer.py"
+      ],
+      "source_diff_sha256": "8ccf27cb095289b9af0e2a2d921f9f772ec6f0053ade05ad357a7a8ec9bc843e"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6116",
+      "status": "supported",
+      "id": "0816da569af6",
+      "title": "Make `evaluate()` accept the same dataset types as the trainer",
+      "head": "06305ffdcd68f26c9929bb0dd58f597f61126e7a",
+      "base": "1dffafb7668560daa9a7d3809fefded3dcacdc88",
+      "source_files": [
+        "trl/trainer/dpo_trainer.py",
+        "trl/trainer/reward_trainer.py",
+        "trl/trainer/sft_trainer.py"
+      ],
+      "source_diff_sha256": "5fd5ca5c692e4f31adead157e413a2092ffc5aacf7ede056a4fbbf25d2e2c9ed"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6139",
+      "status": "supported",
+      "id": "b3c12843c3fb",
+      "title": "Fix GRPO + vLLM colocate + PEFT hang on non-NVLink hardware",
+      "head": "cc372fc272d3627ed5245b2adf36699592b6471a",
+      "base": "b3caa40b7807fb866aef16ded227285a9825558f",
+      "source_files": [
+        "trl/generation/vllm_generation.py"
+      ],
+      "source_diff_sha256": "7ebf5381df5e7e736b4111f40fd2dbb7b7ca930c54ac3703f38a11eccbc68a43"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6150",
+      "status": "supported",
+      "id": "466b1e8e082b",
+      "title": "Align KTO with DPO: Move all metrics computation from log to _compute_loss",
+      "head": "fcbb90f7c75644a55472b2aaae228cabf8fa2eb0",
+      "base": "f9aeb5902855e60a006d3b6a56487ab01c54eba8",
+      "source_files": [
+        "trl/experimental/kto/kto_trainer.py"
+      ],
+      "source_diff_sha256": "965dd77cd5e0eb5ba77c4799e8bc5ca36ab98be08f6a61aede7a0e22292c4280"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6152",
+      "status": "supported",
+      "id": "03a6a091b12f",
+      "title": "Align KTO with DPO: Support sync_ref_model",
+      "head": "472c7f9c924674c0ced18bc608a737191466334f",
+      "base": "f9aeb5902855e60a006d3b6a56487ab01c54eba8",
+      "source_files": [
+        "trl/experimental/kto/kto_config.py",
+        "trl/experimental/kto/kto_trainer.py"
+      ],
+      "source_diff_sha256": "018c7f48e9e0867070b3ed577ea5c96b1bd14ab148b4472c76648033084faa74"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6159",
+      "status": "supported",
+      "id": "26b694d20240",
+      "title": "Support PEFT with Liger in DPO",
+      "head": "a624c49ab0e1be4ec34655603c512bb198764579",
+      "base": "26e596bb0aec9ba70b8cbab8af44176a6ee46598",
+      "source_files": [
+        "trl/trainer/dpo_trainer.py"
+      ],
+      "source_diff_sha256": "f19ff2cdeb38b4ad936606c384705669a9ca8d4cd2f35e90126bfe6d2ed96acf"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5686",
+      "status": "unsupported",
+      "reason": "PR has no modified Python source files"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5791",
+      "status": "supported",
+      "id": "150751b5c0ba",
+      "title": "Integrate the new response parsing API",
+      "head": "a23f77dc1132fe353a8dfdd192c4135af3038636",
+      "base": "bb2e724122801fe858c02262ffd104a4c0eff758",
+      "source_files": [
+        "trl/chat_template_utils.py",
+        "trl/experimental/async_grpo/async_rollout_worker.py",
+        "trl/experimental/dppo/dppo_trainer.py",
+        "trl/trainer/grpo_trainer.py"
+      ],
+      "source_diff_sha256": "ba5993bb1c08c9d0b0737cb9915de90b8e08ee90bfd007a745cbd92a6d96137c"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/5940",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: trl/experimental/a2po/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6066",
+      "status": "supported",
+      "id": "b71e9e0a47b6",
+      "title": "Add `get_cosine_scaled_reward`",
+      "head": "489d7ee091374f80ce9b35e87a25cca41defc6f3",
+      "base": "7b4c3b3b208c8611ff23818e8483cd2a6eaecb35",
+      "source_files": [
+        "trl/rewards/__init__.py",
+        "trl/rewards/accuracy_rewards.py"
+      ],
+      "source_diff_sha256": "42f022dd24425ef9e095aca8fe96ded592fbfa3f70f83695aa71d6dd025a503b"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6078",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: trl/experimental/gmpo/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6187",
+      "status": "supported",
+      "id": "fa1a9b35ff39",
+      "title": "Pass GPU device_ids to barrier fix in GRPO + vLLM colocate + PEFT",
+      "head": "cde475dc13118f61ee3dc18c66cc72c68b96fb4d",
+      "base": "9ac43a71acbe7963937d87c729ff8b3869ebd431",
+      "source_files": [
+        "trl/generation/vllm_generation.py"
+      ],
+      "source_diff_sha256": "a500669a4ea84db43f1ac1dca1e31c52598ff2dfc44b43638bc7d15a5a2582c0"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6203",
+      "status": "unsupported",
+      "reason": "PR has no modified Python source files"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6206",
+      "status": "supported",
+      "id": "9f3fb07e5766",
+      "title": "Fix dataset fingerprinting in DPO/SFT tokenization",
+      "head": "1b9ce2da24f01a0d9b28d8177b540e5f048640d3",
+      "base": "3b0ecdf8ced52291ee8329e6ca2a6cab59c4a3a9",
+      "source_files": [
+        "trl/trainer/dpo_trainer.py",
+        "trl/trainer/reward_trainer.py",
+        "trl/trainer/sft_trainer.py"
+      ],
+      "source_diff_sha256": "886e407696f2df9af5b59215862fb118c60047fbe76220f77a2bef738e84f6ac"
+    },
+    {
+      "url": "https://github.com/huggingface/trl/pull/6228",
+      "status": "supported",
+      "id": "1fe00f939ab9",
+      "title": "Fix vLLM server-mode generation in `OnlineDPOTrainer`",
+      "head": "96d543da3a4259c6a1d6f87c91fc89e5f71937eb",
+      "base": "79842b833c8865af29dfe5307c5e1e668a09d227",
+      "source_files": [
+        "trl/experimental/online_dpo/online_dpo_trainer.py"
+      ],
+      "source_diff_sha256": "b3b62c1571b0300879118cfb252101344e2627a1b84edd43872a66e332a13dd7"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12703",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/models/transformers/transformer_z_image.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12982",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/dreambooth/train_dreambooth_lora_flux2_klein.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13226",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/discrete_diffusion/sample_llada2.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12696",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: scripts/convert_hunyuan_video1_5_to_diffusers.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12808",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/modular_pipelines/z_image/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12872",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/modular_pipelines/node_utils.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13056",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/dreambooth/train_dreambooth_lora_z_image.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13064",
+      "status": "supported",
+      "id": "f02dd4e3e2be",
+      "title": "[Context Parallel] Add support for custom device mesh",
+      "head": "a45f62c186921d238ba62741a4e28ec54d5e30d1",
+      "base": "897aed72fa353d6aef864e3dd3da986666bf0645",
+      "source_files": [
+        "src/diffusers/models/_modeling_parallel.py",
+        "src/diffusers/models/modeling_utils.py"
+      ],
+      "source_diff_sha256": "1c9ffdeae2f4ea126531294b1703bff0f28022faba9ca248c9909d652c4a285c"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13168",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: example.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13280",
+      "status": "supported",
+      "id": "b1c97fd2744a",
+      "title": "[core] fa4 support.",
+      "head": "3d057e6f9fa6f5f9350dfbfec877f33ab7fc4511",
+      "base": "522b523e40abc0055b81026378b3b0907126b739",
+      "source_files": [
+        "src/diffusers/models/attention_dispatch.py"
+      ],
+      "source_diff_sha256": "36b42a1733de473a364491d9ce7a10e4cb433b819b96756df85a0a77a9361335"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13921",
+      "status": "supported",
+      "id": "7bc616ce49d7",
+      "title": "Add Ideogram4LoraLoaderMixin (LoRA loading for Ideogram4)",
+      "head": "43e01410a9229a5704882bf2ef53002914606fd5",
+      "base": "5e7540fc5ce41bcb7729e9b5b8788a0c2bc0442d",
+      "source_files": [
+        "src/diffusers/loaders/__init__.py",
+        "src/diffusers/loaders/lora_conversion_utils.py",
+        "src/diffusers/loaders/lora_pipeline.py",
+        "src/diffusers/models/transformers/transformer_ideogram4.py",
+        "src/diffusers/pipelines/ideogram4/pipeline_ideogram4.py"
+      ],
+      "source_diff_sha256": "ecd5873ead01149311a3794844c38c507c96aed80be2d16e1b8f837db78abe27"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/11281",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/dreambooth/train_dreambooth_lora_hidream.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/11602",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/pipelines/sana/pipeline_sana_sprint_img2img.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/11812",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/pipelines/flux/pipeline_flux_kontext.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12463",
+      "status": "supported",
+      "id": "a53a16eebe9d",
+      "title": "[core] reuse `AttentionMixin` for compatible classes",
+      "head": "4551f4974fffc530c34764568e66ba554737a754",
+      "base": "f48f9c250fe7f6027c7445f8be04bb4499583f58",
+      "source_files": [
+        "src/diffusers/models/autoencoders/autoencoder_kl.py",
+        "src/diffusers/models/autoencoders/autoencoder_kl_flux2.py",
+        "src/diffusers/models/autoencoders/autoencoder_kl_temporal_decoder.py",
+        "src/diffusers/models/autoencoders/consistency_decoder_vae.py",
+        "src/diffusers/models/controlnets/controlnet.py",
+        "src/diffusers/models/controlnets/controlnet_flux.py",
+        "src/diffusers/models/controlnets/controlnet_qwenimage.py",
+        "src/diffusers/models/controlnets/controlnet_sana.py",
+        "src/diffusers/models/controlnets/controlnet_sd3.py",
+        "src/diffusers/models/controlnets/controlnet_sparsectrl.py",
+        "src/diffusers/models/controlnets/controlnet_union.py",
+        "src/diffusers/models/controlnets/controlnet_xs.py",
+        "src/diffusers/models/transformers/auraflow_transformer_2d.py",
+        "src/diffusers/models/transformers/cogvideox_transformer_3d.py",
+        "src/diffusers/models/transformers/consisid_transformer_3d.py",
+        "src/diffusers/models/transformers/hunyuan_transformer_2d.py",
+        "src/diffusers/models/transformers/pixart_transformer_2d.py",
+        "src/diffusers/models/transformers/prior_transformer.py",
+        "src/diffusers/models/transformers/sana_transformer.py",
+        "src/diffusers/models/transformers/stable_audio_transformer.py",
+        "src/diffusers/models/transformers/transformer_cogview3plus.py",
+        "src/diffusers/models/transformers/transformer_hunyuan_video.py",
+        "src/diffusers/models/transformers/transformer_hunyuan_video15.py",
+        "src/diffusers/models/transformers/transformer_hunyuanimage.py",
+        "src/diffusers/models/transformers/transformer_sd3.py",
+        "src/diffusers/models/unets/unet_2d_condition.py",
+        "src/diffusers/models/unets/unet_3d_condition.py",
+        "src/diffusers/models/unets/unet_i2vgen_xl.py",
+        "src/diffusers/models/unets/unet_kandinsky3.py",
+        "src/diffusers/models/unets/unet_motion_model.py",
+        "src/diffusers/models/unets/unet_spatio_temporal_condition.py",
+        "src/diffusers/models/unets/uvit_2d.py",
+        "src/diffusers/pipelines/audioldm2/modeling_audioldm2.py",
+        "src/diffusers/pipelines/wuerstchen/modeling_wuerstchen_prior.py"
+      ],
+      "source_diff_sha256": "569301897f64a53cabcb64edd3d653863f8fa99d1eb9316155b1f4f61e0c8a24"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12619",
+      "status": "supported",
+      "id": "83a0918520ec",
+      "title": "Deprecate `upcast_vae` in SDXL based pipelines",
+      "head": "68eee98578e17c0fee1f4828c364359016f14c60",
+      "base": "d5da453de56fe73e0cfd26204ccca441af568ca1",
+      "source_files": [
+        "examples/community/lpw_stable_diffusion_xl.py",
+        "examples/community/mixture_tiling_sdxl.py",
+        "examples/community/mod_controlnet_tile_sr_sdxl.py",
+        "examples/community/pipeline_controlnet_xl_kolors.py",
+        "examples/community/pipeline_controlnet_xl_kolors_img2img.py",
+        "examples/community/pipeline_controlnet_xl_kolors_inpaint.py",
+        "examples/community/pipeline_demofusion_sdxl.py",
+        "examples/community/pipeline_faithdiff_stable_diffusion_xl.py",
+        "examples/community/pipeline_kolors_differential_img2img.py",
+        "examples/community/pipeline_kolors_inpainting.py",
+        "examples/community/pipeline_sdxl_style_aligned.py",
+        "examples/community/pipeline_stable_diffusion_upscale_ldm3d.py",
+        "examples/community/pipeline_stable_diffusion_xl_attentive_eraser.py",
+        "examples/community/pipeline_stable_diffusion_xl_controlnet_adapter.py",
+        "examples/community/pipeline_stable_diffusion_xl_controlnet_adapter_inpaint.py",
+        "examples/community/pipeline_stable_diffusion_xl_differential_img2img.py",
+        "examples/community/pipeline_stable_diffusion_xl_ipex.py",
+        "src/diffusers/modular_pipelines/stable_diffusion_xl/decoders.py",
+        "src/diffusers/pipelines/aura_flow/pipeline_aura_flow.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_inpaint_sd_xl.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_sd_xl.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_sd_xl_img2img.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_union_inpaint_sd_xl.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_union_sd_xl.py",
+        "src/diffusers/pipelines/controlnet/pipeline_controlnet_union_sd_xl_img2img.py",
+        "src/diffusers/pipelines/controlnet_xs/pipeline_controlnet_xs_sd_xl.py",
+        "src/diffusers/pipelines/kolors/pipeline_kolors.py",
+        "src/diffusers/pipelines/kolors/pipeline_kolors_img2img.py",
+        "src/diffusers/pipelines/ledits_pp/pipeline_leditspp_stable_diffusion_xl.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_controlnet_sd_xl.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_controlnet_sd_xl_img2img.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_kolors.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_sd_xl.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_sd_xl_img2img.py",
+        "src/diffusers/pipelines/pag/pipeline_pag_sd_xl_inpaint.py",
+        "src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion_upscale.py",
+        "src/diffusers/pipelines/stable_diffusion_k_diffusion/pipeline_stable_diffusion_xl_k_diffusion.py",
+        "src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py",
+        "src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py",
+        "src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_inpaint.py",
+        "src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_instruct_pix2pix.py",
+        "src/diffusers/pipelines/t2i_adapter/pipeline_stable_diffusion_xl_adapter.py",
+        "src/diffusers/pipelines/text_to_video_synthesis/pipeline_text_to_video_zero_sdxl.py"
+      ],
+      "source_diff_sha256": "63d64536f341e5dd9827b4c8c3f2298793d5826de6d55e6c3b9462e778f626d7"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/12763",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/modular_pipelines/flux2/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13182",
+      "status": "supported",
+      "id": "bebbabcc7ef6",
+      "title": "[attention backends] fix ring CP for flash and flash 3",
+      "head": "08754891ab0a1bdcd374f6bdceeae6f1d43956c5",
+      "base": "dad80d728df16bac506b84b363561e536609bcd9",
+      "source_files": [
+        "src/diffusers/models/attention_dispatch.py",
+        "utils/generate_model_tests.py"
+      ],
+      "source_diff_sha256": "ee80bf4b5774fcdae3ddffa42ebaade68ebef1d53c902fbb0698799a89be6bb9"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/13216",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/modular_pipelines/helios/__init__.py"
+    },
+    {
+      "url": "https://github.com/huggingface/diffusers/pull/14045",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/diffusers/models/transformers/transformer_krea2.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2952",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/pvera/confidence_interval_generation.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3083",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/peft/utils/transformers_weight_conversion.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2575",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/peft/tuners/oft/aqlm.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2661",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/dora_finetuning/dora-caching.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2895",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/bdlora_finetuning/chat.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3055",
+      "status": "supported",
+      "id": "32f22cd6602c",
+      "title": "ENH Support models with low precision float dtypes",
+      "head": "f88ad8b2dd59e55de76f15d17e8df3933af2a4ac",
+      "base": "07a1db6f29086efe0abdc2c296ef455da0412188",
+      "source_files": [
+        "src/peft/tuners/lora/layer.py",
+        "src/peft/tuners/tuners_utils.py",
+        "src/peft/utils/__init__.py",
+        "src/peft/utils/constants.py"
+      ],
+      "source_diff_sha256": "3896625a9755360eec146acc4d238c315e57786b39dfca23b95819d917cd835d"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3079",
+      "status": "supported",
+      "id": "a27f5bd16532",
+      "title": "LoRA and Transformers TP",
+      "head": "ecb29ed4be0a9c65353d7e4e608165e2a8f996b4",
+      "base": "c1e8a27a87331e79b0fd504ef1295922e257c902",
+      "source_files": [
+        "src/peft/import_utils.py",
+        "src/peft/tuners/lora/layer.py",
+        "src/peft/tuners/lora/model.py",
+        "src/peft/utils/save_and_load.py"
+      ],
+      "source_diff_sha256": "f5a781fd3f8ba8952a0cf59f96f90e093469a7b830723040c2f3aa78261d0ea7"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3091",
+      "status": "supported",
+      "id": "331746bd9f86",
+      "title": "Embeddings LoRA & TP",
+      "head": "037151c21f2768cc2b412f944fd4fb2a6f7e9e0f",
+      "base": "3fb7842e8f514c982cfd3a9bf3ad565e55d7fd54",
+      "source_files": [
+        "examples/loftq_finetuning/int8_correction.py",
+        "src/peft/tuners/lora/layer.py",
+        "src/peft/tuners/lora/model.py",
+        "src/peft/utils/save_and_load.py"
+      ],
+      "source_diff_sha256": "14782e702cd68e40b5658cf96a587b1f121671e7bf0df04de47e1a35ff6eedb6"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3096",
+      "status": "supported",
+      "id": "8ea07a00fcb8",
+      "title": "Save checkpoint with TP",
+      "head": "a4417a1f1a6028103409df2a17291512d6925922",
+      "base": "74a8f8cc0c21c21fc8ae5e0274b966d777bdc0b5",
+      "source_files": [
+        "src/peft/tuners/lora/model.py",
+        "src/peft/utils/integrations.py",
+        "src/peft/utils/save_and_load.py"
+      ],
+      "source_diff_sha256": "2069fe5f3a894256614b97ca4fe6d939487506f2f94284cbb18ab558c8ca0f14"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3212",
+      "status": "supported",
+      "id": "35c1a487454c",
+      "title": "FIX State dict injection with weight conversion",
+      "head": "13cb6f1ce69e60f1cebd323466a321aa948ddcac",
+      "base": "dc2e5b2d9fdbcea900ae8c2bad120eab035ed41b",
+      "source_files": [
+        "src/peft/utils/save_and_load.py"
+      ],
+      "source_diff_sha256": "331dbe7b96688b787d60a661adb38cbd4a69cbf1b57421e90904507ca32c149f"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2939",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: scripts/evaluate-lora-conversion.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/2962",
+      "status": "supported",
+      "id": "e1ba3292a5bc",
+      "title": "FIX: Inject from state dict into compiled model",
+      "head": "b5f4f2ae3b4fdb8d586b69c68cc590d6db2a5da3",
+      "base": "e70542269c4f9668dbf9607ca383333ef7723b48",
+      "source_files": [
+        "src/peft/tuners/tuners_utils.py"
+      ],
+      "source_diff_sha256": "1391561780a353af23af58a232a1657bc5d4abf8d1136f371bf6ecbe914b3509"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3098",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: examples/glora_finetuning/glora_finetuning.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3117",
+      "status": "unsupported",
+      "reason": "Unsupported added/deleted source path: src/peft/tuners/vera/bnb.py"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3302",
+      "status": "supported",
+      "id": "749ff8d440e1",
+      "title": "FIX Bug when targeting an nn.Parameter on the root module",
+      "head": "ee67e3e98f1f50e4a1230872ebf11b40d434c605",
+      "base": "aa2b673629adf5c2340ea835604da73bc747212a",
+      "source_files": [
+        "src/peft/tuners/tuners_utils.py"
+      ],
+      "source_diff_sha256": "2bbc5c52b86e9d0362696aeb379e197446011d37e0cae83aa52405b269d5387b"
+    },
+    {
+      "url": "https://github.com/huggingface/peft/pull/3350",
+      "status": "supported",
+      "id": "0d2d1e298e86",
+      "title": "ENH Allow multiple adapters when using target_parameters",
+      "head": "09802c1b43fff9b087be42e149d70e5350ff407a",
+      "base": "ddd04c51131aa40bef169c6d777ece9e7a483f59",
+      "source_files": [
+        "src/peft/tuners/lora/layer.py",
+        "src/peft/tuners/lora/model.py",
+        "src/peft/tuners/tuners_utils.py"
+      ],
+      "source_diff_sha256": "1c5b7634391d3b2dda67bcdf3ea523ba19dcc296665c8c225861c7a61767b109"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/1928",
+      "status": "intake_error",
+      "reason": "gh 'api repos/huggingface/tokenizers/pulls/1928/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)",
+      "initial_intake": {
+        "status": "unsupported",
+        "reason": "gh 'api repos/huggingface/tokenizers/pulls/1928/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)"
+      }
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/1995",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: bindings/node/src/tokenizer.rs",
+      "initial_intake": {
+        "status": "unsupported",
+        "reason": "gh 'api repos/huggingface/tokenizers/pulls/1995/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)"
+      }
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/1999",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/src/tokenizer/added_vocabulary.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/1977",
+      "status": "unsupported",
+      "reason": "PR has no modified Python source files"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/1994",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: bindings/python/src/models.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2014",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/src/decoders/byte_fallback.rs",
+      "initial_intake": {
+        "status": "unsupported",
+        "reason": "gh 'api repos/huggingface/tokenizers/pulls/2014/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)"
+      }
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2025",
+      "status": "unsupported",
+      "reason": "PR has no modified Python source files"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2028",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/src/models/bpe/model.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2041",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: bindings/python/src/decoders.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2099",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/benches/ci_benchmark.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2115",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: bindings/python/src/decoders.rs",
+      "initial_intake": {
+        "status": "unsupported",
+        "reason": "gh 'api repos/huggingface/tokenizers/pulls/2115/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)"
+      }
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2123",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/tk-encode/src/normalizers/byte_level.rs",
+      "initial_intake": {
+        "status": "unsupported",
+        "reason": "gh 'api repos/huggingface/tokenizers/pulls/2123/files?per_page=100 --paginate --slurp' failed: gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)"
+      }
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2126",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/tk-encode/src/pre_tokenizers/bert.rs"
+    },
+    {
+      "url": "https://github.com/huggingface/tokenizers/pull/2129",
+      "status": "unsupported",
+      "reason": "PR includes non-Python source changes: tokenizers/tk-encode/src/added_vocabulary/added_vocabulary.rs"
+    }
+  ],
+  "structural_exclusions": 68,
+  "unresolved_intake_errors": 1
+}

@@ -11,12 +11,21 @@ class PythonRepositoryProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_paths: list[str] = Field(min_length=1)
     test_paths: list[str] = Field(min_length=1)
+    test_selectors: list[str] = Field(default_factory=list)
+    public_exclude: list[str] = Field(default_factory=list)
+    materialize_document_links: list[str] = Field(default_factory=list, max_length=32)
     base_image: str = "python:3.12-slim"
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3"])
     install_command: str = "python -m pip install --no-cache-dir -e ."
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
 
-    @field_validator("source_paths", "test_paths")
+    @field_validator(
+        "source_paths",
+        "test_paths",
+        "public_exclude",
+        "test_selectors",
+        "materialize_document_links",
+    )
     @classmethod
     def safe_paths(cls, values: list[str]) -> list[str]:
         from repo2rlenv.emitter.bundle import relative_asset_path
@@ -25,6 +34,19 @@ class PythonRepositoryProfile(BaseModel):
             relative_asset_path("environment/" + value)
             if value.startswith("-"):
                 raise ValueError("Repository paths cannot be command options")
+        return values
+
+    @field_validator("materialize_document_links")
+    @classmethod
+    def document_links_only(cls, values: list[str]) -> list[str]:
+        from pathlib import PurePosixPath
+
+        if len(set(values)) != len(values) or any(
+            PurePosixPath(value).suffix.lower() not in {".md", ".rst", ".txt"} for value in values
+        ):
+            raise ValueError(
+                "Document links must be unique Markdown, reStructuredText or text paths"
+            )
         return values
 
     @field_validator("base_image", "install_command", "dependencies")

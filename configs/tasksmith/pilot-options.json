@@ -1,0 +1,26 @@
+{
+  "provider": "modal",
+  "author_runtime": "pi",
+  "max_spend_usd": "100.00",
+  "quality": {
+    "review_model": {
+      "provider": "openai",
+      "model": "gpt-6-astra"
+    },
+    "repair_model": {
+      "provider": "openai",
+      "model": "gpt-6-astra"
+    },
+    "solver_model": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6"
+    },
+    "repair": true,
+    "run_rollout": true,
+    "max_repairs": 2,
+    "max_turns": 20,
+    "max_spend_usd": "20.00",
+    "max_probes": 4,
+    "max_read_rounds": 3
+  }
+}
