@@ -74,6 +74,12 @@ The first batch's admission controller was drained before further dispatch.
 Its remaining **$187.88342** expansion allowance carries forward; a continuation
 must not reset the original $200 ceiling.
 
+`batch-v2` is the continuation. Its first two candidates reuse the retained PEFT
+and Accelerate tasks with fresh review and execution. Accelerate receives the
+explicit `compiled_execution` requirement on a new, hashed task copy. Diffusers
+receives complete-source feedback and eighteen bounded author calls. The other
+candidate PRs and two-worker concurrency remain unchanged.
+
 ## Execution and budget
 
 ```mermaid
@@ -115,14 +121,15 @@ can fund; fifty successes within $200 is a target, not a measured guarantee.
 ## Inspect or resume
 
 ```bash
-repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v1
+repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v2
 repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
-The active batch uses `workspace/tasksmith-scale50/batch-plan-v1.json`; its
+The active continuation uses `workspace/tasksmith-scale50/batch-plan-v2.json`; its
 configuration, frozen runtime, subprocess logs and live report are under
-`workspace/tasksmith-scale50/batch-v1/`. Completed attempts are not blindly
+`workspace/tasksmith-scale50/batch-v2/`. `continuation-v2.json` records its
+allowance after the first batch's costs. Completed attempts are not blindly
 repeated. Provider or child-process uncertainty stops dispatch until receipts
 are reconciled. The controller stops admitting work once the target or batch
 allowance is reached.
