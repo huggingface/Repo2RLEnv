@@ -4,7 +4,9 @@
 
 Audit date: September 13, 2026. The [candidate manifest](evidence/tasksmith-scale30-panel.json) records every selected PR's source pin, source-diff hash, proposed task, verification idea and wave. Seventeen selections fit the original source profile; three Transformers selections required the added-Python-source extension described below. Eighteen other candidates remain in reserve. The [bootstrap audit](evidence/tasksmith-scale30-bootstrap.json) records fresh execution, the failed first distributed launch, its correction, cleanup and cost. The [Transformers source audit](evidence/tasksmith-scale30-transformers.json) adds fresh merged-PR metadata, complete source-diff identities and test entry points.
 
-Execution update, September 13 at 08:20 UTC: **11 accepted tasks**, including PEFT #3212. Its baseline failed, fixed reference passed, valid alternative passed and wrong implementation failed. Sonnet failed legitimately, so acceptance did not require making the task easier. The [progress evidence](evidence/tasksmith-scale30-progress.json) records identities and rewards. Native GPU execution and added-module support are implemented and have passed the [execution contract checks](evidence/tasksmith-scale30-native-contract.json). Actual GPU and Transformers tasks remain in campaign validation. TRL #6116 exposed a conflict between its idempotence claim and the merged reference; that candidate is not counted as accepted.
+Execution update, September 13 at 08:50 UTC: **12 accepted tasks**, including PEFT #3212 and the first real GPU task, Accelerate #3674. Both rejected the baseline and a wrong implementation while accepting the fixed reference and valid alternatives. Their Sonnet failures were legitimate, so acceptance did not require making the tasks easier. The [progress evidence](evidence/tasksmith-scale30-progress.json) records identities, rewards and a portable 12-task delivery containing 65 trial receipts. Native GPU execution and added-module support passed the [execution contract checks](evidence/tasksmith-scale30-native-contract.json). Transformers tasks remain in validation.
+
+TRL #6116 exposed a conflict between its idempotence claim and the merged reference and is not counted as accepted. TRL #5501 is explicitly queued as its replacement in the CPU lane; the original failure remains in the attempt record. New CPU and single-GPU batches have independent limits under the unchanged campaign cap. Their launch does not imply that the task-count target will fit the remaining budget.
 
 The last unresolved intake, Tokenizers #1928, was retried successfully during the initial audit and classified as Rust source changes. Before the added-source extension, all **114 inputs were accounted for: 45 structurally supported and 69 outside that source profile, with no unresolved retrieval errors**. These historical counts are not a fresh classification under the expanded implementation.
 
@@ -128,7 +130,7 @@ The resource column is a planned execution lane. Some tasks can also run on CPU;
 | 3 | [Accelerate #4015](https://github.com/huggingface/accelerate/pull/4015) | 2 L4 | Real FSDP2 embedding/final-layer sharding and numerical behavior. |
 | 3 | [Accelerate #4022](https://github.com/huggingface/accelerate/pull/4022) | 2 L4 | Regional compilation preserving actual FSDP2 hooks and gradients. |
 
-Wave 1 targets **16 total**, wave 2 **23**, wave 3 **30**. Wave 3 contains the larger compatibility risks and runs only after the first waves establish cost and reliability. A selected PR that needs more engineering stays in the attempt ledger; any substitution is explicit and does not count as conversion of that PR. Keep accepted/attempted yield alongside accepted/delivered totals.
+Wave 1 targets **16 total**, wave 2 **23**, wave 3 **30**. The original order put the larger compatibility risks in wave 3. Its CPU lane was subsequently started alongside wave 2; the two-GPU lane remains held while the earlier runs establish cost and reliability. A selected PR that needs more engineering stays in the attempt ledger; any substitution is explicit and does not count as conversion of that PR. Keep accepted/attempted yield alongside accepted/delivered totals.
 
 Reserves include the three displaced tasks, PEFT tensor-parallel PRs #3079/#3091/#3096, Accelerate #4059 and Diffusers #13064. Hardware-specific exclusions include Accelerate Neuron #3935, AMD ROCm #4025, MXFP8 #3688 and specialized Diffusers attention-kernel work. These are limitations of this campaign's capabilities, not judgments that the PRs cannot become useful environments. The three Transformers selections explicitly depend on the added-source extension; Tokenizers still needs Rust support. Merely bootstrapping their repositories does not implement those source profiles.
 
@@ -160,7 +162,7 @@ Propose an **additional $145 ceiling**, within the existing campaign cap:
 | Repairs, failed attempts and contingency | $23 |
 | Total | **$145** |
 
-These are allocation targets, not new measured unit costs. The $4.34 bootstrap audit is already charged and is outside this future ceiling. The same ledger covers all models and providers; do not reset it, forgive historical reservations or overspend to hit the count.
+These are allocation targets, not new measured unit costs. The current `scale30-` budget prefix also matches the $4.34 bootstrap audit, so its $145 limit conservatively leaves $140.66 for subsequent work. The same ledger covers all models and providers; do not reset it, forgive historical reservations or overspend to hit the count.
 
 The Transformers amendment spends no model or sandbox budget. It reallocates $2 from contingency to integration checks, keeping the $145 ceiling. New-model tasks have larger diffs than many bug fixes; the unchanged unit-cost targets remain hypotheses to test, especially on the first Helium run.
 
@@ -169,6 +171,8 @@ Keep Sonnet as the primary author/rollout model. Preserve the current reviewer u
 After wave 1, compute `(remaining campaign allowance - protected contingency) / remaining task count` and compare it with measured cost including failed attempts. Repeat after wave 2. If the next wave does not fit, reduce expensive setup through compatible fixtures/caches or move an explicitly recorded reserve forward. Do not silently reduce PR scope or make Sonnet's solution the answer key.
 
 Current Modal L4 pricing is $0.000222/GPU-second. Sandbox CPU and RAM cost $0.00003942/core-second and $0.00000667/GiB-second, matching the existing estimator. The lower rates elsewhere on Modal's page apply to functions, not sandboxes; the earlier comparison overlooked this distinction. The estimator also doubles full-allocation time and adds $1 per allocation even when reusing an image. Historical estimates were not rewritten. Native trial receipts record the sandbox rate, date, doubled allocation time including build wait, and a $0.25 build allowance per environment; these remain estimates, with provider invoices authoritative. [Modal pricing](https://modal.com/pricing).
+
+At the 08:44 UTC checkpoint, the global ledger held **$388.04 accounted**, including earlier external costs, **$38.09 reserved**, and **$73.87 available**. New work after that checkpoint consumes the same remaining allowance. Reservations are not confirmed charges; compute is conservatively estimated until provider billing is reconciled.
 
 ## Completion standard
 

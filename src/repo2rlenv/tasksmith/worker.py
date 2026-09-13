@@ -339,11 +339,17 @@ def main():
         (args.output / "traceback.txt").write_text(traceback.format_exc())
     result["seconds"] = time.time() - started
     save_record(args.output / "stage-result.json", result)
-    # The private inspection checkout is never downloaded. Build snapshots stay
-    # on the worker; the exported task and compact evidence are sufficient.
+    # Private checkouts and CPU build snapshots stay remote. Successful native
+    # preparation exports its cleaned snapshot for the provider image build.
+    excluded = {"base", "checkout"}
+    if result["status"] == "failed":
+        # Native preparation can fail while cleaning links in the snapshot.
+        # Preserve the diagnostic, but keep that incomplete tree remote so
+        # archive validation does not hide the repairable profile error.
+        excluded.add("snapshot")
     with tarfile.open(args.output.with_suffix(".tar.gz"), "w:gz") as archive:
         for path in sorted(args.output.iterdir()):
-            if path.name not in {"base", "checkout"}:
+            if path.name not in excluded:
                 archive.add(path, arcname=args.output.name + "/" + path.name)
 
 

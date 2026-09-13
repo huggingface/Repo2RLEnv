@@ -144,3 +144,42 @@ def test_unknown_allocation_is_not_fed_back_as_a_verifier_repair(tmp_path):
     path.write_text(json.dumps({"state": "creation_uncertain"}))
     with pytest.raises(RuntimeError, match="Reconcile native allocation"):
         NativeStages.failure(tmp_path, ConnectionError("lost response"))
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_native_snapshot_transfer_preserves_profile_failure(tmp_path, monkeypatch, failed):
+    from repo2rlenv.execution.artifacts import unpack_evidence
+    from repo2rlenv.tasksmith import worker
+
+    config = tmp_path / "request.json"
+    config.write_text(
+        json.dumps({"stage": "prepare_native", "source": {}, "profile": {}, "checkout": "unused"})
+    )
+    output = tmp_path / "artifact"
+    monkeypatch.setenv("REPO2RLENV_REMOTE_WORKER", "1")
+    monkeypatch.setattr("sys.argv", ["worker", str(config), str(output)])
+    monkeypatch.setattr(worker.Profile, "model_validate", lambda value: value)
+
+    def prepare(source, profile, checkout, destination):
+        snapshot = destination / "snapshot"
+        snapshot.mkdir()
+        (snapshot / "module.py").write_text("value = 1\n")
+        if failed:
+            (snapshot / "unhandled.md").symlink_to("module.py")
+            raise ValueError("Snapshot has a link requiring support: unhandled.md")
+        return {"base_relative": "snapshot"}
+
+    monkeypatch.setattr(worker, "prepare_native", prepare)
+    worker.main()
+    received = unpack_evidence(
+        output.with_suffix(".tar.gz"), tmp_path / "download", root_name="artifact"
+    )
+    result = json.loads((received / "stage-result.json").read_text())
+    assert result["status"] == ("failed" if failed else "completed")
+    if failed:
+        assert "unhandled.md" in result["error"]
+        assert (received / "traceback.txt").is_file()
+        assert not (received / "snapshot").exists()
+        assert (output / "snapshot/unhandled.md").is_symlink()
+    else:
+        assert (received / "snapshot/module.py").read_text() == "value = 1\n"

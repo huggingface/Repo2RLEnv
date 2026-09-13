@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
-  "recorded_at": "2026-09-13T08:27:07.465068+00:00",
+  "recorded_at": "2026-09-13T08:50:17.258464+00:00",
   "target_total": 30,
   "retained_accepted": 10,
-  "new_accepted": 1,
-  "accepted_total": 11,
+  "new_accepted": 2,
+  "accepted_total": 12,
   "new_tasks": [
     {
       "pr": "https://github.com/huggingface/peft/pull/3212",
@@ -64,6 +64,74 @@
       "recovery_reserved_usd": "0",
       "cost_scope": "This targeted recovery only; initial generation and unsuccessful repairs remain charged to the original CPU wave.",
       "repair": "Pin Transformers 5.7.0 and tokenizers 0.22.2, use an actual local CLIPTextModel conversion fixture with both memory modes, and align expected test identities after parameterization. Preserve starting source and the actual PR reference."
+    },
+    {
+      "pr": "https://github.com/huggingface/accelerate/pull/3674",
+      "source_head": "bc3753dfb3020e651c7cc48d908f820996b65278",
+      "source_diff_sha256": "5f41ad9fbffab51273e3d54ba15bd785228f2a1191216c465a4fd67db5fd9ef7",
+      "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+      "status": "usable",
+      "gpus": 1,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "32395e8a0a90522f5f3e1770f48acdccf749051431ad453c3d63d8aa165f5159",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "b1a139aa941e5af942dd923df96b2799246d92ad1c43ba1182bb77b724147347",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:d69861784823fd49c2dc26c857e2c27d58903ab400979a3107f353d9d0bc7b8a",
+          "result_sha256": "6576b32683f206b5ae00874ecf79b1e7410af0eb10ad0f3632c1f364532f5186",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:7129d574caa20daf7b4fb79c182578d833e7025a15b88878e6893d801627e29d",
+          "result_sha256": "58bdff89353e772de2756071a3551e7f089327bbaf64a8b1f5822f33e32ea3af",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:3c8c5280fcd0c226b01d2ebb64c713e1b12e6ccf3e01b20305abab30495b49aa",
+          "result_sha256": "f5ba60f97f1dad49897f503a29ec08a866e3ffbdcdeb99cadce6316f9fd14f8b",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "bce2343e29fb06df8b1206d9272153dfdad6abb02e6f3447863f3476d3c8f4d1",
+          "probe_kind": null
+        }
+      ],
+      "recovery_compute_and_model_usd": "5.274237",
+      "recovery_reserved_usd": "0",
+      "cost_scope": "Final targeted recovery only; earlier GPU generation and unsuccessful repairs remain charged to their original attempts.",
+      "repair": "Observe actual tensor copies and conversions; exclude genuine no-op Tensor.to calls. Preserve source/reference/instruction and rerun both retained valid alternatives plus the wrong implementation."
     }
   ],
   "known_failure": {
@@ -74,7 +142,39 @@
   },
   "limitations": [
     "This is a dated progress snapshot, not the final 30-task delivery.",
-    "GPU and Transformers bundles require their own completed controls and rollout reviews before acceptance.",
+    "One real GPU task is accepted; Transformers bundles are still under validation.",
     "A legitimate Sonnet failure can be accepted; it is not repaired into an easier task."
-  ]
+  ],
+  "substitution": {
+    "replaces": "https://github.com/huggingface/trl/pull/6116",
+    "replaced_status": "reference_conflict",
+    "reason": "Executed merged reference raises KeyError chosen on already-tokenized DPO data despite its documented idempotence claim. Preserve that failed attempt; use another original-inventory PR to reach the total target.",
+    "replacement": {
+      "url": "https://github.com/huggingface/trl/pull/5501",
+      "id": "0ea2241cceeb",
+      "head": "e294047ca750a3267a0f93caba817c0115d1bc4c",
+      "source_diff_sha256": "8c0898a8f8cf606aa0e3a790be6ae967834b12deb78b9e062964feb8bde43526",
+      "lane": "cpu",
+      "proposed_task": "Support configured Trackio completion-table logging in DistillationTrainer, including simultaneous backends, logging cadence, row sampling and buffer clearing.",
+      "verification_idea": "Call the real trainer logging method on bounded CPU fixtures. Observe backend transport calls without live network; assert independently constructed table content, step values, row bounds, correct selected backends and unchanged logging cadence. Do not require unavailable backends to work.",
+      "status": "queued_in_wave3_cpu_v2"
+    }
+  },
+  "delivery": {
+    "tasks": 12,
+    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-12.tar.gz",
+    "sha256": "aa25f2d59824fe340222e7b92f36912b98f5ee9a3cd2722a457aba7ffe568781",
+    "bytes": 115660727,
+    "audit": {
+      "tasks": 12,
+      "trials": 65,
+      "new_protected_trees_unchanged": 2,
+      "credential_scan": {
+        "files": 17540,
+        "configured_values_checked": 7,
+        "matches": 0
+      },
+      "scope": "Byte integrity and recorded execution checks; no target code executed on controller."
+    }
+  }
 }
