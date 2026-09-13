@@ -306,6 +306,7 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
             "upstream_test_policy": design.upstream_test_policy,
         },
         verifier_source={relative: path.read_bytes() for relative, path in additions.items()},
+        collect_source_directories=True,
     )
     return {
         "task": str(task),

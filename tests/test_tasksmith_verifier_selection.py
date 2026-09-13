@@ -1,5 +1,8 @@
 """Private verifier selection contracts; repository execution is mocked."""
 
+import hashlib
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -108,3 +111,82 @@ def test_selection_preserves_readiness_and_routes_both_controls(monkeypatch, tmp
     assert exported["metadata"]["upstream_test_policy"] == policy
     assert exported["verifier_source"] == {"tests/tasksmith_behavior.py": text.encode()}
     assert exported["contrast"] == {"FAIL_TO_PASS": ["feature"], "PASS_TO_PASS": ["adjacent"]}
+
+
+def test_modified_only_cpu_task_collects_directories_with_strict_contract(monkeypatch, tmp_path):
+    from harbor.models.task.task import Task
+
+    from repo2rlenv.pipelines.recipes.swe_smith.grade import validate_submission
+
+    base = tmp_path / "base"
+    for name, text in {
+        "lib/core.py": "value = 1\n",
+        "lib/adjacent.py": "other = 2\n",
+        "lib/schema.json": '{"version": 1}\n',
+        "tests/test_core.py": "private readiness fixture\n",
+    }.items():
+        path = base / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    defective = tmp_path / "defective"
+    (defective / "lib").mkdir(parents=True)
+    (defective / "lib/core.py").write_text("value = 0\n")
+    profile = Profile(
+        reasoning="The changed behavior has offline CPU unit tests.",
+        resource="cpu",
+        options=PythonRepositoryProfile(
+            source_paths=["lib"], test_paths=["tests"], test_selectors=["tests/test_core.py"]
+        ),
+        dependency_inputs=["pyproject.toml"],
+        upstream_test_rationale="An existing feature check and adjacent behavior both passed.",
+    )
+    source = {
+        "source_files": ["lib/core.py"],
+        "changed_files": [{"filename": "lib/core.py", "status": "modified"}],
+        "source_diff": "pinned modification-only fixture",
+        "id": "fixture",
+        "url": "https://example.org/repo/pull/1",
+        "head": "h",
+        "base": "b",
+        "workspace_strategy": "head_minus_source_patch",
+    }
+
+    def test_image(image, options, output, **kwargs):
+        broken = output.name == "defective"
+        return TestResults(
+            {"feature": "failed" if broken else "passed", "adjacent": "passed"},
+            int(broken),
+        )
+
+    monkeypatch.setattr(worker, "reverse_source", lambda *args: (defective, []))
+    monkeypatch.setattr(worker, "test_image", test_image)
+    monkeypatch.setattr(worker, "test_excerpts", lambda *args, **kwargs: [])
+    monkeypatch.setattr("os.chown", lambda *args: None)
+    output = tmp_path / "construct"
+    output.mkdir()
+    result = worker.construct(
+        source, profile, design(), {"base": str(base), "image": "verified-fixture"}, output
+    )
+    task = output / result["task_relative"]
+    artifacts = Task(task).config.artifacts
+    assert len(artifacts) == 1
+    assert artifacts[0].source == "/workspace/lib"
+    assert artifacts[0].exclude == ["__pycache__", "*.pyc", ".pytest_cache"]
+
+    contract = json.loads((task / "tests/contract.json").read_text())
+    assert contract["submitted_roots"] == ["lib"]
+    assert contract["submitted_files"] == ["lib/adjacent.py", "lib/core.py"]
+    assert contract["optional_files"] == []
+    assert contract["immutable_assets"] == {
+        "lib/schema.json": hashlib.sha256((base / "lib/schema.json").read_bytes()).hexdigest()
+    }
+    workspace = task / "environment/source"
+    assert not (workspace / "tests").exists()
+    assert (task / "tests/source/tests/test_core.py").is_file()
+    assert (workspace / "lib/core.py").read_text() == "value = 0\n"
+    validate_submission(workspace, contract)
+    (workspace / "lib/helper.py").write_text("helper = 3\n")
+    validate_submission(workspace, contract)
+    (workspace / "lib/schema.json").write_text("modified immutable asset\n")
+    with pytest.raises(ValueError, match="Non-Python source assets must remain unchanged"):
+        validate_submission(workspace, contract)
