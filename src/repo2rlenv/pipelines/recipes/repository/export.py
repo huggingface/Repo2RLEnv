@@ -37,6 +37,19 @@ def _learner_venv_login() -> str:
     )
 
 
+def _learner_venv_startup() -> str:
+    # Native Harbor exec also uses noninteractive bash, including after `su`.
+    # Its runtime hook must not source the learner's interactive/login scripts.
+    runtime = 'export PATH="%s/bin:$PATH"\\nexport VIRTUAL_ENV="%s"\\n'
+    return (
+        _learner_venv_login()
+        + "RUN printf "
+        + shlex.quote(runtime)
+        + " /opt/tasksmith-venv /opt/tasksmith-venv > /etc/repo2rlenv-venv.sh\n"
+        "ENV BASH_ENV=/etc/repo2rlenv-venv.sh\n"
+    )
+
+
 def repository_build(options: PythonRepositoryProfile) -> str:
     """Shared install recipe for public readiness and final Harbor images."""
     return (
@@ -150,7 +163,7 @@ def export_repository_task(
         build
         + "RUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\n"
         "RUN useradd -m learner && chown -R learner:learner /workspace\n"
-        + (_learner_venv_login() if options.use_system_site_packages else "")
+        + (_learner_venv_startup() if options.use_system_site_packages else "")
     )
     assets["tests/Dockerfile"] = TaskFile.text(
         build + "RUN useradd -m -u 1001 grader\n"

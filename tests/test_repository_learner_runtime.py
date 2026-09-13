@@ -129,6 +129,57 @@ def test_emitted_login_preserves_startup_and_restores_runtime_last(tmp_path, sel
         assert (learner_home / preserved).read_text() == contents
 
 
+@pytest.mark.parametrize("reset_before_child", [False, True])
+def test_emitted_noninteractive_hook_restores_runtime_without_user_startup(
+    tmp_path, reset_before_child
+):
+    task, _ = exported_task(tmp_path)
+    learner_home, venv, env = shell_fixture(tmp_path)
+    for name in (".bash_profile", ".bash_login", ".profile", ".bashrc"):
+        (learner_home / name).write_text("echo unexpected-user-startup; exit 91\n")
+    command = 'python; python3; printf "%s\\n" "${VIRTUAL_ENV-none}"'
+    if reset_before_child:
+        command = 'export PATH="$BASE_BIN:/usr/bin:/bin"; exec /bin/bash -c ' + shlex.quote(command)
+    env["PATH"] = env["BASE_BIN"] + ":/usr/bin:/bin"
+
+    def execute():
+        return subprocess.run(
+            ["/bin/bash", "--noprofile", "--norc", "-c", command],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=10,
+        ).stdout.splitlines()
+
+    assert execute() == ["base", "base", "none"]
+    dockerfile = (task / "environment/Dockerfile").read_text()
+    emitted = next(
+        line.removeprefix("RUN ")
+        for line in dockerfile.splitlines()
+        if line.startswith("RUN printf ")
+    )
+    argv = shlex.split(emitted)
+    assert argv[0] == "printf"
+    assert argv[2:4] == ["/opt/tasksmith-venv", "/opt/tasksmith-venv"]
+    assert argv[4:] == [">", "/etc/repo2rlenv-venv.sh"]
+    startup = tmp_path / "noninteractive runtime.sh"
+    # Execute the emitted printf, changing only its runtime arguments and output
+    # location. No developer startup files, target imports or images are touched.
+    with startup.open("w") as stream:
+        subprocess.run(
+            [*argv[:2], str(venv), str(venv)],
+            env=env,
+            stdout=stream,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+    assert "ENV BASH_ENV=/etc/repo2rlenv-venv.sh\n" in dockerfile
+    env["BASH_ENV"] = str(startup)
+    assert execute() == ["task-venv", "task-venv", str(venv)]
+
+
 @pytest.mark.parametrize("venv", [False, True])
 def test_runtime_fix_is_only_a_learner_layer_and_public_hint(tmp_path, venv):
     task, options = exported_task(tmp_path, venv=venv)
@@ -137,7 +188,9 @@ def test_runtime_fix_is_only_a_learner_layer_and_public_hint(tmp_path, venv):
     prefix = repository_build(options)
     assert learner.startswith(prefix) and verifier.startswith(prefix)
     assert (".bash_profile" in learner) is venv
+    assert ("ENV BASH_ENV=/etc/repo2rlenv-venv.sh" in learner) is venv
     assert ".bash_profile" not in verifier
+    assert "BASH_ENV" not in verifier and "repo2rlenv-venv.sh" not in verifier
     assert ("Use `/opt/tasksmith-venv/bin/python`" in (task / "instruction.md").read_text()) is venv
     expected = "/opt/tasksmith-venv/bin/python" if venv else "/usr/local/bin/python"
     assert (

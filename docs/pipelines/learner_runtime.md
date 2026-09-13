@@ -10,7 +10,11 @@ venv after the user's login startup. It preserves an existing `.bash_profile` in
 `.repo2rlenv-original-bash-profile` and sources it; otherwise it sources the existing
 `.bash_login` or `.profile` in Bash's precedence order. An early `return` in the
 original file returns to the wrapper, which then sets `PATH` and `VIRTUAL_ENV`.
-The task instruction also names the interpreter explicitly.
+For native commands that execute `bash -c`, the learner image also sets `BASH_ENV`
+to `/etc/repo2rlenv-venv.sh`. This file only restores the runtime variables; it does
+not source user login or interactive scripts. Bash reads it for each noninteractive
+shell, including the shell that Harbor starts through `su learner`. The task
+instruction also names the interpreter explicitly.
 
 This leaves dependency/source layers, the verifier image and non-venv profiles
 unchanged. It does not modify Harbor or previously generated bundles. New task
@@ -27,16 +31,21 @@ small receipt of the observations.
 1. Through the owned Harbor environment, run the command below with `user="learner"`
    directly and with `command="bash --login -c " + shlex.quote(command)`.
 2. Start a real Harbor `TmuxSession` as `learner`, with recording disabled, and send
-   the same command using `send_keys(command + "\n", block=True,
+   the same command using `send_keys([command, "Enter"], block=True,
    max_timeout_sec=30)`. This exercises the same login pane as Terminus-2. Bound
    setup and cleanup as well; stop the session and release its allocation.
-3. Before the final startup layer, the login case must expose the mismatch. After
-   the layer, all three paths must select the same venv for both command names:
+3. Capture `PATH`, `BASH_ENV`, interpreter identity and prefix before importing the
+   dependency. Check both command names even if one fails. When diagnosing a
+   mismatch, compare a direct SDK exec, root `bash -c` and the learner shell, with
+   the runtime hook disabled for those diagnostic controls. After the startup
+   layer, all three ordinary learner paths must select the same venv:
 
 ```sh
+runtime_status=0
 for runtime_command in python python3; do
-  "$runtime_command" -c 'import json, os, pwd, sys, safetensors; assert pwd.getpwuid(os.geteuid()).pw_name == "learner"; assert sys.prefix == "/opt/tasksmith-venv", sys.executable; print(json.dumps({"executable": sys.executable, "prefix": sys.prefix, "safetensors": safetensors.__version__}))' || exit 1
+  "$runtime_command" -c 'import json, os, pwd, sys; print(json.dumps({"executable": sys.executable, "prefix": sys.prefix}), flush=True); import safetensors; assert pwd.getpwuid(os.geteuid()).pw_name == "learner"; assert sys.prefix == "/opt/tasksmith-venv", sys.executable; print(safetensors.__version__)' || runtime_status=1
 done
+exit "$runtime_status"
 ```
 
 For the CPU system-interpreter profile, use a dependency from that exact profile
@@ -49,4 +58,6 @@ infer their contents from the image tag.
 The local regression tests execute only the generated startup installer and
 temporary shell fixtures. They demonstrate a failing base-interpreter lookup,
 successful venv lookup, preserved startup precedence/content and early-return
-behavior. They do not replace the cloud smoke.
+behavior. They also exercise nested noninteractive shells after a PATH reset and
+verify that user login files are not executed there. They do not replace the cloud
+smoke.
