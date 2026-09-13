@@ -127,9 +127,10 @@ def test_cpu_missing_future_test_fails_before_dependency_or_repository_build(
             source, profile("tests/test_future.py::test_barrier"), output, checkout=base
         )
     assert (base / "tests/test_future.py").exists()
-    archived = output / "readiness-input/snapshot"
-    assert (archived / "tests/test_existing.py").is_file()
-    assert not (archived / "tests/test_future.py").exists()
+    assert (
+        base / "tests/test_existing.py"
+    ).read_text() == "raise RuntimeError('must not be imported')\n"
+    assert not list(output.iterdir())
 
 
 def test_cpu_existing_node_reaches_dependency_stage_after_read_only_preflight(
@@ -138,9 +139,21 @@ def test_cpu_existing_node_reaches_dependency_stage_after_read_only_preflight(
     base, source = checkout
     output = tmp_path / "bootstrap"
     output.mkdir()
+    archived = []
+    materialize = worker.materialize_source
+
+    def observe_snapshot(*args):
+        prepared = materialize(*args)
+        assert (prepared / "tests/test_existing.py").is_file()
+        assert not (prepared / "tests/test_future.py").exists()
+        archived.append(prepared)
+        return prepared
+
+    monkeypatch.setattr(worker, "materialize_source", observe_snapshot)
 
     def stop_before_build(*args):
-        assert (output / "readiness-input/snapshot/tests/test_existing.py").is_file()
+        assert len(archived) == 1 and not archived[0].parent.exists()
+        assert not list(output.iterdir())
         raise RuntimeError("dependency boundary reached")
 
     monkeypatch.setattr(worker, "dependency_image", stop_before_build)
@@ -148,6 +161,7 @@ def test_cpu_existing_node_reaches_dependency_stage_after_read_only_preflight(
         worker.bootstrap(
             source, profile("tests/test_existing.py::test_value"), output, checkout=base
         )
+    assert (base / "tests/test_future.py").exists()
 
 
 def test_native_preparation_rejects_future_test_before_source_reversal(

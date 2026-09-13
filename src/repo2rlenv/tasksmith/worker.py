@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import time
 import traceback
 from pathlib import Path, PurePosixPath
@@ -137,9 +138,8 @@ def build_dependency_image(
 
 
 def bootstrap(source: dict, profile: Profile, output: Path, *, checkout: Path) -> dict:
-    preflight = output / "readiness-input"
-    preflight.mkdir()
-    materialize_source(source, profile, checkout, preflight)
+    with tempfile.TemporaryDirectory(prefix=".readiness-input-", dir=output) as temporary:
+        materialize_source(source, profile, checkout, Path(temporary))
     cached = dependency_image(profile, output)
     boot, base = bootstrap_snapshot(
         RepoSpec(url=source["repo"], ref=source["head"], access="public"), profile.options, output
