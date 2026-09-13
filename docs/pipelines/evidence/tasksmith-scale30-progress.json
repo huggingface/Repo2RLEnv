@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
-  "recorded_at": "2026-09-13T09:10:48.764641+00:00",
+  "recorded_at": "2026-09-13T09:21:35.608882+00:00",
   "target_total": 30,
   "retained_accepted": 10,
-  "new_accepted": 3,
-  "accepted_total": 13,
+  "new_accepted": 4,
+  "accepted_total": 14,
   "new_tasks": [
     {
       "pr": "https://github.com/huggingface/peft/pull/3212",
@@ -191,6 +191,65 @@
       "final_review_and_rollout_usd": "1.499622",
       "cost_scope": "Final recovery model calls only. All four prior controls were reused by exact hash. Shared recovery worker cost and original generation/repairs remain in the campaign ledger.",
       "repair": "No further task edits. Finish the missing Sonnet rollout after the prior local quality cap prevented its reservation."
+    },
+    {
+      "pr": "https://github.com/huggingface/trl/pull/6152",
+      "source_head": "472c7f9c924674c0ced18bc608a737191466334f",
+      "source_diff_sha256": "018c7f48e9e0867070b3ed577ea5c96b1bd14ab148b4472c76648033084faa74",
+      "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+      "status": "usable",
+      "gpus": 0,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 3
+      },
+      "rollout_assessment": "legitimate_success",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "0a7855a976bb5013c98b3236e4b5ec48a3aec3903a3d594957bb111c1d524edc",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "36d2d2d702e891247ee6693820f1709a6438c730d93eff13f4d2b2761ddfc86f",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:494577c1bafe920981624c0075a6bc072d5f127a0a6e291d9627122017f21e48",
+          "result_sha256": "adc5dc357c55982f90b705248ed1001c6fea8bb2a2affe8dcf562e62b9ecf48c",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:754cf8a0b6fafe8d2b86616ba1088adac4abdd38f1398c305f8d5ae0eec5f193",
+          "result_sha256": "fdb19e6fffc032cc8194e939d9c5feeaaf05a109f8d6238708283c93e12050d6",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "f8868b64c662d8e76186120004274e2e9b63e0503e475253e7e620e06bb05316",
+          "probe_kind": null
+        }
+      ],
+      "final_review_and_rollout_usd": "2.038853",
+      "cost_scope": "Final recovery model calls only. Shared recovery worker cost and original generation/repairs remain in the campaign ledger.",
+      "repair": "Provide an actual temporary disk-backed dataset for reference-log-prob precomputation. Retain sync-on rejection and successful default-off construction; preserve reference and starting source."
     }
   ],
   "known_failure": {
@@ -220,16 +279,16 @@
     }
   },
   "delivery": {
-    "tasks": 13,
-    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-13.tar.gz",
-    "sha256": "b7f9a95713324347512245d580ef8967b2834680bdddc6e42e16caf9af04bb06",
-    "bytes": 122712812,
+    "tasks": 14,
+    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-14.tar.gz",
+    "sha256": "3483886677ff5c4f058d822fa4c49fca229fdd9cad523795af7208f952e88d06",
+    "bytes": 131583896,
     "audit": {
-      "tasks": 13,
-      "trials": 70,
-      "new_protected_trees_unchanged": 3,
+      "tasks": 14,
+      "trials": 75,
+      "new_protected_trees_unchanged": 4,
       "credential_scan": {
-        "files": 19227,
+        "files": 21181,
         "configured_values_checked": 7,
         "matches": 0
       },
@@ -237,10 +296,10 @@
     }
   },
   "budget_checkpoint": {
-    "accounted_including_prior_external_usd": "420.077567",
+    "accounted_including_prior_external_usd": "435.699890",
     "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
     "authorized_usd": "500.00",
-    "available_usd": "29.109950",
-    "reserved_usd": "50.812483"
+    "available_usd": "14.486949",
+    "reserved_usd": "49.813161"
   }
 }
