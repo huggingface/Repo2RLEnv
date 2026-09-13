@@ -69,7 +69,7 @@ failure is only a cache-name mismatch.
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `b9beee6187d8bef467413a12b89133c5948c000dd3da251a70c44b7909ce4160`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `cc6242a81b0c64677f58f27283a03bf48eafc175690ffe75d621dc9469ddad82`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -90,6 +90,8 @@ Suggest plausible wrong implementations and genuinely distinct valid implementat
 Instruction audit before submission: remove internal variable names, exact failing expressions, instructions about where to put a guard/return/try block, and hints such as "you can use an early return". Describe the result that the user needs. Do not explain how the merged implementation achieves it. For small fixes, a short request with observable examples is better than a long implementation tutorial. Keep the instruction under 200 words unless the behavior genuinely requires more.
 
 If upstream regression tests require a live service, reproduce the real local behavior with a deterministic fixture in additional_tests. Do not copy network setup into the verifier. For new APIs, import them inside the test function so their absence is an ordinary test failure rather than a test-collection failure. Also inspect the selected upstream test files: an eager import of the new API there can prevent collection on the source-reverted workspace.
+
+Unexpected exceptions must fail the test. Do not swallow a broad Exception merely to inspect a recorded call or prove that an event did not happen: an earlier missing dependency or invalid fixture can make that assertion meaningless. When an external backend is stubbed, supply its required argument objects and return values, and establish that the intended production path completed before asserting call ordering or absence. Keep allowed service stubs separate from the real CPU/GPU behavior being verified.
 
 Normally keep upstream_test_policy="retain", which grades the selected upstream tests plus additional_tests. When those upstream files cannot grade both starting and merged code (for example, eager imports of an API that the task asks the learner to add), set upstream_test_policy="replace" and explain the concrete reason in verifier_rationale. In that mode only tests/tasksmith_behavior.py is selected for grading; the original upstream tests still establish merged-head bootstrap readiness and remain private. Port their relevant behavioral assertions faithfully, add boundary coverage where needed, and include at least one meaningful adjacent behavior that already passes on the starting code. Do not skip missing APIs, fabricate a passing implementation or weaken the requested behavior. Both test collections must have identical case identities, the real PR reference must pass, and the starting code must fail the new behavior while passing the adjacent case.
 
