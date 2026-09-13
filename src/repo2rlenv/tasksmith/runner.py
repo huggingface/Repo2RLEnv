@@ -243,16 +243,21 @@ class Tasksmith:
             },
             on_event=lambda event: self.event("quality/" + event.stage, event.message),
         )
-        loop.remote = RemoteTrials(
-            output,
-            budget,
-            self.options.quality,
-            wheel=self.wheel,
-            provider=self.options.provider,
-            worker_receipt=self.receipt,
-        )
-        # Reuse the already prepared worker/runtime, avoiding redundant setup.
-        loop.remote.worker, loop.remote.python = self.worker, self.python
+        if self.options.gpus:
+            from repo2rlenv.quality.loop.native import NativeModalTrials
+
+            loop.remote = NativeModalTrials(output, budget, self.options.quality)
+        else:
+            loop.remote = RemoteTrials(
+                output,
+                budget,
+                self.options.quality,
+                wheel=self.wheel,
+                provider=self.options.provider,
+                worker_receipt=self.receipt,
+            )
+            # Reuse the already prepared worker/runtime, avoiding redundant setup.
+            loop.remote.worker, loop.remote.python = self.worker, self.python
         task = Path(constructed["local"]) / constructed["value"]["task_relative"]
         probes = None
         if constructed.get("imported_from", {}).get("probes"):
@@ -326,6 +331,10 @@ class Tasksmith:
             )
 
             async def validate(profile):
+                if profile.resource != ("gpu" if self.options.gpus else "cpu"):
+                    raise ValueError(
+                        "Profile resource must match the campaign's explicit GPU requirement"
+                    )
                 roots = [PurePosixPath(path) for path in profile.options.source_paths]
                 for name in source["source_files"]:
                     path = PurePosixPath(name)
@@ -346,6 +355,10 @@ class Tasksmith:
                     "previous_profile": state.get("profile"),
                     "previous_failure": state.get("failure"),
                     "repository_bootstrap_hint": hint.model_dump() if hint else None,
+                    "requested_resources": {
+                        "gpus": self.options.gpus,
+                        "gpu_type": "L4" if self.options.gpus else None,
+                    },
                 },
                 checkout,
                 validate=validate,
@@ -358,11 +371,22 @@ class Tasksmith:
 
         def bootstrap(state):
             self.event("bootstrap", f"{source['id']} build and offline merged-head readiness")
-            result = self.remote(
-                root,
-                f"bootstrap-{state['profile_attempt']}",
-                {"stage": "bootstrap", "source": source, "profile": state["profile"]},
-            )
+            if self.options.gpus:
+                from repo2rlenv.tasksmith.native_stages import NativeStages
+
+                result = NativeStages(self).bootstrap(
+                    root,
+                    f"bootstrap-{state['profile_attempt']}",
+                    source,
+                    state["profile"],
+                    checkout,
+                )
+            else:
+                result = self.remote(
+                    root,
+                    f"bootstrap-{state['profile_attempt']}",
+                    {"stage": "bootstrap", "source": source, "profile": state["profile"]},
+                )
             if result["status"] != "completed":
                 return {"failure": result, "status": "bootstrap_failed"}
             cached = result["value"]["dependency_cache"]
@@ -384,6 +408,10 @@ class Tasksmith:
                     "readiness": state["ready"]["readiness"],
                     "previous_design": state.get("design"),
                     "previous_failure": state.get("failure"),
+                    "requested_resources": {
+                        "gpus": self.options.gpus,
+                        "gpu_type": "L4" if self.options.gpus else None,
+                    },
                 },
                 checkout,
             )
@@ -391,17 +419,29 @@ class Tasksmith:
 
         def construct(state):
             self.event("construct", f"{source['id']} test PR contrast and emit Harbor bundle")
-            result = self.remote(
-                root,
-                f"construct-{state['design_attempt']}",
-                {
-                    "stage": "construct",
-                    "source": source,
-                    "profile": state["profile"],
-                    "design": state["design"],
-                    "ready": state["ready"],
-                },
-            )
+            if self.options.gpus:
+                from repo2rlenv.tasksmith.native_stages import NativeStages
+
+                result = NativeStages(self).construct(
+                    root,
+                    f"construct-{state['design_attempt']}",
+                    source,
+                    state["profile"],
+                    state["design"],
+                    state["ready"],
+                )
+            else:
+                result = self.remote(
+                    root,
+                    f"construct-{state['design_attempt']}",
+                    {
+                        "stage": "construct",
+                        "source": source,
+                        "profile": state["profile"],
+                        "design": state["design"],
+                        "ready": state["ready"],
+                    },
+                )
             if result["status"] != "completed":
                 return {"failure": result, "status": "construction_failed"}
             return {"constructed": result, "failure": None, "status": "generated"}
@@ -537,7 +577,7 @@ class Tasksmith:
             ]
             for repo in dict.fromkeys(source["repo"] for source in pending):
                 hint = self.options.bootstrap_hints.get(repo)
-                if hint is not None:
+                if hint is not None and not self.options.gpus:
                     key = hashlib.sha256(repo.encode()).hexdigest()[:12]
                     self.event("cache", f"Prepare recorded source-free dependencies for {repo}")
                     result = self.remote(

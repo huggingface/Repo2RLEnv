@@ -2,7 +2,7 @@
 
 Tasksmith inspects a merged PR, builds its real repository on Modal or Daytona, designs a human-facing request and deterministic verifier, and runs the shared quality loop. The coding agent is Pi or OpenCode; LangGraph routes the stages. All pipeline and adapter code lives in Repo2RLEnv.
 
-The first supported profile is CPU Python with changes to existing source files. Unsupported source changes are reported explicitly. The first development pilot covered five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. Its yield is not evidence of universal PR conversion.
+Tasksmith accepts added and modified Python source files. Deleted/renamed source and other languages remain explicit unsupported cases. CPU trials run on Modal or Daytona workers; the thirty-task campaign is testing native Modal execution on one or two L4 GPUs. The first development pilot covered five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. Its yield is not evidence of universal PR conversion.
 
 The [completed pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated and 5/5 usable**, with baseline/reference controls, semantic probes, Sonnet rollouts, repairs, costs and remaining coverage gaps.
 
@@ -10,8 +10,10 @@ The [completed pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated 
 flowchart TD
     PR["Fixed PR panel"] --> PIN["Intake • GitHub metadata<br/>Pin head, base and complete diff"]
     PIN --> INVEST["Pi / OpenCode • investigate<br/>Read source, manifests, conftest and tests"]
-    INVEST --> PROFILE["Typed Profile<br/>CPU, dependencies, install command,<br/>private paths and selected tests"]
-    PROFILE --> BOOT["Existing bootstrap • remote Docker<br/>Build dependency prefix and repository image"]
+    INVEST --> PROFILE["Typed Profile<br/>CPU or requested L4 count,<br/>dependencies, private paths and tests"]
+    PROFILE -->|CPU| BOOT["Existing bootstrap • remote Docker<br/>Build dependency prefix and repository image"]
+    PROFILE -->|GPU| NATIVE["Native Modal image build<br/>Pinned snapshot, CUDA checks,<br/>private and public readiness"]
+    NATIVE --> HEAD
     CACHE[("Dependency image cache<br/>Shared provider worker")] <--> BOOT
     BOOT --> HEAD{"Merged-head tests<br/>pass offline?"}
     HEAD -->|"No • bounded profile correction"| INVEST
@@ -32,7 +34,7 @@ flowchart TD
     DECIDE -->|"Limit or unresolved defect"| RETAIN["Retained candidate<br/>Explicit failure and next diagnosis"]
 ```
 
-The [HF bootstrap and scale campaign](tasksmith_hf_scale.md) extends this work to the supplied 114-PR inventory. All six repositories have passed CPU and GPU-host bootstrap checks, and the initial panel delivered ten accepted CPU tasks. The [audited plan for thirty tasks](tasksmith_scale30.md) records fresh cache restoration, two-GPU runtime checks and twenty proposed additions. GPU-host readiness remains separate from the currently supported CPU task-generation profile.
+The [HF bootstrap and scale campaign](tasksmith_hf_scale.md) extends this work to the supplied 114-PR inventory. All six repositories have passed CPU and GPU-host bootstrap checks, and the initial panel delivered ten accepted CPU tasks. The [audited plan for thirty tasks](tasksmith_scale30.md) records fresh cache restoration, two-GPU runtime checks and twenty additions being attempted. Repository readiness, native execution smoke tests and accepted PR tasks are separate counts.
 
 ## What each model is asked
 
@@ -53,6 +55,8 @@ Read the exact author prompts: [investigation](prompts/tasksmith.md#investigatem
 The learner starts from the pinned PR head with **only the PR's source patch reversed**. This preserves compatible head-era fixtures and dependencies. It is recorded as `head_minus_source_patch`, not represented as an exact base-commit checkout. The oracle restores the actual changed source files from the head.
 
 Full test directories remain private even when pytest selects just a few classes or functions. Release notes and other answer-bearing files can also be excluded from the public workspace. Git history, bytecode and cache directories are stripped; symlinks are rejected. The verifier receives only the allowlisted submitted source files. Tasksmith can add a private behavioral test file, but cannot replace the original oracle with an invented solution.
+
+For added-source tasks, the new files are absent from both starting source snapshots. Oracle restoration creates their parent directories. Harbor collects the declared source directories, allowing independently implemented Python helper modules. These roots cannot overlap private tests/exclusions. The trusted grader rejects symlinks, unbounded/special files and changed non-Python assets before importing submitted code. Missing feature modules are checked inside behavioral test functions, so an unsolved task produces reward zero instead of a collection exception. Both `modeling_*.py` and `modular_*.py` additions are reversed when present in a Transformers PR.
 
 Generation and acceptance are different counters. `generated` means execution contrast and a Harbor bundle exist. `usable` means `practical-generation-v1` found sound instructions and verification, a failing baseline, passing oracle, rejected wrong implementation, accepted valid alternative and a legitimate learner rollout. A legitimate model failure can still establish a useful task. The old strict acceptance policy is unchanged.
 
@@ -76,6 +80,12 @@ Use `--provider daytona` for the same remote execution contract, or `--author op
 
 The tested runtime uses Harbor **0.20.0** and task schema **1.3**. Remote trials use the owned `OfflineDockerEnvironment`, which enforces permanent Docker network isolation and avoids Harbor's dynamic firewall dependency on `nft_fib`, unavailable in the tested Modal kernel. The emitted bundle contains its own Dockerfiles, reference and verifier scripts. This pilot exercises the Modal execution path; the shared Daytona provider and OpenCode runtime remain selectable, with their contracts covered by the repository tests.
 
+Set `gpus` to `1` or `2` in the Tasksmith options JSON to select native Modal GPU execution; `0` retains CPU behavior. The investigator must return a matching GPU profile. A CPU worker inspects and exports the pinned source; target image builds, readiness tests, construction controls and Harbor trials run on native Modal. Both learner and separate verifier declare the L4 resource count in `task.toml`. Unsupported providers fail before dispatch; no CPU fallback is allowed. The CUDA base can use `use_system_site_packages: true` to retain preinstalled CUDA PyTorch in a writable virtual environment. The verifier uses that same interpreter and the provider's CUDA library/device environment.
+
+Each native allocation has a unique provider name, a reservation before dispatch and an explicit termination receipt. An uncertain create is not retried blindly. Build failures retain their cost estimate and image logs. Native trials use Harbor's own Modal execution and artifact transfer under an owned accounting adapter; the controller does not build images or execute target Python locally. This path is undergoing campaign validation; its presence in the code is not a claim that all selected GPU PRs already pass.
+
+The [recorded execution checks](evidence/tasksmith-scale30-native-contract.json) passed on two L4s: baseline reward 0, reference 1, wrong solution 0 and a blind Sonnet rollout 1. Both learner and verifier allocations were offline and terminated. A separate native bootstrap check passed three CUDA/offline tests. The CPU added-module check also accepted a valid implementation using a new helper file. These are small harness fixtures, not additions to the accepted PR-task count.
+
 `--stop-after 1` runs the first frozen input while keeping five as the report denominator. Repeating the same invocation reuses matching completed artifacts. `tasksmith show OUTPUT` reads the saved report without paid effects. `--json` provides structured CLI output.
 
 For an independent review while retaining Sonnet authoring and rollouts, the example `configs/tasksmith/pilot-options.json` selects the already supported OpenAI reviewer/repair route. Pass it with `--options`; provider/author flags that conflict with that file are rejected.
@@ -98,6 +108,8 @@ Tasksmith allows up to four semantic probes, while usually needing only one wron
 
 The reviewer also receives the original PR intent and diff privately. This distinguishes a generated request that invents requirements from a faulty reference. A request that exceeds the PR's scope should be corrected; a real conflict between the PR intent and reference remains a reported defect. Full file hashes are retained in local review inventories, while model context contains compact file paths and sizes instead of repeated hashes and omission notices.
 
+Every rollout also produces an addressable tool-call index and a diff computed from captured source artifacts against the starting workspace. The index retains middle-of-run edits even when the raw trajectory exceeds the initial context allowance. Large documents are explicitly marked partial and can be requested by range/search. Failed artifact collection is labeled as failed collection, not interpreted as a learner deletion.
+
 The campaign must already have an explicitly initialized budget. Tasksmith reserves model calls and workers on that same ledger. A per-pilot cap and nested quality cap further bound spending. A stopped worker's cost hold remains until explicitly reconciled; it is not silently counted as zero.
 
 ## Caching and recovery limits
@@ -118,6 +130,7 @@ Bootstrap/design retries receive the previous complete artifact alongside the fa
 | Deterministic remote stages | `src/repo2rlenv/tasksmith/worker.py` |
 | Coding runtime adapters and structured artifact protocol | `src/repo2rlenv/tasksmith/author/` |
 | Docker readiness and snapshots | `src/repo2rlenv/bootstrap/`, `execution/python_repository.py` |
+| Native GPU construction and accounting | `tasksmith/native_stages.py`, `execution/harbor_modal.py`, `quality/loop/native.py` |
 | Standalone Harbor packaging | `pipelines/recipes/repository/export.py` |
 | Component review, probes, rollouts and repairs | `src/repo2rlenv/quality/loop/` |
 

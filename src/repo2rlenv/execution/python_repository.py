@@ -15,6 +15,7 @@ from pathlib import Path
 from repo2rlenv.bootstrap import ensure_bootstrap
 from repo2rlenv.execution.job import container_labels
 from repo2rlenv.execution.lifecycle import save_record
+from repo2rlenv.execution.python_build import dependency_recipe
 from repo2rlenv.quality.test_results import parse_junit
 from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
@@ -41,6 +42,7 @@ def test_image(
     *,
     replacement: tuple[Path, str] | None = None,
     replacements: dict[str, Path] | None = None,
+    removals: tuple[str, ...] = (),
     instrumentation: TestInstrumentation | None = None,
 ):
     """Run each test suite from a clean image, with no network or host mounts."""
@@ -59,6 +61,21 @@ def test_image(
         command = ["python", "/tmp/instrument.py", *instrumentation.arguments, *command[3:]]
         if any(Path(name).name != name for name in instrumentation.outputs):
             raise ValueError("Instrumentation outputs must be filenames in /tmp")
+    if removals:
+        from repo2rlenv.emitter.bundle import relative_asset_path
+
+        for relative in removals:
+            relative_asset_path("environment/" + relative)
+        if set(removals) & (set(replacements or {}) | ({replacement[1]} if replacement else set())):
+            raise ValueError("A test source path cannot be replaced and removed")
+        command = [
+            "sh",
+            "-c",
+            "rm -f -- "
+            + shlex.join(["/workspace/" + path for path in removals])
+            + " && exec "
+            + shlex.join(command),
+        ]
     _run(
         [
             "docker",
@@ -152,11 +169,10 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
     if os.environ.get("REPO2RLENV_REMOTE_WORKER") != "1":
         raise RuntimeError("Repository execution is remote only")
     dockerfile = (
-        f"FROM {options.base_image}\nWORKDIR /workspace\n"
-        + (
-            f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
-            if options.dependencies
-            else ""
+        dependency_recipe(
+            options.base_image,
+            options.dependencies,
+            use_system_site_packages=options.use_system_site_packages,
         )
         + "COPY . /workspace\n"
         f"RUN {options.install_command}\n"
@@ -182,6 +198,11 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
         _run(["docker", "cp", f"{container}:/workspace", str(base)])
     finally:
         _run(["docker", "rm", container], check=False)
+    clean_snapshot(base, options, destination)
+    return boot, base
+
+
+def clean_snapshot(base: Path, options: PythonRepositoryProfile, destination: Path) -> None:
     links = materialize_document_links(base, options)
     save_record(destination / "snapshot-document-links.json", {"materialized": links})
     # A snapshot may contain bytecode or generated build files. Keep them out of
@@ -193,4 +214,3 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
             )
         if path.is_dir() and path.name in {".git", "__pycache__", ".pytest_cache", "build", "dist"}:
             shutil.rmtree(path)
-    return boot, base

@@ -166,7 +166,7 @@ Keep Sonnet as the primary author/rollout model. Preserve the current reviewer u
 
 After wave 1, compute `(remaining campaign allowance - protected contingency) / remaining task count` and compare it with measured cost including failed attempts. Repeat after wave 2. If the next wave does not fit, reduce expensive setup through compatible fixtures/caches or move an explicitly recorded reserve forward. Do not silently reduce PR scope or make Sonnet's solution the answer key.
 
-Current Modal L4 pricing is $0.000222/GPU-second. The existing estimator used for this audit remains conservative: its CPU/RAM rates exceed today's published rates, and it doubles full-allocation time and adds $1 per allocation even when reusing an image. Historical estimates were not rewritten. Future estimates should record the exact rate source/date and basis; provider invoices remain authoritative. [Modal pricing](https://modal.com/pricing).
+Current Modal L4 pricing is $0.000222/GPU-second. Sandbox CPU and RAM cost $0.00003942/core-second and $0.00000667/GiB-second, matching the existing estimator. The lower rates elsewhere on Modal's page apply to functions, not sandboxes; the earlier comparison overlooked this distinction. The estimator also doubles full-allocation time and adds $1 per allocation even when reusing an image. Historical estimates were not rewritten. Native trial receipts record the sandbox rate, date, doubled allocation time including build wait, and a $0.25 build allowance per environment; these remain estimates, with provider invoices authoritative. [Modal pricing](https://modal.com/pricing).
 
 ## Completion standard
 

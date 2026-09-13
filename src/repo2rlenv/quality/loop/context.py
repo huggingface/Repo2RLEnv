@@ -10,6 +10,7 @@ from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
+from repo2rlenv.quality.loop.rollout_evidence import rollout_documents
 
 
 def _search_excerpts(lines: list[str], query: str) -> str:
@@ -146,6 +147,18 @@ class EvidenceContext:
                 candidates.append((2, index, script_key, 8000))
             self.documents[prefix + "result.json"] = json.dumps(summary, indent=2)
             root = path.parent
+            if trial.role == "rollout":
+                for name, text in rollout_documents(task, root).items():
+                    key = prefix + name
+                    self._texts[key] = text
+                    self.inventory.append(
+                        {
+                            "path": key,
+                            "bytes": len(text.encode()),
+                            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                        }
+                    )
+                    candidates.append((1, index, key, 18000))
             # Failure logs precede trajectories, verbose test inventories and
             # captured source. All remain addressable through bounded read requests.
             selected = [

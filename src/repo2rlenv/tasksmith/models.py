@@ -18,7 +18,7 @@ class Record(BaseModel):
 
 class Profile(Record):
     reasoning: str = Field(min_length=20)
-    resource: Literal["cpu"]
+    resource: Literal["cpu", "gpu"]
     options: PythonRepositoryProfile
     dependency_inputs: list[str] = Field(min_length=1)
     upstream_test_rationale: str = Field(min_length=20)
@@ -28,6 +28,14 @@ class Profile(Record):
         if not self.options.test_selectors:
             raise ValueError("Select explicit offline pytest files or node IDs")
         hidden = [PurePosixPath(value) for value in self.options.test_paths]
+        source = [PurePosixPath(value) for value in self.options.source_paths]
+        excluded = hidden + [PurePosixPath(value) for value in self.options.public_exclude]
+        for index, root in enumerate(source):
+            if any(
+                root == other or root in other.parents or other in root.parents
+                for other in source[index + 1 :] + excluded
+            ):
+                raise ValueError("Source roots must be disjoint and outside private/excluded paths")
         for selector in self.options.test_selectors:
             path = PurePosixPath(selector.split("::", 1)[0])
             if not any(path == root or root in path.parents for root in hidden):
@@ -90,6 +98,7 @@ class BootstrapHint(Record):
 
 class Options(Record):
     provider: Literal["modal", "daytona"] = "modal"
+    gpus: int = Field(default=0, ge=0, le=2)
     author_runtime: Literal["pi", "opencode"] = "pi"
     author_model: str = "anthropic/claude-sonnet-4-6"
     author_turns: int = Field(default=18, ge=2, le=50)
@@ -114,6 +123,10 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if self.gpus and self.provider != "modal":
+            raise ValueError(
+                "GPU task execution currently requires the validated native Modal profile"
+            )
         if self.worker_snapshot and self.provider != "modal":
             raise ValueError("Worker snapshots currently require Modal")
         if not self.author_model.startswith("anthropic/"):

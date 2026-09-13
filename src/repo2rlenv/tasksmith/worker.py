@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import tarfile
@@ -15,7 +14,8 @@ import traceback
 from pathlib import Path, PurePosixPath
 
 from repo2rlenv.execution.lifecycle import save_record
-from repo2rlenv.execution.python_repository import bootstrap_snapshot, test_image
+from repo2rlenv.execution.python_build import dependency_recipe
+from repo2rlenv.execution.python_repository import bootstrap_snapshot, clean_snapshot, test_image
 from repo2rlenv.pipelines.recipes.repository.export import (
     export_repository_task,
     private_asset,
@@ -51,14 +51,25 @@ def inspect_source(source: dict, root: Path) -> dict:
 
 def dependency_image(profile: Profile, output: Path) -> dict:
     """Materialize a source-independent prefix, using the same Docker layer recipe as bootstrap."""
-    return build_dependency_image(profile.options.base_image, profile.options.dependencies, output)
+    return build_dependency_image(
+        profile.options.base_image,
+        profile.options.dependencies,
+        output,
+        use_system_site_packages=profile.options.use_system_site_packages,
+    )
 
 
-def build_dependency_image(base_image: str, dependencies: list[str], output: Path) -> dict:
+def build_dependency_image(
+    base_image: str,
+    dependencies: list[str],
+    output: Path,
+    *,
+    use_system_site_packages: bool = False,
+) -> dict:
     """Shared prefix for repository bootstrap and per-PR construction."""
-    recipe = f"FROM {base_image}\nWORKDIR /workspace\n"
-    if dependencies:
-        recipe += f"RUN python -m pip install --no-cache-dir {shlex.join(dependencies)}\n"
+    recipe = dependency_recipe(
+        base_image, dependencies, use_system_site_packages=use_system_site_packages
+    )
     base = subprocess.run(
         ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"],
         capture_output=True,
@@ -150,8 +161,8 @@ def bootstrap(source: dict, profile: Profile, output: Path) -> dict:
     }
 
 
-def construct(source: dict, profile: Profile, design: Design, ready: dict, output: Path) -> dict:
-    base = Path(ready["base"])
+def reverse_source(source: dict, base: Path, output: Path) -> tuple[Path, tuple[str, ...]]:
+    """Reverse the complete frozen production patch, preserving genuine absence."""
     defective = output / "defective-source"
     defective.mkdir()
     for relative in source["source_files"]:
@@ -161,6 +172,48 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
     patch = output / "source.diff"
     patch.write_text(source["source_diff"])
     run(["git", "apply", "--reverse", str(patch)], cwd=defective)
+    removed = tuple(
+        relative for relative in source["source_files"] if not (defective / relative).exists()
+    )
+    added = {row["filename"] for row in source["changed_files"] if row["status"] == "added"}
+    if set(removed) != added.intersection(source["source_files"]):
+        raise ValueError("Reversed source paths do not match the frozen PR file operations")
+    return defective, removed
+
+
+def prepare_native(source: dict, profile: Profile, checkout: Path, output: Path) -> dict:
+    """Export a pinned clean snapshot on the remote builder, without a CPU build."""
+    if run(["git", "-C", str(checkout), "rev-parse", "HEAD"]).strip() != source["head"]:
+        raise ValueError("Native source preparation requires the frozen PR checkout")
+    archive = output / "repository.tar"
+    run(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "archive",
+            "--format=tar",
+            "--output=" + str(archive),
+            source["head"],
+        ]
+    )
+    base = output / "snapshot"
+    base.mkdir()
+    with tarfile.open(archive) as stream:
+        stream.extractall(base, filter="data")
+    archive.unlink()
+    clean_snapshot(base, profile.options, output)
+    _, removed = reverse_source(source, base, output)
+    return {
+        "base_relative": "snapshot",
+        "defective_relative": "defective-source",
+        "removed": list(removed),
+    }
+
+
+def construct(source: dict, profile: Profile, design: Design, ready: dict, output: Path) -> dict:
+    base = Path(ready["base"])
+    defective, removed = reverse_source(source, base, output)
     options = profile.options.model_copy(deep=True)
     if design.upstream_test_policy == "replace":
         options.test_selectors = []
@@ -188,8 +241,13 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
         output / "defective",
         replacements={
             **additions,
-            **{relative: defective / relative for relative in source["source_files"]},
+            **{
+                relative: defective / relative
+                for relative in source["source_files"]
+                if relative not in removed
+            },
         },
+        removals=removed,
     )
     contrast = execution_contrast(healthy, broken)
     if not contrast["PASS_TO_PASS"]:
@@ -197,7 +255,8 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
     task = export_repository_task(
         base=base,
         defective={
-            relative: (defective / relative).read_bytes() for relative in source["source_files"]
+            relative: None if relative in removed else (defective / relative).read_bytes()
+            for relative in source["source_files"]
         },
         reference={relative: (base / relative).read_bytes() for relative in source["source_files"]},
         options=options,
@@ -252,6 +311,13 @@ def main():
             value = inspect_source(data["source"], args.output)
         elif stage == "bootstrap":
             value = bootstrap(data["source"], Profile.model_validate(data["profile"]), args.output)
+        elif stage == "prepare_native":
+            value = prepare_native(
+                data["source"],
+                Profile.model_validate(data["profile"]),
+                Path(data["checkout"]),
+                args.output,
+            )
         elif stage == "construct":
             value = construct(
                 data["source"],

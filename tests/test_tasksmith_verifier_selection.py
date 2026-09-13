@@ -58,11 +58,12 @@ def test_selection_preserves_readiness_and_routes_both_controls(monkeypatch, tmp
     expected = ([] if policy == "replace" else original) + ["tests/tasksmith_behavior.py"]
     observed = []
 
-    def test_image(image, options, output, *, replacements):
+    def test_image(image, options, output, *, replacements, removals=()):
         assert image == "the-verified-merged-image"
         assert options.test_selectors == expected
         assert options.test_paths == ["checks", "tests"]
         assert "tests/tasksmith_behavior.py" in replacements
+        assert not removals
         observed.append(output.name)
         broken = output.name == "defective"
         assert ("lib/core.py" in replacements) == broken
@@ -85,6 +86,7 @@ def test_selection_preserves_readiness_and_routes_both_controls(monkeypatch, tmp
     output.mkdir()
     source = {
         "source_files": ["lib/core.py"],
+        "changed_files": [{"filename": "lib/core.py", "status": "modified"}],
         "source_diff": "a pinned source patch",
         "id": "fixture",
         "url": "https://example.org/repo/pull/1",

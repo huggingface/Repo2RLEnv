@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shlex
 from importlib.resources import files
 from pathlib import Path, PurePosixPath
 
 from repo2rlenv.emitter.bundle import TaskBundle, TaskFile, write_bundle
+from repo2rlenv.execution.python_build import dependency_recipe
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
 def repository_build(options: PythonRepositoryProfile) -> str:
     """Shared install recipe for public readiness and final Harbor images."""
     return (
-        f"FROM {options.base_image}\nWORKDIR /workspace\n"
-        + (
-            f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
-            if options.dependencies
-            else ""
+        dependency_recipe(
+            options.base_image,
+            options.dependencies,
+            use_system_site_packages=options.use_system_site_packages,
         )
         + "COPY source /workspace\n"
         f"RUN {options.install_command}\n"
@@ -36,7 +37,7 @@ def private_asset(relative: PurePosixPath, options: PythonRepositoryProfile) -> 
 def export_repository_task(
     *,
     base: Path,
-    defective: dict[str, bytes],
+    defective: dict[str, bytes | None],
     reference: dict[str, bytes],
     options: PythonRepositoryProfile,
     instruction: str,
@@ -51,8 +52,8 @@ def export_repository_task(
 ) -> Path:
     """Materialize a tested repository contrast with private reference files.
 
-    This profile replaces existing Python files. Added/deleted source paths
-    require a separate artifact collection contract and are rejected explicitly.
+    A None baseline value means the PR added that file. Such tasks collect source
+    directories so a valid implementation may introduce other Python modules.
     """
     if not defective or defective.keys() != reference.keys():
         raise ValueError("Defective and reference snapshots must replace the same source files")
@@ -60,6 +61,23 @@ def export_repository_task(
     collected = []
     source_roots = [PurePosixPath(path) for path in options.source_paths]
     hidden_roots = [PurePosixPath(path) for path in options.test_paths]
+    added = sorted(path for path, content in defective.items() if content is None)
+    immutable = {}
+    if added:
+        # Directory collection must never replace private tests or hidden assets.
+        for root in source_roots:
+            if any(
+                root != other and (root in other.parents or other in root.parents)
+                for other in source_roots
+            ):
+                raise ValueError("Submitted source directories must not overlap")
+            if not (base / str(root)).is_dir():
+                raise ValueError("Added-source tasks require directory source roots")
+            if any(
+                root == hidden or root in hidden.parents or hidden in root.parents
+                for hidden in map(PurePosixPath, options.test_paths + options.public_exclude)
+            ):
+                raise ValueError("Submitted source directories must not overlap private assets")
     for path in sorted(base.rglob("*")):
         if path.is_symlink():
             raise ValueError("Task snapshots cannot contain symlinks")
@@ -74,16 +92,16 @@ def export_repository_task(
         ):
             raise ValueError(f"Snapshot contains a forbidden cache/history asset: {relative}")
         content = defective.get(str(relative), path.read_bytes())
-        asset = TaskFile(content, bool(path.stat().st_mode & 0o111))
-        assets[f"tests/source/{relative}"] = asset
         hidden_asset = private_asset(relative, options)
-        if not hidden_asset:
-            assets[f"environment/source/{relative}"] = asset
-        if (
-            not hidden_asset
-            and path.suffix == ".py"
-            and any(relative == root or root in relative.parents for root in source_roots)
-        ):
+        in_source = any(relative == root or root in relative.parents for root in source_roots)
+        if content is not None:
+            asset = TaskFile(content, bool(path.stat().st_mode & 0o111))
+            assets[f"tests/source/{relative}"] = asset
+            if not hidden_asset:
+                assets[f"environment/source/{relative}"] = asset
+            if added and in_source and path.suffix != ".py":
+                immutable[str(relative)] = hashlib.sha256(content).hexdigest()
+        if not hidden_asset and path.suffix == ".py" and in_source:
             collected.append(str(relative))
     if not set(defective).issubset(collected):
         raise ValueError("Changed source must be within the submitted Python source paths")
@@ -98,7 +116,7 @@ def export_repository_task(
     assets["environment/Dockerfile"] = TaskFile.text(
         build
         + "RUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\n"
-        "RUN useradd -m -u 1000 learner && chown -R learner:learner /workspace\n"
+        "RUN useradd -m learner && chown -R learner:learner /workspace\n"
     )
     assets["tests/Dockerfile"] = TaskFile.text(
         build + "RUN useradd -m -u 1001 grader\n"
@@ -106,7 +124,14 @@ def export_repository_task(
         "RUN chmod 755 /tests && chmod 644 /tests/*\n"
     )
     assets["tests/test.sh"] = TaskFile.text(
-        "#!/bin/sh\nset -eu\nexec /usr/local/bin/python -I /tests/grade.py\n", executable=True
+        "#!/bin/sh\nset -eu\nexec "
+        + (
+            "/opt/tasksmith-venv/bin/python"
+            if options.use_system_site_packages
+            else "/usr/local/bin/python"
+        )
+        + " -I /tests/grade.py\n",
+        executable=True,
     )
     assets["tests/grade.py"] = TaskFile(
         files("repo2rlenv.pipelines.recipes.swe_smith").joinpath("grade.py").read_bytes()
@@ -124,6 +149,15 @@ def export_repository_task(
                 "test_paths": options.test_selectors or options.test_paths,
                 "expected_passes": contrast["FAIL_TO_PASS"] + contrast["PASS_TO_PASS"],
                 "timeout_sec": options.test_timeout_sec,
+                **(
+                    {
+                        "submitted_roots": options.source_paths,
+                        "optional_files": added,
+                        "immutable_assets": immutable,
+                    }
+                    if added
+                    else {}
+                ),
             },
             sort_keys=True,
         )
@@ -132,11 +166,17 @@ def export_repository_task(
     for source_file, content in sorted(reference.items()):
         asset = "reference.py" if single_reference else "reference/" + source_file
         assets["solution/" + asset] = TaskFile(content)
+        solve += (
+            "mkdir -p -- "
+            + shlex.quote("/workspace/" + str(PurePosixPath(source_file).parent))
+            + "\n"
+        )
         solve += "cp " + shlex.quote("/solution/" + asset) + " "
         solve += shlex.quote("/workspace/" + source_file) + "\n"
     assets["solution/solve.sh"] = TaskFile.text(solve, executable=True)
     instruction = instruction.rstrip() + (
-        "\n\nWork in `/workspace`. Submit your fix in the existing Python source files under "
+        "\n\nWork in `/workspace`. Submit your fix in "
+        + ("Python source files under " if added else "the existing Python source files under ")
         + ", ".join(f"`{root}`" for root in options.source_paths)
         + ". Preserve the other public behavior. The environment is offline; dependencies are preinstalled. "
         "Grading runs the relevant repository tests in a fresh environment, using your submitted source files.\n"
@@ -160,7 +200,13 @@ def export_repository_task(
             "environment_mode": "separate",
             "environment": {"network_mode": "no-network", "cpus": 1, "memory_mb": 2048},
         },
-        artifacts=[{"source": "/workspace/" + path} for path in collected],
+        artifacts=[
+            {
+                "source": "/workspace/" + path,
+                **({"exclude": ["__pycache__", "*.pyc", ".pytest_cache"]} if added else {}),
+            }
+            for path in (options.source_paths if added else collected)
+        ],
         verifier_timeout_sec=options.test_timeout_sec + 30,
     )
     return write_bundle(bundle, destination, resume=resume)

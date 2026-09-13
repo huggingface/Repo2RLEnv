@@ -30,8 +30,8 @@ def resolve_pr(url: str) -> dict:
             or path.name.startswith("test_")
         )
         if path.suffix == ".py" and not is_test:
-            if row["status"] != "modified":
-                raise ValueError(f"Unsupported added/deleted source path: {path}")
+            if row["status"] not in {"modified", "added"}:
+                raise ValueError(f"Unsupported renamed/deleted source path: {path}")
             source_files.append(str(path))
         elif not is_test and path.suffix in {
             ".c",
@@ -46,7 +46,7 @@ def resolve_pr(url: str) -> dict:
         }:
             raise ValueError(f"PR includes non-Python source changes: {path}")
     if not source_files:
-        raise ValueError("PR has no modified Python source files")
+        raise ValueError("PR has no added or modified Python source files")
     diff = fetch_pr_diff(owner, name, int(number))
     blocks = []
     for block in re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE):
@@ -55,6 +55,8 @@ def resolve_pr(url: str) -> dict:
             blocks.append(block)
     if len(blocks) != len(source_files):
         raise ValueError("Source diff is incomplete or has unsupported filenames")
+    if len(changed) != pull.get("changed_files", len(changed)):
+        raise ValueError("PR file inventory is incomplete")
     # Re-read identity after retrieving paginated files and diff to detect force pushes.
     current = json.loads(_run_gh(["api", endpoint]))
     if (current["head"]["sha"], current["base"]["sha"]) != (
@@ -71,6 +73,11 @@ def resolve_pr(url: str) -> dict:
         "title": pull["title"],
         "body": (pull.get("body") or "")[:10000],
         "source_files": source_files,
+        "source_operations": [
+            {"path": row["filename"], "operation": row["status"]}
+            for row in changed
+            if row["filename"] in source_files
+        ],
         "changed_files": [
             {key: row[key] for key in ("filename", "status", "additions", "deletions")}
             for row in changed

@@ -6,6 +6,7 @@ runs as an unprivileged user; this parent owns the result parser and reward file
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -15,6 +16,45 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+
+def validate_submission(workspace: Path, contract: dict) -> None:
+    """Validate collected data before any learner-controlled Python is imported."""
+    paths = set(contract["submitted_files"]) - set(contract.get("optional_files", []))
+    roots = contract.get("submitted_roots", [])
+    immutable = contract.get("immutable_assets", {})
+    paths.update(immutable)
+    for relative in roots:
+        root = workspace / relative
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError("Submitted source root is missing or linked")
+        for path in root.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("Submitted source contains a symlink")
+            if path.is_dir():
+                continue
+            name = path.relative_to(workspace).as_posix()
+            if path.suffix != ".py" and name not in immutable:
+                raise ValueError("Only Python source files may be added")
+            paths.add(name)
+    for relative in sorted(paths):
+        path = workspace / relative
+        for component in (path, *path.parents):
+            if component.is_symlink():
+                raise ValueError("Submitted source contains a symlink")
+        if (
+            not path.is_file()
+            or not stat.S_ISREG(path.stat().st_mode)
+            or path.stat().st_size > 8 * 1024 * 1024
+        ):
+            raise ValueError("Submitted source is not a bounded regular file")
+        if (
+            relative in immutable
+            and hashlib.sha256(path.read_bytes()).hexdigest() != immutable[relative]
+        ):
+            raise ValueError("Non-Python source assets must remain unchanged")
+        os.chown(path, 0, 0)
+        path.chmod(0o644)
 
 
 def main() -> None:
@@ -32,24 +72,18 @@ def main() -> None:
     reward = logs / "reward.txt"
     reward.write_text("0\n")
     reward.chmod(0o644)
-    for relative in contract["submitted_files"]:
-        path = Path("/workspace") / relative
-        # Artifact uploads are data. Refuse link traversal and special files
-        # before the child imports any learner-controlled code.
-        for component in (path, *path.parents):
-            if component.is_symlink():
-                raise ValueError("Submitted source contains a symlink")
-        if not stat.S_ISREG(path.stat().st_mode) or path.stat().st_size > 8 * 1024 * 1024:
-            raise ValueError("Submitted source is not a bounded regular file")
-        os.chown(path, 0, 0)
-        path.chmod(0o644)
+    try:
+        validate_submission(Path("/workspace"), contract)
+    except (ValueError, OSError) as exc:
+        (logs / "result.json").write_text(json.dumps({"passed": False, "reason": str(exc)}))
+        return
     with tempfile.TemporaryDirectory(prefix="r2e-grade-") as temporary:
         working = Path(temporary)
         os.chown(working, 1001, 1001)
         working.chmod(0o700)
         report = working / "results.xml"
         command = [
-            "/usr/local/bin/python",
+            sys.executable,
             "-I",
             "/tests/test_driver.py",
             *contract["test_paths"],
@@ -70,7 +104,19 @@ def main() -> None:
                 extra_groups=[],
                 start_new_session=True,
                 env={
-                    "PATH": "/usr/local/bin:/usr/bin:/bin",
+                    **{
+                        key: os.environ[key]
+                        for key in (
+                            "LD_LIBRARY_PATH",
+                            "CUDA_VISIBLE_DEVICES",
+                            "NVIDIA_VISIBLE_DEVICES",
+                            "NVIDIA_DRIVER_CAPABILITIES",
+                            "NCCL_SOCKET_IFNAME",
+                            "GLOO_SOCKET_IFNAME",
+                        )
+                        if key in os.environ
+                    },
+                    "PATH": str(Path(sys.executable).parent) + ":/usr/local/bin:/usr/bin:/bin",
                     "HOME": temporary,
                     "PYTHONDONTWRITEBYTECODE": "1",
                     "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",

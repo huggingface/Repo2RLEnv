@@ -55,6 +55,7 @@ tasksmith = [
 ]
 modal = [
     "modal==1.5.5",
+    "dockerfile-parse==2.0.1",
 ]
 daytona = [
     "daytona==0.198.0",

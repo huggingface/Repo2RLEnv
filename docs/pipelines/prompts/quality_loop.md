@@ -378,7 +378,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `5c03ad498bb902fdb087814ab40b0ffcfd0d39e3609d04dbd48cf680aa845d90`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `59ab33ac3564bd7e458ef6e86a6296c9c45613ccf1f6648fa6014ead3898774d`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -398,6 +398,7 @@ from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
+from repo2rlenv.quality.loop.rollout_evidence import rollout_documents
 
 
 def _search_excerpts(lines: list[str], query: str) -> str:
@@ -534,6 +535,18 @@ class EvidenceContext:
                 candidates.append((2, index, script_key, 8000))
             self.documents[prefix + "result.json"] = json.dumps(summary, indent=2)
             root = path.parent
+            if trial.role == "rollout":
+                for name, text in rollout_documents(task, root).items():
+                    key = prefix + name
+                    self._texts[key] = text
+                    self.inventory.append(
+                        {
+                            "path": key,
+                            "bytes": len(text.encode()),
+                            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                        }
+                    )
+                    candidates.append((1, index, key, 18000))
             # Failure logs precede trajectories, verbose test inventories and
             # captured source. All remain addressable through bounded read requests.
             selected = [

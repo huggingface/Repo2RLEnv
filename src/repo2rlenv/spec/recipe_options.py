@@ -15,6 +15,7 @@ class PythonRepositoryProfile(BaseModel):
     public_exclude: list[str] = Field(default_factory=list)
     materialize_document_links: list[str] = Field(default_factory=list, max_length=32)
     base_image: str = "python:3.12-slim"
+    use_system_site_packages: bool = False
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3"])
     install_command: str = "python -m pip install --no-cache-dir -e ."
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
