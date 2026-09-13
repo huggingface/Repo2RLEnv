@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from repo2rlenv.quality.loop.models import LoopOptions
+from repo2rlenv.quality.loop.models import LoopOptions, ProbeFocus
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
@@ -111,6 +111,7 @@ class Options(Record):
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
+    required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
             repair=True,
@@ -124,6 +125,9 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
+            raise ValueError("Required probe focus entries must be unique")
+        self.required_probe_focus = sorted(self.required_probe_focus)
         if self.gpus and self.provider != "modal":
             raise ValueError(
                 "GPU task execution currently requires the validated native Modal profile"

@@ -13,6 +13,9 @@ class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+ProbeFocus = Literal["general", "lazy_output", "numeric_tolerance", "compiled_execution"]
+
+
 class Citation(Record):
     path: str
     quote: str = Field(min_length=1, max_length=1000)
@@ -51,7 +54,7 @@ class ReadRequest(Record):
 class SemanticProbe(Record):
     name: str = Field(pattern=r"^[a-z][a-z0-9-]{0,35}$")
     kind: Literal["wrong_solution", "valid_alternative"]
-    focus: Literal["general", "lazy_output", "numeric_tolerance"] = "general"
+    focus: ProbeFocus = "general"
     rationale: str = Field(min_length=1)
     evidence: list[Citation] = Field(min_length=1)
     # Run after the reference in a private probe variant, never on the controller.

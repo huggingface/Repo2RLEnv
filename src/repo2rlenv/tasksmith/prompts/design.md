@@ -20,6 +20,19 @@ Before submitting tests, check that every important assertion can execute. For a
 
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
 
+When required_probe_focus includes compiled_execution, the final verifier must
+invoke the real compiled callable on tiny deterministic inputs and assert its
+numerical result against an independent expectation. Exercise backward gradients
+when training is in the PR's scope. Include nondefault compile options and the
+production caller when the PR changes option forwarding or integration. Compiler
+wrappers are lazy: constructing the right type or checking an internal reference
+does not prove the model executes correctly. Preserve relevant model state in the
+fixture. Describe executable behavior and public unwrapping semantics to the
+learner, not recursive construction instructions or internal _orig_mod assignments.
+Do not invent performance ratios, additional hardware or behavior absent from the
+fixed PR. Use the same narrow runtime-corruption counterexample in quality review;
+it must preserve structural appearance while producing a wrong result or gradient.
+
 For a GPU request, the final learner and separate verifier receive the requested real L4 device count. Tests must assert CUDA availability and exercise the feature on CUDA with small local fixtures. Do not skip when GPUs are absent or substitute CPU outputs. Validate numerical results and gradients independently before assessing memory efficiency; wall-clock speed is not a stable reward. Two-GPU requirements need actual distributed execution with explicit localhost rendezvous, not mocked process groups or configuration-only assertions.
 Conclude with a compact artifact once the PR contract and verifier are supported.
 Use small helper-based tests and a brief rationale; do not fill the output budget

@@ -41,12 +41,13 @@ from repo2rlenv.quality.loop.protocol import (
     resolve_markdown_citations,
     resolve_verifier_paths,
 )
+from repo2rlenv.quality.loop.requirements import task_probe_focus
 
 
 def required_probe_focus(task: Path) -> set[str]:
     """Narrow explicit contracts learned from actual pilot false acceptances."""
     instruction = (task / "instruction.md").read_text().lower()
-    focus = set()
+    focus: set[str] = set(task_probe_focus(task))
     if re.search(r"\blaz(?:y|ily)\b|\bgenerator function\b|\breturn a generator\b", instruction):
         focus.add("lazy_output")
     if re.search(r"\b(?:absolute|relative) error\b|\bnumerical? tolerance\b", instruction):
@@ -88,6 +89,19 @@ def probe_failures(trials: list[TrialRecord], success: float) -> list[str]:
         ):
             failures.append(f"Probe {trial.probe.name}: {trial.probe.kind} earned {trial.reward}")
     return failures
+
+
+def _reusable_probe_trial(
+    trial: TrialRecord, probe: SemanticProbe, parent_hash: str, success: float
+) -> bool:
+    if trial.role != "probe" or trial.probe != probe or probe_failures([trial], success):
+        return False
+    # Use the publication gate's raw-result, completion-marker, controller
+    # receipt and probe-parent checks. A successful summary alone is insufficient.
+    from repo2rlenv.quality.labels import _trial_evidence
+
+    _trial_evidence(trial, parent_hash)
+    return True
 
 
 class QualityLoop:
@@ -264,6 +278,7 @@ class QualityLoop:
         feedback = []
         for attempt in range(2):
             repair = None
+            invalid_citation = None
             try:
                 repair = self.model.ask(
                     Repair,
@@ -304,7 +319,7 @@ class QualityLoop:
                     if len(replacements) != len(repair.probe_replacements):
                         raise ValueError("Duplicate probe replacements")
                     known = {probe.name: probe for probe in probes}
-                    for name, replacement in replacements.items():
+                    for replacement_index, (name, replacement) in enumerate(replacements.items()):
                         if (
                             name not in known
                             or known[name].kind != "valid_alternative"
@@ -313,13 +328,19 @@ class QualityLoop:
                             raise ValueError(
                                 "Probe repair must preserve its name, kind and requirement focus"
                             )
-                        for citation in replacement.evidence:
+                        for citation_index, citation in enumerate(replacement.evidence):
                             document = context.documents.get(citation.path, "")
                             if not document or " ".join(citation.quote.split()) not in " ".join(
                                 document.split()
                             ):
+                                invalid_citation = citation
                                 raise ValueError(
-                                    "Alternative-probe replacement has ungrounded evidence"
+                                    "Alternative-probe replacement has ungrounded evidence at "
+                                    f"probe_replacements[{replacement_index}] ({name})"
+                                    f".evidence[{citation_index}]: path={citation.path!r}, "
+                                    f"quote={citation.quote!r}. Use an exact quote from a cited "
+                                    "document, including traceback markers, or cite another "
+                                    "existing document."
                                 )
                     updated_probes = [replacements.get(probe.name, probe) for probe in probes]
                 destination = self.directory / f"revisions/r{revision + 1}" / task.name
@@ -334,11 +355,40 @@ class QualityLoop:
                         raise ValueError("Stored repair has changed")
                 else:
                     apply_repair(task, repair, destination)
+                if task_probe_focus(task) - task_probe_focus(destination):
+                    raise ValueError("Repair removed explicit task probe requirements")
                 return destination, updated_probes
             except (ValueError, FileNotFoundError, FileExistsError) as exc:
                 if attempt:
                     raise
                 feedback.append(str(exc))
+                if invalid_citation is not None and (
+                    invalid_citation.path in context._paths
+                    or invalid_citation.path in context._texts
+                ):
+                    # Search only the known cited source, preserving its literal
+                    # traceback markers in the existing single correction call.
+                    query = next(
+                        (
+                            line.strip()
+                            for line in invalid_citation.quote.splitlines()
+                            if line.strip()
+                        ),
+                        None,
+                    )
+                    try:
+                        context.read_more(
+                            [
+                                ReadRequest(
+                                    path=invalid_citation.path,
+                                    query=query[:200] if query else None,
+                                    start_line=1,
+                                    end_line=80 if query is None else 1,
+                                )
+                            ]
+                        )
+                    except ValueError as read_error:
+                        feedback.append(f"Cited-source excerpt unavailable: {read_error}")
                 if repair is not None:
                     # Supply real source around the requested edit, never a fuzzy
                     # application. Unknown provider effects bypass this correction.
@@ -476,7 +526,16 @@ class QualityLoop:
                             names.add(probe.name)
                 controls = control_failures(trials, self.options.success_reward)
                 if execute and not controls:
+                    parent_hash = task_identity(task)
                     for index, probe in enumerate(probes):
+                        if any(
+                            _reusable_probe_trial(
+                                trial, probe, parent_hash, self.options.success_reward
+                            )
+                            for trial in trials
+                        ):
+                            self.event("probe", f"Reuse unchanged {probe.kind}: {probe.name}")
+                            continue
                         key = f"r{revision}-probe{index}"
                         destination = self.directory / "probes" / key / source.name
                         if not destination.exists():
@@ -557,9 +616,24 @@ class QualityLoop:
                     break
                 self.event("repair", f"Author targeted repair {revision + 1}", state="started")
                 destination, probes = self._repair(task, review, context, probes, revision, reasons)
-                same_task = task_identity(destination) == task_identity(task)
+                parent_hash = task_identity(destination)
+                same_task = parent_hash == task_identity(task)
                 task = destination
-                trials = [trial for trial in trials if trial.role != "probe"] if same_task else []
+                trials = (
+                    [
+                        trial
+                        for trial in trials
+                        if trial.role != "probe"
+                        or any(
+                            _reusable_probe_trial(
+                                trial, probe, parent_hash, self.options.success_reward
+                            )
+                            for probe in probes
+                        )
+                    ]
+                    if same_task
+                    else []
+                )
         except BudgetExceeded:
             status, reasons = (
                 "budget_exhausted",

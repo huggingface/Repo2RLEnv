@@ -108,6 +108,20 @@ The previous panel must match exactly. Before paid work, the importer checks eac
 
 Tasksmith allows up to four semantic probes, while usually needing only one wrong solution and one valid alternative. Extra capacity preserves a discovered counterexample when a repair also needs a specific laziness or tolerance check. The reviewer sees which controls already exist and must reserve space for the missing control kinds. A blocking defect can be repaired before probe authoring; requests for missing code are serviced before demanding probe scripts.
 
+For a compilation PR, explicitly set `"required_probe_focus": ["compiled_execution"]`
+in the Tasksmith options. The designer must exercise the compiled callable with
+small deterministic inputs, numerical expectations and gradients where training is
+in scope. Review requires a wrong implementation that retains valid wrappers and
+shapes but corrupts runtime results. Merely constructing `OptimizedModule` objects
+does not establish execution coverage.
+
+The requirement is stored in
+`metadata.repo2env.quality_requirements.probe_focus`, which participates in the task
+hash. Adding it creates a separate `quality-input` snapshot and resets evaluation;
+old trials and probes cannot validate that new identity. The original task and its
+evidence remain available. Empty options preserve existing behavior and historical
+acceptance; compilation coverage is not inferred from the word “lazy.”
+
 The reviewer also receives the original PR intent and diff privately. This distinguishes a generated request that invents requirements from a faulty reference. A request that exceeds the PR's scope should be corrected; a real conflict between the PR intent and reference remains a reported defect. Full file hashes are retained in local review inventories, while model context contains compact file paths and sizes instead of repeated hashes and omission notices.
 
 Every rollout also produces an addressable tool-call index and a diff computed from captured source artifacts against the starting workspace. The index retains middle-of-run edits even when the raw trajectory exceeds the initial context allowance. Large documents are explicitly marked partial and can be requested by range/search. Failed artifact collection is labeled as failed collection, not interpreted as a learner deletion.
@@ -138,6 +152,23 @@ It records file hashes in `/opt/tasksmith-hf/hub/tasksmith-assets.json`. Its off
 can use the prepared cache. No provider token is forwarded to this public download.
 Missing or gated assets require a different prepared fixture. Pinning and cache
 lookup follow the [Hub download contract](https://huggingface.co/docs/huggingface_hub/en/guides/download).
+
+Repository IDs are literal cache keys. When a test requests `gpt2` but the pinned
+public asset belongs to `openai-community/gpt2`, add `"cache_aliases": ["gpt2"]` to
+that asset. Declare the exact names used by the fixture; aliases are not inferred
+from repository basenames. This distinction follows the
+[Hub cache layout](https://huggingface.co/docs/huggingface_hub/en/guides/manage-cache).
+
+The builder checks each alias's canonical model ID and pinned SHA through public
+Hub metadata before changing the cache. It rejects name collisions, conflicting
+existing paths and altered asset bytes, then creates a relative link inside the
+managed cache. Both `main` and the pinned revision must resolve offline to the
+same recorded files. The proof is saved in
+`/opt/tasksmith-hf/hub/tasksmith-asset-aliases.json`. Failed lookup checks remove
+new links. Alias setup is a separate Docker layer after canonical downloads, so
+adding an alias preserves the existing asset-download layer. This changes asset
+lookup only; repository source, behavior tests and runtime network isolation
+remain intact.
 
 The asset layer precedes repository source, so changing task instructions or tests
 does not invalidate it. CPU workers key their dependency images by the rendered

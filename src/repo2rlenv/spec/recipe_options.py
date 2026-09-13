@@ -16,6 +16,27 @@ class HubAsset(BaseModel):
     filenames: list[str] = Field(min_length=1, max_length=64)
     max_bytes: int = Field(default=268435456, ge=1, le=2147483648)
     purpose: str = Field(min_length=10, max_length=500)
+    cache_aliases: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("cache_aliases")
+    @classmethod
+    def cache_names(cls, values):
+        import re
+
+        if len(set(values)) != len(values):
+            raise ValueError("Hub cache aliases must be unique")
+        for value in values:
+            parts = value.split("/")
+            if (
+                not re.fullmatch(
+                    r"[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)?", value
+                )
+                or any(len(part) > 96 or part.endswith((".", "-", ".git")) for part in parts)
+                or "--" in value
+                or ".." in value
+            ):
+                raise ValueError("Hub cache aliases must be explicit valid repository IDs")
+        return sorted(values)
 
     @field_validator("filenames")
     @classmethod
@@ -67,6 +88,13 @@ class PythonRepositoryProfile(BaseModel):
                 raise ValueError("Hub assets require a compatible huggingface-hub== version pin")
             if len({asset.repo_id for asset in self.hub_assets}) != len(self.hub_assets):
                 raise ValueError("Choose one pinned revision per model/tokenizer repository")
+            cache_names = [
+                name.replace("/", "--")
+                for asset in self.hub_assets
+                for name in [asset.repo_id, *asset.cache_aliases]
+            ]
+            if len(set(cache_names)) != len(cache_names):
+                raise ValueError("Hub cache aliases and canonical repositories must not collide")
             if sum(asset.max_bytes for asset in self.hub_assets) > 2147483648:
                 raise ValueError("Combined Hub asset allowance must not exceed 2 GiB")
         return self

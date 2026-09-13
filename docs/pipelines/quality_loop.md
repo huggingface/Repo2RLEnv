@@ -202,6 +202,28 @@ addresses a measured calibration failure: two generic probes initially missed th
 R2E `collapse` verifier's missing laziness check. Probe focus is still a narrow
 heuristic, not a complete natural-language requirement extractor.
 
+Tasks can also declare an explicit, validated requirement:
+
+```toml
+[metadata.repo2env.quality_requirements]
+probe_focus = ["compiled_execution"]
+```
+
+This field belongs to the executable task identity, outside the advisory
+`evaluation` label. `compiled_execution` requires a wrong-solution probe that
+preserves wrapper types, shapes and setup while corrupting an executed output or
+gradient. The verifier must invoke the real compiled path and reject the mutation;
+structural checks alone are insufficient. Option forwarding and integration checks
+remain limited to the original PR's behavior. No fixed speedup or extra hardware
+is required. Without the explicit field, historical tasks keep their existing
+requirements. Tasksmith's `required_probe_focus` option annotates a new input copy
+before controls and never transfers old evidence to the changed hash.
+
+Alternative implementations are judged by their public behavior. A failing test
+that prescribes a private flag's representation may be a verifier defect; it is
+not automatically proof that the alternative is invalid. Repairs must preserve
+the actual behavioral assertions, including caching and recomputation guarantees.
+
 Pass `--probes FILE.json` to retain known counterexamples or valid alternatives from
 an earlier review. The manifest contains `bundle_hash` and a `probes` list; each
 probe has `name`, `kind`, `focus`, `rationale`, `evidence` (`path`/`quote`) and `script`.

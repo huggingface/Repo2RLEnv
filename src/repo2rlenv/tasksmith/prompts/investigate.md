@@ -38,3 +38,14 @@ faithful local fixture; do not select tests that will download unprepared assets
 Document which selected tests need each asset. Inspect the fixture/setup methods
 as well as the test body. A working repository cache does not prove those assets
 exist. Do not repeat a network failure without changing its missing-asset plan.
+
+Hub cache keys use the exact repository ID requested by the test. If tests call
+`from_pretrained("gpt2")` while the public canonical asset is
+`openai-community/gpt2`, declare `cache_aliases: ["gpt2"]` on that pinned asset.
+The image builder verifies the alias's canonical Hub identity and commit, creates
+a cache-local alias, and proves offline lookup before any tests run. Do not infer
+aliases from repository basenames; declare only the exact names used by the
+selected fixtures. On an offline missing-file retry, compare the requested ID to
+the declared asset and its aliases before changing dependency versions or adding
+unrelated files. Preserve working dependency pins and test selectors when the
+failure is only a cache-name mismatch.

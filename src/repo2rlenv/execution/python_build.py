@@ -25,7 +25,7 @@ def dependency_recipe(
         recipe += f"RUN python -m pip install --no-cache-dir {shlex.join(dependencies)}\n"
     if hub_assets:
         assets = [
-            asset.model_dump(mode="json", exclude={"purpose"})
+            asset.model_dump(mode="json", exclude={"purpose", "cache_aliases"})
             for asset in sorted(hub_assets, key=lambda item: item.repo_id)
         ]
         script = files("repo2rlenv.execution").joinpath("hub_asset_fetch.py").read_text()
@@ -41,4 +41,24 @@ def dependency_recipe(
             "RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python -c " + shlex.quote(command) + "\n"
             "ENV HF_HOME=/opt/tasksmith-hf HF_HUB_CACHE=/opt/tasksmith-hf/hub\n"
         )
+        aliases = [
+            asset.model_dump(mode="json", include={"repo_id", "revision", "cache_aliases"})
+            for asset in sorted(hub_assets, key=lambda item: item.repo_id)
+            if asset.cache_aliases
+        ]
+        if aliases:
+            script = files("repo2rlenv.execution").joinpath("hub_asset_alias.py").read_text()
+            script += (
+                "\ninstall_aliases(json.loads("
+                + repr(json.dumps(aliases, sort_keys=True))
+                + "), Path('/opt/tasksmith-hf/hub'))\n"
+            )
+            command = "exec(" + repr(script) + ")"
+            # Keep aliases after the canonical download layer so changing a
+            # lookup name cannot invalidate cached large model downloads.
+            recipe += (
+                "RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python -c "
+                + shlex.quote(command)
+                + "\n"
+            )
     return recipe

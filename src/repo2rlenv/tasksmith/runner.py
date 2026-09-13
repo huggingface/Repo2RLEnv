@@ -38,6 +38,33 @@ from repo2rlenv.tasksmith.reuse import generation_task, load_generation
 from repo2rlenv.tasksmith.source import resolve_pr, validate_source_records
 
 
+def _validate_profile_source_coverage(profile: Profile, source_files: list[str]) -> None:
+    roots = [PurePosixPath(path) for path in profile.options.source_paths]
+    uncovered = [
+        name
+        for name in source_files
+        if not any(
+            PurePosixPath(name) == root or root in PurePosixPath(name).parents for root in roots
+        )
+    ]
+    if uncovered:
+        raise ValueError(
+            "options.source_paths omits PR source changes: "
+            + ", ".join(uncovered)
+            + ". Correct options.source_paths to cover every listed path, keeping source roots "
+            "disjoint from options.test_paths and options.public_exclude. Retaining added "
+            "example/tool files in the learner checkout does not require selecting or executing "
+            "them as tests."
+        )
+    for name in source_files:
+        path = PurePosixPath(name)
+        if any(
+            path == PurePosixPath(prefix) or PurePosixPath(prefix) in path.parents
+            for prefix in profile.options.test_paths + profile.options.public_exclude
+        ):
+            raise ValueError(f"Profile hides PR source change {name}")
+
+
 class State(TypedDict, total=False):
     source: dict
     profile: dict
@@ -215,8 +242,83 @@ class Tasksmith:
             )
         )
 
+    def release_author_worker(self):
+        """Stop an unused author worker and reconcile only confirmed Modal usage."""
+        if self.worker is not None and self.receipt is None:
+            raise ValueError("Cannot release an author worker without its receipt")
+        # A controller can resume directly at quality without live worker handles.
+        # Persisted receipts remain authoritative for cleanup and pending spend.
+        receipts = {
+            path
+            for path in (self.directory / "workers").glob("*.json")
+            if not path.name.endswith(".cost.json")
+        }
+        if self.receipt is not None:
+            receipts.add(self.receipt)
+        for receipt in sorted(receipts):
+            try:
+                record = stop_worker(receipt, self.budget)
+            finally:
+                if (
+                    receipt == self.receipt
+                    and json.loads(receipt.read_text()).get("state") == "terminated"
+                ):
+                    # Never reuse confirmed-dead handles, even if the ledger
+                    # update fails. Keep the receipt until reconciliation works.
+                    self.worker = self.python = None
+            if record["spec"]["provider"] == "modal":
+                from repo2rlenv.tasksmith.matrix_runner import reconcile_worker
+
+                operations = {
+                    operation["id"]: operation for operation in self.ledger.status()["operations"]
+                }
+                operation = operations.get(record["operation_id"])
+                if operation is None:
+                    raise ValueError("Stopped author worker has no budget reservation")
+                if operation["status"] != "settled":
+                    reconcile_worker(receipt, self.budget)
+                self.event(
+                    "cleanup", "Author worker terminated and compute reconciled before GPU quality"
+                )
+            else:
+                self.event(
+                    "cleanup",
+                    "Author worker terminated; provider compute reservation retained for reconciliation",
+                )
+            if self.receipt == receipt:
+                self.receipt = None
+
     def review_candidate(self, root: Path, source: dict, constructed: dict):
-        if not self.options.gpus:
+        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
+        imported = constructed.get("imported_from", {})
+        if self.options.required_probe_focus:
+            from repo2rlenv.quality.loop.requirements import with_probe_requirements
+
+            original_task, original_hash = task, task_identity(task)
+            task = with_probe_requirements(
+                task, root / "quality-input" / task.name, self.options.required_probe_focus
+            )
+            if task_identity(task) != original_hash:
+                # New requirements change the reviewed contract. Retain imported
+                # evidence at its original identity and perform fresh checks.
+                imported = {}
+                save_record(
+                    root / "quality-input.json",
+                    {
+                        "source_task": str(original_task.resolve()),
+                        "source_bundle_hash": original_hash,
+                        "task_path": str(task.resolve()),
+                        "bundle_hash": task_identity(task),
+                        "required_probe_focus": self.options.required_probe_focus,
+                        "imported_evidence_reused": False,
+                    },
+                )
+        if self.options.gpus:
+            # Native quality and its repairs use the downloaded bundle directly.
+            # Verify that artifact before releasing the author's remote checkout.
+            task_identity(task)
+            self.release_author_worker()
+        else:
             self.ready_worker()
         self.event(
             "quality",
@@ -260,19 +362,18 @@ class Tasksmith:
             )
             # Reuse the already prepared worker/runtime, avoiding redundant setup.
             loop.remote.worker, loop.remote.python = self.worker, self.python
-        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
         probes = None
-        if constructed.get("imported_from", {}).get("probes"):
+        if imported.get("probes"):
             probes = root / "imported-probes.json"
             save_record(
                 probes,
                 {
                     "bundle_hash": task_identity(task),
-                    "probes": constructed["imported_from"]["probes"],
+                    "probes": imported["probes"],
                 },
             )
         evidence = {}
-        for role, trial in constructed.get("imported_from", {}).get("trials", {}).items():
+        for role, trial in imported.get("trials", {}).items():
             if (
                 role == "rollout"
                 and trial["model"] != self.options.quality.solver_model.qualified_name
@@ -357,16 +458,7 @@ class Tasksmith:
                         "The frozen checkout needs all identified document links before building: "
                         + ", ".join(sorted(missing_links))
                     )
-                roots = [PurePosixPath(path) for path in profile.options.source_paths]
-                for name in source["source_files"]:
-                    path = PurePosixPath(name)
-                    if not any(path == prefix or prefix in path.parents for prefix in roots):
-                        raise ValueError(f"Profile omits PR source change {name}")
-                    if any(
-                        path == PurePosixPath(prefix) or PurePosixPath(prefix) in path.parents
-                        for prefix in profile.options.test_paths + profile.options.public_exclude
-                    ):
-                        raise ValueError(f"Profile hides PR source change {name}")
+                _validate_profile_source_coverage(profile, source["source_files"])
 
             profile = self.author(
                 root,
@@ -431,6 +523,11 @@ class Tasksmith:
                     "readiness": state["ready"]["readiness"],
                     "previous_design": state.get("design"),
                     "previous_failure": state.get("failure"),
+                    **(
+                        {"required_probe_focus": self.options.required_probe_focus}
+                        if self.options.required_probe_focus
+                        else {}
+                    ),
                     "requested_resources": {
                         "gpus": self.options.gpus,
                         "gpu_type": "L4" if self.options.gpus else None,

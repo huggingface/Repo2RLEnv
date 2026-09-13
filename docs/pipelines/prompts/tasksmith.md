@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `a649b086e1778c8c4dc056a6568e1a81cb55356d7ac42ae45514479584becebd`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `bbb80eea3e9160de97aaebd0f13e080ffa297d2d42e91354c2f696ad4b350e05`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -52,13 +52,24 @@ faithful local fixture; do not select tests that will download unprepared assets
 Document which selected tests need each asset. Inspect the fixture/setup methods
 as well as the test body. A working repository cache does not prove those assets
 exist. Do not repeat a network failure without changing its missing-asset plan.
+
+Hub cache keys use the exact repository ID requested by the test. If tests call
+`from_pretrained("gpt2")` while the public canonical asset is
+`openai-community/gpt2`, declare `cache_aliases: ["gpt2"]` on that pinned asset.
+The image builder verifies the alias's canonical Hub identity and commit, creates
+a cache-local alias, and proves offline lookup before any tests run. Do not infer
+aliases from repository basenames; declare only the exact names used by the
+selected fixtures. On an offline missing-file retry, compare the requested ID to
+the declared asset and its aliases before changing dependency versions or adding
+unrelated files. Preserve working dependency pins and test selectors when the
+failure is only a cache-name mismatch.
 ````
 
 </details>
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `662af1701039a301d02858e9dda7c68cb2cd1d5dd9d9e32f11424175953851a2`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `bea47a2032407785a729c192ee7de168425ef9271002d1da1be779b4f3147336`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -88,6 +99,19 @@ Before submitting tests, check that every important assertion can execute. For a
 
 If the PR adds model modules, the baseline genuinely lacks those files. Keep feature imports inside test functions, and give the learner enough architectural behavior and public API detail to implement the model independently. Use tiny locally initialized fixtures, independent numerical expectations and real gradients or cache behavior where relevant; shape-only checks cannot establish a correct model. Preserve the merged implementation as the fixed reference.
 
+When required_probe_focus includes compiled_execution, the final verifier must
+invoke the real compiled callable on tiny deterministic inputs and assert its
+numerical result against an independent expectation. Exercise backward gradients
+when training is in the PR's scope. Include nondefault compile options and the
+production caller when the PR changes option forwarding or integration. Compiler
+wrappers are lazy: constructing the right type or checking an internal reference
+does not prove the model executes correctly. Preserve relevant model state in the
+fixture. Describe executable behavior and public unwrapping semantics to the
+learner, not recursive construction instructions or internal _orig_mod assignments.
+Do not invent performance ratios, additional hardware or behavior absent from the
+fixed PR. Use the same narrow runtime-corruption counterexample in quality review;
+it must preserve structural appearance while producing a wrong result or gradient.
+
 For a GPU request, the final learner and separate verifier receive the requested real L4 device count. Tests must assert CUDA availability and exercise the feature on CUDA with small local fixtures. Do not skip when GPUs are absent or substitute CPU outputs. Validate numerical results and gradients independently before assessing memory efficiency; wall-clock speed is not a stable reward. Two-GPU requirements need actual distributed execution with explicit localhost rendezvous, not mocked process groups or configuration-only assertions.
 Conclude with a compact artifact once the PR contract and verifier are supported.
 Use small helper-based tests and a brief rationale; do not fill the output budget
@@ -103,7 +127,7 @@ whose relevant behavior can be exercised using a real tiny local model.
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `e986f0007762f0d12a06fcd4c9536a6bb59daf548f21eaf48179a0971c9f29a0`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `04f6b534b54f4290a77b1522bc9e7c1865534c285da55da64b549e2e1bb768a5`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -121,7 +145,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from repo2rlenv.quality.loop.models import LoopOptions
+from repo2rlenv.quality.loop.models import LoopOptions, ProbeFocus
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
@@ -224,6 +248,7 @@ class Options(Record):
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
+    required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
         default_factory=lambda: LoopOptions(
             repair=True,
@@ -237,6 +262,9 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
+            raise ValueError("Required probe focus entries must be unique")
+        self.required_probe_focus = sorted(self.required_probe_focus)
         if self.gpus and self.provider != "modal":
             raise ValueError(
                 "GPU task execution currently requires the validated native Modal profile"
@@ -257,7 +285,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `4aa21c0df101b954799ce982d6836ae185f55aac12a7552ef5386dc5d1a94c6b`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `1ed6b68708ff3a3600f5ab7c60f48b127914f5b045716c6eda6a5e4be435a7c3`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -303,6 +331,33 @@ from repo2rlenv.tasksmith.author.budget import AuthorBudget
 from repo2rlenv.tasksmith.models import Design, Options, Panel, Profile
 from repo2rlenv.tasksmith.reuse import generation_task, load_generation
 from repo2rlenv.tasksmith.source import resolve_pr, validate_source_records
+
+
+def _validate_profile_source_coverage(profile: Profile, source_files: list[str]) -> None:
+    roots = [PurePosixPath(path) for path in profile.options.source_paths]
+    uncovered = [
+        name
+        for name in source_files
+        if not any(
+            PurePosixPath(name) == root or root in PurePosixPath(name).parents for root in roots
+        )
+    ]
+    if uncovered:
+        raise ValueError(
+            "options.source_paths omits PR source changes: "
+            + ", ".join(uncovered)
+            + ". Correct options.source_paths to cover every listed path, keeping source roots "
+            "disjoint from options.test_paths and options.public_exclude. Retaining added "
+            "example/tool files in the learner checkout does not require selecting or executing "
+            "them as tests."
+        )
+    for name in source_files:
+        path = PurePosixPath(name)
+        if any(
+            path == PurePosixPath(prefix) or PurePosixPath(prefix) in path.parents
+            for prefix in profile.options.test_paths + profile.options.public_exclude
+        ):
+            raise ValueError(f"Profile hides PR source change {name}")
 
 
 class State(TypedDict, total=False):
@@ -482,8 +537,83 @@ class Tasksmith:
             )
         )
 
+    def release_author_worker(self):
+        """Stop an unused author worker and reconcile only confirmed Modal usage."""
+        if self.worker is not None and self.receipt is None:
+            raise ValueError("Cannot release an author worker without its receipt")
+        # A controller can resume directly at quality without live worker handles.
+        # Persisted receipts remain authoritative for cleanup and pending spend.
+        receipts = {
+            path
+            for path in (self.directory / "workers").glob("*.json")
+            if not path.name.endswith(".cost.json")
+        }
+        if self.receipt is not None:
+            receipts.add(self.receipt)
+        for receipt in sorted(receipts):
+            try:
+                record = stop_worker(receipt, self.budget)
+            finally:
+                if (
+                    receipt == self.receipt
+                    and json.loads(receipt.read_text()).get("state") == "terminated"
+                ):
+                    # Never reuse confirmed-dead handles, even if the ledger
+                    # update fails. Keep the receipt until reconciliation works.
+                    self.worker = self.python = None
+            if record["spec"]["provider"] == "modal":
+                from repo2rlenv.tasksmith.matrix_runner import reconcile_worker
+
+                operations = {
+                    operation["id"]: operation for operation in self.ledger.status()["operations"]
+                }
+                operation = operations.get(record["operation_id"])
+                if operation is None:
+                    raise ValueError("Stopped author worker has no budget reservation")
+                if operation["status"] != "settled":
+                    reconcile_worker(receipt, self.budget)
+                self.event(
+                    "cleanup", "Author worker terminated and compute reconciled before GPU quality"
+                )
+            else:
+                self.event(
+                    "cleanup",
+                    "Author worker terminated; provider compute reservation retained for reconciliation",
+                )
+            if self.receipt == receipt:
+                self.receipt = None
+
     def review_candidate(self, root: Path, source: dict, constructed: dict):
-        if not self.options.gpus:
+        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
+        imported = constructed.get("imported_from", {})
+        if self.options.required_probe_focus:
+            from repo2rlenv.quality.loop.requirements import with_probe_requirements
+
+            original_task, original_hash = task, task_identity(task)
+            task = with_probe_requirements(
+                task, root / "quality-input" / task.name, self.options.required_probe_focus
+            )
+            if task_identity(task) != original_hash:
+                # New requirements change the reviewed contract. Retain imported
+                # evidence at its original identity and perform fresh checks.
+                imported = {}
+                save_record(
+                    root / "quality-input.json",
+                    {
+                        "source_task": str(original_task.resolve()),
+                        "source_bundle_hash": original_hash,
+                        "task_path": str(task.resolve()),
+                        "bundle_hash": task_identity(task),
+                        "required_probe_focus": self.options.required_probe_focus,
+                        "imported_evidence_reused": False,
+                    },
+                )
+        if self.options.gpus:
+            # Native quality and its repairs use the downloaded bundle directly.
+            # Verify that artifact before releasing the author's remote checkout.
+            task_identity(task)
+            self.release_author_worker()
+        else:
             self.ready_worker()
         self.event(
             "quality",
@@ -527,19 +657,18 @@ class Tasksmith:
             )
             # Reuse the already prepared worker/runtime, avoiding redundant setup.
             loop.remote.worker, loop.remote.python = self.worker, self.python
-        task = Path(constructed["local"]) / constructed["value"]["task_relative"]
         probes = None
-        if constructed.get("imported_from", {}).get("probes"):
+        if imported.get("probes"):
             probes = root / "imported-probes.json"
             save_record(
                 probes,
                 {
                     "bundle_hash": task_identity(task),
-                    "probes": constructed["imported_from"]["probes"],
+                    "probes": imported["probes"],
                 },
             )
         evidence = {}
-        for role, trial in constructed.get("imported_from", {}).get("trials", {}).items():
+        for role, trial in imported.get("trials", {}).items():
             if (
                 role == "rollout"
                 and trial["model"] != self.options.quality.solver_model.qualified_name
@@ -624,16 +753,7 @@ class Tasksmith:
                         "The frozen checkout needs all identified document links before building: "
                         + ", ".join(sorted(missing_links))
                     )
-                roots = [PurePosixPath(path) for path in profile.options.source_paths]
-                for name in source["source_files"]:
-                    path = PurePosixPath(name)
-                    if not any(path == prefix or prefix in path.parents for prefix in roots):
-                        raise ValueError(f"Profile omits PR source change {name}")
-                    if any(
-                        path == PurePosixPath(prefix) or PurePosixPath(prefix) in path.parents
-                        for prefix in profile.options.test_paths + profile.options.public_exclude
-                    ):
-                        raise ValueError(f"Profile hides PR source change {name}")
+                _validate_profile_source_coverage(profile, source["source_files"])
 
             profile = self.author(
                 root,
@@ -698,6 +818,11 @@ class Tasksmith:
                     "readiness": state["ready"]["readiness"],
                     "previous_design": state.get("design"),
                     "previous_failure": state.get("failure"),
+                    **(
+                        {"required_probe_focus": self.options.required_probe_focus}
+                        if self.options.required_probe_focus
+                        else {}
+                    ),
                     "requested_resources": {
                         "gpus": self.options.gpus,
                         "gpu_type": "L4" if self.options.gpus else None,

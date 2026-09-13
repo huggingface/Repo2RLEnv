@@ -76,6 +76,20 @@ a valid alternative inside it; label both numeric_tolerance. Do not probe exact
 equality alone. Otherwise use focus general. These are explicit requirement checks,
 not assumptions that any function accepting a generator must return a generator.
 
+When required_probe_focus includes compiled_execution, inspect actual invocation
+of the returned compiled callable, not just wrapper types, attributes or setup.
+The wrong-solution probe must preserve valid wrapper types, shape and setup while
+corrupting an executed numerical result or gradient. Label it compiled_execution.
+The private verifier must reject that runtime error. A probe that only removes a
+wrapper or breaks region detection does not establish computational coverage.
+Use tiny deterministic inputs and the real compilation path; check outputs and,
+where training is in scope, backward gradients against independent expectations.
+Check forwarded compile options and production integration when the original PR
+changes them. Do not require a fixed speedup, extra hardware or unrelated model
+features. If only structural assertions exist, request one focused verifier repair
+before spending a solver rollout. This requirement is explicit opt-in metadata;
+do not infer it from the word lazy or apply it to unrelated historical tasks.
+
 Existing probes must remain valid after repairs. If one was mistaken, identify the
 conflict explicitly instead of silently dropping it. Explain probe failures using
 the actual logs: a probe installation error is not proof that the verifier rejected
@@ -87,6 +101,13 @@ with the exact failing case and conflicting code when that happens. A successful
 installation marker only proves the script ran, not that its implementation is
 correct. Never weaken grading to accommodate a defective alternative. Read the
 verifier's stdout/stderr and test failure details before diagnosing this situation.
+
+Conversely, a valid alternative may change an internal flag's representation or
+helper organization. An assertion about private state does not by itself prove the
+alternative is invalid. Compare the public contract and all affected reads/writes:
+if observable behavior is preserved, repair the implementation-specific assertion
+and retain genuine behavior checks, such as caching, recomputation and isolation.
+Do not require the reference's internal representation merely because it used one.
 Reward numbers alone do not explain the cause. Do not guess regex, import-cache or
 laziness failures when the actual assertion names a different behavior. Cite the
 failing assertion and the relevant implementation/contract, requesting more text

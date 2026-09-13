@@ -37,8 +37,10 @@ from repo2rlenv.quality.loop.protocol import (
     resolve_markdown_citations,
     resolve_verifier_paths,
 )
+from repo2rlenv.quality.loop.requirements import with_probe_requirements
 from repo2rlenv.quality.loop.runner import (
     QualityLoop,
+    _reusable_probe_trial,
     control_failures,
     probe_failures,
     required_probe_focus,
@@ -761,6 +763,56 @@ def test_generator_input_does_not_imply_lazy_output(task, tmp_path):
     assert required_probe_focus(revised) == set()
 
 
+def test_explicit_compiled_requirement_rejects_generic_probes(task, tmp_path):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+    assert required_probe_focus(task) == set()
+    assert required_probe_focus(revised) == {"compiled_execution"}
+    result = make_loop(
+        tmp_path,
+        remote=Trials(tmp_path / "results"),
+        model=Model(honest=False),
+        run_rollout=True,
+        max_read_rounds=0,
+    ).run(revised)
+    assert result.status == "needs_evidence"
+    assert "compiled_execution" in result.reasons[0]
+    assert not any(item.role in {"rollout", "probe"} for item in result.trials)
+
+
+def test_explicit_probe_requirement_survives_task_repair(task, tmp_path):
+    class CompileModel(Model):
+        def ask(self, *args):
+            result = super().ask(*args)
+            if isinstance(result, Review):
+                for probe in result.probes:
+                    if probe.kind == "wrong_solution":
+                        probe.focus = "compiled_execution"
+            return result
+
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+    result = make_loop(
+        tmp_path, remote=Trials(tmp_path / "results"), model=CompileModel(), repair=True
+    ).run(revised)
+    assert result.status == "usable", result.reasons
+    assert result.repairs == 1
+    assert result.bundle_hash != task_identity(revised)
+    assert required_probe_focus(Path(result.task_path)) == {"compiled_execution"}
+    assert any(trial.probe and trial.probe.focus == "compiled_execution" for trial in result.trials)
+
+
+def test_repair_cannot_remove_explicit_probe_metadata(task, tmp_path):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, ["compiled_execution"])
+    repair = Repair(
+        explanation="Try to bypass the requirement",
+        addressed_issues=["compiled control"],
+        edits=[Edit(path="task.toml", old="compiled_execution", new="general", executable=False)],
+    )
+    with pytest.raises(ValueError):
+        apply_repair(revised, repair, tmp_path / "revision" / task.name)
+    assert required_probe_focus(revised) == {"compiled_execution"}
+    assert not (tmp_path / "revision" / task.name).exists()
+
+
 def test_known_counterexamples_are_bound_and_replayed(task, tmp_path):
     path = tmp_path / "probes.json"
     path.write_text(
@@ -840,6 +892,49 @@ class AlternativeTrials(Trials):
         if role == "probe":
             correct_alternative = "corrected" in (task / "solution/solve.sh").read_text()
             result.reward = float("probe1" in key and correct_alternative)
+        return self.bind_result(task, result, key)
+
+    def bind_result(self, task, result, key):
+        """Preserve the same local receipt layout as both real trial adapters."""
+        role = result.role
+        result.agent = {"baseline": "nop", "oracle": "oracle", "probe": "oracle"}.get(
+            role, "terminus-2"
+        )
+        result.agent_exit_code = 0
+        trial_id = "test-" + key
+        path = self.root / key / trial_id / task.name / "result.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "config": {
+                        "task": {"path": str(task)},
+                        "agent": {"name": result.agent, "model_name": result.model},
+                    },
+                    "verifier_result": {"rewards": {"reward": result.reward}},
+                    "exception_info": {"exception_type": result.exception_type}
+                    if result.exception_type
+                    else None,
+                }
+            )
+        )
+        logs = path.parent / "agent"
+        logs.mkdir(exist_ok=True)
+        (logs / "exit-code.txt").write_text("0")
+        if role == "probe":
+            (logs / "oracle.txt").write_text("__QUALITY_PROBE_COMPLETED__\n")
+        result.result = str(path)
+        result.result_sha256 = digest(path)
+        (self.root / key / "trial.json").write_text(
+            json.dumps(
+                {
+                    "state": "completed",
+                    "trial_id": trial_id,
+                    "bundle_hash": result.bundle_hash,
+                    "result_sha256": result.result_sha256,
+                }
+            )
+        )
         return result
 
 
@@ -853,7 +948,6 @@ def test_probe_only_repair_reuses_controls_and_preserves_counterexample(task, tm
     assert result.bundle_hash == task_identity(task)
     assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
         "probe",
-        "probe",
         "rollout",
     ]
     wrong = next(
@@ -861,7 +955,128 @@ def test_probe_only_repair_reuses_controls_and_preserves_counterexample(task, tm
     )
     assert wrong.probe == probes()[0]
     assert wrong.reward == 0
+    assert "/r0-probe0/" in wrong.result
+    assert len([item for item in result.trials if item.role == "probe"]) == 2
+    assert not (tmp_path / "quality/probes/r1-probe0").exists()
     assert (tmp_path / "quality/revisions/r1/repair.json").is_file()
+
+
+def test_task_repair_invalidates_previously_successful_probes(task, tmp_path):
+    class TaskRepairModel(AlternativeRepairModel):
+        def ask(self, schema, *args):
+            response = super().ask(schema, *args)
+            if schema is Repair:
+                response.edits = [
+                    Edit(
+                        path="tests/test.sh",
+                        old="weak check",
+                        new="strong check",
+                        executable=True,
+                    )
+                ]
+            return response
+
+    remote = AlternativeTrials(tmp_path / "results")
+    result = make_loop(tmp_path, remote=remote, model=TaskRepairModel(), repair=True).run(task)
+    assert result.status == "usable", result.reasons
+    assert result.bundle_hash != task_identity(task)
+    assert [key for _, key, _ in remote.calls if key.startswith("r1")] == [
+        "r1-baseline",
+        "r1-oracle",
+        "r1-probe0",
+        "r1-probe1",
+        "r1-rollout",
+    ]
+    assert all("/r1-" in trial.result for trial in result.trials)
+
+
+@pytest.mark.parametrize("failure", ["reward", "infrastructure", "uninstalled", "exit"])
+def test_probe_only_repair_reruns_unchanged_failed_probes(task, tmp_path, failure):
+    class RecoveringTrials(AlternativeTrials):
+        def run(self, task, role, key):
+            result = super().run(task, role, key)
+            if key == "r0-probe0":
+                if failure == "reward":
+                    result.reward = 1.0
+                elif failure == "infrastructure":
+                    result.exception_type = "AgentExecutionError"
+                elif failure == "uninstalled":
+                    result.probe_installed = False
+                result = self.bind_result(task, result, key)
+                if failure == "exit":
+                    result.agent_exit_code = 1
+                    (Path(result.result).parent / "agent/exit-code.txt").write_text("1")
+            return result
+
+    remote = RecoveringTrials(tmp_path / "results")
+    result = make_loop(tmp_path, remote=remote, model=AlternativeRepairModel(), repair=True).run(
+        task
+    )
+    assert result.status == "usable", result.reasons
+    assert result.bundle_hash == task_identity(task)
+    assert [key for _, key, _ in remote.calls if key.startswith("r1")] == [
+        "r1-probe0",
+        "r1-probe1",
+        "r1-rollout",
+    ]
+    assert all("/r1-" in trial.result for trial in result.trials if trial.role == "probe")
+
+
+@pytest.mark.parametrize("kind", ["wrong_solution", "valid_alternative"])
+def test_probe_reuse_requires_the_entire_unchanged_definition(task, tmp_path, kind):
+    probe = next(item for item in probes() if item.kind == kind)
+    if kind == "valid_alternative":
+        probe = probe.model_copy(update={"script": probe.script + " # corrected"})
+    variant = probe_variant(task, probe, tmp_path / "variants" / task.name)
+    key = "r0-probe0" if kind == "wrong_solution" else "r0-probe1"
+    trial = AlternativeTrials(tmp_path / "results").run(variant, "probe", key)
+    trial.probe = probe
+    assert _reusable_probe_trial(trial, probe, task_identity(task), 1.0)
+    for change in (
+        {"script": probe.script + "\nprintf done"},
+        {"rationale": "Changed diagnosis"},
+        {"focus": "numeric_tolerance"},
+        {"evidence": [Citation(path="instruction.md", quote="Write the sum")]},
+    ):
+        assert not _reusable_probe_trial(
+            trial, probe.model_copy(update=change), task_identity(task), 1.0
+        )
+
+
+@pytest.mark.parametrize(
+    "tamper", ["result", "parent", "definition", "variant", "marker", "receipt", "symlink"]
+)
+def test_successful_probe_reuse_checks_original_bound_evidence(task, tmp_path, tamper):
+    probe = probes()[0]
+    variant = probe_variant(task, probe, tmp_path / "variants" / task.name)
+    trial = AlternativeTrials(tmp_path / "results").run(variant, "probe", "r0-probe0")
+    trial.probe = probe
+    result = Path(trial.result)
+    if tamper == "result":
+        result.write_text(result.read_text() + " ")
+    elif tamper in {"parent", "definition"}:
+        manifest = variant.parent / "probe.json"
+        data = json.loads(manifest.read_text())
+        if tamper == "parent":
+            data["parent_hash"] = "sha256:" + "0" * 64
+        else:
+            data["probe"]["script"] += "\nprintf changed"
+        manifest.write_text(json.dumps(data))
+    elif tamper == "variant":
+        (variant / "tests/test.sh").write_text("changed verifier")
+    elif tamper == "marker":
+        (result.parent / "agent/oracle.txt").write_text("not completed")
+    elif tamper == "receipt":
+        receipt = result.parents[2] / "trial.json"
+        data = json.loads(receipt.read_text())
+        data["state"] = "running"
+        receipt.write_text(json.dumps(data))
+    else:
+        moved = result.with_name("moved.json")
+        result.rename(moved)
+        result.symlink_to(moved)
+    with pytest.raises(ValueError):
+        _reusable_probe_trial(trial, probe, task_identity(task), 1.0)
 
 
 @pytest.mark.parametrize("defect", ["diagnosis", "name", "focus", "evidence"])
@@ -883,6 +1098,58 @@ def test_alternative_repair_requires_grounding_and_stable_identity(task, tmp_pat
     assert result.status == "needs_evidence"
     assert result.repairs == 0
     assert not (tmp_path / "quality/revisions/r1").exists()
+    if defect == "evidence":
+        assert "probe_replacements[0] (valid-format).evidence[0]" in result.reasons[0]
+        assert "path='instruction.md'" in result.reasons[0]
+        assert "quote='invented contract'" in result.reasons[0]
+
+
+@pytest.mark.parametrize("defect", ["unknown_path", "traceback"])
+def test_alternative_repair_corrects_citation_once_with_source_context(task, tmp_path, defect):
+    actual = "assert False is True\nE   AssertionError: assert False is True\n"
+    bad_quote = actual.replace("E   ", "")
+    citation_path = "evidence/3-probe/verifier/stdout.txt"
+    bad_path = "evidence/3-probe/not-an-artifact.txt" if defect == "unknown_path" else citation_path
+
+    class LoggedTrials(AlternativeTrials):
+        def run(self, *args):
+            result = super().run(*args)
+            if args[2] == "r0-probe1":
+                directory = Path(result.result).parent / "verifier"
+                directory.mkdir()
+                (directory / "stdout.txt").write_text(actual)
+            return result
+
+    class CorrectingModel(AlternativeRepairModel):
+        def ask(self, schema, model, system, user, key):
+            response = super().ask(schema, model, system, user, key)
+            if schema is Repair:
+                if key.endswith("-correction1"):
+                    payload = json.loads(user)
+                    feedback = payload["patch_feedback"][0]
+                    assert "probe_replacements[0] (valid-format).evidence[0]" in feedback
+                    assert f"path={bad_path!r}" in feedback
+                    assert f"quote={bad_quote!r}" in feedback
+                    if defect == "traceback":
+                        excerpt = citation_path + ":search=assert False is True"
+                        assert actual in payload["documents"][excerpt]
+                else:
+                    response.probe_replacements = [
+                        response.probe_replacements[0].model_copy(
+                            update={"evidence": [Citation(path=bad_path, quote=bad_quote)]}
+                        )
+                    ]
+            return response
+
+    model = CorrectingModel()
+    result = make_loop(
+        tmp_path, remote=LoggedTrials(tmp_path / "results"), model=model, repair=True
+    ).run(task)
+    assert result.status == "usable", result.reasons
+    assert [key for key in model.calls if "repair" in key] == [
+        "r0-repair",
+        "r0-repair-correction1",
+    ]
 
 
 def test_review_contains_actual_repository_test_failure(task, tmp_path):

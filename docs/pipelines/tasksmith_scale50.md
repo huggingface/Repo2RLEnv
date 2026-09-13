@@ -35,6 +35,45 @@ and cache configuration mismatch; Accelerate #3720 has a prepared interpreter
 fix awaiting fresh GPU validation. Diagnosis manifests bind the inspected files
 and distinguish current findings from earlier revision history.
 
+## First expansion findings
+
+The first three attempts cost **$12.12** in accounted model usage and conservative
+compute estimates. All three workers were confirmed terminated and their
+reservations reconciled. Two Harbor tasks were generated; one attempt stopped
+before bootstrap. These are additional to the historical 319-task catalog.
+
+| PR | Observed result | Disposition |
+| --- | --- | --- |
+| PEFT #2661 | Reference passes; a repaired alternative passes nine tests and fails an internal boolean assertion. The final correction has an invalid traceback citation. | Retain for review of observable cache behavior versus implementation-specific grading. |
+| Accelerate #3529 | The automated profile passes, including both generic probes and a reviewed unsuccessful Sonnet rollout. Its thirteen tests never execute the compiled model. | Exclude this revision from the target until actual execution coverage is verified. |
+| Diffusers #13168 | Investigation exhausts fourteen calls with an incomplete source-root profile. | Retain the investigation and retry with complete source coverage; no Harbor task exists yet. |
+
+The accepted target count therefore remains **24**, despite one new automated
+profile pass. Raw results are preserved. Separate diagnosis copies under
+`workspace/tasksmith-scale50/pilot-diagnoses-v1/` label both generated tasks
+`needs_repair`; their manifests distinguish measured outcomes from static
+counterexamples that have not yet been executed.
+
+The next runtime incorporates the observed failures into shared behavior:
+
+- Explicit `compiled_execution` requirements demand a wrong-solution probe that
+  preserves wrappers but breaks runtime behavior. Requirements live in hashed
+  task metadata; adding them creates a new revision and requires fresh evidence.
+- Review distinguishes internal-state assertions from the public behavior that
+  valid alternative implementations must preserve.
+- Probe-only repairs reuse unchanged successful probes after validating their
+  complete saved evidence. Failed or changed probes still run again.
+- Citation corrections identify the exact failing path and quote within the
+  existing bounded correction attempt. Source-profile errors list every omitted
+  file and the field that needs correction.
+- Explicit Hub aliases preserve offline lookup names while reusing the canonical
+  asset download layer. GPU quality releases and reconciles its idle author
+  worker before allocating native trial resources.
+
+The first batch's admission controller was drained before further dispatch.
+Its remaining **$187.88342** expansion allowance carries forward; a continuation
+must not reset the original $200 ceiling.
+
 ## Execution and budget
 
 ```mermaid

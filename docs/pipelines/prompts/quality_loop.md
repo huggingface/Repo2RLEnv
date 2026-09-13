@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `95962e816fbcca0b7f282af51b34581952e1a6870cc59dbee8ac42a52fbec566`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `99c9e28abbf8e53a5b61ddc244d2bdcf5f0d9194b6d1267d03fcb000262f84b2`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -90,6 +90,20 @@ a valid alternative inside it; label both numeric_tolerance. Do not probe exact
 equality alone. Otherwise use focus general. These are explicit requirement checks,
 not assumptions that any function accepting a generator must return a generator.
 
+When required_probe_focus includes compiled_execution, inspect actual invocation
+of the returned compiled callable, not just wrapper types, attributes or setup.
+The wrong-solution probe must preserve valid wrapper types, shape and setup while
+corrupting an executed numerical result or gradient. Label it compiled_execution.
+The private verifier must reject that runtime error. A probe that only removes a
+wrapper or breaks region detection does not establish computational coverage.
+Use tiny deterministic inputs and the real compilation path; check outputs and,
+where training is in scope, backward gradients against independent expectations.
+Check forwarded compile options and production integration when the original PR
+changes them. Do not require a fixed speedup, extra hardware or unrelated model
+features. If only structural assertions exist, request one focused verifier repair
+before spending a solver rollout. This requirement is explicit opt-in metadata;
+do not infer it from the word lazy or apply it to unrelated historical tasks.
+
 Existing probes must remain valid after repairs. If one was mistaken, identify the
 conflict explicitly instead of silently dropping it. Explain probe failures using
 the actual logs: a probe installation error is not proof that the verifier rejected
@@ -101,6 +115,13 @@ with the exact failing case and conflicting code when that happens. A successful
 installation marker only proves the script ran, not that its implementation is
 correct. Never weaken grading to accommodate a defective alternative. Read the
 verifier's stdout/stderr and test failure details before diagnosing this situation.
+
+Conversely, a valid alternative may change an internal flag's representation or
+helper organization. An assertion about private state does not by itself prove the
+alternative is invalid. Compare the public contract and all affected reads/writes:
+if observable behavior is preserved, repair the implementation-specific assertion
+and retain genuine behavior checks, such as caching, recomputation and isolation.
+Do not require the reference's internal representation merely because it used one.
 Reward numbers alone do not explain the cause. Do not guess regex, import-cache or
 laziness failures when the actual assertion names a different behavior. Cite the
 failing assertion and the relevant implementation/contract, requesting more text
@@ -206,7 +227,7 @@ Do not solve the requested task in the learner starting source. Preserve the int
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `9b5076eeca07a6647ddc17eb9511682619960298dbabc0c3d6641602fbd86966`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `6bda0f888c5de779c439facc3fff0857c5ffc1f504a4ad6ece6fbf2efb7ecc8f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -227,6 +248,9 @@ from repo2rlenv.spec.input import LLMSpec
 
 class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+ProbeFocus = Literal["general", "lazy_output", "numeric_tolerance", "compiled_execution"]
 
 
 class Citation(Record):
@@ -267,7 +291,7 @@ class ReadRequest(Record):
 class SemanticProbe(Record):
     name: str = Field(pattern=r"^[a-z][a-z0-9-]{0,35}$")
     kind: Literal["wrong_solution", "valid_alternative"]
-    focus: Literal["general", "lazy_output", "numeric_tolerance"] = "general"
+    focus: ProbeFocus = "general"
     rationale: str = Field(min_length=1)
     evidence: list[Citation] = Field(min_length=1)
     # Run after the reference in a private probe variant, never on the controller.
@@ -853,7 +877,7 @@ class EvidenceContext:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `82c0f2fbe582b9fa8cb1f43209ba0066962b159f156930524a31e66423182808`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `458ebce6bcfc81bc3276e903159099e3b206c8bc8b72812ddb21d82f44217b8a`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -904,12 +928,13 @@ from repo2rlenv.quality.loop.protocol import (
     resolve_markdown_citations,
     resolve_verifier_paths,
 )
+from repo2rlenv.quality.loop.requirements import task_probe_focus
 
 
 def required_probe_focus(task: Path) -> set[str]:
     """Narrow explicit contracts learned from actual pilot false acceptances."""
     instruction = (task / "instruction.md").read_text().lower()
-    focus = set()
+    focus: set[str] = set(task_probe_focus(task))
     if re.search(r"\blaz(?:y|ily)\b|\bgenerator function\b|\breturn a generator\b", instruction):
         focus.add("lazy_output")
     if re.search(r"\b(?:absolute|relative) error\b|\bnumerical? tolerance\b", instruction):
@@ -951,6 +976,19 @@ def probe_failures(trials: list[TrialRecord], success: float) -> list[str]:
         ):
             failures.append(f"Probe {trial.probe.name}: {trial.probe.kind} earned {trial.reward}")
     return failures
+
+
+def _reusable_probe_trial(
+    trial: TrialRecord, probe: SemanticProbe, parent_hash: str, success: float
+) -> bool:
+    if trial.role != "probe" or trial.probe != probe or probe_failures([trial], success):
+        return False
+    # Use the publication gate's raw-result, completion-marker, controller
+    # receipt and probe-parent checks. A successful summary alone is insufficient.
+    from repo2rlenv.quality.labels import _trial_evidence
+
+    _trial_evidence(trial, parent_hash)
+    return True
 
 
 class QualityLoop:
@@ -1127,6 +1165,7 @@ class QualityLoop:
         feedback = []
         for attempt in range(2):
             repair = None
+            invalid_citation = None
             try:
                 repair = self.model.ask(
                     Repair,
@@ -1167,7 +1206,7 @@ class QualityLoop:
                     if len(replacements) != len(repair.probe_replacements):
                         raise ValueError("Duplicate probe replacements")
                     known = {probe.name: probe for probe in probes}
-                    for name, replacement in replacements.items():
+                    for replacement_index, (name, replacement) in enumerate(replacements.items()):
                         if (
                             name not in known
                             or known[name].kind != "valid_alternative"
@@ -1176,13 +1215,19 @@ class QualityLoop:
                             raise ValueError(
                                 "Probe repair must preserve its name, kind and requirement focus"
                             )
-                        for citation in replacement.evidence:
+                        for citation_index, citation in enumerate(replacement.evidence):
                             document = context.documents.get(citation.path, "")
                             if not document or " ".join(citation.quote.split()) not in " ".join(
                                 document.split()
                             ):
+                                invalid_citation = citation
                                 raise ValueError(
-                                    "Alternative-probe replacement has ungrounded evidence"
+                                    "Alternative-probe replacement has ungrounded evidence at "
+                                    f"probe_replacements[{replacement_index}] ({name})"
+                                    f".evidence[{citation_index}]: path={citation.path!r}, "
+                                    f"quote={citation.quote!r}. Use an exact quote from a cited "
+                                    "document, including traceback markers, or cite another "
+                                    "existing document."
                                 )
                     updated_probes = [replacements.get(probe.name, probe) for probe in probes]
                 destination = self.directory / f"revisions/r{revision + 1}" / task.name
@@ -1197,11 +1242,40 @@ class QualityLoop:
                         raise ValueError("Stored repair has changed")
                 else:
                     apply_repair(task, repair, destination)
+                if task_probe_focus(task) - task_probe_focus(destination):
+                    raise ValueError("Repair removed explicit task probe requirements")
                 return destination, updated_probes
             except (ValueError, FileNotFoundError, FileExistsError) as exc:
                 if attempt:
                     raise
                 feedback.append(str(exc))
+                if invalid_citation is not None and (
+                    invalid_citation.path in context._paths
+                    or invalid_citation.path in context._texts
+                ):
+                    # Search only the known cited source, preserving its literal
+                    # traceback markers in the existing single correction call.
+                    query = next(
+                        (
+                            line.strip()
+                            for line in invalid_citation.quote.splitlines()
+                            if line.strip()
+                        ),
+                        None,
+                    )
+                    try:
+                        context.read_more(
+                            [
+                                ReadRequest(
+                                    path=invalid_citation.path,
+                                    query=query[:200] if query else None,
+                                    start_line=1,
+                                    end_line=80 if query is None else 1,
+                                )
+                            ]
+                        )
+                    except ValueError as read_error:
+                        feedback.append(f"Cited-source excerpt unavailable: {read_error}")
                 if repair is not None:
                     # Supply real source around the requested edit, never a fuzzy
                     # application. Unknown provider effects bypass this correction.
@@ -1339,7 +1413,16 @@ class QualityLoop:
                             names.add(probe.name)
                 controls = control_failures(trials, self.options.success_reward)
                 if execute and not controls:
+                    parent_hash = task_identity(task)
                     for index, probe in enumerate(probes):
+                        if any(
+                            _reusable_probe_trial(
+                                trial, probe, parent_hash, self.options.success_reward
+                            )
+                            for trial in trials
+                        ):
+                            self.event("probe", f"Reuse unchanged {probe.kind}: {probe.name}")
+                            continue
                         key = f"r{revision}-probe{index}"
                         destination = self.directory / "probes" / key / source.name
                         if not destination.exists():
@@ -1420,9 +1503,24 @@ class QualityLoop:
                     break
                 self.event("repair", f"Author targeted repair {revision + 1}", state="started")
                 destination, probes = self._repair(task, review, context, probes, revision, reasons)
-                same_task = task_identity(destination) == task_identity(task)
+                parent_hash = task_identity(destination)
+                same_task = parent_hash == task_identity(task)
                 task = destination
-                trials = [trial for trial in trials if trial.role != "probe"] if same_task else []
+                trials = (
+                    [
+                        trial
+                        for trial in trials
+                        if trial.role != "probe"
+                        or any(
+                            _reusable_probe_trial(
+                                trial, probe, parent_hash, self.options.success_reward
+                            )
+                            for probe in probes
+                        )
+                    ]
+                    if same_task
+                    else []
+                )
         except BudgetExceeded:
             status, reasons = (
                 "budget_exhausted",
