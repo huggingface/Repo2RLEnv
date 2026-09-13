@@ -8,7 +8,9 @@ The initial source audit found 45 PRs compatible with the current modified-Pytho
 
 The [intake inventory](evidence/tasksmith-hf-intake.json) preserves all 114 URLs, structural exclusions, and complete source pins/diff hashes for the 45 supported inputs. The CPU snapshot was restored successfully, and a separate import-origin audit confirmed that all six target packages load from their pinned source checkout inside `/workspace`.
 
-The first ten-PR panel currently has **eight accepted new CPU tasks**: Accelerate #3075, #3251, #3684, #3850, #3969 and #3150, plus PEFT #2962 and #3302. PEFT #3350 and TRL #6066 are still in progress. These tasks are separate from the earlier five-task pilot. Every accepted task has a failing baseline, passing actual-PR reference, rejected semantic mistakes, an accepted valid alternative and a reviewed Sonnet rollout. Seven final Sonnet rollouts succeeded; the remaining one failed with an ordinary implementation error that the verifier rejected. A solver failure does not by itself make an environment invalid.
+The frozen panel produced **ten accepted new CPU Harbor tasks from its ten original PRs**: six Accelerate, three PEFT and one TRL. Eight final Sonnet rollouts succeeded; two failed with implementation errors that grading rejected. Every task has a failing baseline, passing actual-PR reference, rejected semantic mistakes, an accepted valid alternative and a reviewed Sonnet rollout. These tasks are separate from the earlier five-task pilot. A solver failure does not by itself make an environment invalid.
+
+This was an iterative development campaign with orchestration fixes, verifier repairs and manually assembled evidence summaries. It does not establish first-attempt or universal PR conversion yield. The [final generation evidence](evidence/tasksmith-hf-generation.json) records source pins, bundle hashes, all 54 final trial receipts, artifact audits and stage costs.
 
 ```mermaid
 flowchart TD
@@ -29,6 +31,27 @@ flowchart TD
     SCALE -->|Yes| PANEL
     SCALE -->|No| REPORT["Retain results and remaining budget"]
 ```
+
+## Ten-task outcomes
+
+| Original PR | Required tests | Task / verifier / leakage scores | Sonnet reward |
+|---|---:|---|---:|
+| [accelerate #3075](https://github.com/huggingface/accelerate/pull/3075) | 10 | 3 / 3 / 4 | 0 |
+| [accelerate #3251](https://github.com/huggingface/accelerate/pull/3251) | 8 | 4 / 3 / 4 | 1 |
+| [accelerate #3850](https://github.com/huggingface/accelerate/pull/3850) | 11 | 4 / 3 / 4 | 1 |
+| [accelerate #3684](https://github.com/huggingface/accelerate/pull/3684) | 8 | 4 / 3 / 4 | 1 |
+| [accelerate #3969](https://github.com/huggingface/accelerate/pull/3969) | 9 | 4 / 3 / 4 | 1 |
+| [accelerate #3150](https://github.com/huggingface/accelerate/pull/3150) | 26 | 4 / 3 / 4 | 1 |
+| [peft #2962](https://github.com/huggingface/peft/pull/2962) | 12 | 4 / 3 / 4 | 1 |
+| [peft #3302](https://github.com/huggingface/peft/pull/3302) | 4 | 4 / 3 / 4 | 1 |
+| [peft #3350](https://github.com/huggingface/peft/pull/3350) | 7 | 4 / 3 / 3 | 0 |
+| [trl #6066](https://github.com/huggingface/trl/pull/6066) | 14 | 4 / 3 / 4 | 1 |
+
+There are **54 final native trial records**: ten baselines, ten references, thirteen wrong implementations, eleven valid alternatives and ten Sonnet rollouts. Every baseline scores 0; every reference and valid alternative scores 1; every wrong implementation scores 0. Scores are model review assessments from 0 to 4. Tests are focused behavioral selections, not entire upstream suites.
+
+The final delivery is `workspace/tasksmith-hf-scale/delivery.tar.gz` (97,672,840 bytes). It contains ten standalone task directories, an index, a manifest, review records, native trajectories/verifier logs/submitted source, original run summaries, bootstrap recipes and evidence. The committed evidence summary records its SHA-256. Full upstream source and traces stay in the delivery artifact rather than the Git diff.
+
+The final artifact audit verified all ten task identities, all native result hashes, and unchanged learner starting source and actual-PR reference trees against the first construction artifacts. All ten copied bundles parse under Harbor 0.20.0; their learner source has no Git history. A literal scan of 14,307 packaged files found no configured credential values. This is an artifact integrity check, not an exhaustive security proof.
 
 ## What bootstrap proves
 
@@ -133,6 +156,32 @@ A manual audit also found that two generated PEFT #2962 tests invented module pa
 
 PEFT #3302 needed stronger submodule checks: the initial generated assertion merely established that a model existed. The repair tests actual adapter weights, gradients and independently calculated forward outputs. All execution checks passed, but the first final review had omitted the middle of the recorded solver trace. A follow-up review reused the checksum-bound trial and received the complete recorded tool-call sequence plus the actual submitted-source diff. It did not pay for another successful rollout simply to compensate for a missing evidence excerpt.
 
+PEFT #3350 exposed two further gaps. A second adapter could exist only in configuration without usable weights, and an implementation could handle only the outermost parameter wrapper. Successive repairs added independent numerical outputs, adapter switching and checkpoint reloads for multiple parameters on one module. Both wrong implementations are now rejected and the reference and valid alternative pass. Sonnet's attempted solution failed the standalone checkpoint-reload check; that is a useful solver failure on a valid task. Its recorded local checks focused on successful registration and loading, while grading checked the loaded numerical behavior.
+
+TRL #6066 required two verifier repairs. All original examples used the same token budget, allowing an implementation to ignore the supplied budget. They also failed to distinguish mathematical verification from substring matching. The corrected tests vary the budget and reward bounds, check serialization with nondefault settings, and distinguish equivalent mathematical answers from misleading mentions of a gold answer. The original upstream tests still establish bootstrap readiness. Final validation uses a dedicated worker: a controller hold during an earlier shared-worker run was followed by a transport JSON error while collecting a probe result. That interruption is retained as execution evidence, not counted as a failed behavioral control.
+
 For a resumed generation, `--generation-run PREVIOUS_RUN --reuse-evidence` can reuse unchanged baseline, reference and matching-model rollout results. The importer checks both the task identity and original result checksum; infrastructure failures execute again. Semantic probes run under the current review policy. No old reward is attributed to an edited task revision. Omit `--reuse-evidence` when fresh trials are wanted.
 
-The campaign report will distinguish repository smoke readiness, generated bundles and tasks usable under `practical-generation-v1`; count failed attempts; record cache restoration/hits; and show actual measured stage costs. The target is 10–50 environments subject to those results and the unchanged budget, not a promise to spend the full allowance to reach fifty.
+## Final cost and validation
+
+This phase accounts for **$100.325379**, including all six repository bootstraps, generation attempts, reviews, repairs, rollouts and conservative compute estimates. All phase reservations are reconciled and all phase workers are terminated.
+
+| Stage | Accounted estimate |
+|---|---:|
+| Repository investigation | $5.188584 |
+| Task and verifier design | $2.256920 |
+| Quality review | $52.739739 |
+| Quality repairs | $6.750079 |
+| Sonnet rollouts | $3.883004 |
+| Remote compute, including CPU/GPU bootstrap | $29.507053 |
+| **Total** | **$100.325379** |
+
+The six-repository bootstrap accounts for $13.082577 of compute. Review was the largest model cost, partly because evidence had to be reviewed again after reader fixes. Unchanged completed executions were reused where their hashes matched. The last TRL review reused all prior controls and the successful rollout through a receipt-checking adapter, with no new remote execution; the recorded submitted-source diff showed that Sonnet implemented the function in a different public module and exported it correctly. This is useful evidence of implementation freedom.
+
+Dividing the whole phase by ten gives about $10.03 per accepted task **including development retries and repository bootstrap**. Investigation plus initial/retried design totaled $7.445504 across the panel; that is not a quote for independently generating a production-quality task. Repeated-run costs and earlier model assessments are retained in the evidence summary rather than counted as additional environments.
+
+The unchanged reproduction campaign now accounts for $309.038318 inside its $477.57 ledger cap, plus $22.43 of earlier spending outside that ledger. Historical unresolved reservations remain $15.543377, leaving **$152.988305 available**. These reservations were not erased. The requested 10–50 range is met at ten, with the remaining budget preserved.
+
+The integration runtime passed **954 tests with three existing skips**, plus CI across Python 3.12/3.13/3.14, owned recipe contracts, real Pi/OpenCode SDK contracts against mock servers, lint and distribution builds. Generated prompt references match their sources, and MkDocs builds with existing historical-link warnings. [Generation-runtime CI](https://github.com/huggingface/Repo2RLEnv/actions/runs/34735190170).
+
+The live campaign exercised Modal and Pi. Existing Daytona and OpenCode choices retain their shared contract coverage. GPU task generation, added/deleted source changes, Rust changes, multi-service environments and broad difficulty calibration remain outside this CPU panel.

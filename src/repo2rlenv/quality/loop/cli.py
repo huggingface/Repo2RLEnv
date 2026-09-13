@@ -48,7 +48,8 @@ def cmd_quality(args) -> int:
 
     try:
         if args.quality_action == "show":
-            result = LoopResult.model_validate_json((args.path / "result.json").read_text())
+            path = args.path / "result.json" if args.path.is_dir() else args.path
+            result = LoopResult.model_validate_json(path.read_text())
         else:
             if args.env_file:
                 from dotenv import load_dotenv
@@ -112,7 +113,7 @@ def add_quality_parser(subparsers):
     )
     actions = parser.add_subparsers(dest="quality_action", required=True)
     show = actions.add_parser("show", help="Read a completed quality report without paid calls")
-    show.add_argument("path", type=Path)
+    show.add_argument("path", type=Path, help="Result JSON file or run directory containing result.json")
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_quality)
     run = actions.add_parser(

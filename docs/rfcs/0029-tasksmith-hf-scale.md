@@ -1,6 +1,6 @@
 # RFC 0029: HF repository bootstrap and bounded Tasksmith scale
 
-Status: implementing.
+Status: implemented for six-repository bootstrap and the first ten CPU tasks.
 
 Use the supplied 114-PR HF candidate list. First freeze the six repository revisions and demonstrate CPU and GPU-host readiness. Then generate at least ten faithful Harbor environments from the candidate pool, expanding toward fifty only within the existing campaign budget and measured yield. Unsupported inputs and failed attempts remain visible.
 
@@ -18,6 +18,12 @@ Use the supplied 114-PR HF candidate list. First freeze the six repository revis
 The existing campaign ledger had $253.313684 available at intake. Do not reset its cap or erase uncertain reservations. Initial working allocation: at most $30 for bootstrap/build/GPU checks and $140 for the first generation panel, leaving roughly $83 for repairs or measured expansion. Reallocate within the unchanged campaign cap if evidence warrants it. Reserve before remote effects; stop workers and record conservative compute estimates after termination. Model estimates are separate from provider invoices.
 
 All target execution is remote. Local operations are limited to metadata, orchestration, artifact serialization and tests of Repo2RLEnv code. No local target imports, Docker builds or rollouts.
+
+## Recorded outcome
+
+All six repositories passed CPU and L4-host readiness checks. The original ten-PR panel produced ten accepted Harbor environments after bounded repairs and orchestration fixes, with no PR substitutions. Eight final Sonnet rollouts succeeded; two failed on implementation errors that the verifier rejected. Fifty-four final native trial records cover baselines, references, semantic controls and rollouts. This is an iterative result, not a first-attempt or universal conversion claim.
+
+The phase estimate is $100.325379, including bootstrap, failed attempts and follow-up reviews. All phase workers are terminated and their reservations reconciled. The unchanged campaign retains $152.988305 after historical unresolved reservations. Full tasks and portable evidence are in `workspace/tasksmith-hf-scale/delivery.tar.gz`; the [campaign report](../pipelines/tasksmith_hf_scale.md) and [committed evidence summary](../pipelines/evidence/tasksmith-hf-generation.json) describe the results, integrity checks, exact costs and remaining profile limitations.
 
 ## Verified provider contracts
 
