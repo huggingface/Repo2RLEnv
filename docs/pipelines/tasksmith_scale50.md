@@ -10,8 +10,9 @@ revision. Solver failure can be legitimate and does not by itself reject a task.
 ## Retain every generated environment
 
 The initial historical catalog contains 319 Harbor task copies: 291 reproduction
-outputs from 14 recipes and 28 Tasksmith PR outputs. It records 24 verified tasks,
-27 tasks needing repair and 268 unverified tasks. Unverified does not mean bad:
+outputs from 14 recipes and 28 Tasksmith PR outputs. Its second diagnosis snapshot
+records 24 verified tasks, 29 tasks needing repair, 265 unverified tasks and one
+blocked task. Unverified does not mean bad:
 historical controls and assistant ratings remain available, but do not establish
 the complete quality profile for those exact originals.
 
@@ -20,10 +21,19 @@ The original configurations, tasks and trial records remain unchanged. The
 catalog also references 134 previous Tasksmith revisions, including a stale
 intermediate task with an integrity failure; that revision is not accepted.
 
-The local catalog lives at `workspace/tasksmith-scale50/catalog/`. Its
+The current local catalog lives at `workspace/tasksmith-scale50/catalog-v2/`. Its
 `SUMMARY.md`, `summary.json` and `index.json` provide counts and task paths.
 These copies reference original evidence; they are not a portable replacement
-for the complete archived task-and-evidence deliveries.
+for the complete archived task-and-evidence deliveries. The first catalog remains
+unchanged. [Public counts by recipe](evidence/tasksmith-catalog-319.json) contain
+no private paths or traces.
+
+The four unfinished Tasksmith outputs now have specific current-revision
+diagnoses: TRL #6116 fails its reference control; TRL #6001 tests pooling through
+test-side simulation; Diffusers #13921 has a verifier timeout, interrupted oracle
+and cache configuration mismatch; Accelerate #3720 has a prepared interpreter
+fix awaiting fresh GPU validation. Diagnosis manifests bind the inspected files
+and distinguish current findings from earlier revision history.
 
 ## Execution and budget
 
@@ -67,7 +77,7 @@ can fund; fifty successes within $200 is a target, not a measured guarantee.
 
 ```bash
 repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v1
-repo2rlenv tasks list workspace/tasksmith-scale50/catalog --status needs_repair
+repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
