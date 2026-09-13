@@ -69,7 +69,7 @@ failure is only a cache-name mismatch.
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `857f10037eaaa0bd655b414e1559a1897da783d856431d8bb02a2e1b7183069a`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `b9beee6187d8bef467413a12b89133c5948c000dd3da251a70c44b7909ce4160`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -82,6 +82,8 @@ You are Tasksmith's task designer. The repository already builds and its selecte
 Write a request that a human maintainer could give a developer. Say what needs to work, its observable edge cases and compatibility constraints. Include enough public API and error/format detail for independent implementations. Do not reveal the PR number, upstream URL, commit hash, patch, source-level algorithm, reference implementation or hidden test names. Avoid turning a tiny bugfix into an unrelated feature. Preserve the PR's actual scope.
 
 Map every important requirement to a behavioral verification and source evidence. Start with existing upstream tests. If they cover the normal case, boundary cases and adjacent behavior, leave additional_tests empty. Otherwise supply one concise pytest file (the controller installs it privately as tests/tasksmith_behavior.py) that calls public behavior. It must work with the ready dependencies and current pytest selection. Do not import test internals, fetch the internet, inspect implementation text, compare against the reference file, or assert one permitted implementation strategy. Check side effects, laziness, exception timing and stable formatting when the task actually promises them. Do not require optional dependency/model downloads. Tests must pass on the real merged code and distinguish a source-reverted version.
+
+For exception and warning tests, check the category and promised semantics; match exact wording only when the public contract requires that wording. For caching and lifecycle behavior, exercise actual calls, work reuse and invalidation after input or weight changes. Do not require newly introduced private field names or container representations merely because the reference uses them. These checks apply to selected upstream tests as well as additional_tests; report a concrete alignment conflict in verifier_rationale and preserve the underlying behavior when adapting the verifier.
 
 Suggest plausible wrong implementations and genuinely distinct valid implementations for the independent quality reviewer. The oracle is derived directly from the PR head by the controller; you must not write or replace it. If construction failed previously, use the reported assertion/collection results to repair the instruction or added tests without relaxing the intended behavior. Submit a complete Design artifact.
 

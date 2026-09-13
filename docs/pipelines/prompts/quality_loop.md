@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `81fbea288ebda3b6e85089b080a823a045fdafa947a9e2e01ca86dc63e347620`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `f5992ad5b1118707e6b3ccf847073598b5a306134b92e409a344dcbc1b4afa2b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -86,6 +86,10 @@ Running extra assertions against the unchanged reference, printing a success mes
 or changing only comments is not an alternative. Prefer small source mutations with
 an exact-match assertion before writing. Do not import the target package merely to
 install a mutation: the shell's default Python may differ from the task interpreter.
+Choose the alternative to exercise a suspected verifier restriction that the public
+task does not impose: for example, different error wording or private cache storage
+with the same exception categories, numerical outputs, reuse and invalidation.
+Trace every affected read and write so the alternative preserves public behavior.
 After installation the private verifier, not an inline test, evaluates that change.
 
 When required_probe_focus includes lazy_output, the wrong-solution probe MUST target
@@ -132,6 +136,13 @@ with the public instruction. Hidden fixture API names, constructor flags, defaul
 and False/None behavior must agree with that contract. Do not blame a solver for an
 undocumented or contradictory test requirement. A private-helper assertion needs an
 explicit task contract or a replacement test of observable public behavior.
+Inspect pytest.raises/pytest.warns match expressions and assertions on newly added
+private attributes even when the current solver has not reached those tests. Exact
+reference-message text and internal cache names are not implicit public requirements.
+Keep promised message formats and existing public APIs; otherwise repair the test's
+unjustified restriction without inventing a requirement to match the reference.
+Record a source-supported alignment defect separately from an executed false
+rejection or reward hack; do not claim the latter without actual trial evidence.
 
 When evidence/checks.json lists uninstalled_probes, inspect each named oracle log
 or trial summary and give a grounded category=probe diagnosis before settling the
