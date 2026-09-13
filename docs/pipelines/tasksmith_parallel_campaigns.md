@@ -93,7 +93,24 @@ later in the panel without exceeding either concurrency limit or the target.
 A candidate may also specify `generation_run` and `reuse_evidence` to use
 Tasksmith's existing checksum-bound generation import. For an existing generated
 Harbor task, `prepared_task` plus its `source_record` runs fresh quality validation
-without importing old trials or probes; this route excludes `generation_run`. Pass a full existing
+without importing old trials; this route excludes `generation_run`. To preserve
+specific counterexamples, optionally include `prepared_probes` inline in the batch
+candidate. It uses the existing quality `ProbeManifest` schema:
+`{"bundle_hash": "sha256:...", "probes": [...]}`. Each probe retains its `name`,
+`kind`, `focus`, `rationale`, grounded `evidence`, and executable `script`.
+Tasksmith freezes these definitions in the batch and generation configuration and
+replays them through the quality loop. Prior rewards and trial receipts are never
+imported through this field.
+
+Prepared probes require a prepared task with the exact matching bundle hash,
+unique probe names, and a count within `options.quality.max_probes`. These checks
+run before provider work. The task must already contain any
+`options.required_probe_focus` annotations; create that revision before binding
+the definitions so an annotation cannot silently discard them. Changing the
+definitions requires a new run directory. Without `prepared_probes`, the quality
+review proposes controls as usual.
+
+Pass a full existing
 `LoopResult` for each prior verified task. The batch derives its PR URL from the
 bound task metadata, checks its controls, probes, raw trial evidence and judged
 rollout through the shared quality label validator, and skips duplicate PRs.

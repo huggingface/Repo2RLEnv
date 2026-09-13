@@ -5,11 +5,43 @@ from __future__ import annotations
 import hashlib
 import json
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import digest, import_trial, task_identity
-from repo2rlenv.quality.loop.models import SemanticProbe, TrialRecord
+from repo2rlenv.quality.loop.models import ProbeFocus, ProbeManifest, SemanticProbe, TrialRecord
 from repo2rlenv.tasksmith.models import Panel
+
+
+def prepared_probe_definitions(
+    task: Path | None,
+    manifest: ProbeManifest | None,
+    *,
+    max_probes: int,
+    required_focus: Sequence[ProbeFocus] = (),
+) -> list[dict]:
+    """Validate exact prepared inputs without importing any execution evidence."""
+    if manifest is None:
+        return []
+    if task is None:
+        raise ValueError("Prepared probes require a prepared task")
+    # Revalidate nested, mutable Pydantic models at both admission and execution.
+    manifest = ProbeManifest.model_validate(manifest.model_dump(mode="json"))
+    if len(manifest.probes) > max_probes:
+        raise ValueError("Prepared probes exceed quality.max_probes")
+    if len({probe.name for probe in manifest.probes}) != len(manifest.probes):
+        raise ValueError("Prepared probe names must be unique")
+    if manifest.bundle_hash != task_identity(task):
+        raise ValueError("Prepared probes belong to a different task identity")
+    if required_focus:
+        from repo2rlenv.quality.loop.requirements import task_probe_focus
+
+        if set(required_focus) - task_probe_focus(task):
+            raise ValueError(
+                "Prepared probes require the task to already include required_probe_focus; "
+                "annotate the task first and bind the definitions to its new identity"
+            )
+    return [probe.model_dump(mode="json") for probe in manifest.probes]
 
 
 def generation_task(
