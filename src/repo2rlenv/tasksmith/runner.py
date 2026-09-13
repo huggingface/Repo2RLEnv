@@ -318,6 +318,7 @@ class Tasksmith:
         if inspected["status"] != "completed":
             raise ValueError(inspected["error"])
         checkout = inspected["value"]["checkout"]
+        snapshot_links = inspected["value"].get("snapshot_links", [])
         # Avoid giving every author the full unrelated diff repeatedly; the
         # complete original remains in the frozen source artifact.
         source_context = {key: value for key, value in source.items() if key != "full_diff"}
@@ -338,11 +339,16 @@ class Tasksmith:
                     )
                 previous = state.get("profile", {}).get("options", {})
                 retained_links = set(previous.get("materialize_document_links", []))
+                retained_links.update(
+                    link["path"]
+                    for link in snapshot_links
+                    if PurePosixPath(link["path"]).suffix.lower() in {".md", ".rst", ".txt"}
+                )
                 if missing_links := retained_links - set(
                     profile.options.materialize_document_links
                 ):
                     raise ValueError(
-                        "The frozen checkout still needs the previously identified document links: "
+                        "The frozen checkout needs all identified document links before building: "
                         + ", ".join(sorted(missing_links))
                     )
                 roots = [PurePosixPath(path) for path in profile.options.source_paths]
@@ -362,6 +368,7 @@ class Tasksmith:
                 Profile,
                 {
                     "source": source_context,
+                    "snapshot_links": snapshot_links,
                     "previous_profile": state.get("profile"),
                     "previous_failure": state.get("failure"),
                     "repository_bootstrap_hint": hint.model_dump() if hint else None,

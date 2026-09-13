@@ -46,7 +46,12 @@ def inspect_source(source: dict, root: Path) -> dict:
     run(["git", "-C", str(checkout), "checkout", "--detach", "FETCH_HEAD"])
     if run(["git", "-C", str(checkout), "rev-parse", "HEAD"]).strip() != source["head"]:
         raise ValueError("Fetched source does not match the frozen head")
-    return {"checkout": str(checkout), "head": source["head"]}
+    links = []
+    for name in run(["git", "-C", str(checkout), "ls-files", "-z"]).split("\0"):
+        path = checkout / name
+        if name and path.is_symlink():
+            links.append({"path": name, "target": os.readlink(path)})
+    return {"checkout": str(checkout), "head": source["head"], "snapshot_links": links}
 
 
 def dependency_image(profile: Profile, output: Path) -> dict:

@@ -210,7 +210,10 @@ def test_graph_repairs_bootstrap_before_design_without_replacing_input(monkeypat
         reasoning="Inspected Python metadata and tests.",
         resource="cpu",
         options=PythonRepositoryProfile(
-            source_paths=["lib"], test_paths=["tests"], test_selectors=["tests/test_lib.py"]
+            source_paths=["lib"],
+            test_paths=["tests"],
+            test_selectors=["tests/test_lib.py"],
+            materialize_document_links=["CONTRIBUTING.md"],
         ),
         dependency_inputs=["pyproject.toml"],
         upstream_test_rationale="Small offline regression suite.",
@@ -232,7 +235,13 @@ def test_graph_repairs_bootstrap_before_design_without_replacing_input(monkeypat
     def remote(root, key, data):
         calls.append(key)
         if key == "inspect":
-            return {"status": "completed", "value": {"checkout": "/remote/checkout"}}
+            return {
+                "status": "completed",
+                "value": {
+                    "checkout": "/remote/checkout",
+                    "snapshot_links": [{"path": "CONTRIBUTING.md", "target": "docs/guide.md"}],
+                },
+            }
         if key == "bootstrap-1":
             return {"status": "failed", "error": "README required by installer"}
         if key == "bootstrap-2":
@@ -248,7 +257,17 @@ def test_graph_repairs_bootstrap_before_design_without_replacing_input(monkeypat
         }
 
     def author(root, stage, schema, inputs, checkout, **kwargs):
+        import asyncio
+
         calls.append(stage)
+        if stage == "investigate-0":
+            assert inputs["snapshot_links"][0]["path"] == "CONTRIBUTING.md"
+            incomplete = profile.model_copy(deep=True)
+            incomplete.options.materialize_document_links = []
+            with pytest.raises(ValueError, match="all identified document links"):
+                asyncio.run(kwargs["validate"](incomplete))
+            assert calls == ["inspect", "investigate-0"]
+            asyncio.run(kwargs["validate"](profile))
         if stage == "investigate-1":
             assert "README" in inputs["previous_failure"]["error"]
             assert inputs["previous_profile"] == profile.model_dump()

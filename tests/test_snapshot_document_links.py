@@ -9,6 +9,31 @@ from repo2rlenv.execution.python_repository import materialize_document_links
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
 
 
+def test_inspection_reports_all_tracked_links_without_following_them(tmp_path, monkeypatch):
+    from repo2rlenv.tasksmith import worker
+
+    def git(argv):
+        if "checkout" in argv:
+            checkout = tmp_path / "checkout"
+            (checkout / "AGENTS.md").symlink_to("missing-target.md")
+            (checkout / "space name.md").symlink_to("../../outside.md")
+            (checkout / "source.py").symlink_to("target.py")
+            (checkout / "untracked.md").symlink_to("missing-target.md")
+        if "rev-parse" in argv:
+            return "frozen-head\n"
+        if "ls-files" in argv:
+            return "AGENTS.md\0space name.md\0source.py\0regular.py\0"
+        return ""
+
+    monkeypatch.setattr(worker, "run", git)
+    result = worker.inspect_source({"repo": "unused", "head": "frozen-head"}, tmp_path)
+    assert result["snapshot_links"] == [
+        {"path": "AGENTS.md", "target": "missing-target.md"},
+        {"path": "space name.md", "target": "../../outside.md"},
+        {"path": "source.py", "target": "target.py"},
+    ]
+
+
 def profile(*links):
     return PythonRepositoryProfile(
         source_paths=["package"], test_paths=["tests"], materialize_document_links=list(links)
