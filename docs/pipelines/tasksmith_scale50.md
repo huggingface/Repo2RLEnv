@@ -2,9 +2,9 @@
 
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
-11 reserves. Continuations run four independent PR controllers,
-with at most two GPU controllers. After V5, **29 independently accepted tasks**
-are available; 39 unique PRs have generated Harbor tasks in the expansion panel.
+11 reserves. V7 increases concurrency to eight independent PR controllers,
+with at most two GPU controllers. After V6, **30 independently accepted tasks**
+are available; 40 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
@@ -244,7 +244,7 @@ baseline, reference and Sonnet evidence remain unchanged. This refresh cost
 Both amounts are included in the cumulative expansion budget, with their workers
 terminated and reservations released.
 
-The final implementation passes **1,324 tests**, with four opt-in integration
+At V6 launch, the implementation passed **1,324 tests**, with four opt-in integration
 checks skipped, and all 17 generated prompt references match their sources. The
 next queue pairs retained CPU repairs with small fresh GPU PRs, before large model
 additions. Prepared task copies receive the shared runtime correction when
@@ -252,15 +252,57 @@ needed and must earn fresh quality evidence. The default three-repair limit,
 four-controller limit and two-GPU-controller limit remain unchanged. The queue
 continues to retain unsuccessful tasks and diagnoses.
 
+## V6 results and the eight-controller continuation
+
+V6 finished ten attempts and accounted for **$40.408777**, with no remaining
+phase reservations. Six passed the automated profile; independent inspection
+accepted Diffusers #13921, bringing the total to **30**. Its reference and valid
+alternative each passed 40 scored checks. Removing LoRA scaling caused two real
+numerical failures. The blind Sonnet attempt made twenty read-only calls and
+left the feature unimplemented; the resulting 38 failures reflect the missing
+feature, not an environment failure.
+
+The five other automated passes remain retained for repair. TRL #6001's verifier
+simulates pooling rather than measuring the production path; PEFT #2939 lacks
+the promised energy-threshold rank checks; Transformers #36521 needs central
+projector and image-placement assertions. TRL #6139 reveals its exact patch and
+does not exercise the required real distributed behavior. Accelerate #3720 has
+sound GPU checks, but its rollout was rejected for harmless editor backups
+before tests ran. Their original results and separate diagnoses remain available.
+
+V7 begins with four prepared recoveries and four construction candidates,
+then refills free slots from the remaining queue. Each PR has its own coding
+agent, sandbox, receipts and candidate spending cap. It runs at most eight PR
+controllers and two GPU controllers in total. No earlier drained wave is reopened.
+
+Shared changes address observed failures:
+
+- Readiness checks reject absent test-file selectors before expensive builds.
+- Saved repair diagnoses appear before large patches in the review context.
+- Prepared semantic probe definitions retain their exact task binding and run
+  afresh; previous rewards are not imported as new evidence.
+- A task that becomes eligible for its blind rollout after probe review now
+  receives that rollout within its remaining allowance.
+- Private grading accepts bounded regular Python editor backups, discarding
+  them only after submission validation; immutable assets stay protected.
+- CPU construction emits source directories as artifacts with strict required
+  and immutable-file contracts. One earlier control spent 178 seconds collecting
+  964 individual files and 150 seconds preparing verification, versus 29 seconds
+  in pytest. The new cloud speedup remains to be measured.
+
+The integrated runtime passes **1,364 local tests**, with four opt-in live checks
+skipped. Ruff, all 17 prompt references, documentation and the wheel build pass.
+These implementation checks do not establish acceptance of the queued tasks.
+
 ## Execution and budget
 
 ```mermaid
 flowchart TD
     Old[24 existing verified PR tasks] --> Target[Target: 50 unique verified PR tasks]
-    Inputs[114 original candidate PRs] --> Panel[26 primary PRs and 11 reserves]
+    Inputs[114 original candidate PRs] --> Panel[70-PR campaign panel]
     Panel --> Freeze[Freeze sources, resource options, controller and runtime]
     Freeze --> Budget[Global ledger: 1000 USD total; this batch: 200 USD]
-    Budget --> Parallel[Up to four isolated PR processes; at most two GPU]
+    Budget --> Parallel[Up to eight isolated PR processes; at most two GPU]
     Parallel --> Fresh[Fresh source: investigate, bootstrap, design, construct]
     Parallel --> Recovery[Prepared task: verify source binding and reuse artifact]
     Fresh --> Quality[Controls, review, probes, blind Sonnet rollout and bounded repair]
@@ -272,11 +314,13 @@ flowchart TD
     Next --> Budget
 ```
 
-The overall authorization is **$1,000**, including historical costs. The next
-batch has its own **$200 ceiling**, covering failed attempts as well as accepted
-outputs. Historical unresolved reservations remain held. At launch, historical
-accounted costs were $580.44 and unresolved holds were $16.09. Compute accounting
-uses conservative allocation estimates rather than provider invoices.
+The overall ceiling remains **$1,000**, including $22.43 of historical external
+cost. V7 activates the user-authorized $50 final expansion reserve: all expansion
+waves together may use **$250**, covering failures, auxiliary checks and held
+reservations as well as accepted outputs. The ordinary global ledger remains
+$977.57. Previous expenses are deducted before freezing the new wave's allowance;
+neither limit resets at a continuation. Historical uncertain reservations remain
+held. Compute accounting uses conservative estimates rather than provider invoices.
 
 Reservations for builders, authoring, review, repair, solvers and native GPU
 allocations share the same SQLite transaction. Worker lifetimes are explicit:
@@ -290,21 +334,21 @@ needed repairs within the existing candidate and quality spending caps. Repairs
 remain capped at three. Prepared-task recoveries cover Accelerate mesh ownership,
 TRL environment pooling, Diffusers LoRA loading and PEFT cache lifecycle.
 Each receives fresh quality checks. New tasks may need more work than the batch
-can fund; fifty successes within $200 is a target, not a measured guarantee.
+can fund; fifty independently accepted tasks remain a target, not a guarantee.
 
 ## Inspect or resume
 
 ```bash
-repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v4
+repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v7
 repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
-The next continuation uses `workspace/tasksmith-scale50/batch-plan-v4.json`; its
+The current continuation uses `workspace/tasksmith-scale50/batch-plan-v7.json`; its
 configuration, frozen runtime, subprocess logs and live report are under
-`workspace/tasksmith-scale50/batch-v4/`. `continuation-v4.json` records its
+`workspace/tasksmith-scale50/batch-v7/`. `continuation-v7.json` records its
 allowance after all prior phases and exact excluded revisions. Do not resume
-admission for the drained v1/v2/v3
+admission for the drained V1–V6
 batches. Their parent reports may be stale; completed child receipts remain the
 source of truth. Completed attempts are not blindly
 repeated. Provider or child-process uncertainty stops dispatch until receipts
