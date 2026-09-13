@@ -285,7 +285,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `1ed6b68708ff3a3600f5ab7c60f48b127914f5b045716c6eda6a5e4be435a7c3`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `153b894baa2ac423ae1f6dbf3fbd09139670bed2de909553b1d12a2ae558f3e8`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -534,6 +534,11 @@ class Tasksmith:
                 deadline=time.time() + 1200,
                 shell=shell,
                 validate=validate,
+                initial_draft_key=(
+                    "previous_design"
+                    if role == "design" and inputs.get("previous_design") is not None
+                    else None
+                ),
             )
         )
 
@@ -1075,7 +1080,7 @@ class Tasksmith:
 
 ### artifact.py
 
-[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `f96de540f133f5c5103950e0877a148b92ecdc716a33ab24f242dd7741d80991`
+[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `8118442cc18d0e95652b3cae19627a7943c1a7b956516ecc0dbf8c759d9eb0fe`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1179,12 +1184,32 @@ async def artifact_stage[Artifact: BaseModel](
     extra_tools: list[dict] | None = None,
     extra_handlers: dict[str, Callable[..., Awaitable[str]]] | None = None,
     validate: Callable[[Artifact], Awaitable[None]] | None = None,
+    initial_draft_key: str | None = None,
 ) -> Artifact:
     """Commit typed output before graph advancement; never reroll unchanged completed stages.
 
     A crashed worker is deliberately not replayed blindly. If it submitted its artifact,
     recovery uses it. Otherwise its in-progress marker requires explicit reconciliation.
+    A named input may seed a schema-valid draft; only a model submission or revision
+    can commit it after all normal validation. The original seed remains preserved.
     """
+    initial_draft = None
+    if initial_draft_key is not None:
+        if not isinstance(initial_draft_key, str) or initial_draft_key not in inputs:
+            raise ValueError(f"{stage}: initial draft key must identify an existing input")
+        try:
+            initial_draft = _bounded_object(inputs[initial_draft_key], max_bytes=MAX_ARTIFACT_BYTES)
+            schema.model_validate(deepcopy(initial_draft))
+        except ValueError as exc:
+            raise ValueError(
+                f"{stage}: invalid initial draft in inputs[{initial_draft_key!r}]: {exc}"
+            ) from exc
+        prompt += (
+            f"\nThe controller has loaded inputs[{initial_draft_key!r}] as an unvalidated draft. "
+            "Use revise_artifact with only changed fields, or submit_artifact for a complete "
+            "replacement. Nothing is committed yet; your submission must pass all schema "
+            "and operator validation. The original draft is preserved."
+        )
     root.mkdir(parents=True, exist_ok=True)
     tools = [
         {
@@ -1209,6 +1234,12 @@ async def artifact_stage[Artifact: BaseModel](
             },
         },
     ]
+    if initial_draft is not None:
+        tool = tools[1]["function"]
+        tool["description"] = tool["description"].replace(
+            "most recent rejected draft",
+            "controller-provided initial draft or most recent rejected draft",
+        )
     if shell:
         tools.append(SHELL_TOOL)
     tools.extend(extra_tools or [])
@@ -1228,6 +1259,8 @@ async def artifact_stage[Artifact: BaseModel](
         "model": model,
         "runtime": runtime,
     }
+    if initial_draft_key is not None:
+        legacy_inputs["initial_draft_key"] = initial_draft_key
     identity = canonical_digest(
         {
             **legacy_inputs,
@@ -1256,10 +1289,14 @@ async def artifact_stage[Artifact: BaseModel](
             f"{stage}: retained {prior['status']} worker needs reconciliation; "
             "preserve its trace, remote state and charges instead of restarting it"
         )
+    if initial_draft is not None and any(
+        (root / name).exists() for name in ("initial-draft.json", "draft.json")
+    ):
+        raise RuntimeError(f"{stage}: retained draft without an operation needs reconciliation")
     if deadline <= time.time():
         raise TimeoutError("Candidate deadline exhausted")
     accepted: Artifact | None = None
-    draft: dict | None = None
+    draft: dict | None = deepcopy(initial_draft)
     draft_number = 0
     lock = asyncio.Lock()
     operation = {
@@ -1272,6 +1309,18 @@ async def artifact_stage[Artifact: BaseModel](
         "starting_spend": budget.spent,
     }
     save_json(operation_path, operation)
+    if initial_draft is not None:
+        retained_seed = {
+            "input_digest": identity,
+            "tool_protocol": ARTIFACT_TOOL_PROTOCOL,
+            "status": "unvalidated",
+            "number": 0,
+            "origin": "initial_draft",
+            "input_key": initial_draft_key,
+            "artifact": initial_draft,
+        }
+        save_json(root / "initial-draft.json", retained_seed)
+        save_json(root / "draft.json", retained_seed)
 
     async def validate_and_commit(payload: dict, origin: str) -> str:
         nonlocal accepted, draft, draft_number

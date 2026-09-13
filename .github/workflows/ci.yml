@@ -106,6 +106,8 @@ jobs:
           tests/test_hub_asset_aliases.py tests/test_quality_requirements.py
           tests/test_tasksmith_worker_release.py tests/test_tasksmith_quality_input.py
           tests/test_tasksmith_source_coverage.py
+          tests/test_quality_citation_paths.py tests/test_quality_review_corrections.py
+          tests/test_tasksmith_artifact_seed.py
 
   tasksmith-runtimes:
     name: Tasksmith coding runtime contracts

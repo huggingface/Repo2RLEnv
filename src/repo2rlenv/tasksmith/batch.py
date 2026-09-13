@@ -65,6 +65,7 @@ class BatchPlan(Record):
     prior_verified: list[Path] = Field(default_factory=list)
     target_verified: int = Field(default=50, ge=1, le=1000)
     max_parallel: int = Field(default=2, ge=1, le=8)
+    max_gpu_parallel: int = Field(default=2, ge=1, le=8)
     max_spend_usd: str = "200.00"
 
     @model_validator(mode="after")
@@ -418,14 +419,20 @@ def run_batch(plan: BatchPlan, directory: Path, campaign: Path, wheel: Path, *, 
             save_record(saved, report)
             return report
         active = {}
+        gpu_urls = {item.url for item in plan.candidates if item.options.gpus}
         reconcile = False
+        drain = False
         with ThreadPoolExecutor(max_workers=plan.max_parallel) as pool:
             while pending or active:
+                # Admission can be stopped without signalling child processes.
+                # The marker is a one-way request for this invocation; retain it
+                # alongside completed receipts when preparing a continuation.
+                drain = drain or (directory / "drain-request.json").exists()
                 slots = min(
                     plan.max_parallel - len(active),
                     plan.target_verified - report["verified"] - len(active),
                 )
-                if reconcile:
+                if reconcile or drain:
                     slots = 0
                 while slots > 0 and pending:
                     # Admission is advisory; nested ledger reservations enforce both
@@ -435,6 +442,11 @@ def run_batch(plan: BatchPlan, directory: Path, campaign: Path, wheel: Path, *, 
                             index
                             for index, item in enumerate(pending)
                             if Decimal(item.options.worker_reservation_usd) <= _available(budget)
+                            and (
+                                not item.options.gpus
+                                or sum(url in gpu_urls for url in active.values())
+                                < plan.max_gpu_parallel
+                            )
                         ),
                         None,
                     )
@@ -475,6 +487,8 @@ def run_batch(plan: BatchPlan, directory: Path, campaign: Path, wheel: Path, *, 
             if reconcile
             else "target_reached"
             if report["verified"] >= plan.target_verified
+            else "drained"
+            if drain
             else "budget_headroom"
             if pending
             else "panel_exhausted"

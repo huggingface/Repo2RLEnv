@@ -49,6 +49,7 @@ A plan has this structure:
   "name": "hf-next-batch",
   "target_verified": 50,
   "max_parallel": 2,
+  "max_gpu_parallel": 2,
   "max_spend_usd": "200.00",
   "prior_verified": ["/absolute/path/to/previous/quality/result.json"],
   "candidates": [
@@ -81,6 +82,13 @@ contract, including GPU count, bootstrap hints, existing remote snapshots and
 model selection. `source_record` optionally supplies a previously frozen PR
 record; Tasksmith validates it before paid work. Without one, Tasksmith freezes
 public PR evidence on initial intake before allocating its worker.
+
+`max_parallel` bounds all active PR controllers; `max_gpu_parallel` separately
+bounds controllers whose tasks require GPUs. Both default to two. For example,
+four total controllers with two GPU controllers permits additional CPU work while
+GPU capacity is occupied. A two-GPU PR counts as one GPU controller and still
+requests its full device count. The scheduler can admit an eligible CPU candidate
+later in the panel without exceeding either concurrency limit or the target.
 
 A candidate may also specify `generation_run` and `reuse_evidence` to use
 Tasksmith's existing checksum-bound generation import. For an existing generated
@@ -151,6 +159,14 @@ Completed child evidence is checked again when importing a saved success.
 The scheduler reserves target slots for active children: with 49 verified tasks
 and a target of 50 it admits only one more PR, even if parallelism is higher.
 Failed candidates release that target slot, allowing another pending PR.
+
+Creating `drain-request.json` in a batch directory stops further admission and
+lets active children finish normally. The runner collects their results, retains
+pending PRs and reports `stop_reason="drained"`. The request is latched for that
+invocation and remains on disk; an unchanged command with that marker still
+present does not admit work. This provides a clean boundary before freezing a
+new runtime or concurrency configuration. Carry all earlier costs and unresolved
+holds forward when allocating a continuation's budget.
 
 If the controller was interrupted, a completed child result can be imported
 without another dispatch. A child with no terminal result, or a provider with

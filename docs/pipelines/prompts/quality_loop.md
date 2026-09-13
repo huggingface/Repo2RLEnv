@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `99c9e28abbf8e53a5b61ddc244d2bdcf5f0d9194b6d1267d03fcb000262f84b2`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `126a11e5a0a3a93b4d967f94f5c9df65149d03f8b8a59284875c2c2f1b062661`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -41,6 +41,10 @@ Prefer a short contiguous line or phrase copied from the supplied document. Neve
 abbreviate a quote with ellipses or paraphrase code inside a quote. If protocol
 feedback identifies a bad citation, correct that citation in previous_review from
 the actual document; do not keep reproducing an abbreviated or inferred version.
+Advisory labels, prior judgments and campaign design guidance are leads, not proof
+of a defect or successful execution. Cite actual contract, test or trace text for
+those claims. Do not reconstruct metadata fields or change their serialization
+inside a quote; only cite text present under the supplied document key.
 If necessary code is omitted, request its path and a bounded line range (query=null),
 or a literal search query within that file (set start_line=end_line=1). Search
 returns bounded matching excerpts and line numbers; use ranges to expand them.
@@ -436,7 +440,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `21b981a654a461c14dae5c3c894c74e718ed50453ea6047d9aeffb6c9fd2da18`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `9626b2078ec3ef7521177bde2ad2d2d65bb6403c5b8e06b1af66cfae61ba7911`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -456,6 +460,7 @@ from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
+from repo2rlenv.quality.loop.protocol import citation_path_error
 from repo2rlenv.quality.loop.rollout_evidence import rollout_documents
 
 
@@ -867,17 +872,14 @@ class EvidenceContext:
         for citation in citations:
             document = self.documents.get(citation.path, "")
             if not document or " ".join(citation.quote.split()) not in " ".join(document.split()):
-                raise ValueError(
-                    f"Review citation is not grounded in supplied text: {citation.path}; "
-                    f"invalid quote={citation.quote[:250]!r}. Copy a short contiguous excerpt; no ellipses."
-                )
+                raise ValueError(citation_path_error(citation, self.documents))
 ````
 
 </details>
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `458ebce6bcfc81bc3276e903159099e3b206c8bc8b72812ddb21d82f44217b8a`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `718862638183dc14ae9316f6834d0ff4c38a7ade1bbfaa7b8ba51aa22dc11914`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1084,6 +1086,9 @@ class QualityLoop:
             if index == rounds:
                 model = self.options.escalation_model
                 self.event("review", "Escalate unresolved evidence to the configured model")
+            # The latest parsed draft guides bounded corrections and follow-up
+            # reads; it never substitutes for validating the next response.
+            previous = review if review is not None else prior
             try:
                 review = self.model.ask(
                     Review,
@@ -1101,7 +1106,7 @@ class QualityLoop:
                             {"name": p.name, "kind": p.kind, "focus": p.focus} for p in existing
                         ],
                         protocol_feedback=feedback,
-                        previous_review=prior.model_dump() if prior else None,
+                        previous_review=previous.model_dump() if previous is not None else None,
                     ),
                     f"{key}-{index}",
                 )
@@ -1154,8 +1159,6 @@ class QualityLoop:
                 return review, context
             except (ValidationError, ValueError) as exc:
                 feedback.append(f"Invalid structured review or evidence request: {exc}")
-                if review is not None:
-                    prior = review
         raise ValueError(
             "Review did not resolve its evidence requests or grounded output within the call limit: "
             + (feedback[-1] if feedback else "no grounded response")

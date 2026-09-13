@@ -85,6 +85,69 @@ def test_target_counts_unique_prs_and_never_overdispatches(local_batch, monkeypa
     assert any("2 isolated PR workers" in event for event in events)
 
 
+def test_gpu_cap_allows_cpu_work_without_overlapping_more_gpu_jobs(local_batch, monkeypatch):
+    items = [candidate(i) for i in range(1, 7)]
+    for item in items[:3]:
+        item.options.gpus = 2
+    admitted, waves = [], []
+
+    def run(config, item):
+        admitted.append(item["url"])
+        return success(item["url"])
+
+    def complete(active, **kwargs):
+        waves.append(list(active.values()))
+        return set(active), set()
+
+    monkeypatch.setattr(batch, "_supervise_candidate", run)
+    monkeypatch.setattr(batch, "wait", complete)
+    plan = batch.BatchPlan(
+        name="test", candidates=items, target_verified=6, max_parallel=4, max_gpu_parallel=2
+    )
+    result = batch.run_batch(plan, *local_batch, on_event=lambda _: None)
+    assert waves[0] == [items[index].url for index in (0, 1, 3, 4)]
+    assert all(sum(url in {item.url for item in items[:3]} for url in wave) <= 2 for wave in waves)
+    assert len(admitted) == len(set(admitted)) == 6
+    assert result["verified"] == 6 and result["stop_reason"] == "target_reached"
+
+
+def test_drain_collects_active_children_and_never_admits_pending_work(local_batch, monkeypatch):
+    output, _, _ = local_batch
+    calls, waits = [], []
+
+    def run(config, item):
+        calls.append(item["url"])
+        return {"url": item["url"], "status": "generated_unverified", "tasks": ["saved/task"]}
+
+    def complete(active, **kwargs):
+        waits.append(len(active))
+        save_record(output / "drain-request.json", {"reason": "Use the next frozen runtime"})
+        # Keep one child active so the next loop must drain it without replacing
+        # the completed child with a third PR.
+        first = next(iter(active))
+        return {first}, set(active) - {first}
+
+    monkeypatch.setattr(batch, "_supervise_candidate", run)
+    monkeypatch.setattr(batch, "wait", complete)
+    plan = batch.BatchPlan(name="test", candidates=[candidate(i) for i in range(1, 5)])
+    result = batch.run_batch(plan, *local_batch, on_event=lambda _: None)
+    assert len(calls) == 2 and waits == [2, 1]
+    assert result["generated_unverified"] == 2
+    assert result["stop_reason"] == "drained"
+    assert len(result["pending"]) == 2
+
+
+def test_existing_drain_request_prevents_any_dispatch(local_batch, monkeypatch):
+    output, _, _ = local_batch
+    save_record(output / "drain-request.json", {"reason": "Do not resume this batch"})
+    monkeypatch.setattr(
+        batch, "_supervise_candidate", lambda *_: pytest.fail("Unexpected dispatch")
+    )
+    plan = batch.BatchPlan(name="test", candidates=[candidate(1)])
+    result = batch.run_batch(plan, *local_batch, on_event=lambda _: None)
+    assert result["stop_reason"] == "drained" and result["pending"] == [candidate(1).url]
+
+
 def test_generated_failures_retained_while_next_pr_fills_target(local_batch, monkeypatch):
     calls = []
 

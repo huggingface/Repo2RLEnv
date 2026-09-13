@@ -2,7 +2,8 @@
 
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
-11 reserves, with two independent PR controllers running concurrently. The first
+11 reserves. The next continuation increases concurrency from two to four
+independent PR controllers, with at most two GPU controllers. The first
 eight candidates use small CPU workloads; later candidates include real GPU
 execution. A task counts only after the shared quality profile verifies its exact
 revision. Solver failure can be legitimate and does not by itself reject a task.
@@ -80,6 +81,26 @@ explicit `compiled_execution` requirement on a new, hashed task copy. Diffusers
 receives complete-source feedback and eighteen bounded author calls. The other
 candidate PRs and two-worker concurrency remain unchanged.
 
+The repaired Accelerate task subsequently passed its baseline/reference controls,
+the same broken-forward probe, a distinct valid alternative and a judged blind
+Sonnet rollout. The broken-forward probe changed from reward 1 on the defective
+verifier to reward 0 on the repaired verifier, specifically at the numerical
+output assertion. Sonnet passed nine of fourteen tests and failed through genuine
+implementation errors. Independent evidence review accepted this helper/API task,
+bringing the accepted total to **25**; this does not claim complete
+Accelerator/DeepSpeed integration or performance reproduction.
+
+For faster expansion, the next frozen continuation uses four total PR controllers
+with at most two GPU controllers. The shared budget still covers all previous
+attempts. Sonnet remains the default; one metered Opus 4.6 escalation can resolve
+a review after its bounded Sonnet calls are exhausted. Literal evidence checks
+remain required. Improved feedback identifies quotes absent from every supplied
+document, and review guidance separates advisory labels from actual task evidence.
+The active v2 jobs finish before this concurrency change takes effect. Design
+retries can revise the previous draft directly; the seed remains unvalidated and
+every submission must pass normal validation. Review corrections and escalation
+receive the latest parsed draft, including after additional source reads.
+
 ## Execution and budget
 
 ```mermaid
@@ -88,7 +109,7 @@ flowchart TD
     Inputs[114 original candidate PRs] --> Panel[26 primary PRs and 11 reserves]
     Panel --> Freeze[Freeze sources, resource options, controller and runtime]
     Freeze --> Budget[Global ledger: 1000 USD total; this batch: 200 USD]
-    Budget --> Parallel[Two isolated PR processes]
+    Budget --> Parallel[Up to four isolated PR processes; at most two GPU]
     Parallel --> Fresh[Fresh source: investigate, bootstrap, design, construct]
     Parallel --> Recovery[Prepared task: verify source binding and reuse artifact]
     Fresh --> Quality[Controls, review, probes, blind Sonnet rollout and bounded repair]

@@ -239,6 +239,11 @@ class Tasksmith:
                 deadline=time.time() + 1200,
                 shell=shell,
                 validate=validate,
+                initial_draft_key=(
+                    "previous_design"
+                    if role == "design" and inputs.get("previous_design") is not None
+                    else None
+                ),
             )
         )
 

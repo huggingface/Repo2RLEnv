@@ -27,6 +27,10 @@ Prefer a short contiguous line or phrase copied from the supplied document. Neve
 abbreviate a quote with ellipses or paraphrase code inside a quote. If protocol
 feedback identifies a bad citation, correct that citation in previous_review from
 the actual document; do not keep reproducing an abbreviated or inferred version.
+Advisory labels, prior judgments and campaign design guidance are leads, not proof
+of a defect or successful execution. Cite actual contract, test or trace text for
+those claims. Do not reconstruct metadata fields or change their serialization
+inside a quote; only cite text present under the supplied document key.
 If necessary code is omitted, request its path and a bounded line range (query=null),
 or a literal search query within that file (set start_line=end_line=1). Search
 returns bounded matching excerpts and line numbers; use ranges to expand them.

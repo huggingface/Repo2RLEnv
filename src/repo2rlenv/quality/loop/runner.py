@@ -197,6 +197,9 @@ class QualityLoop:
             if index == rounds:
                 model = self.options.escalation_model
                 self.event("review", "Escalate unresolved evidence to the configured model")
+            # The latest parsed draft guides bounded corrections and follow-up
+            # reads; it never substitutes for validating the next response.
+            previous = review if review is not None else prior
             try:
                 review = self.model.ask(
                     Review,
@@ -214,7 +217,7 @@ class QualityLoop:
                             {"name": p.name, "kind": p.kind, "focus": p.focus} for p in existing
                         ],
                         protocol_feedback=feedback,
-                        previous_review=prior.model_dump() if prior else None,
+                        previous_review=previous.model_dump() if previous is not None else None,
                     ),
                     f"{key}-{index}",
                 )
@@ -267,8 +270,6 @@ class QualityLoop:
                 return review, context
             except (ValidationError, ValueError) as exc:
                 feedback.append(f"Invalid structured review or evidence request: {exc}")
-                if review is not None:
-                    prior = review
         raise ValueError(
             "Review did not resolve its evidence requests or grounded output within the call limit: "
             + (feedback[-1] if feedback else "no grounded response")

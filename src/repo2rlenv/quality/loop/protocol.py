@@ -8,7 +8,30 @@ import re
 from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import edit_path
-from repo2rlenv.quality.loop.models import Repair, Review, SemanticProbe
+from repo2rlenv.quality.loop.models import Citation, Repair, Review, SemanticProbe
+
+
+def _citation_document_matches(citation: Citation, documents: dict[str, str]) -> list[str]:
+    quote = " ".join(citation.quote.split())
+    if not quote:
+        return []
+    return sorted(path for path, text in documents.items() if quote in " ".join(text.split()))
+
+
+def citation_path_error(citation: Citation, documents: dict[str, str]) -> str:
+    """Explain unsupported citation paths without guessing or adding evidence."""
+    matches = _citation_document_matches(citation, documents)
+    listed = matches[:8]
+    omitted = (
+        f" ({len(matches) - len(listed)} additional paths omitted)" if len(matches) > 8 else ""
+    )
+    return (
+        f"Review citation is not grounded in supplied text: {citation.path}; "
+        f"invalid quote={citation.quote[:250]!r}. "
+        f"Exact quote matches {len(matches)} supplied document(s): {listed!r}{omitted}. "
+        "Copy a short contiguous excerpt from the correct supplied path; "
+        "preserve punctuation and serialization. No ellipses or paraphrases."
+    )
 
 
 def _inline_markdown_matches(document: str, quote: str) -> list[str]:

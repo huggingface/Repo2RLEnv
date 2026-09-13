@@ -10,6 +10,7 @@ from pathlib import Path
 
 from repo2rlenv.quality.loop.artifacts import digest
 from repo2rlenv.quality.loop.models import ReadRequest, Review, TrialRecord
+from repo2rlenv.quality.loop.protocol import citation_path_error
 from repo2rlenv.quality.loop.rollout_evidence import rollout_documents
 
 
@@ -421,7 +422,4 @@ class EvidenceContext:
         for citation in citations:
             document = self.documents.get(citation.path, "")
             if not document or " ".join(citation.quote.split()) not in " ".join(document.split()):
-                raise ValueError(
-                    f"Review citation is not grounded in supplied text: {citation.path}; "
-                    f"invalid quote={citation.quote[:250]!r}. Copy a short contiguous excerpt; no ellipses."
-                )
+                raise ValueError(citation_path_error(citation, self.documents))
