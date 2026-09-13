@@ -19,7 +19,7 @@ evidence.
 
 ## Remote smoke before using a new runtime
 
-Run this only inside a metered cloud environment after its allocation is approved.
+Run this inside a metered cloud environment within the campaign's remaining allowance.
 There are no model calls. Use an image with a small dependency, such as
 `safetensors`, installed only in the task venv. Retain the image identity and a
 small receipt of the observations.

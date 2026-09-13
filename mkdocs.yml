@@ -155,6 +155,7 @@ nav:
       - Owned recipes: pipelines/owned_recipes.md
       - Follow the prompts: pipelines/prompt_reference.md
       - Harbor review and repair: pipelines/quality_loop.md
+      - Learner Python runtime: pipelines/learner_runtime.md
       - Task evaluation labels: pipelines/task_evaluation_labels.md
       - Parallel Tasksmith campaigns: pipelines/tasksmith_parallel_campaigns.md
       - Tasksmith expansion to 50: pipelines/tasksmith_scale50.md
