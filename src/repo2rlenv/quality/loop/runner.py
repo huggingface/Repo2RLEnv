@@ -186,9 +186,15 @@ class QualityLoop:
             raise ValueError("Execution evidence belongs to another task revision")
         context = EvidenceContext(task, trials, limit=self.options.context_chars)
         if self.task_context is not None:
+            # A long PR patch must not consume the excerpt before saved repair
+            # findings. Preserve the complete context for bounded follow-up reads.
+            task_context = dict(self.task_context)
+            if "campaign_design_guidance" in task_context:
+                guidance = task_context.pop("campaign_design_guidance")
+                task_context = {"campaign_design_guidance": guidance, **task_context}
             context.add_text(
                 "evidence/task-context.json",
-                json.dumps(self.task_context, indent=2),
+                json.dumps(task_context, indent=2),
                 maximum=min(32000, self.options.context_chars // 4),
             )
         context.documents["evidence/checks.json"] = json.dumps(
@@ -766,6 +772,36 @@ class QualityLoop:
                         task,
                         trials,
                         f"r{revision}-after",
+                        probe_limit=0,
+                        prior=review,
+                        revision=revision,
+                    )
+                # A review may become sound only after observing the probes.
+                # Finish that revision's requested rollout instead of returning
+                # a reviewed task merely because the earlier review blocked it.
+                if (
+                    execute
+                    and review.sound
+                    and not controls
+                    and not probe_failures(trials, self.options.success_reward)
+                    and not any(item.role == "rollout" for item in trials)
+                    and {item.probe.kind for item in trials if item.role == "probe"}
+                    == {"wrong_solution", "valid_alternative"}
+                    and not required_probe_focus(task)
+                    - {
+                        item.probe.focus
+                        for item in trials
+                        if item.role == "probe" and item.probe.kind == "wrong_solution"
+                    }
+                ):
+                    self.event("rollout", "Run a blind solver on this revision", state="started")
+                    trials.append(self.remote.run(task, "rollout", f"r{revision}-rollout"))
+                    if trials[-1].exception_type == "BudgetExceeded":
+                        raise BudgetExceeded("Rollout allocation denied")
+                    review, context = self._review(
+                        task,
+                        trials,
+                        f"r{revision}-after-rollout",
                         probe_limit=0,
                         prior=review,
                         revision=revision,

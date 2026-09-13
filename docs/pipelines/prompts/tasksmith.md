@@ -309,7 +309,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `f7172e4abc687a7f8be1500f02ef9cd04ae9d605217737beb98a20dd7275bb9b`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `13a6d39fd160c80502251af7a9c218639483f8f105b09d978e99f5517234ea24`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -847,7 +847,12 @@ class Tasksmith:
                 result = self.remote(
                     root,
                     f"bootstrap-{state['profile_attempt']}",
-                    {"stage": "bootstrap", "source": source, "profile": state["profile"]},
+                    {
+                        "stage": "bootstrap",
+                        "source": source,
+                        "profile": state["profile"],
+                        "checkout": checkout,
+                    },
                 )
             if result["status"] != "completed":
                 return {"failure": result, "status": "bootstrap_failed"}
