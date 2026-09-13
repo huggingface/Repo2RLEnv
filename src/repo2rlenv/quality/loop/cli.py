@@ -113,7 +113,9 @@ def add_quality_parser(subparsers):
     )
     actions = parser.add_subparsers(dest="quality_action", required=True)
     show = actions.add_parser("show", help="Read a completed quality report without paid calls")
-    show.add_argument("path", type=Path, help="Result JSON file or run directory containing result.json")
+    show.add_argument(
+        "path", type=Path, help="Result JSON file or run directory containing result.json"
+    )
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_quality)
     run = actions.add_parser(
