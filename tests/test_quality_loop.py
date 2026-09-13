@@ -34,6 +34,7 @@ from repo2rlenv.quality.loop.models import (
 from repo2rlenv.quality.loop.protocol import (
     distinct_probes,
     resolve_json_citations,
+    resolve_markdown_citations,
     resolve_verifier_paths,
 )
 from repo2rlenv.quality.loop.runner import (
@@ -349,6 +350,77 @@ def test_json_citations_do_not_resolve_ambiguous_or_unsupported_claims(data):
     assert not changes and normalized == decision
 
 
+def test_markdown_citation_restores_only_missing_inline_formatting():
+    quote = "MetaClip2TextModel – text encoder; `pooler_output` selects the first EOS token."
+    document = (
+        "- `MetaClip2TextModel` – text encoder; `pooler_output` selects the first EOS token.\n"
+    )
+    decision = review()
+    decision.task = decision.task.model_copy(deep=True)
+    decision.task.evidence = [Citation(path="instruction.md", quote=quote)]
+    before = decision.model_dump()
+    normalized, changes = resolve_markdown_citations(decision, {"instruction.md": document})
+    assert len(changes) == 1
+    assert normalized.task.evidence[0].quote in document
+    assert normalized.model_dump(exclude={"task"}) == decision.model_dump(exclude={"task"})
+    assert normalized.task.model_dump(exclude={"evidence"}) == decision.task.model_dump(
+        exclude={"evidence"}
+    )
+    assert decision.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    ("path", "document"),
+    [
+        ("instruction.md", "`First` selects 2 tokens from the incoming sequence.\n"),
+        ("instruction.md", "`First` selects 1 token from the incoming sequence.\n" * 2),
+        ("instruction.md", "```python\n`First` selects 1 token from the incoming sequence.\n```"),
+        ("instruction.md", "~~~text\n`First` selects 1 token from the incoming sequence.\n~~~"),
+        ("instruction.md", "    `First` selects 1 token from the incoming sequence.\n"),
+        ("instruction.md", "\\`First\\` selects 1 token from the incoming sequence.\n"),
+        ("instruction.md", "``First`` selects 1 token from the incoming sequence.\n"),
+        ("source.py", "`First` selects 1 token from the incoming sequence.\n"),
+    ],
+)
+def test_markdown_citations_keep_unsupported_or_ambiguous_quotes(path, document):
+    decision = review()
+    decision.task.evidence = [
+        Citation(path=path, quote="First selects 1 token from the incoming sequence.")
+    ]
+    normalized, changes = resolve_markdown_citations(decision, {path: document})
+    assert not changes and normalized == decision
+
+
+def test_large_private_pr_context_is_bounded_and_remains_searchable(task, tmp_path):
+    context_data = {
+        "kind": "merged_pr",
+        "source_diff": "unchanged line\n" * 30000 + "UNIQUE_CONTRACT: correct behavior",
+    }
+    loop = QualityLoop(
+        LoopOptions(context_chars=16000),
+        tmp_path / "bounded-context",
+        BudgetLedger(tmp_path / "bounded.sqlite3", limit_usd="1"),
+        task_context=context_data,
+    )
+    context = loop._context(task, [])
+    excerpt = context.documents["evidence/task-context.json"]
+    assert len(excerpt) <= 4000 and "Excerpt ends" in excerpt
+    assert "UNIQUE_CONTRACT" not in excerpt
+    assert any(item["path"] == "evidence/task-context.json" for item in context.inventory)
+    context.read_more(
+        [
+            ReadRequest(
+                path="evidence/task-context.json", query="UNIQUE_CONTRACT", start_line=1, end_line=1
+            )
+        ]
+    )
+    assert (
+        "UNIQUE_CONTRACT: correct behavior"
+        in context.documents["evidence/task-context.json:search=UNIQUE_CONTRACT"]
+    )
+    assert "documents" in json.loads(context.payload())
+
+
 def test_short_verifier_path_requires_unique_exact_match(task):
     path = task / "tests/source/tests/contract.py"
     path.parent.mkdir(parents=True)
@@ -439,7 +511,9 @@ def test_probe_keeps_task_and_verifier_bytes(task, tmp_path):
 
 def test_repository_probe_audits_the_collected_submission(task, tmp_path):
     contract = task / "tests/contract.json"
-    contract.write_text(json.dumps({"submitted_files": ["answer.txt"], "expected_passes": ["private"]}))
+    contract.write_text(
+        json.dumps({"submitted_files": ["answer.txt"], "expected_passes": ["private"]})
+    )
     refresh_identity(task)
     revised = probe_variant(task, probes()[0], tmp_path / "probe" / task.name)
     wrapper = (revised / "solution/solve.sh").read_text()

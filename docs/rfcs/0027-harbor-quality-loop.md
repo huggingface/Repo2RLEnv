@@ -41,6 +41,20 @@ actual source; provider failures with uncertain effects are never retried this w
 Workers execute Docker and target code remotely on Modal or Daytona. Caller-owned
 workers permit cache reuse across tasks; auto-created workers are cleaned up.
 
+The CLI selects native Modal for supported GPU resource declarations. CPU tasks
+retain the shared Modal/Daytona Docker-worker adapter. A completed native single-step
+solver settles known usage before private verification. If only verifier allocation
+is denied, collection-time hashes bind the submission, trace, file modes and
+allocation receipts. Same-input resume may make one verifier-only continuation;
+it preserves original model evidence and never invokes the learner again. Changed
+inputs, unsealed historical receipts and uncertain effects require reconciliation.
+The continuation uses the pinned Harbor 0.20 controller API in an isolated module.
+
+Private PR context has a bounded initial excerpt with the full document available
+through the existing evidence reader. A unique Markdown prose citation can receive
+a recorded single-backtick correction when every other character matches; normal
+grounding still applies. Neither mechanism changes the semantic quality judgment.
+
 ## Validation
 
 - Unit tests exercise immutable repair, stale evidence, grounded citations, reward
@@ -50,6 +64,11 @@ workers permit cache reuse across tasks; auto-created workers are cleaned up.
 - Live canaries test actual provider responses and remote Harbor execution; results
   and limitations are recorded in the guide rather than extrapolated to corpus yield.
 - Legacy strict acceptance tests remain unchanged.
+- Native continuation tests use the real Harbor controller with model/cloud effects
+  blocked, checking tampering, cancellation, single dispatch and retained learner usage.
+  Saved-review replay reproduces the observed MetaCLIP citation failure. A fresh
+  unattended remote campaign is required before reporting autonomous yield; the
+  existing accepted-task count includes assistance.
 
 ## Tradeoffs
 
@@ -70,4 +89,6 @@ dependency. No new library dependency is introduced by this component.
 - Component: `src/repo2rlenv/quality/loop/`
 - CLI: `repo2rlenv quality run` and `quality show`
 - Tests: `tests/test_quality_loop.py`
+- Native recovery tests: `tests/test_native_verifier_recovery.py`
+- Intervention status: [autonomy audit](../pipelines/tasksmith_autonomy.md)
 - Evidence background: [quality pilot](../pipelines/quality_pilot.md)

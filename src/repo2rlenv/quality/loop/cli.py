@@ -43,6 +43,29 @@ def display(result: LoopResult):
         console.print(Text("• " + reason))
 
 
+def execution_backend(
+    task: Path, *, provider: str, wheel: Path | None, worker_receipt: Path | None
+):
+    """Select from the task's resources before any worker or model dispatch."""
+    from repo2rlenv.quality.loop.artifacts import parse_task
+    from repo2rlenv.quality.loop.native import validate_native_task
+
+    config = parse_task(task).config
+    environments = (config.environment, config.verifier.environment)
+    if any(environment and environment.gpus for environment in environments):
+        if provider != "modal":
+            raise ValueError("GPU quality trials currently require --provider modal")
+        if worker_receipt is not None:
+            raise ValueError("Native GPU trials do not use --worker-receipt")
+        validate_native_task(task)
+        return "native-modal"
+    if wheel is None:
+        raise ValueError(
+            "CPU --repair and --run-rollout require --runtime-wheel (build with uv build)"
+        )
+    return provider
+
+
 def cmd_quality(args) -> int:
     from repo2rlenv.quality.loop.runner import QualityLoop
 
@@ -58,9 +81,13 @@ def cmd_quality(args) -> int:
                     raise ValueError("--env-file must name an existing credentials file")
                 load_dotenv(args.env_file, override=False)
             options = LoopOptions(**{key: getattr(args, key) for key in LoopOptions.model_fields})
-            if (options.repair or options.run_rollout) and not args.runtime_wheel:
-                raise ValueError(
-                    "--repair and --run-rollout require --runtime-wheel (build with uv build)"
+            backend = None
+            if options.repair or options.run_rollout:
+                backend = execution_backend(
+                    args.task,
+                    provider=args.provider,
+                    wheel=args.runtime_wheel,
+                    worker_receipt=args.worker_receipt,
                 )
             ledger = BudgetLedger(args.campaign / "budget.sqlite3")
 
@@ -69,7 +96,11 @@ def cmd_quality(args) -> int:
                     console.print(Text(f"[{event.stage}] {event.message}"))
 
             loop = QualityLoop(options, args.out, ledger, on_event=on_event)
-            if options.repair or options.run_rollout:
+            if backend == "native-modal":
+                from repo2rlenv.quality.loop.native import NativeModalTrials
+
+                loop.remote = NativeModalTrials(args.out, loop.budget, options)
+            elif backend is not None:
                 from repo2rlenv.quality.loop.remote import RemoteTrials
 
                 loop.remote = RemoteTrials(
@@ -168,7 +199,9 @@ def add_quality_parser(subparsers):
         help="Run missing controls, probes and a blind solver remotely",
     )
     run.add_argument("--provider", choices=["modal", "daytona"], default="modal")
-    run.add_argument("--runtime-wheel", type=Path)
+    run.add_argument(
+        "--runtime-wheel", type=Path, help="Required for CPU workers; GPU tasks use native Modal"
+    )
     run.add_argument(
         "--worker-receipt", type=Path, help="Reuse a running worker; caller owns its cleanup"
     )

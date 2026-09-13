@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-09-13T14:33:44.109548+00:00",
+  "recorded_at": "2026-09-13T14:46:24.592010+00:00",
   "target": 30,
-  "accepted": 23,
+  "accepted": 24,
   "authorization": {
     "user_reply": "Additional $100 ($600 total)",
     "total_cap_usd": "600.00",
@@ -9,11 +9,11 @@
     "existing_operations_preserved": true
   },
   "budget": {
-    "accounted_including_prior_external_usd": "579.014492",
+    "accounted_including_prior_external_usd": "580.440191",
     "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
     "authorized_usd": "600.000000",
-    "available_usd": "0.397192",
-    "reserved_usd": "20.588316"
+    "available_usd": "3.471493",
+    "reserved_usd": "16.088316"
   },
   "new_acceptances": [
     {
@@ -502,6 +502,40 @@
           "role": "rollout"
         }
       ]
+    },
+    {
+      "source": "https://github.com/huggingface/transformers/pull/39826",
+      "bundle_hash": "sha256:6afcaa54ed407d239d28f9b99becf0d18d5bc1fbde301361b13edb20b8ca4287",
+      "quality": "workspace/tasksmith-scale30/metaclip-finish-repair-v9/quality/result.json",
+      "quality_sha256": "763bd556f06bd6db13905bfa5a643d75b5fe705b3b800e7a077f13256fec8827",
+      "rollout": "legitimate_failure",
+      "trials": [
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "probe": null,
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "probe": "wrong_solution",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "probe": "valid_alternative",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "probe": null,
+          "reward": 0.0,
+          "role": "rollout"
+        }
+      ]
     }
   ],
   "remote_asset_checks": [
@@ -523,23 +557,23 @@
     }
   ],
   "verification": {
-    "unit_suite": "1009 passed, 4 skipped",
+    "unit_suite": "1035 passed, 6 skipped; affected native controller tests passed again after final validation refactor",
     "documentation": "MkDocs build passed using requirements-docs.txt; existing documentation warnings remain",
     "remote_grader_asset_test": "Passed as UID1001 with network disabled",
     "target_execution": "Remote only"
   },
-  "state": "23 accepted tasks; MetaCLIP blind rollout running; the 30-task target remains incomplete.",
+  "state": "24 accepted tasks; no paid jobs running; the 30-task target remains incomplete.",
   "delivery": {
-    "tasks": 23,
-    "archive": "workspace/tasksmith-scale30/delivery-23-v2.tar.gz",
-    "sha256": "f856f9dd23971cd400dd3c4ce656d7a6e7068eaa871abe4cc289867b26fc9d93",
-    "bytes": 281093685,
+    "tasks": 24,
+    "archive": "workspace/tasksmith-scale30/delivery-24-v2.tar.gz",
+    "sha256": "dcbf26324472a2995f0855ec4d88f1e7776b6fad6d6e2cfddace2363fbacc849",
+    "bytes": 370900036,
     "audit": {
-      "tasks": 23,
-      "trials": 128,
-      "new_protected_trees_unchanged": 13,
+      "tasks": 24,
+      "trials": 133,
+      "new_protected_trees_unchanged": 14,
       "credential_scan": {
-        "files": 55457,
+        "files": 77581,
         "configured_values_checked": 7,
         "matches": 0
       },
@@ -547,9 +581,33 @@
     }
   },
   "sonnet_outcomes": {
-    "accepted": 23,
+    "accepted": 24,
     "solved": 10,
-    "evidence": "tasksmith-sonnet-outcomes-23.json",
+    "evidence": "tasksmith-sonnet-outcomes-24.json",
     "one_blind_rollout_per_task": true
+  },
+  "autonomy": {
+    "classification": "assisted_campaign",
+    "unattended_yield_measured": false,
+    "reason": "Task-specific runtime, verifier, control and recovery interventions were used. Accepted task count does not establish unattended generation yield.",
+    "new_recovery_live_validated": false,
+    "validation": "Saved-review replay and local controller regression tests; a fresh unattended remote campaign is pending.",
+    "saved_review_replay": {
+      "source": "workspace/tasksmith-scale30/metaclip-finish-repair-v7/quality/calls/r0-before-0.json",
+      "source_sha256": "bedcf8a463350e5a647713c316f34cd315a165d6097d983319e6aa8e10d56dd9",
+      "request_sha256": "9b6fbb415efe83e8679de34a259287cd024c807a0e3be38f92881f37769e6d71",
+      "old_review_failed_grounding": true,
+      "new_review_grounded": true,
+      "corrections": [
+        {
+          "path": "instruction.md",
+          "old": "MetaClip2TextModel \u2013 text encoder (no projection head); `pooler_output` is the hidden state at the position of the first EOS token in each sequence.",
+          "new": "MetaClip2TextModel` \u2013 text encoder (no projection head); `pooler_output` is the hidden state at the position of the first EOS token in each sequence."
+        }
+      ],
+      "decision_scores_and_probes_unchanged": true,
+      "paid_calls": 0,
+      "target_code_executed": false
+    }
   }
 }

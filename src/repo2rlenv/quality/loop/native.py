@@ -16,6 +16,21 @@ from repo2rlenv.quality.loop.artifacts import parse_task, task_identity
 from repo2rlenv.quality.loop.remote import RemoteTrials
 
 
+def validate_native_task(task: Path):
+    parsed = parse_task(task)
+    config = parsed.config
+    if config.verifier.environment_mode.value != "separate":
+        raise ValueError("Native GPU trials require a separate private verifier")
+    for environment in (config.environment, config.verifier.environment):
+        if environment is None or environment.gpus not in {1, 2} or environment.gpu_types != ["L4"]:
+            raise ValueError("Both learner and verifier must explicitly request one or two L4 GPUs")
+        if environment.network_mode.value != "no-network":
+            raise ValueError(
+                "Native GPU trials require no-network learner and verifier environments"
+            )
+    return parsed
+
+
 def model_was_not_dispatched(result: Path, allocations: Path) -> bool:
     """Prove a reservation denial happened before any learner sandbox/model run."""
     data = json.loads(result.read_text())
@@ -98,30 +113,40 @@ class NativeModalTrials:
         from importlib.metadata import version
 
         from repo2rlenv.execution import harbor_modal
+        from repo2rlenv.quality.loop import native_recovery
 
         return {
             "provider": "native-modal",
             "harbor_version": version("harbor"),
             "adapter_sha256": hashlib.sha256(Path(harbor_modal.__file__).read_bytes()).hexdigest(),
             "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "recovery_sha256": hashlib.sha256(
+                Path(native_recovery.__file__).read_bytes()
+            ).hexdigest(),
         }
 
     def run(self, task: Path, role: str, key: str):
         output = self.directory / "trials" / key
+        validate_native_task(task)
         if (output / "trial.json").exists():
-            return RemoteTrials._read(output, task, role)
-        config = parse_task(task).config
-        if config.verifier.environment_mode.value != "separate":
-            raise ValueError("Native GPU trials require a separate private verifier")
-        for environment in (config.environment, config.verifier.environment):
+            previous = RemoteTrials._read(output, task, role)
             if (
-                environment is None
-                or environment.gpus not in {1, 2}
-                or environment.gpu_types != ["L4"]
+                role == "rollout"
+                and previous.exception_type == "BudgetExceeded"
+                and (output / "verifier-inputs.json").exists()
             ):
-                raise ValueError(
-                    "Both learner and verifier must explicitly request one or two L4 GPUs"
-                )
+                from repo2rlenv.quality.loop.native_recovery import resume_verifier
+
+                resumed = output / "verifier-resume"
+                # One continuation per trial. A lost provider response is never retried.
+                if not resumed.exists():
+                    asyncio.run(
+                        resume_verifier(
+                            task, output, resumed, self.budget, self.options, self.identity()
+                        )
+                    )
+                return RemoteTrials._read(resumed, task, role)
+            return previous
         asyncio.run(self._run(task, role, key, output))
         return RemoteTrials._read(output, task, role)
 
@@ -248,6 +273,14 @@ class NativeModalTrials:
                     self.budget.mark_uncertain(
                         operation, f"Native model usage needs reconciliation: {receipt}"
                     )
+            if (
+                model
+                and model_cost_after_verifier_denial(evidence.result, output / "allocations")
+                is not None
+            ):
+                from repo2rlenv.quality.loop.native_recovery import seal_verifier_inputs
+
+                seal_verifier_inputs(task, output, self.budget)
         except BaseException as exc:
             cancelled = isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt, SystemExit))
             record.update(state="interrupted", interrupted_at=now())

@@ -6,6 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("harbor")
+pytest.importorskip("modal")
+
 from repo2rlenv.campaigns.budget import BudgetExceeded, BudgetLedger
 from repo2rlenv.execution.harbor_modal import (
     MeteredModalEnvironment,
@@ -61,7 +64,9 @@ def test_completed_model_usage_survives_a_denied_verifier(tmp_path):
     allocations = tmp_path / "allocations"
     allocations.mkdir()
     claim = allocations / "verifier.json"
-    claim.write_text(json.dumps({"state": "reservation_failed", "provider_name": "trial__verifier__task"}))
+    claim.write_text(
+        json.dumps({"state": "reservation_failed", "provider_name": "trial__verifier__task"})
+    )
     (allocations / "learner.json").write_text(json.dumps({"state": "terminated"}))
     result = tmp_path / "result.json"
     data = {

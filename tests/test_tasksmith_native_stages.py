@@ -40,6 +40,7 @@ def test_profile_rejects_invalid_submission_boundaries_before_bootstrap(source, 
 
 
 def test_construct_runs_both_gpu_contrasts_and_reuses_only_identical_inputs(tmp_path, monkeypatch):
+    pytest.importorskip("harbor")
     from harbor.models.task.task import Task
 
     from repo2rlenv.tasksmith import native_stages

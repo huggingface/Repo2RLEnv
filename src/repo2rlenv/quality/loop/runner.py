@@ -38,6 +38,7 @@ from repo2rlenv.quality.loop.models import (
 from repo2rlenv.quality.loop.protocol import (
     distinct_probes,
     resolve_json_citations,
+    resolve_markdown_citations,
     resolve_verifier_paths,
 )
 
@@ -135,7 +136,11 @@ class QualityLoop:
             raise ValueError("Execution evidence belongs to another task revision")
         context = EvidenceContext(task, trials, limit=self.options.context_chars)
         if self.task_context is not None:
-            context.documents["evidence/task-context.json"] = json.dumps(self.task_context)
+            context.add_text(
+                "evidence/task-context.json",
+                json.dumps(self.task_context, indent=2),
+                maximum=min(32000, self.options.context_chars // 4),
+            )
         context.documents["evidence/checks.json"] = json.dumps(
             {
                 "control_failures": control_failures(trials, self.options.success_reward),
@@ -200,6 +205,8 @@ class QualityLoop:
                     f"{key}-{index}",
                 )
                 review, corrections = resolve_json_citations(review, context.documents)
+                review, markdown_corrections = resolve_markdown_citations(review, context.documents)
+                corrections.extend(markdown_corrections)
                 if corrections:
                     save_record(
                         self.directory / "protocol" / f"{key}-{index}-citations.json",

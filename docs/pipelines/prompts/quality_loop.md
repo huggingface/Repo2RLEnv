@@ -412,7 +412,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `45f777ebc55640a1961b78b94af4c12f304f5ec0377bbb54ce50e267fc3b8f64`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `21b981a654a461c14dae5c3c894c74e718ed50453ea6047d9aeffb6c9fd2da18`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -710,6 +710,31 @@ class EvidenceContext:
                 key + ": symbol excerpts only; request ranges/search for other code"
             )
 
+    def add_text(self, key: str, text: str, *, maximum: int):
+        """Register controller context with bounded excerpts and a readable full source."""
+        if key in self._paths or key in self._texts or key in self.documents:
+            raise ValueError("Evidence document already exists")
+        self._texts[key] = text
+        self.inventory.append(
+            {
+                "path": key,
+                "bytes": len(text.encode()),
+                "sha256": hashlib.sha256(text.encode()).hexdigest(),
+            }
+        )
+        available = max(0, min(maximum, self.limit - sum(map(len, self.documents.values()))))
+        marker = (
+            "\n[Excerpt ends; request a range or literal search in this document for omitted text.]"
+        )
+        if len(text) <= available:
+            self.documents[key] = text
+        else:
+            if available > len(marker):
+                self.documents[key] = text[: available - len(marker)] + marker
+            self.omitted.append(
+                key + ": controller context excerpt; full text available through reads"
+            )
+
     def read_more(self, requests: list[ReadRequest]):
         additions = {}
         for request in requests:
@@ -828,7 +853,7 @@ class EvidenceContext:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `458a62f79aa297f3bb62b1e05691fa1e23bd4af6b2283e00944f331d690c4cd6`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `86d2270d2ff4a3fef481fb4890f95c27112409960aa86cda8690fd84b8218762`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -876,6 +901,7 @@ from repo2rlenv.quality.loop.models import (
 from repo2rlenv.quality.loop.protocol import (
     distinct_probes,
     resolve_json_citations,
+    resolve_markdown_citations,
     resolve_verifier_paths,
 )
 
@@ -973,7 +999,11 @@ class QualityLoop:
             raise ValueError("Execution evidence belongs to another task revision")
         context = EvidenceContext(task, trials, limit=self.options.context_chars)
         if self.task_context is not None:
-            context.documents["evidence/task-context.json"] = json.dumps(self.task_context)
+            context.add_text(
+                "evidence/task-context.json",
+                json.dumps(self.task_context, indent=2),
+                maximum=min(32000, self.options.context_chars // 4),
+            )
         context.documents["evidence/checks.json"] = json.dumps(
             {
                 "control_failures": control_failures(trials, self.options.success_reward),
@@ -1038,6 +1068,8 @@ class QualityLoop:
                     f"{key}-{index}",
                 )
                 review, corrections = resolve_json_citations(review, context.documents)
+                review, markdown_corrections = resolve_markdown_citations(review, context.documents)
+                corrections.extend(markdown_corrections)
                 if corrections:
                     save_record(
                         self.directory / "protocol" / f"{key}-{index}-citations.json",
@@ -1288,6 +1320,8 @@ class QualityLoop:
                         if not any(item.role == role for item in trials):
                             self.event(role, f"Run fresh {role} control", state="started")
                             trials.append(self.remote.run(task, role, f"r{revision}-{role}"))
+                            if trials[-1].exception_type == "BudgetExceeded":
+                                raise BudgetExceeded("Control allocation denied")
                 before = len(trials)
                 review, context = self._review(
                     task,
@@ -1321,6 +1355,8 @@ class QualityLoop:
                         self.event("probe", f"Run {probe.kind}: {probe.name}", state="started")
                         result = self.remote.run(destination, "probe", key)
                         trials.append(result.model_copy(update={"probe": probe}))
+                        if result.exception_type == "BudgetExceeded":
+                            raise BudgetExceeded("Probe allocation denied")
                     if (
                         review.sound
                         and not probe_failures(trials, self.options.success_reward)
@@ -1330,6 +1366,8 @@ class QualityLoop:
                             "rollout", "Run a blind solver on this revision", state="started"
                         )
                         trials.append(self.remote.run(task, "rollout", f"r{revision}-rollout"))
+                        if trials[-1].exception_type == "BudgetExceeded":
+                            raise BudgetExceeded("Rollout allocation denied")
                 if len(trials) != before:
                     review, context = self._review(
                         task,

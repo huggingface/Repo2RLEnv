@@ -4,24 +4,30 @@ September 13, 2026 recovery checkpoint. The user authorized an additional $100,
 raising the total campaign cap to **$600**. Authorization preserves charged
 operations and unresolved reservations.
 
-**23 of 30 tasks have completed acceptance:** nine Accelerate, nine TRL, four PEFT,
-and one Transformers. This includes the original ten tasks and thirteen additions.
-The latest four additions cover TRL parsing and tokenization caching, chunked CUDA
-log-probabilities, and Accelerate FSDP2 embedding/norm sharding. Generation and
+**24 of 30 tasks have completed acceptance:** nine Accelerate, nine TRL, four PEFT,
+and two Transformers. This includes the original ten tasks and fourteen additions.
+The latest additions cover TRL parsing and tokenization caching, chunked CUDA
+log-probabilities, Accelerate FSDP2 embedding/norm sharding and MetaCLIP2. Generation and
 recovery remain incomplete. The machine-readable timestamp and budget are in
 [the checkpoint](evidence/tasksmith-scale30-recovery.json).
 
-Sonnet 4.6 solved **10 of the 23 accepted tasks** in their recorded blind rollouts:
-Accelerate 5/9, TRL 3/9, PEFT 2/4 and Transformers 0/1. The other thirteen were
+Sonnet 4.6 solved **10 of the 24 accepted tasks** in their recorded blind rollouts:
+Accelerate 5/9, TRL 3/9, PEFT 2/4 and Transformers 0/2. The other fourteen were
 reviewed as legitimate solver failures, with no infrastructure exception in their
 final results. This is one observed rollout per task, not a repeated estimate of
-solver success probability. See [the outcome records](evidence/tasksmith-sonnet-outcomes-23.json).
+solver success probability. See [the outcome records](evidence/tasksmith-sonnet-outcomes-24.json).
+The earlier [23-task snapshot](evidence/tasksmith-sonnet-outcomes-23.json) remains available.
 
-The 23-task archive contains **128 bound trial records** and preserves source and
-reference trees from first construction. Its integrity audit scanned 55,457 files
+The 24-task archive contains **133 bound trial records** and preserves source and
+reference trees from first construction. Its integrity audit scanned 77,581 files
 for the seven configured credential values and found no matches. Verifier-only
 continuations include original raw results, artifact hashes and portable provenance.
 The archive checksum and receipt are in the machine-readable checkpoint.
+
+This is an **assisted campaign**, not a measurement of unattended yield. Runtime,
+verifier and semantic-control interventions contributed to these results. The
+[autonomy audit](tasksmith_autonomy.md) separates reusable controller fixes from
+remaining task-specific work and describes the next unattended validation gate.
 
 The [full-list budget estimate](tasksmith_full_list_budget.md) covers the original
 114 PRs. It is a proposal for additional work, not an increase to the current cap.
@@ -108,8 +114,11 @@ before requesting a paid diagnosis or repair.
 For TRL #5349, a recorded campaign continuation copied the completed learner's
 collected artifacts byte for byte into a fresh private verifier. It retained the
 original interrupted result and trace, recorded the separate continuation, and
-performed no new solver call. This is an audited campaign recovery; automatic
-verifier resumption is not yet exposed through the general CLI.
+performed no new solver call. Those historical continuations remain explicit campaign
+recoveries. The general CLI now routes GPU tasks to native Modal and can automatically
+continue a denied private verifier from newly sealed evidence on `--resume`. This
+path has controller regression coverage; the old receipts are not retroactively
+relabeled as autonomous results.
 
 ## What the remote checks establish
 
@@ -137,19 +146,24 @@ and activation memory. Accelerate #4015 runs actual two-rank sharding. Each has 
 reviewed blind rollout. Raising thresholds to match a failing reference is not an
 acceptance method.
 
-The remaining work includes MetaCLIP controls/rollout, a prepared interpreter fix
-for the device-mesh verifier, Diffusers offline runtime repair, production-path
+MetaCLIP2 passed real CUDA forward/loss/gradient, pooling and local serialization
+checks, with wrong and valid controls. Its blind Sonnet failure was reviewed as
+legitimate. The native verification-start hook recorded the completed learner's
+$0.2774199 model usage before allocating its private verifier.
+
+The remaining work includes a prepared interpreter fix for the device-mesh verifier,
+Diffusers offline runtime repair, production-path
 coverage for TRL environment pooling, and unfinished model/compile/FP8 tasks.
 Prepared or partially passing candidates are not counted as accepted.
 
 ## Budget at the checkpoint
 
-2026-09-13T14:33:44.109548+00:00:
-**$579.01 accounted,
-$20.59 reserved, $0.40 unreserved.**
+2026-09-13T14:46:24.592010+00:00:
+**$580.44 accounted,
+$16.09 reserved, $3.47 unreserved.** No paid jobs are running.
 The accounted figure includes the previously recorded $22.43 external cost.
 Compute amounts are conservative estimates, not provider invoices. Reservations
-include unresolved historical operations and active native trials; they are not
+include unresolved historical operations; they are not
 all charges. Every new operation is checked against the campaign ledger and its
 recovery/run allowances.
 

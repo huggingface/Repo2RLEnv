@@ -288,6 +288,31 @@ class EvidenceContext:
                 key + ": symbol excerpts only; request ranges/search for other code"
             )
 
+    def add_text(self, key: str, text: str, *, maximum: int):
+        """Register controller context with bounded excerpts and a readable full source."""
+        if key in self._paths or key in self._texts or key in self.documents:
+            raise ValueError("Evidence document already exists")
+        self._texts[key] = text
+        self.inventory.append(
+            {
+                "path": key,
+                "bytes": len(text.encode()),
+                "sha256": hashlib.sha256(text.encode()).hexdigest(),
+            }
+        )
+        available = max(0, min(maximum, self.limit - sum(map(len, self.documents.values()))))
+        marker = (
+            "\n[Excerpt ends; request a range or literal search in this document for omitted text.]"
+        )
+        if len(text) <= available:
+            self.documents[key] = text
+        else:
+            if available > len(marker):
+                self.documents[key] = text[: available - len(marker)] + marker
+            self.omitted.append(
+                key + ": controller context excerpt; full text available through reads"
+            )
+
     def read_more(self, requests: list[ReadRequest]):
         additions = {}
         for request in requests:

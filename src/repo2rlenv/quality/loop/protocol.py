@@ -11,6 +11,57 @@ from repo2rlenv.quality.loop.artifacts import edit_path
 from repo2rlenv.quality.loop.models import Repair, Review, SemanticProbe
 
 
+def _inline_markdown_matches(document: str, quote: str) -> list[str]:
+    """Match literal words with only single-backtick formatting differences."""
+    if len(quote) < 32 or any(value in quote for value in ("\n", "\r", "\\", "``")):
+        return []
+    requested = quote.replace("`", "")
+    if len(requested.strip()) < 32:
+        return []
+    matches = []
+    fence = None
+    for line in document.splitlines():
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if marker:
+            run, rest = marker.groups()
+            if fence is None:
+                fence = (run[0], len(run))
+            elif run[0] == fence[0] and len(run) >= fence[1] and not rest.strip():
+                fence = None
+            continue
+        if fence or line.startswith(("    ", "\t")) or "``" in line or "\\`" in line:
+            continue
+        if not line.count("`") or line.count("`") % 2:
+            continue
+        offsets = [index for index, char in enumerate(line) if char != "`"]
+        plain = "".join(line[index] for index in offsets)
+        for match in re.finditer(re.escape(requested), plain):
+            matches.append(line[offsets[match.start()] : offsets[match.end() - 1] + 1])
+    return matches
+
+
+def resolve_markdown_citations(review: Review, documents: dict[str, str]) -> tuple[Review, list]:
+    """Restore inline-code delimiters in unique Markdown prose excerpts.
+
+    No word, case, punctuation or numeric changes are accepted. Fenced/indented
+    code, escaped backticks and ambiguous matches retain strict validation.
+    """
+    updated = review.model_copy(deep=True)
+    changes = []
+    for item in [updated.task, updated.verifier, updated.leakage, *updated.issues, *updated.probes]:
+        for citation in item.evidence:
+            document = documents.get(citation.path, "")
+            if not citation.path.endswith(".md") or " ".join(citation.quote.split()) in " ".join(
+                document.split()
+            ):
+                continue
+            matches = _inline_markdown_matches(document, citation.quote)
+            if len(matches) == 1 and len(matches[0]) <= 1000:
+                changes.append({"path": citation.path, "old": citation.quote, "new": matches[0]})
+                citation.quote = matches[0]
+    return updated, changes
+
+
 def _matching_json_keys(node, requested: str, expected: str):
     if isinstance(node, dict):
         for key, candidate in node.items():

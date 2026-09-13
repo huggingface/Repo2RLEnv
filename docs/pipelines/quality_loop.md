@@ -41,9 +41,13 @@ flowchart TD
 ```
 
 The diagram's execution steps require `--run-rollout` or `--repair`; a review-only
-run makes model calls but creates no worker. An active loop reuses one worker and
+run makes model calls but creates no worker. A CPU loop reuses one worker and
 its runtime and Docker build cache throughout the loop. Modal and Daytona use the
-same `RemoteWorker` contract. Target Docker builds, tests, probe scripts and solver
+same CPU `RemoteWorker` contract. GPU tasks automatically select native Modal from
+their Harbor resource declarations; both learner and separate verifier must request
+one or two L4 GPUs with networking disabled. Native GPU trials do not need a runtime
+wheel or Docker worker. Unsupported GPU/provider combinations fail before dispatch.
+Target Docker builds, tests, probe scripts and solver
 commands run remotely; the controller only reads, hashes and edits artifacts.
 
 ## Use it
@@ -92,7 +96,7 @@ repo2rlenv quality run ./tasks/example \
   --max-repairs 3 --max-spend-usd 15
 ```
 
-Switch to `--provider daytona` after installing `--extra daytona`. Alternatively,
+For CPU tasks, switch to `--provider daytona` after installing `--extra daytona`. Alternatively,
 pass `--worker-receipt` for an existing running worker in the same campaign. The
 component terminates workers it creates; callers retain ownership of supplied
 workers. A completed worker's compute reservation remains held until reconciled
@@ -106,6 +110,16 @@ revision. A changed task always needs fresh controls, probes and a fresh rollout
 `--resume` reuses completed, identical model requests and trial evidence. It refuses
 changed inputs, execution settings, prompts or evidence. Interrupted/uncertain
 provider effects require reconciliation; they are never automatically retried.
+For a native single-step solver that completed normally but whose private verifier
+was denied an allocation, the controller seals the collected submission and trace.
+On `--resume`, it may run **one verifier-only continuation**, preserving the original
+model usage, timing and raw result. It checks the task, file contents and modes,
+artifact manifest, result hash and allocation receipts before dispatch. It does not
+call the solver again. A completed continuation is reused; failed or uncertain
+continuations are retained, not repeatedly dispatched. Earlier unsealed receipts
+remain for explicit reconciliation. Resumption still requires identical run inputs,
+runtime identity and options, and an available campaign allowance; it cannot raise
+the budget or resume an old runtime with changed code.
 `repo2rlenv quality show OUTPUT_DIR` reads the report without model/cloud calls.
 Both commands support `--json`; ordinary runs show stage progress and criterion scores.
 Credentials come from the usual environment or `.env`; `--env-file PATH` can load
@@ -146,6 +160,10 @@ precede verbose baseline inventories and captured source. Probe scripts remain
 individually readable instead of inflating every result summary. The remaining
 30% is reserved for follow-up reads. Binary/large files remain recorded as
 uninspected text; this is not a claim that every byte of every repository was reviewed.
+Private PR context is also registered in the readable evidence inventory. Its initial
+excerpt uses at most 32,000 characters or one quarter of the document allowance,
+whichever is smaller. Large diffs remain available through bounded range/search
+requests instead of requiring a hand-truncated campaign prompt.
 
 ## What the prompts ask
 
@@ -162,6 +180,10 @@ The full prompts ship with the package and are reproduced in the
 Every citation must quote text actually supplied to the model. Scores range from
 0–4 and are descriptive; code derives the final disposition from evidence. A
 model's declaration of success cannot override a failed negative control or probe.
+The controller can restore single-backtick formatting in a unique Markdown prose
+excerpt without another model call. Words, case, punctuation and numbers must be
+identical; code blocks, escaped delimiters and ambiguous matches remain rejected.
+The corrected citation must pass normal grounding, and both forms are recorded.
 
 Semantic probes create private variants: first run the reference, then install a
 plausibly wrong submission or a valid alternative. Instruction, environment and
