@@ -49,11 +49,18 @@ class Design(Record):
     requirements: list[Requirement] = Field(min_length=1, max_length=10)
     strategy: Literal["pr_regression"] = "pr_regression"
     verifier_rationale: str = Field(min_length=20)
-    # An optional single private file supplements upstream tests. Its path is
-    # fixed by the controller and cannot overwrite an upstream source/test file.
+    upstream_test_policy: Literal["retain", "replace"] = "retain"
+    # The private file supplements or replaces the selected grading suite. Its
+    # fixed path cannot overwrite upstream files; bootstrap readiness is unchanged.
     additional_tests: str = Field(default="", max_length=24000)
     wrong_solution_ideas: list[str] = Field(min_length=1, max_length=4)
     valid_alternative_ideas: list[str] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def replacement_requires_tests(self):
+        if self.upstream_test_policy == "replace" and not self.additional_tests.strip():
+            raise ValueError("Replacing the upstream grading selection requires private tests")
+        return self
 
 
 class Panel(Record):

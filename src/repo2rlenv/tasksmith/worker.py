@@ -162,6 +162,8 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
     patch.write_text(source["source_diff"])
     run(["git", "apply", "--reverse", str(patch)], cwd=defective)
     options = profile.options.model_copy(deep=True)
+    if design.upstream_test_policy == "replace":
+        options.test_selectors = []
     additions = {}
     extra = "tests/tasksmith_behavior.py"
     if design.additional_tests.strip():
@@ -213,6 +215,7 @@ def construct(source: dict, profile: Profile, design: Design, ready: dict, outpu
             "workspace_strategy": source["workspace_strategy"],
             "source_diff_sha256": hashlib.sha256(source["source_diff"].encode()).hexdigest(),
             "acceptance_profile": "practical-generation-v1",
+            "upstream_test_policy": design.upstream_test_policy,
         },
         verifier_source={relative: path.read_bytes() for relative, path in additions.items()},
     )

@@ -37,7 +37,7 @@ A repository_bootstrap_hint, when supplied, records a previously executed setup 
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `c4ab8e0d68a385f586a16f84370c8fba1420c656a2f2438afe2e11549005d178`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `0719e9a89f6faa652fad56c2fdf2095a7186d9a0bebf665b2b2fcaae0058f295`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -55,7 +55,9 @@ Suggest plausible wrong implementations and genuinely distinct valid implementat
 
 Instruction audit before submission: remove internal variable names, exact failing expressions, instructions about where to put a guard/return/try block, and hints such as "you can use an early return". Describe the result that the user needs. Do not explain how the merged implementation achieves it. For small fixes, a short request with observable examples is better than a long implementation tutorial. Keep the instruction under 200 words unless the behavior genuinely requires more.
 
-If upstream regression tests require a live service, reproduce the real local behavior with a deterministic fixture in additional_tests. Do not copy network setup into the verifier. For new APIs, import them inside the test function so their absence is an ordinary test failure rather than a test-collection failure. The pipeline measures the new private tests alongside the ready offline tests.
+If upstream regression tests require a live service, reproduce the real local behavior with a deterministic fixture in additional_tests. Do not copy network setup into the verifier. For new APIs, import them inside the test function so their absence is an ordinary test failure rather than a test-collection failure. Also inspect the selected upstream test files: an eager import of the new API there can prevent collection on the source-reverted workspace.
+
+Normally keep upstream_test_policy="retain", which grades the selected upstream tests plus additional_tests. When those upstream files cannot grade both starting and merged code (for example, eager imports of an API that the task asks the learner to add), set upstream_test_policy="replace" and explain the concrete reason in verifier_rationale. In that mode only tests/tasksmith_behavior.py is selected for grading; the original upstream tests still establish merged-head bootstrap readiness and remain private. Port their relevant behavioral assertions faithfully, add boundary coverage where needed, and include at least one meaningful adjacent behavior that already passes on the starting code. Do not skip missing APIs, fabricate a passing implementation or weaken the requested behavior. Both test collections must have identical case identities, the real PR reference must pass, and the starting code must fail the new behavior while passing the adjacent case.
 
 On a construction retry, previous_design contains the prior complete design. Preserve working requirements and tests. Use the concrete collection or assertion failure to make the smallest correction, rather than designing the task again from scratch. Submit the corrected complete design.
 
@@ -68,7 +70,7 @@ Before submitting tests, check that every important assertion can execute. For a
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `f5b208fcd9234262d1f3f2343992f6495b7d7d71525a93a3ef8bea3df3978cc4`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `02e231f896bea8fb47f35616de7deb80974ebdc04ba8cd04afae9769675d4f04`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -127,11 +129,18 @@ class Design(Record):
     requirements: list[Requirement] = Field(min_length=1, max_length=10)
     strategy: Literal["pr_regression"] = "pr_regression"
     verifier_rationale: str = Field(min_length=20)
-    # An optional single private file supplements upstream tests. Its path is
-    # fixed by the controller and cannot overwrite an upstream source/test file.
+    upstream_test_policy: Literal["retain", "replace"] = "retain"
+    # The private file supplements or replaces the selected grading suite. Its
+    # fixed path cannot overwrite upstream files; bootstrap readiness is unchanged.
     additional_tests: str = Field(default="", max_length=24000)
     wrong_solution_ideas: list[str] = Field(min_length=1, max_length=4)
     valid_alternative_ideas: list[str] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def replacement_requires_tests(self):
+        if self.upstream_test_policy == "replace" and not self.additional_tests.strip():
+            raise ValueError("Replacing the upstream grading selection requires private tests")
+        return self
 
 
 class Panel(Record):

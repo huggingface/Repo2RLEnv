@@ -250,7 +250,8 @@ async def test_agent_cost_limit_includes_the_next_reservation(tmp_path, local_pr
 @pytest.mark.asyncio
 async def test_agent_cost_limit_counts_an_inflight_model_reservation(tmp_path, local_provider):
     local_provider.finish.clear()
-    async with make_bridge(tmp_path, max_cost=0.25) as bridge:
+    # With the fixture's prices, one request fits but two reservations do not.
+    async with make_bridge(tmp_path, max_cost=0.40) as bridge:
         first = asyncio.create_task(bridge._messages(model_request()))
         try:
             await asyncio.wait_for(local_provider.called.wait(), 2)
