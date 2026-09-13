@@ -135,7 +135,22 @@ attempt when structured output or evidence retrieval remains unresolved. This is
 explicit escalation, not a silent retry of a failed provider request.
 An invalid JSON/text patch gets at most one separately metered correction with the
 validation error and actual source excerpts. It consumes no execution revision
-until a complete patch applies. Unknown provider outcomes are never retried this way.
+until a complete patch applies. The correction receives the rejected parsed draft
+and explicit legal probe replacements. A task/verifier defect must be repaired
+through task edits; it cannot justify replacing a retained probe. If fetching
+additional repair source exceeds the context limit, the controller includes that
+failure in the correction feedback instead of discarding the correction call.
+Unknown provider outcomes are never retried this way.
+
+The initial evidence pack places selected private assertions before large reference
+patches and generic grading helpers. Reviews must assess those assertions, rather
+than inferring coverage from test names or pass counts. All omitted files remain
+addressable through exact inventory paths.
+
+Literal searches merge overlapping excerpts and keep complete matching windows
+within the remaining context budget. Omitted windows are identified explicitly.
+Already supplied evidence remains unchanged, and an oversized explicit line range
+is rejected atomically with guidance to narrow it.
 
 Current model examples include `openai/gpt-6-astra`, `openai/gpt-5.6-terra`,
 `openai/gpt-5.6-luna`, `anthropic/claude-sonnet-5` and `anthropic/claude-opus-5`.

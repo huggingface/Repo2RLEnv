@@ -14,9 +14,11 @@ from repo2rlenv.quality.loop.protocol import citation_path_error
 from repo2rlenv.quality.loop.rollout_evidence import rollout_documents
 
 
-def _search_excerpts(lines: list[str], query: str) -> str:
+def _search_excerpts(lines: list[str], query: str, *, maximum: int | None = None) -> str:
     """Bound both match count and characters, including minified JSON traces."""
     excerpts = []
+    ranges = []
+    matched_windows = 0
     for index, line in enumerate(lines):
         match = line.find(query)
         if match < 0:
@@ -24,21 +26,58 @@ def _search_excerpts(lines: list[str], query: str) -> str:
         start, end = max(0, index - 5), min(len(lines), index + 26)
         surrounding = "".join(lines[start:end])
         if len(surrounding) <= 3000:
-            excerpts.append(f"[Lines {start + 1}-{end}]\n" + surrounding)
+            previous = ranges[-1] if ranges else None
+            merged = "".join(lines[previous[0] : end]) if previous else ""
+            if previous and start <= previous[1] and len(merged) <= 3000:
+                start = previous[0]
+                ranges[-1] = (start, end)
+                excerpts[-1] = f"[Lines {start + 1}-{end}]\n" + merged
+            else:
+                excerpts.append(f"[Lines {start + 1}-{end}]\n" + surrounding)
+                ranges.append((start, end))
+            matched_windows += 1
         else:
             # One line can contain an entire trajectory. Retain literal bytes
             # around each hit and label omissions instead of expanding that line.
-            while match >= 0 and len(excerpts) < 8:
+            while match >= 0 and matched_windows < 8:
                 left = max(0, match - 1000)
                 right = min(len(line), left + 3000)
                 excerpts.append(
                     f"[Line {index + 1}, columns {left + 1}-{right}; "
                     "surrounding text omitted]\n" + line[left:right]
                 )
+                ranges.append(None)
+                matched_windows += 1
                 match = line.find(query, right)
-        if len(excerpts) >= 8:
+        if matched_windows >= 8:
             break
-    return "\n".join(excerpts) or "[No literal matches found]"
+    note = (
+        "\n[Search limited to the first 8 matching windows; use a narrower literal query "
+        "or line ranges to inspect further matches.]"
+        if matched_windows >= 8
+        else ""
+    )
+    result = ("\n".join(excerpts) or "[No literal matches found]") + note
+    if maximum is None or len(result) <= maximum:
+        return result
+    # Keep complete literal windows. Existing documents and accepted quotations
+    # are never shortened to make room; omissions in this new search are explicit.
+    for count in range(len(excerpts) - 1, 0, -1):
+        bounded = (
+            "\n".join(excerpts[:count])
+            + (
+                f"\n[Context budget: {len(excerpts) - count} additional search window(s) omitted. "
+                "Use a narrower literal query or explicit line ranges to inspect them.]"
+            )
+            + note
+        )
+        if len(bounded) <= maximum:
+            return bounded
+    raise ValueError(
+        f"Additional reads exceeded context budget: {maximum} characters remain, "
+        "insufficient for one complete search window. Request a narrower literal "
+        "query or a short explicit line range; existing evidence is unchanged."
+    )
 
 
 class EvidenceContext:
@@ -57,11 +96,13 @@ class EvidenceContext:
                 self.inventory.append(
                     {"path": key, "bytes": path.stat().st_size, "sha256": digest(path)}
                 )
-        priority = ["instruction.md", "task.toml", "environment/Dockerfile", "solution/solve.sh"]
-        priority += [
-            key
-            for key in self._paths
-            if key.startswith(("tests/", "solution/")) and key.count("/") == 1
+        priority = [
+            "instruction.md",
+            "task.toml",
+            "environment/Dockerfile",
+            "solution/solve.sh",
+            "tests/test.sh",
+            "tests/contract.json",
         ]
         for key in priority:
             if key in self._paths:
@@ -101,25 +142,36 @@ class EvidenceContext:
                         test_symbols[key] = nodes
             except (ValueError, AttributeError):
                 pass
-        # Selected private tests precede source copies. Generic method names such
-        # as test_empty must never select unrelated source functions/classes.
+        # Selected assertions precede reference patches and generic grading
+        # helpers, which can otherwise fill the entire task share. Every file
+        # remains in the inventory, even when its initial excerpt does not fit.
+        # Generic method names such as test_empty must never select unrelated
+        # source functions/classes.
+        helpers = {
+            key
+            for key in self._paths
+            if key.startswith(("tests/", "solution/")) and key.count("/") == 1
+        }
         ordered = sorted(
             self._paths.items(),
             key=lambda item: (
                 0
                 if item[0] in test_symbols
                 else 1
+                if item[0] in helpers
+                else 2
                 if item[0].startswith(("environment/", "solution/"))
-                else 2,
+                else 3,
                 item[0],
             ),
         )
         for key, path in ordered:
-            if (
-                key not in self.documents
-                and path.suffix == ".py"
-                and path.stat().st_size < 2_000_000
-            ):
+            if key in self.documents:
+                continue
+            if key in helpers:
+                self._include(key, path, maximum=12000, tail=key.endswith(".json"))
+                continue
+            if path.suffix == ".py" and path.stat().st_size < 2_000_000:
                 if key in whole_test_files and path.stat().st_size <= 24000:
                     # Small selected suites include their fixture helpers and
                     # final assertions, avoiding needless reads of omitted tests.
@@ -327,20 +379,36 @@ class EvidenceContext:
                     raise ValueError("Requested file exceeds bounded text reader")
                 text = path.read_text()
             lines = text.splitlines(keepends=True)
-            if request.query is not None:
-                if not request.query.strip() or len(request.query) > 200:
-                    raise ValueError("Search query must have 1-200 characters")
-                text = _search_excerpts(lines, request.query)
-            else:
-                text = "".join(lines[request.start_line - 1 : request.end_line])
-            if not text:
-                raise ValueError("Requested range is empty")
             suffix = (
                 f"search={request.query}"
                 if request.query is not None
                 else f"L{request.start_line}-L{request.end_line}"
             )
             key = f"{request.path}:{suffix}"
+            if key in self.documents or key in additions:
+                continue
+            remaining = (
+                self.limit
+                - sum(map(len, self.documents.values()))
+                - sum(map(len, additions.values()))
+            )
+            if request.query is not None:
+                if not request.query.strip() or len(request.query) > 200:
+                    raise ValueError("Search query must have 1-200 characters")
+                try:
+                    text = _search_excerpts(lines, request.query, maximum=remaining)
+                except ValueError as exc:
+                    raise ValueError(f"{request.path}: {exc}") from exc
+            else:
+                text = "".join(lines[request.start_line - 1 : request.end_line])
+            if not text:
+                raise ValueError("Requested range is empty")
+            if len(text) > remaining:
+                raise ValueError(
+                    f"Additional reads exceeded context budget: {key} requires {len(text)} "
+                    f"characters but {remaining} remain. Request a shorter line range or "
+                    "literal search; existing evidence is unchanged."
+                )
             additions[key] = text
         updated = {**self.documents, **additions}
         if sum(map(len, updated.values())) > self.limit:

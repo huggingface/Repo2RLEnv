@@ -277,6 +277,24 @@ class QualityLoop:
 
     def _repair(self, task, review, context, probes, revision, reasons):
         feedback = []
+        previous_repair = None
+        probe_diagnosis = any(issue.category == "probe" for issue in review.issues)
+        probe_policy = {
+            "allowed_replacements": [
+                {"name": probe.name, "kind": probe.kind, "focus": probe.focus}
+                for probe in probes
+                if probe.kind == "valid_alternative" and probe_diagnosis
+            ],
+            "immutable_wrong_solution_probes": [
+                probe.name for probe in probes if probe.kind == "wrong_solution"
+            ],
+            "rule": (
+                "Use probe_replacements=[] for task/verifier defects; repair the task with edits "
+                "while retaining probe scripts. Only a grounded probe diagnosis permits the "
+                "listed valid alternatives to change. Never change a verifier merely to reject "
+                "a no-op probe; an invalid wrong-solution probe remains unresolved in this run."
+            ),
+        }
         for attempt in range(2):
             repair = None
             invalid_citation = None
@@ -292,6 +310,11 @@ class QualityLoop:
                         repair_rounds_remaining=max(0, self.options.max_repairs - revision - 1),
                         failures=reasons,
                         retained_probes=[probe.model_dump() for probe in probes],
+                        probe_replacement_policy=probe_policy,
+                        previous_repair=(
+                            previous_repair.model_dump() if previous_repair is not None else None
+                        ),
+                        correction_calls_remaining=1 - attempt,
                         patch_feedback=feedback,
                         protected_paths=[str(path) for path in self.protected_paths],
                     ),
@@ -312,9 +335,11 @@ class QualityLoop:
                         raise ValueError(f"Repair changes immutable source or oracle: {edit.path}")
                 updated_probes = probes
                 if repair.probe_replacements:
-                    if not any(issue.category == "probe" for issue in review.issues):
+                    if not probe_diagnosis:
                         raise ValueError(
-                            "Alternative-probe replacement requires a grounded probe diagnosis"
+                            "Alternative-probe replacement requires a grounded probe diagnosis. "
+                            "Set probe_replacements=[] and repair the task/verifier through edits; "
+                            "retain the existing alternative's script unchanged."
                         )
                     replacements = {probe.name: probe for probe in repair.probe_replacements}
                     if len(replacements) != len(repair.probe_replacements):
@@ -363,6 +388,7 @@ class QualityLoop:
                 if attempt:
                     raise
                 feedback.append(str(exc))
+                previous_repair = repair
                 if invalid_citation is not None and (
                     invalid_citation.path in context._paths
                     or invalid_citation.path in context._texts
@@ -399,16 +425,23 @@ class QualityLoop:
                                 (line.strip() for line in edit.old.splitlines() if line.strip()),
                                 None,
                             )
-                            context.read_more(
-                                [
-                                    ReadRequest(
-                                        path=edit.path,
-                                        query=query[:200] if query else None,
-                                        start_line=1,
-                                        end_line=200 if query is None else 1,
-                                    )
-                                ]
-                            )
+                            try:
+                                context.read_more(
+                                    [
+                                        ReadRequest(
+                                            path=edit.path,
+                                            query=query[:200] if query else None,
+                                            start_line=1,
+                                            end_line=200 if query is None else 1,
+                                        )
+                                    ]
+                                )
+                            except ValueError as read_error:
+                                feedback.append(
+                                    f"Repair-source excerpt unavailable for {edit.path}: {read_error}. "
+                                    "Use only grounded source already supplied; do not invent the "
+                                    "missing text."
+                                )
                 self.event("repair", "Correct one invalid patch proposal using actual source text")
         raise RuntimeError("Unreachable repair state")
 

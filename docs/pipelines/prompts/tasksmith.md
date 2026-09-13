@@ -127,7 +127,7 @@ whose relevant behavior can be exercised using a real tiny local model.
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `04f6b534b54f4290a77b1522bc9e7c1865534c285da55da64b549e2e1bb768a5`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `4d69052dab0a23f813e9933e8618535edbc1bd973ab45d75378804d077ba5180`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -139,6 +139,7 @@ Source hash covers the original file; trailing whitespace is omitted below.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from pathlib import PurePosixPath
 from typing import Literal
@@ -233,6 +234,17 @@ class BootstrapHint(Record):
         return self
 
 
+class PreparedProfile(Record):
+    """An exact PR build recipe; prior execution results are never imported."""
+
+    url: str = Field(pattern=r"^https://github.com/[\w.-]+/[\w.-]+/pull/[1-9][0-9]*$")
+    head: str = Field(pattern=r"^[0-9a-f]{40}$")
+    base: str = Field(pattern=r"^[0-9a-f]{40}$")
+    source_diff_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    workspace_strategy: Literal["head_minus_source_patch"] = "head_minus_source_patch"
+    profile: Profile
+
+
 class Options(Record):
     provider: Literal["modal", "daytona"] = "modal"
     gpus: int = Field(default=0, ge=0, le=2)
@@ -247,6 +259,7 @@ class Options(Record):
     worker_timeout_sec: int = Field(default=14400, ge=300, le=14400)
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
+    prepared_profiles: dict[str, PreparedProfile] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
@@ -262,6 +275,8 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_profiles):
+            raise ValueError("Prepared profiles must be keyed by the exact PR source ID")
         if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
             raise ValueError("Required probe focus entries must be unique")
         self.required_probe_focus = sorted(self.required_probe_focus)
@@ -285,7 +300,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `153b894baa2ac423ae1f6dbf3fbd09139670bed2de909553b1d12a2ae558f3e8`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `f7172e4abc687a7f8be1500f02ef9cd04ae9d605217737beb98a20dd7275bb9b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -688,6 +703,23 @@ class Tasksmith:
             "label_export": json.loads(publication.read_text()) if publication.is_file() else None,
         }
 
+    def _prepared_profile(self, source: dict) -> Profile | None:
+        prepared = self.options.prepared_profiles.get(source["id"])
+        if prepared is None:
+            return None
+        validate_source_records([source], [source["url"]])
+        binding = {
+            **{key: source[key] for key in ("url", "head", "base", "workspace_strategy")},
+            "source_diff_sha256": hashlib.sha256(source["source_diff"].encode()).hexdigest(),
+        }
+        if any(getattr(prepared, key) != value for key, value in binding.items()):
+            raise ValueError("Prepared profile differs from the frozen PR source")
+        profile = Profile.model_validate(prepared.profile.model_dump())
+        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
+            raise ValueError("Prepared profile resource differs from the campaign GPU requirement")
+        _validate_profile_source_coverage(profile, source["source_files"])
+        return profile
+
     def candidate(self, source: dict):
         from langgraph.checkpoint.sqlite import SqliteSaver
         from langgraph.graph import END, START, StateGraph
@@ -720,6 +752,7 @@ class Tasksmith:
             }
             save_record(result_path, report)
             return report
+        prepared_profile = self._prepared_profile(source)
         self.event("intake", source["url"])
         inspected = self.remote(root, "inspect", {"stage": "inspect", "source": source})
         if inspected["status"] != "completed":
@@ -760,24 +793,29 @@ class Tasksmith:
                     )
                 _validate_profile_source_coverage(profile, source["source_files"])
 
-            profile = self.author(
-                root,
-                f"investigate-{attempt}",
-                Profile,
-                {
-                    "source": source_context,
-                    "snapshot_links": snapshot_links,
-                    "previous_profile": state.get("profile"),
-                    "previous_failure": state.get("failure"),
-                    "repository_bootstrap_hint": hint.model_dump() if hint else None,
-                    "requested_resources": {
-                        "gpus": self.options.gpus,
-                        "gpu_type": "L4" if self.options.gpus else None,
+            if attempt == 0 and prepared_profile is not None:
+                asyncio.run(validate(prepared_profile))
+                profile = prepared_profile
+                self.event("reuse", f"Use prepared profile for {source['id']}; bootstrap required")
+            else:
+                profile = self.author(
+                    root,
+                    f"investigate-{attempt}",
+                    Profile,
+                    {
+                        "source": source_context,
+                        "snapshot_links": snapshot_links,
+                        "previous_profile": state.get("profile"),
+                        "previous_failure": state.get("failure"),
+                        "repository_bootstrap_hint": hint.model_dump() if hint else None,
+                        "requested_resources": {
+                            "gpus": self.options.gpus,
+                            "gpu_type": "L4" if self.options.gpus else None,
+                        },
                     },
-                },
-                checkout,
-                validate=validate,
-            )
+                    checkout,
+                    validate=validate,
+                )
             return {
                 "profile": profile.model_dump(),
                 "profile_attempt": attempt + 1,
@@ -1012,6 +1050,16 @@ class Tasksmith:
         else:
             sources = previous_sources or source_records or [resolve_pr(url) for url in panel.prs]
             save_record(manifest, {"configuration": configuration, "sources": sources})
+        if self.options.prepared_profiles:
+            selected = {source["id"] for source in sources[:limit]}
+            if self.options.prepared_profiles.keys() - selected:
+                raise ValueError("Prepared profiles include a PR outside the selected sources")
+            if self.options.prepared_profiles.keys() & self.imported.keys():
+                raise ValueError("Choose a prepared profile or generated task for each PR")
+            # Validate every seed before even the shared dependency preseed can
+            # allocate a worker. The checkout inspection still precedes its build.
+            for source in sources[:limit]:
+                self._prepared_profile(source)
         reports = []
         try:
             pending = [
@@ -1020,7 +1068,10 @@ class Tasksmith:
                 if not (self.directory / "candidates" / source["id"] / "result.json").is_file()
                 and source["id"] not in self.imported
             ]
-            for repo in dict.fromkeys(source["repo"] for source in pending):
+            unprepared = [
+                source for source in pending if source["id"] not in self.options.prepared_profiles
+            ]
+            for repo in dict.fromkeys(source["repo"] for source in unprepared):
                 hint = self.options.bootstrap_hints.get(repo)
                 if hint is not None and not self.options.gpus:
                     key = hashlib.sha256(repo.encode()).hexdigest()[:12]

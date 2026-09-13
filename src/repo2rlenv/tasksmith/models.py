@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from pathlib import PurePosixPath
 from typing import Literal
@@ -96,6 +97,17 @@ class BootstrapHint(Record):
         return self
 
 
+class PreparedProfile(Record):
+    """An exact PR build recipe; prior execution results are never imported."""
+
+    url: str = Field(pattern=r"^https://github.com/[\w.-]+/[\w.-]+/pull/[1-9][0-9]*$")
+    head: str = Field(pattern=r"^[0-9a-f]{40}$")
+    base: str = Field(pattern=r"^[0-9a-f]{40}$")
+    source_diff_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    workspace_strategy: Literal["head_minus_source_patch"] = "head_minus_source_patch"
+    profile: Profile
+
+
 class Options(Record):
     provider: Literal["modal", "daytona"] = "modal"
     gpus: int = Field(default=0, ge=0, le=2)
@@ -110,6 +122,7 @@ class Options(Record):
     worker_timeout_sec: int = Field(default=14400, ge=300, le=14400)
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
+    prepared_profiles: dict[str, PreparedProfile] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
@@ -125,6 +138,8 @@ class Options(Record):
 
     @model_validator(mode="after")
     def limits(self):
+        if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_profiles):
+            raise ValueError("Prepared profiles must be keyed by the exact PR source ID")
         if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
             raise ValueError("Required probe focus entries must be unique")
         self.required_probe_focus = sorted(self.required_probe_focus)

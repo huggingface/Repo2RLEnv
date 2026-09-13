@@ -21,6 +21,11 @@ are descriptive. Evidence, not the average score, determines the disposition.
 Easy tasks and optional polish are not blockers. Do not demand every task be solved.
 Separate infrastructure/timeouts from mistakes and task defects. A correct reference
 passing and an initial state failing do NOT prove adequate test coverage.
+Trace each central requirement to actual grading assertions, including promised
+minimality, thresholds and per-input variation. Test names and pass counts alone
+do not establish that coverage. Read missing private test bodies using their exact
+inventory/document paths; a rejected read is not permission to assume their contents.
+If those assertions remain unavailable, leave verifier adequacy unresolved.
 
 Cite exact nonempty excerpts using keys in documents. Do not fabricate citations.
 Prefer a short contiguous line or phrase copied from the supplied document. Never

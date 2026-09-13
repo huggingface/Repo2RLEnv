@@ -393,6 +393,23 @@ class Tasksmith:
             "label_export": json.loads(publication.read_text()) if publication.is_file() else None,
         }
 
+    def _prepared_profile(self, source: dict) -> Profile | None:
+        prepared = self.options.prepared_profiles.get(source["id"])
+        if prepared is None:
+            return None
+        validate_source_records([source], [source["url"]])
+        binding = {
+            **{key: source[key] for key in ("url", "head", "base", "workspace_strategy")},
+            "source_diff_sha256": hashlib.sha256(source["source_diff"].encode()).hexdigest(),
+        }
+        if any(getattr(prepared, key) != value for key, value in binding.items()):
+            raise ValueError("Prepared profile differs from the frozen PR source")
+        profile = Profile.model_validate(prepared.profile.model_dump())
+        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
+            raise ValueError("Prepared profile resource differs from the campaign GPU requirement")
+        _validate_profile_source_coverage(profile, source["source_files"])
+        return profile
+
     def candidate(self, source: dict):
         from langgraph.checkpoint.sqlite import SqliteSaver
         from langgraph.graph import END, START, StateGraph
@@ -425,6 +442,7 @@ class Tasksmith:
             }
             save_record(result_path, report)
             return report
+        prepared_profile = self._prepared_profile(source)
         self.event("intake", source["url"])
         inspected = self.remote(root, "inspect", {"stage": "inspect", "source": source})
         if inspected["status"] != "completed":
@@ -465,24 +483,29 @@ class Tasksmith:
                     )
                 _validate_profile_source_coverage(profile, source["source_files"])
 
-            profile = self.author(
-                root,
-                f"investigate-{attempt}",
-                Profile,
-                {
-                    "source": source_context,
-                    "snapshot_links": snapshot_links,
-                    "previous_profile": state.get("profile"),
-                    "previous_failure": state.get("failure"),
-                    "repository_bootstrap_hint": hint.model_dump() if hint else None,
-                    "requested_resources": {
-                        "gpus": self.options.gpus,
-                        "gpu_type": "L4" if self.options.gpus else None,
+            if attempt == 0 and prepared_profile is not None:
+                asyncio.run(validate(prepared_profile))
+                profile = prepared_profile
+                self.event("reuse", f"Use prepared profile for {source['id']}; bootstrap required")
+            else:
+                profile = self.author(
+                    root,
+                    f"investigate-{attempt}",
+                    Profile,
+                    {
+                        "source": source_context,
+                        "snapshot_links": snapshot_links,
+                        "previous_profile": state.get("profile"),
+                        "previous_failure": state.get("failure"),
+                        "repository_bootstrap_hint": hint.model_dump() if hint else None,
+                        "requested_resources": {
+                            "gpus": self.options.gpus,
+                            "gpu_type": "L4" if self.options.gpus else None,
+                        },
                     },
-                },
-                checkout,
-                validate=validate,
-            )
+                    checkout,
+                    validate=validate,
+                )
             return {
                 "profile": profile.model_dump(),
                 "profile_attempt": attempt + 1,
@@ -717,6 +740,16 @@ class Tasksmith:
         else:
             sources = previous_sources or source_records or [resolve_pr(url) for url in panel.prs]
             save_record(manifest, {"configuration": configuration, "sources": sources})
+        if self.options.prepared_profiles:
+            selected = {source["id"] for source in sources[:limit]}
+            if self.options.prepared_profiles.keys() - selected:
+                raise ValueError("Prepared profiles include a PR outside the selected sources")
+            if self.options.prepared_profiles.keys() & self.imported.keys():
+                raise ValueError("Choose a prepared profile or generated task for each PR")
+            # Validate every seed before even the shared dependency preseed can
+            # allocate a worker. The checkout inspection still precedes its build.
+            for source in sources[:limit]:
+                self._prepared_profile(source)
         reports = []
         try:
             pending = [
@@ -725,7 +758,10 @@ class Tasksmith:
                 if not (self.directory / "candidates" / source["id"] / "result.json").is_file()
                 and source["id"] not in self.imported
             ]
-            for repo in dict.fromkeys(source["repo"] for source in pending):
+            unprepared = [
+                source for source in pending if source["id"] not in self.options.prepared_profiles
+            ]
+            for repo in dict.fromkeys(source["repo"] for source in unprepared):
                 hint = self.options.bootstrap_hints.get(repo)
                 if hint is not None and not self.options.gpus:
                     key = hashlib.sha256(repo.encode()).hexdigest()[:12]
