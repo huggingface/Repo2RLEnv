@@ -3,9 +3,7 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. The active v3 continuation runs four independent PR controllers,
-with at most two GPU controllers, and starts from **26 accepted tasks**. The first
-eight candidates use small CPU workloads; later candidates include real GPU
-execution. A task counts only after the shared quality profile verifies its exact
+with at most two GPU controllers, and starts from **26 accepted tasks**. The panel includes small CPU workloads and real GPU execution. A task counts only after the shared quality profile verifies its exact
 revision. Solver failure can be legitimate and does not by itself reject a task.
 
 ## Retain every generated environment
@@ -147,8 +145,9 @@ with $4 for larger workers. Model reservations are based on observed costs;
 reported overruns remain visible and reduce later headroom.
 
 The coding runtime is Pi with Sonnet; review, repair and blind rollouts also use
-Sonnet. Repairs remain capped at three. The three prepared-task recoveries are
-Accelerate mesh ownership, TRL environment pooling and Diffusers LoRA loading.
+Sonnet, with one bounded Opus escalation for unresolved review. Repairs remain
+capped at three. Prepared-task recoveries cover Accelerate mesh ownership,
+TRL environment pooling, Diffusers LoRA loading and PEFT cache lifecycle.
 Each receives fresh quality checks. New tasks may need more work than the batch
 can fund; fifty successes within $200 is a target, not a measured guarantee.
 
