@@ -12,6 +12,7 @@ from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.quality.loop.models import LoopOptions, LoopResult
 from repo2rlenv.spec.input import LLMSpec
 from repo2rlenv.ui import console
+from repo2rlenv.ui.errors import report_error
 
 
 def model_spec(value: str) -> LLMSpec:
@@ -131,11 +132,7 @@ def cmd_quality(args) -> int:
             display(result)
         return 0 if result.status in {"usable", "reviewed"} else 1
     except (ValueError, OSError, RuntimeError) as exc:
-        if args.json:
-            console.json({"error": type(exc).__name__, "message": str(exc)})
-        else:
-            console.print(Text(f"{type(exc).__name__}: {exc}"))
-        return 2
+        return report_error(exc, json_output=args.json, verbose=getattr(args, "verbose", False))
 
 
 def add_quality_parser(subparsers):

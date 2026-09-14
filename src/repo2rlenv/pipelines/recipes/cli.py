@@ -11,6 +11,7 @@ from rich.text import Text
 
 from repo2rlenv.pipelines.recipes.catalog import IMPLEMENTATIONS, describe, get_recipe, recipes
 from repo2rlenv.ui import console
+from repo2rlenv.ui.errors import report_error
 
 
 def cmd_pipelines(args: argparse.Namespace) -> int:
@@ -22,11 +23,7 @@ def cmd_pipelines(args: argparse.Namespace) -> int:
             if recipe.pipeline != args.pipeline:
                 raise ValueError(f"Recipe {recipe.id} belongs to pipeline {recipe.pipeline}")
         except ValueError as exc:
-            if args.json:
-                console.json({"error": str(exc)})
-            else:
-                console.error(str(exc))
-            return 2
+            return report_error(exc, json_output=args.json, verbose=getattr(args, "verbose", False))
         data = describe(recipe)
         if args.json:
             console.json(data)
@@ -89,8 +86,7 @@ def run_recipe(input, *, plain: bool, json_output: bool) -> int:
     if recipe.pipeline != input.pipeline.name or input.source.kind not in recipe.source_kinds:
         raise ValueError("Recipe family or source kind does not match the input")
     if recipe.id not in IMPLEMENTATIONS:
-        console.error(f"{recipe.id} is planned and has no executable implementation yet")
-        return 2
+        raise ValueError(f"{recipe.id} is planned and has no executable implementation yet")
     module, name = IMPLEMENTATIONS[recipe.id].split(":")
     options = parse_options(recipe.pipeline, input.pipeline.options, recipe=recipe.id)
     pipeline = getattr(importlib.import_module(module), name)(input, options)

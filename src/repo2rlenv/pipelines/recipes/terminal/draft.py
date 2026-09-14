@@ -152,7 +152,7 @@ def emit_draft(
             files=assets,
             metadata={
                 "recipe": recipe.id,
-                "recipe_version": "1",
+                "recipe_version": recipe.recipe_version,
                 "pipeline": recipe.pipeline,
                 "upstream_revision": recipe.upstream["commit"],
                 "reward_kinds": ["test_execution"],

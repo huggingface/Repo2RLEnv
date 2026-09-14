@@ -1,7 +1,9 @@
 # SCALER released-family expansion
 
 Source: [ALEX-nlp/SCALER](https://github.com/ALEX-nlp/SCALER), Apache-2.0,
-commit `60c6c5037866c718f4c001ea338f9c5a91cb01ae`. The license is retained.
+commit `60c6c5037866c718f4c001ea338f9c5a91cb01ae`. The license and the upstream
+`Notice.txt` (as `UPSTREAM_NOTICE`) are retained in the package and exported
+verifier bundles, including its ByteDance attribution.
 `compatibility.py` retains the import wrapper and Python newline repair from
 `SCALER/exec_and_verify.py`. The supplied generator and reference programs are
 input data, never a runtime dependency on the SCALER repository.

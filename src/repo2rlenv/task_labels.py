@@ -10,6 +10,7 @@ from rich.text import Text
 from repo2rlenv.emitter.evaluation import EvaluationLabel, evaluation_time
 from repo2rlenv.quality.labels import label_from_quality, read_evaluation, write_labeled_copy
 from repo2rlenv.ui import console
+from repo2rlenv.ui.errors import report_error
 
 
 def command(args) -> int:
@@ -69,8 +70,7 @@ def command(args) -> int:
             )
         return 0
     except (OSError, ValueError) as exc:
-        console.error(str(exc))
-        return 2
+        return report_error(exc, json_output=args.json, verbose=getattr(args, "verbose", False))
 
 
 def add_tasks_parser(subparsers):

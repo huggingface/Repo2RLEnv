@@ -1,7 +1,8 @@
 # `terminal_synth / dataarc`
 
-DataArc augments complete Harbor tasks using its released terminal synthesis
-workflow: few-shot, self-instruct, in-depth evolution and in-breadth evolution.
+This DataArc-inspired recipe augments complete Harbor tasks with few-shot,
+self-instruct, in-depth evolution and in-breadth evolution. Recipe version 2
+keeps those stages and input options, using Repo2RLEnv-authored prompt wording.
 
 The September expansion completed **100 Harbor tasks** (20 retained, 80 new),
 published as [HuggingEnvs/repo2rlenv-dataarc](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc).
@@ -10,6 +11,9 @@ The expansion accounted for **$26.57**, approximately **$0.33 per new export**,
 including unsuccessful model attempts and estimated worker/build costs. The
 [published manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc/resolve/main/manifest.json) separates those
 controls from independent quality acceptance, which remains unestablished.
+These results describe version 1. Version 2 has contract tests, but has not yet
+been evaluated in a paid generation campaign; the figures above are not a
+measurement of the replacement prompts.
 
 ## Pipeline, step by step
 
@@ -88,7 +92,10 @@ and reference success are generation checks; detailed quality validation follows
 the full generation campaign. See the [remote execution and CLI guide](owned_recipes.md).
 
 Credit: [DataArc-SynData-Toolkit](https://github.com/DataArcTech/DataArc-SynData-Toolkit),
-terminal branch `2a1d65ec8dcfaea2458d67e1fb18078cce6420b9`. The repository publishes
-an Apache-2.0 license on main; the pinned terminal branch omits that file. The
-packaged provenance records both revisions. See [RFC 0022](../rfcs/0022-dataarc-terminal-recipe.md)
-for the contract and `recipes/dataarc/provenance.md` for exact adaptations.
+terminal branch `2a1d65ec8dcfaea2458d67e1fb18078cce6420b9`. That revision has no
+recorded license grant. Version 2 replaces the previously retained prompts and
+removes the license from a different branch. The method remains credited;
+existing version 1 artifacts retain their historical provenance. See
+[RFC 0022](../rfcs/0022-dataarc-terminal-recipe.md) and
+[`provenance.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/dataarc/provenance.md)
+for the source and licensing boundary.

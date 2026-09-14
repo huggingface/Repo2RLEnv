@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tomllib
+from importlib.resources import files
 
 import pytest
 
@@ -77,6 +78,10 @@ def test_reasoning_export_keeps_reference_private_and_negative_reward(tmp_path):
     assert config["metadata"]["repo2env"]["reward_min"] == -1
     assert config["verifier"]["environment_mode"] == "separate"
     assert json.loads((task / "tests/reference.json").read_text()) == candidate["reference_answer"]
+    assert (task / "tests/UPSTREAM_NOTICE").read_bytes() == files(
+        "repo2rlenv.pipelines.recipes.scaler"
+    ).joinpath("UPSTREAM_NOTICE").read_bytes()
+    assert "Bytedance" in (task / "tests/UPSTREAM_NOTICE").read_text()
     assert not any(
         candidate["reference_answer"] in p.read_text()
         for p in (task / "environment").rglob("*")

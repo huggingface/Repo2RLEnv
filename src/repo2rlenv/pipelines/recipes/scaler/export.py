@@ -20,7 +20,7 @@ def export_task(candidate, destination, org, *, resume=False):
                 "FROM python:3.12-slim\nRUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\nWORKDIR /workspace\nRUN useradd -m -u 1000 learner && touch answer.txt && chown -R learner:learner /workspace\n"
             ),
             "tests/Dockerfile": TaskFile.text(
-                "FROM python:3.12-slim\nRUN python -m pip install --no-cache-dir math-verify==0.8.0\nWORKDIR /workspace\nRUN touch answer.txt\nCOPY grade.py reference.json answer-contract.json test.sh /tests/\nRUN chmod 755 /tests/test.sh\n"
+                "FROM python:3.12-slim\nRUN python -m pip install --no-cache-dir math-verify==0.8.0\nWORKDIR /workspace\nRUN touch answer.txt\nCOPY grade.py reference.json answer-contract.json test.sh UPSTREAM_LICENSE UPSTREAM_NOTICE /tests/\nRUN chmod 755 /tests/test.sh\n"
             ),
             "tests/test.sh": TaskFile.text(
                 "#!/bin/sh\nset -eu\nexec /usr/local/bin/python -I /tests/grade.py\n",
@@ -33,6 +33,9 @@ def export_task(candidate, destination, org, *, resume=False):
             ),
             "tests/UPSTREAM_LICENSE": TaskFile(
                 files(__package__).joinpath("UPSTREAM_LICENSE").read_bytes()
+            ),
+            "tests/UPSTREAM_NOTICE": TaskFile(
+                files(__package__).joinpath("UPSTREAM_NOTICE").read_bytes()
             ),
             "solution/solve.sh": TaskFile.text(
                 "#!/bin/sh\nset -eu\ncp /solution/answer.txt /workspace/answer.txt\n",

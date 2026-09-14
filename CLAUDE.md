@@ -123,12 +123,15 @@ Walkthrough for adding one:
 
 ```
 src/repo2rlenv/
-├── cli.py                      # argparse; subcommands: generate validate push pull bootstrap
+├── cli.py                      # argparse registration/dispatch; shared CLI error boundary
 ├── spec/
 │   ├── input.py                # GenerationInput, RepoSpec, PipelineName, LLMSpec, OutputSpec
 │   └── options.py              # per-pipeline options models (PRDiffOptions, …)
 │                               # NB: the OUTPUT model is emitter/harbor.py:HarborTask
 ├── pipelines/                  # `_`-prefixed files are SHARED MACHINERY, not pipelines
+│   ├── recipes/                # owned methods; canonical prompts and provenance per recipe
+│   │   ├── catalog.py          # discovery metadata and lazy implementation registry
+│   │   └── repository/ · terminal/ · history/  # shared recipe infrastructure
 │   ├── base.py                 # Pipeline Protocol + PipelineResult
 │   ├── pr_diff.py · pr_runtime.py · commit_runtime.py
 │   ├── code_instruct.py · equivalence_tests.py · cve_patches.py
@@ -147,6 +150,10 @@ src/repo2rlenv/
 │   ├── language.py             # auto-detect Python/JS/Go/Rust/...
 │   ├── cache.py                # content-addressed cache, keyed on bootstrap opts
 │   └── spec.py                 # BootstrapSpec / BootstrapResult
+├── tasksmith/                  # PR exploration, staged authoring and runtime adapters
+├── quality/                    # evidence review, probes, bounded repair and labels
+├── campaigns/                  # shared budgets, receipts, scheduling and releases
+├── execution/                  # provider workers, remote jobs and Harbor trials
 ├── registry/                   # bootstrap-image distribution
 │   ├── push.py · auth.py · naming.py · probe.py · visibility.py · integration.py
 │   └── ecr.py · gar.py         # AWS ECR + Google AR, beyond GHCR / Docker Hub
@@ -154,8 +161,9 @@ src/repo2rlenv/
 │   └── pytest_parser.py · go_parser.py · cargo_parser.py · jest_parser.py
 ├── ui/                         # Rich UI — every CLI surface goes through here
 │   ├── console.py              # singleton R2EConsole + install_logging()
+│   ├── errors.py               # JSON error records; diagnostics on stderr
 │   ├── theme.py · primitives.py · live.py
-│   └── views/{bootstrap,generation}.py
+│   └── views/{bootstrap,generation,recipe}.py
 ├── emitter/harbor.py           # Task → Harbor task.toml directory writer
 ├── sources.py · provider.py    # source kinds + Capability gating; provider dispatch
 ├── github.py · gitlab.py · git_local.py · osv.py    # the four input backends

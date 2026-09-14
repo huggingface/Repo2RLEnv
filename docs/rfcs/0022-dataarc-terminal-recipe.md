@@ -65,20 +65,26 @@ A wrapper around upstream commands would preserve an uncontrolled runtime depend
 
 - Upstream: [DataArc terminal synthesis (Envs-FORGE-linked code)](https://github.com/DataArcTech/DataArc-SynData-Toolkit)
 - Source commit: `2a1d65ec8dcfaea2458d67e1fb18078cce6420b9`
-- Recorded upstream license: Apache-2.0; verify the exact files before adapting them.
+- Referenced terminal revision: no recorded license grant. Version 2 retains method credit only and uses Repo2RLEnv-authored prompts and implementation under Apache-2.0.
 - [sdgsystem/agentic_data/terminal_bench.py](https://github.com/DataArcTech/DataArc-SynData-Toolkit/blob/2a1d65ec8dcfaea2458d67e1fb18078cce6420b9/sdgsystem/agentic_data/terminal_bench.py)
 - [examples/syn_agentic_data/run_terminal_bench.py](https://github.com/DataArcTech/DataArc-SynData-Toolkit/blob/2a1d65ec8dcfaea2458d67e1fb18078cce6420b9/examples/syn_agentic_data/run_terminal_bench.py)
 - [configs/syn_agentic_terminal_bench.yaml](https://github.com/DataArcTech/DataArc-SynData-Toolkit/blob/2a1d65ec8dcfaea2458d67e1fb18078cce6420b9/configs/syn_agentic_terminal_bench.yaml)
 
 ## Implementation
 
-Owned implementation: `pipelines/recipes/dataarc/`. The retained prompt and four
-strategy texts feed direct artifact generation over complete Harbor seeds. Typed
+Owned implementation: `pipelines/recipes/dataarc/`. Version 2's authored prompt and
+four strategy instructions feed direct artifact generation over complete Harbor seeds. Typed
 materialization, full environment context, remote baseline/reference checks and
 bounded repairs are explicit adaptations. Tests cover strategy enumeration,
 context filtering, source identity and missing-reference rejection. See the
 [guide](../pipelines/dataarc.md) and `examples/owned-dataarc.yaml`. Quality
 acceptance remains deferred until the generation milestone across all recipes.
+
+Version 1 retained prompt text from the terminal branch and a license from main,
+which does not contain that implementation. Version 2 removes both retained
+artifacts. New exports record the recipe revision; runtime-wheel identity prevents
+resuming an old run with changed prompt resources. Published version 1 tasks are
+historical results, not evidence of version 2 generation quality or licensing.
 
 ## Current release evidence
 

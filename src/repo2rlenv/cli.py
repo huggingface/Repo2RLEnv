@@ -65,10 +65,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
     if args.repo:
         overrides["repo"] = {"url": args.repo, "ref": args.ref, "access": args.access}
     if args.pipeline:
-        overrides["pipeline"] = {
-            "name": args.pipeline,
-            "options": _parse_pipeline_opts(args.pipeline_opt),
-        }
+        overrides["pipeline"] = {"name": args.pipeline}
+    if args.pipeline_opt:
+        overrides.setdefault("pipeline", {})["options"] = _parse_pipeline_opts(args.pipeline_opt)
     if getattr(args, "recipe", None):
         overrides.setdefault("pipeline", {})["recipe"] = args.recipe
     if getattr(args, "resume", False):
@@ -97,9 +96,26 @@ def cmd_generate(args: argparse.Namespace) -> int:
     gen_input = load_generation_input(config_path, overrides)
 
     if gen_input.pipeline.recipe != "native":
+        if args.max_spend_usd is not None:
+            raise ValueError(
+                "--max-spend-usd is only supported by native generation. Owned recipes use "
+                "the campaign ledger: initialize it with 'campaign init PATH --budget-usd N' "
+                "and select that directory in execution.campaign_dir. No work was dispatched."
+            )
         from repo2rlenv.pipelines.recipes.cli import run_recipe
 
         return run_recipe(gen_input, plain=args.no_ui, json_output=getattr(args, "json", False))
+
+    if getattr(args, "json", False):
+        raise ValueError(
+            "generate --json streams owned recipe events. Native generation has no JSON "
+            "output contract; omit --json or select an owned --recipe. No work was dispatched."
+        )
+
+    # Keep the native CLI's historical default while distinguishing an explicit
+    # spending flag from omission on the owned-recipe route.
+    if args.max_spend_usd is None:
+        args.max_spend_usd = 5.0
 
     pipeline_cls = PIPELINES.get(gen_input.pipeline.name.value)
     if pipeline_cls is None:
@@ -848,10 +864,19 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+class CLIUsageError(ValueError):
+    """Invalid command syntax, rendered by the same boundary as input errors."""
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise CLIUsageError(f"{message}; use '{self.prog} --help' for usage")
+
+
+def _dispatch(argv: list[str]) -> int:
     _load_dotenv_if_present()
 
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog="repo2rlenv",
         description="Turn any repository into an RL environment for training and evaluation.",
     )
@@ -913,8 +938,11 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument(
         "--max-spend-usd",
         type=float,
-        default=5.0,
-        help="LLM budget cap across bootstrap + pipeline (default 5.0; 0 = unlimited)",
+        default=None,
+        help=(
+            "native generation LLM budget (default 5.0; 0 = unlimited); "
+            "owned recipes require a campaign ledger budget instead"
+        ),
     )
     g.add_argument(
         "--language", help="bootstrap: override auto-detect (python|node|go|rust|java|c_cpp)"
@@ -1091,8 +1119,25 @@ def main(argv: list[str] | None = None) -> int:
     bs.set_defaults(func=cmd_bootstrap)
 
     args = parser.parse_args(argv)
-    install_logging(level=logging.DEBUG if args.verbose else logging.INFO)
     return args.func(args)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI error boundary; Python APIs continue to raise their original errors."""
+    from repo2rlenv.ui.errors import report_error
+
+    argv = list(sys.argv[1:] if argv is None else argv)
+    verbose = "--verbose" in argv or "-v" in argv
+    install_logging(level=logging.DEBUG if verbose else logging.INFO)
+    try:
+        return _dispatch(argv)
+    except SystemExit as exc:
+        # argparse help/version use numeric exits; legacy adapters use a message.
+        if exc.code is None or isinstance(exc.code, int):
+            raise
+        return report_error(CLIUsageError(str(exc.code)), json_output="--json" in argv)
+    except Exception as exc:
+        return report_error(exc, json_output="--json" in argv, verbose=verbose)
 
 
 if __name__ == "__main__":

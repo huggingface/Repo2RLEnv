@@ -21,7 +21,7 @@ llm:
   model: claude-sonnet-4-6
 execution:
   campaign_dir: workspace/campaign
-  run_id: r2e_gym-first
+  run_id: r2e-gym-first
   worker_receipt: workspace/campaign/workers/worker.json
   runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
   timeout_sec: 14000

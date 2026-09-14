@@ -219,6 +219,7 @@
   },
   {
     "id": "dataarc",
+    "recipe_version": "2",
     "title": "DataArc terminal synthesis (Envs-FORGE-linked code)",
     "pipeline": "terminal_synth",
     "source_kinds": [
@@ -228,7 +229,9 @@
     "upstream": {
       "repository": "https://github.com/DataArcTech/DataArc-SynData-Toolkit",
       "commit": "2a1d65ec8dcfaea2458d67e1fb18078cce6420b9",
-      "license": "Apache-2.0",
+      "license": "NOASSERTION",
+      "retained_material": false,
+      "license_note": "Method inspiration only. The terminal source revision has no recorded grant; version 2 uses Repo2RLEnv-authored prompts and implementation under Apache-2.0.",
       "source_paths": [
         "sdgsystem/agentic_data/terminal_bench.py",
         "examples/syn_agentic_data/run_terminal_bench.py",

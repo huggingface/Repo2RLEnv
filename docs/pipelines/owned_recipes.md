@@ -144,6 +144,16 @@ Initialize an explicit budget once. Reinitializing with a different amount is
 rejected. Unknown model/provider outcomes retain their reservation; completed
 calls are accounted using recorded usage estimates rather than counted twice.
 
+Set `execution.campaign_dir` in the generation config to this campaign directory.
+`generate --max-spend-usd` is a native-generation option; owned recipes reject it
+before dispatch and use the shared campaign ledger instead. `--pipeline-opt`
+overrides individual options even when the pipeline name comes from `--config`.
+
+Owned `generate --json` emits JSON Lines progress; inspection commands such as
+`tasksmith show --json` and `quality show --json` emit one JSON result. CLI failures
+use `{"error": "ExceptionType", "message": "description"}` and exit 2. Logs go to
+stderr; `--verbose` adds a traceback there without changing machine output.
+
 ```bash
 repo2rlenv campaign init workspace/my-campaign --budget-usd 25
 repo2rlenv workers start --campaign workspace/my-campaign --provider modal \

@@ -138,7 +138,7 @@ def materialize(
     on_event,
     **kwargs,
 ) -> str:
-    on_event("artifact", "started", "Apply the native seed augmentation strategy")
+    on_event("artifact", "started", "Apply the selected seed augmentation strategy")
     return metered_complete(
         input.llm,
         ledger=ledger,
@@ -150,8 +150,8 @@ def materialize(
         system=build_prompt(design.seed, input.llm.model)
         + materialization_prompt()
         + (
-            "\nOWNED ADAPTATION: encode the complete generated artifacts as TerminalDraft "
-            "instead of the legacy files dictionary. The CPU Docker environment is rebuilt "
+            "\nEncode the complete generated artifacts as TerminalDraft. "
+            "The CPU Docker environment is rebuilt "
             "from environment_setup and environment_files; preserve the seed's actual "
             "domain and tools. Move verifier dependency installs into image build. Use "
             "the supplied full environment context to retain required assets. Execution "

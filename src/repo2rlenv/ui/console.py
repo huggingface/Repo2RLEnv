@@ -122,7 +122,7 @@ def install_logging(*, level: int = logging.INFO, propagate_noisy: bool = False)
     _LOGGING_INSTALLED = True
 
     handler = RichHandler(
-        console=console.console,
+        console=Console(stderr=True),
         rich_tracebacks=True,
         markup=True,
         show_path=False,

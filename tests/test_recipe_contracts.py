@@ -61,4 +61,4 @@ def test_discovery_json_is_parseable_without_credentials(monkeypatch, capsys):
 
 def test_recipe_family_mismatch_is_actionable(capsys):
     assert main(["pipelines", "describe", "terminal_synth", "--recipe", "swe_smith", "--json"]) == 2
-    assert "repo_mutate" in json.loads(capsys.readouterr().out)["error"]
+    assert "repo_mutate" in json.loads(capsys.readouterr().out)["message"]

@@ -20,6 +20,7 @@ class RecipeInfo(BaseModel):
     upstream: dict[str, Any]
     rfc: str
     target: int
+    recipe_version: str = "1"
 
 
 # Entries are added only with an owned implementation and tests. Optional cloud

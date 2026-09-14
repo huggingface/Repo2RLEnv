@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,6 +38,32 @@ def test_seed_strategy_context_and_lineage(tmp_path):
         assert "{{" not in prompt
         assert row["source_seed"] in prompt
         assert "test-model" in prompt
+    calls = []
+    # Exercise the actual authoring adapter without a model or sandbox call.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            recipe,
+            "metered_complete",
+            lambda *a, **kw: calls.append(kw) or SimpleNamespace(content="{}"),
+        )
+        recipe.materialize(
+            input=SimpleNamespace(
+                llm=SimpleNamespace(model="test-model"), execution=SimpleNamespace(resume=False)
+            ),
+            options=DataArcOptions(),
+            ledger=None,
+            candidate=tmp_path,
+            design=recipe.design(first),
+            feedback={"failure": "reference failed"},
+            attempt=1,
+            operation_id="test",
+            on_event=lambda *a: None,
+        )
+    assert len(calls) == 1
+    assert "TerminalDraft" in calls[0]["system"]
+    assert "instruction_md" not in calls[0]["system"]
+    assert "tests_python" in calls[0]["response_schema"]["properties"]
+    assert "reference failed" in calls[0]["user"]
     (tmp_path / "solution/solve.sh").write_text("#!/bin/bash\necho changed\n")
     assert (
         recipe.load_seeds(tmp_path, DataArcOptions())[0]["parent_bundle_hash"]

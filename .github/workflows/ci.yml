@@ -178,6 +178,7 @@ jobs:
           uv venv /tmp/check-install
           uv pip install --python /tmp/check-install/bin/python dist/*.whl
           /tmp/check-install/bin/repo2rlenv --version
+          /tmp/check-install/bin/python tests/check_distribution.py dist
 
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v7

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 
 import pytest
 from pydantic import ValidationError
@@ -28,18 +29,25 @@ def draft_data():
     }
 
 
-def test_terminal_bundle_keeps_reference_and_tests_out_of_build_context(draft_data, tmp_path):
+@pytest.mark.parametrize("recipe_id, version", [("seta_seed2synth", "1"), ("dataarc", "2")])
+def test_terminal_bundle_keeps_reference_and_tests_out_of_build_context(
+    draft_data, tmp_path, recipe_id, version
+):
     draft = TerminalDraft.model_validate(draft_data)
     task = emit_draft(
         draft,
         tmp_path,
         name="fixture",
         org="tests",
-        recipe=get_recipe("seta_seed2synth"),
+        recipe=get_recipe(recipe_id),
         lineage={"seed_sha256": "a" * 64},
         timeout_sec=60,
     )
     assert inspect_bundle(task)["integrity_passed"]
+    assert (
+        tomllib.loads((task / "task.toml").read_text())["metadata"]["repo2env"]["recipe_version"]
+        == version
+    )
     assert sorted(path.name for path in (task / "environment").iterdir()) == [
         "Dockerfile",
         "script.sh",

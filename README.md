@@ -186,7 +186,7 @@ Fastest jumps:
 
 - 🚀 [Quickstart](https://huggingface.github.io/Repo2RLEnv/quickstart/) — install → generate → push, in 10 min
 - 📦 [Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/) — one page per pipeline (status, oracle shape, options, yield)
-- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — design docs for every pipeline (10 total, 6 implemented + 4 draft)
+- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — pipeline designs, shared contracts and implementation status
 - 📚 [Reference](https://huggingface.github.io/Repo2RLEnv/reference/API/) — API, SPEC, AUTH, ENV, BOOTSTRAP, AGENTS, REWARD_SCHEMA, RELATED_WORK
 - 🛠 [Adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/) — cookbook
 - 🔭 [Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore any Harbor dataset pushed to the Hub
@@ -199,8 +199,16 @@ Fastest jumps:
 - [**SWE-Gym**](https://github.com/SWE-Gym/SWE-Gym) — RL-environment framing for SWE-bench-style tasks
 - [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect), [**OpenEnv**](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) — adjacent standardization efforts
 
-Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and Apache-2.0 licensed. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) for the full per-pipeline provenance plus adjacent papers, datasets, and frameworks (incl. recent Microsoft and NVIDIA code-RL work).
+Each adapted recipe records its source revision, retained material and changes in
+`provenance.md`. [Third-party notices](./THIRD_PARTY_NOTICES.md) index the bundled
+licenses and credits. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md)
+for adjacent papers, datasets and frameworks.
 
 ## License
 
-[Apache 2.0](./LICENSE). The original PR/commit contents remain under their respective source-repo licenses; datasets redistribute public commits for ML research under fair use.
+Repo2RLEnv's own code is [Apache 2.0](./LICENSE). Bundled adaptations also retain
+MIT and Apache-2.0 material; the distribution declares `Apache-2.0 AND MIT`.
+See [third-party notices](./THIRD_PARTY_NOTICES.md) for scope and attribution.
+Source repositories, seed data and generated task assets retain their respective
+terms. Public availability alone does not establish redistribution permission;
+consult each dataset's license and provenance records, including recorded gaps.
