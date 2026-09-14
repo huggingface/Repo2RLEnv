@@ -110,6 +110,7 @@ jobs:
           tests/test_tasksmith_source_patch.py
           tests/test_quality_citation_paths.py tests/test_quality_review_corrections.py
           tests/test_tasksmith_artifact_seed.py tests/test_tasksmith_prepared_profiles.py
+          tests/test_tasksmith_prepared_designs.py
           tests/test_quality_context_budget.py tests/test_quality_repair_protocol.py
           tests/test_quality_contract_append.py
           tests/test_tasksmith_verifier_policy.py

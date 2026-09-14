@@ -377,8 +377,10 @@ Two observed failures are now addressed in owned code. A narrow patch fallback
 restores CRLF source only when both pinned Git blob identities match; it preserves
 the original patch and rejects true mismatches. Fixture repair prompts require
 the complete production return contract and explicit expansion of unpacked tuple
-fields before proposing an edit. **1,419 local tests pass**, with four opt-in
-checks skipped. Neither change adds a model call or increases the three-repair
+fields before proposing an edit. Exact-source prepared designs can now skip
+repeated authoring after fresh bootstrap confirms their bound dependency profile;
+a changed profile falls back to ordinary authoring. **1,439 local tests pass**,
+with four opt-in checks skipped. These changes do not increase the three-repair
 limit.
 
 ## Execution and budget
