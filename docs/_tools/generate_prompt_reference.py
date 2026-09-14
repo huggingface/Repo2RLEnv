@@ -174,7 +174,23 @@ def quality_loop() -> str:
         "prompts/repair.md",
         "models.py",
         "context.py",
+        "probe_recovery.py",
+        "probe_behavior.py",
         "runner.py",
+    ):
+        result += block(root / relative)
+    return result.rstrip() + "\n"
+
+
+def tasksmith() -> str:
+    root = ROOT / "src/repo2rlenv/tasksmith"
+    result = "# Tasksmith: complete prompt reference\n\nRead the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contracts and execution boundaries. These prompts and schemas are generated from the implementation.\n\n"
+    for relative in (
+        "prompts/investigate.md",
+        "prompts/design.md",
+        "models.py",
+        "runner.py",
+        "author/artifact.py",
     ):
         result += block(root / relative)
     return result.rstrip() + "\n"
@@ -190,6 +206,7 @@ def main() -> None:
     }
     expected[OUTPUT / "shared_terminal.md"] = shared()
     expected[OUTPUT / "quality_loop.md"] = quality_loop()
+    expected[OUTPUT / "tasksmith.md"] = tasksmith()
     changed = [
         path for path, text in expected.items() if not path.exists() or path.read_text() != text
     ]

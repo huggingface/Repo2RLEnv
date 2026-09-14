@@ -1,0 +1,295 @@
+{
+  "recorded_on": "2026-09-13",
+  "repositories": [
+    {
+      "repository": "huggingface/transformers",
+      "ref": "415e6d2f596ef2bd44fdee4261799200a7fc02bf",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:eed1d98abf88f3a3ab2822a972297759ec89f1489ae4aa5027c0cc1988693536",
+        "smoke": {
+          "checks": [
+            "tiny BERT forward and backward without downloaded weights"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "transformers",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "727deb6cb6f8ccbb4456b81c6f0f383d6bbdd3acbd25033e63bd2e44f0deeb50"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-L15nZiQe2a6WEqKyGo1zvJ",
+        "smoke": {
+          "checks": [
+            "tiny BERT forward and backward without downloaded weights"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "transformers",
+          "repository_uses_gpu": true,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "ff7ece0b623ccd98f0616420439a286ee47dbfd25ce1b42e9534c3e35646c337"
+      }
+    },
+    {
+      "repository": "huggingface/accelerate",
+      "ref": "f13f7c13b64c10b6eb7e2d73171ea1b94c748701",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:07896464d7bf821cc6b502c2d24c370642535d15ba3870317065fd050b1ffd64",
+        "smoke": {
+          "checks": [
+            "Accelerator device placement and an optimizer step"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "accelerate",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "727deb6cb6f8ccbb4456b81c6f0f383d6bbdd3acbd25033e63bd2e44f0deeb50"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-jHWqdzFf2qqrHZn94fZrJ7",
+        "smoke": {
+          "checks": [
+            "Accelerator device placement and an optimizer step"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "accelerate",
+          "repository_uses_gpu": true,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "59884319179d1828832426b26e4971d42b8997af7f566d64b55baa00f3be0e78"
+      }
+    },
+    {
+      "repository": "huggingface/trl",
+      "ref": "0b4b33d7faa2ad88b92db2bfac3880ece6de8a66",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:492ea2bac44879933009d112cd022204d1426f998301e2aa9b943a44257a039c",
+        "smoke": {
+          "checks": [
+            "TRL log-probability and entropy numerics with autograd"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "trl",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "727deb6cb6f8ccbb4456b81c6f0f383d6bbdd3acbd25033e63bd2e44f0deeb50"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-iuiWCYVZZl7BQwFLpsfJAc",
+        "smoke": {
+          "checks": [
+            "TRL log-probability and entropy numerics with autograd"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "trl",
+          "repository_uses_gpu": true,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "b4c64ecdc76b8f2606b59ba42846281bfcf71a7f7f4aafa67f76d1b7ecb3134f"
+      }
+    },
+    {
+      "repository": "huggingface/diffusers",
+      "ref": "c419dac0152186060246c93a095bc1bfaea342b3",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:e9664a99a70174bb5fb8b24461517eb20e4e6185ad442b978610602f07a12a90",
+        "smoke": {
+          "checks": [
+            "tiny UNet forward/backward and DDPM scheduler step"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "diffusers",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "727deb6cb6f8ccbb4456b81c6f0f383d6bbdd3acbd25033e63bd2e44f0deeb50"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-O95bSSF2quCKFs4UMLZBNl",
+        "smoke": {
+          "checks": [
+            "tiny UNet forward/backward and DDPM scheduler step"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "diffusers",
+          "repository_uses_gpu": true,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "c01f6254349cc6c22ee088b1aecd666b3e982aef4edb14dc1ab706b8e09b988b"
+      }
+    },
+    {
+      "repository": "huggingface/peft",
+      "ref": "0e8d0ae8ab94f189f28b845e293d7452d7892d91",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:7f545720bad181c8d22c63097da5542f180b1ad02112a70a487bda767e9bcd51",
+        "smoke": {
+          "checks": [
+            "LoRA injection, adapter gradients and merge on a tiny BERT"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "peft",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "727deb6cb6f8ccbb4456b81c6f0f383d6bbdd3acbd25033e63bd2e44f0deeb50"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-wlPTukAVqptryKRdA4mP8s",
+        "smoke": {
+          "checks": [
+            "LoRA injection, adapter gradients and merge on a tiny BERT"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "peft",
+          "repository_uses_gpu": true,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "87065668d50c62c383731f30c700728d7a3ee9245d01d5a05fc551fc502f6022"
+      }
+    },
+    {
+      "repository": "huggingface/tokenizers",
+      "ref": "6cfd9d385ca0ed91c10b49f0ce97d02cfde1b607",
+      "cpu": {
+        "status": "ready",
+        "image": "sha256:8b75d94d8470f5f506adc119fd3574b9527cfd3f5c87793e989183f8999dbbc0",
+        "smoke": {
+          "checks": [
+            "source-built Rust tokenizer encode/decode and serialization on CPU"
+          ],
+          "cuda": null,
+          "gpu": null,
+          "repository": "tokenizers",
+          "repository_uses_gpu": false,
+          "resource": "cpu",
+          "torch": "2.11.0+cpu"
+        },
+        "recipe_sha256": "d3578067dab3dfc96b326cae74ee40a1e9b9ed8a805c878f392379669f521423"
+      },
+      "gpu": {
+        "status": "ready",
+        "image_id": "im-YJn2hWZHsnKpVciplMYpEM",
+        "smoke": {
+          "checks": [
+            "source-built Rust tokenizer encode/decode and serialization on CPU"
+          ],
+          "cuda": "12.8",
+          "gpu": "NVIDIA L4",
+          "repository": "tokenizers",
+          "repository_uses_gpu": false,
+          "resource": "gpu",
+          "torch": "2.11.0+cu128"
+        },
+        "recipe_sha256": "1e67e6d9cf7544962c8cdf1f55a3ff63d783e0f9fbf1a3daadb048b65a9cb8af"
+      }
+    }
+  ],
+  "cpu_ready": 6,
+  "gpu_host_ready": 6,
+  "cuda_accelerated_repositories": 5,
+  "all_bootstrap_workers_terminated": true,
+  "cost_estimate_usd": "13.082577",
+  "cost_scope": "All bootstrap attempts including failed builds; conservative full allocations plus per-attempt build allowances, not invoices.",
+  "operations": [
+    {
+      "id": "worker:modal:tsboot-f47954559a32-684934",
+      "status": "settled",
+      "actual_micros": 1127119
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-218ac3",
+      "status": "settled",
+      "actual_micros": 1064813
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-226a38",
+      "status": "settled",
+      "actual_micros": 1127362
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-4552b8",
+      "status": "settled",
+      "actual_micros": 1056286
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-4808e9",
+      "status": "settled",
+      "actual_micros": 1108593
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-625ef6",
+      "status": "settled",
+      "actual_micros": 1085948
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-77db57",
+      "status": "settled",
+      "actual_micros": 1032111
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-7894c3",
+      "status": "settled",
+      "actual_micros": 1123260
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-a99a11",
+      "status": "settled",
+      "actual_micros": 1103058
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-af8449",
+      "status": "settled",
+      "actual_micros": 1031913
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-de195c",
+      "status": "settled",
+      "actual_micros": 1108285
+    },
+    {
+      "id": "worker:modal:tsboot-f47954559a32-gpu-e948b1",
+      "status": "settled",
+      "actual_micros": 1113829
+    }
+  ],
+  "cpu_snapshot": {
+    "id": "im-01M2BVQ0D9B86B402YKN3ZSZ1H",
+    "ttl_sec": 604800,
+    "restored_and_source_origins_verified": true
+  },
+  "smoke_script_audited_sha256": "4123e9ca0441b465e03d910b63f64ae679022731dbc59bc7e48bd0b620f3914a"
+}

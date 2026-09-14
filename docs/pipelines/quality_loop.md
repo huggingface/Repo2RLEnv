@@ -34,16 +34,20 @@ flowchart TD
     M -->|Defect| P[Ground the failure in concrete evidence]
     O -->|Defect| P
     P --> Q{Repair enabled and budget remains?}
-    Q -->|Yes| R[Targeted task edit or diagnosed alternative-probe correction]
+    Q -->|Yes| R[Targeted task edit or eligible probe correction]
     R --> F
     Q -->|No| S[Report needs repair or evidence]
     O -->|Sound| T[Select under practical-generation-v1]
 ```
 
 The diagram's execution steps require `--run-rollout` or `--repair`; a review-only
-run makes model calls but creates no worker. An active loop reuses one worker and
+run makes model calls but creates no worker. A CPU loop reuses one worker and
 its runtime and Docker build cache throughout the loop. Modal and Daytona use the
-same `RemoteWorker` contract. Target Docker builds, tests, probe scripts and solver
+same CPU `RemoteWorker` contract. GPU tasks automatically select native Modal from
+their Harbor resource declarations; both learner and separate verifier must request
+one or two L4 GPUs with networking disabled. Native GPU trials do not need a runtime
+wheel or Docker worker. Unsupported GPU/provider combinations fail before dispatch.
+Target Docker builds, tests, probe scripts and solver
 commands run remotely; the controller only reads, hashes and edits artifacts.
 
 ## Use it
@@ -78,7 +82,7 @@ must match the input's Harbor checksum. Owned receipts must match its bundle has
 and the collected result hash. These are content checks, not cryptographic
 attestations that an external caller ran an honest experiment.
 
-Run the controls, review, probes, solver and up to two targeted repairs:
+Run the controls, review, probes, solver and up to three targeted repairs:
 
 ```bash
 repo2rlenv quality run ./tasks/example \
@@ -89,10 +93,10 @@ repo2rlenv quality run ./tasks/example \
   --review-model anthropic/claude-sonnet-4-6 \
   --repair-model anthropic/claude-opus-4-6 \
   --solver-model anthropic/claude-sonnet-4-6 \
-  --max-repairs 2 --max-spend-usd 15
+  --max-repairs 3 --max-spend-usd 15
 ```
 
-Switch to `--provider daytona` after installing `--extra daytona`. Alternatively,
+For CPU tasks, switch to `--provider daytona` after installing `--extra daytona`. Alternatively,
 pass `--worker-receipt` for an existing running worker in the same campaign. The
 component terminates workers it creates; callers retain ownership of supplied
 workers. A completed worker's compute reservation remains held until reconciled
@@ -102,10 +106,25 @@ LiteLLM estimates. The budget is an accounting limit, not a provider-enforced bi
 Use `--run-rollout` without `--repair` to evaluate without editing. Supply an
 existing rollout alongside either flag to avoid repeating it on the original
 revision. A changed task always needs fresh controls, probes and a fresh rollout.
+If the initial review blocks a rollout but the post-probe review resolves that
+concern, the loop runs the now-eligible solver on the same revision and reviews
+its trace. It does not require an unrelated task edit or a new campaign to finish
+validation. Existing successful rollouts are reused; budget denial stops before
+another paid review.
 
 `--resume` reuses completed, identical model requests and trial evidence. It refuses
 changed inputs, execution settings, prompts or evidence. Interrupted/uncertain
 provider effects require reconciliation; they are never automatically retried.
+For a native single-step solver that completed normally but whose private verifier
+was denied an allocation, the controller seals the collected submission and trace.
+On `--resume`, it may run **one verifier-only continuation**, preserving the original
+model usage, timing and raw result. It checks the task, file contents and modes,
+artifact manifest, result hash and allocation receipts before dispatch. It does not
+call the solver again. A completed continuation is reused; failed or uncertain
+continuations are retained, not repeatedly dispatched. Earlier unsealed receipts
+remain for explicit reconciliation. Resumption still requires identical run inputs,
+runtime identity and options, and an available campaign allowance; it cannot raise
+the budget or resume an old runtime with changed code.
 `repo2rlenv quality show OUTPUT_DIR` reads the report without model/cloud calls.
 Both commands support `--json`; ordinary runs show stage progress and criterion scores.
 Credentials come from the usual environment or `.env`; `--env-file PATH` can load
@@ -121,7 +140,72 @@ attempt when structured output or evidence retrieval remains unresolved. This is
 explicit escalation, not a silent retry of a failed provider request.
 An invalid JSON/text patch gets at most one separately metered correction with the
 validation error and actual source excerpts. It consumes no execution revision
-until a complete patch applies. Unknown provider outcomes are never retried this way.
+until a complete patch applies. The correction receives the rejected parsed draft
+and explicit legal probe replacements. A task/verifier defect must be repaired
+through task edits; it cannot justify replacing a retained probe. If fetching
+additional repair source exceeds the context limit, the controller includes that
+failure in the correction feedback instead of discarding the correction call.
+Unknown provider outcomes are never retried this way.
+
+For a mock return or argument mismatch, both prompts require the complete production
+unpack/signature and fixture construction. They ask the model to expand starred
+prefixes and map positions to fields before editing, preserving the real production
+call and assertions. Fresh controls still decide whether the repair works; this
+guidance adds no model calls or repair rounds.
+
+When registering new cases in an existing `tests/contract.json`, a repair can use
+`append_expected_passes` with only the new exact IDs. This preserves the old IDs,
+their order and all other contract fields; it rejects duplicate/empty IDs, invalid
+contracts and a simultaneous text edit of that contract. The append is a verifier
+change: protected-path rules still apply, it creates a new unverified task hash,
+and the usual controls, probes and rollout must validate that revision. Mechanical
+correction recommends this operation within the existing two-call limit.
+
+Before accepting a completed review, the controller checks that a legitimate
+success or failure agrees with the latest supplied solver reward and configured
+success threshold. Missing rewards or infrastructure exceptions cannot establish
+either outcome; an agent timeout with a recorded reward retains the existing
+failure/success semantics. Contradictions receive the exact evidence path and
+reward through the existing bounded review correction or configured escalation.
+This check does not infer whether a failure reveals a task defect or whether a
+success exploits the verifier: those diagnoses still require the reviewer.
+
+A wrong-solution probe whose mutation never finished can be corrected within the
+same repair limit. The controller independently checks its exact variant, completed
+execution receipt, result checksum, nonzero agent exit and absent completion marker.
+Probe scripts run in a child shell so a successful `exit` cannot skip the trusted
+change audit and completion marker. A nonzero exit still fails probe installation.
+The reviewer must diagnose that specific attempt as a probe defect using its logs
+or trial summary. Missing or mismatched evidence does not authorize replacement.
+An append-only `probe-attempts/` journal preserves every attempt and log hash across
+task revisions and resume. Once any installation under the same probe name completes,
+the counterexample remains immutable, even when it exposes a verifier gap or a later
+attempt fails. Eligible corrections preserve name, kind and focus, retain the old
+receipts, and record authorization in `probe-replacement-evidence.json` beside the new
+repair. A broken probe alone cannot justify task/verifier edits. The corrected probe
+runs again; unchanged controls use the existing strict evidence importer. Neither
+the default three repair rounds nor the two patch-proposal calls is increased.
+Imported wrong-probe definitions remain immutable: a probe manifest alone does not
+establish that no earlier installation completed in its original run.
+
+The initial evidence pack places selected private assertions before large reference
+patches and generic grading helpers. Reviews must assess those assertions, rather
+than inferring coverage from test names or pass counts. All omitted files remain
+addressable through exact inventory paths.
+The compact context also lists exact selected verifier paths, even when the full
+inventory is truncated. An unknown file read suggests matching basenames and those
+selected paths; the reviewer must request the actual file before citing it.
+
+For native Modal image failures, the controller settles the confirmed failed build
+before fetching its existing logs. A bounded, redacted excerpt of the actual
+build failure reaches the reviewer through the original exception, with private
+log receipts retained for diagnosis. A failed or timed-out log fetch cannot reopen
+the allocation or obscure its settled state.
+
+Literal searches merge overlapping excerpts and keep complete matching windows
+within the remaining context budget. Omitted windows are identified explicitly.
+Already supplied evidence remains unchanged, and an oversized explicit line range
+is rejected atomically with guidance to narrow it.
 
 Current model examples include `openai/gpt-6-astra`, `openai/gpt-5.6-terra`,
 `openai/gpt-5.6-luna`, `anthropic/claude-sonnet-5` and `anthropic/claude-opus-5`.
@@ -134,18 +218,25 @@ models and omits unsupported temperature parameters; automatic SDK retries are
 disabled. Every model request has a durable request hash, response receipt and
 campaign reservation. Unknown usage retains its hold rather than becoming zero cost.
 
-Defaults: two repairs, two extra file-reading rounds, two semantic probes, 100,000
+Defaults: three repairs, two extra file-reading rounds, two semantic probes, 100,000
 characters of document context, 6,000 output tokens per review/repair call, and
 24 solver turns at 4,096 tokens per call. Context includes a file inventory, selected
 task files, trace excerpts and explicit omissions. Reviewers can request up to six
 400-line excerpts or bounded literal searches in each reading round. Python tasks
-start with matching function/test excerpts and their module headers;
+start with matching function/test excerpts and their module headers. When a whole selected test file is at most 24 KB, the initial pack includes its complete body and fixture helpers if the context allowance permits; any truncation remains explicit. Individually selected nodes and larger modules keep targeted excerpts;
 When trials are present, the initial task files use at most 35% of the document
 allowance; execution evidence can fill the next 35%. Actual assertion failures
 precede verbose baseline inventories and captured source. Probe scripts remain
 individually readable instead of inflating every result summary. The remaining
 30% is reserved for follow-up reads. Binary/large files remain recorded as
 uninspected text; this is not a claim that every byte of every repository was reviewed.
+Private PR context is also registered in the readable evidence inventory. Its initial
+excerpt uses at most 32,000 characters or one quarter of the document allowance,
+whichever is smaller. Large diffs remain available through bounded range/search
+requests instead of requiring a hand-truncated campaign prompt. Saved campaign
+repair guidance comes first in that same bounded excerpt, so a long source diff
+cannot push the current diagnosis out of the initial review input. The full
+context remains searchable and the document allowance does not increase.
 
 ## What the prompts ask
 
@@ -157,11 +248,15 @@ The full prompts ship with the package and are reproduced in the
 | Initial review | Public instruction, build inputs, private reference/tests, available controls/rollout | Task/verifier/leakage assessments, grounded issues, bounded read requests, semantic probes | [review.md](prompts/quality_loop.md#reviewmd) |
 | Evidence read / escalation | Same evidence pack plus requested excerpts or protocol correction | Completed grounded review | Same review prompt |
 | Post-execution review | Task plus actual control/probe/solver results, logs and captured artifacts | Legitimate success/failure, task defect, grading shortcut, infrastructure issue or insufficient evidence | Same review prompt |
-| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, optionally a corrected valid-alternative probe, and rationale | [repair.md](prompts/quality_loop.md#repairmd) |
+| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, appended expected case IDs, eligible probe corrections, and rationale | [repair.md](prompts/quality_loop.md#repairmd) |
 
 Every citation must quote text actually supplied to the model. Scores range from
 0–4 and are descriptive; code derives the final disposition from evidence. A
 model's declaration of success cannot override a failed negative control or probe.
+The controller can restore single-backtick formatting in a unique Markdown prose
+excerpt without another model call. Words, case, punctuation and numbers must be
+identical; code blocks, escaped delimiters and ambiguous matches remain rejected.
+The corrected citation must pass normal grounding, and both forms are recorded.
 
 Semantic probes create private variants: first run the reference, then install a
 plausibly wrong submission or a valid alternative. Instruction, environment and
@@ -179,6 +274,47 @@ A different wrong implementation cannot satisfy those coverage obligations. This
 addresses a measured calibration failure: two generic probes initially missed the
 R2E `collapse` verifier's missing laziness check. Probe focus is still a narrow
 heuristic, not a complete natural-language requirement extractor.
+
+Tasks can also declare an explicit, validated requirement:
+
+```toml
+[metadata.repo2env.quality_requirements]
+probe_focus = ["compiled_execution"]
+```
+
+This field belongs to the executable task identity, outside the advisory
+`evaluation` label. `compiled_execution` requires a wrong-solution probe that
+preserves wrapper types, shapes and setup while corrupting an executed output or
+gradient. The verifier must invoke the real compiled path and reject the mutation;
+structural checks alone are insufficient. Option forwarding and integration checks
+remain limited to the original PR's behavior. No fixed speedup or extra hardware
+is required. Without the explicit field, historical tasks keep their existing
+requirements. Tasksmith's `required_probe_focus` option annotates a new input copy
+before controls and never transfers old evidence to the changed hash.
+
+For neural model tasks, `model_behavior` targets a wrong implementation that keeps
+valid interfaces and tensor shapes while changing a central promised computation,
+such as register placement, pooling values, adapter output or sampling behavior.
+The verifier must detect that change through independent numerical or behavioral
+assertions. A dimension error or a missing import does not establish this coverage.
+This requirement is opt-in and changes the task hash; previous evidence cannot be
+carried onto the annotated copy. Probe focus remains a reviewed coverage constraint,
+not an automatic proof that every mathematical requirement has been tested.
+
+`model_behavior` and `compiled_execution` negative controls also have a deterministic
+execution floor. New mutations cannot introduce unparseable Python into previously
+parseable submitted files. The attempt journal binds the mutation audit and the
+verifier's structured JSON/JUnit results; at least one failing test must reach beyond
+collection, setup and import errors. Missing or changed evidence blocks acceptance,
+reuse and publication. The reviewer must diagnose the failure as a blocking probe
+issue within the existing review limits. Generic controls keep their existing policy.
+Old journals remain unchanged and cannot acquire evidence bindings retroactively;
+previously installed counterexamples retain their replacement protection.
+
+Alternative implementations are judged by their public behavior. A failing test
+that prescribes a private flag's representation may be a verifier defect; it is
+not automatically proof that the alternative is invalid. Repairs must preserve
+the actual behavioral assertions, including caching and recomputation guarantees.
 
 Pass `--probes FILE.json` to retain known counterexamples or valid alternatives from
 an earlier review. The manifest contains `bundle_hash` and a `probes` list; each

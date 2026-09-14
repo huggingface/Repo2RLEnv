@@ -1,0 +1,103 @@
+{
+  "recorded_at": "2026-09-13T14:26:20.291621+00:00",
+  "estimate_only": true,
+  "seed_file": "Environment-specific PRs 3921384ebcac80af866bdb78afc38b22.md",
+  "seed_sha256": "47646fd7c8011a18a1c9c3b2da4c8eaa1d974185b0052cab2a7a38ca8780c53e",
+  "unique_prs": 114,
+  "accepted_at_estimate": 23,
+  "remaining_at_estimate": 91,
+  "status_checkpoint": "2026-09-13T14:19:15.669760+00:00",
+  "repositories": [
+    {
+      "repository": "accelerate",
+      "listed": 23,
+      "accepted_at_estimate": 9,
+      "remaining_at_estimate": 14,
+      "estimated_additional_usd": {
+        "low": 200,
+        "high": 450
+      }
+    },
+    {
+      "repository": "trl",
+      "listed": 21,
+      "accepted_at_estimate": 9,
+      "remaining_at_estimate": 12,
+      "estimated_additional_usd": {
+        "low": 150,
+        "high": 350
+      }
+    },
+    {
+      "repository": "peft",
+      "listed": 16,
+      "accepted_at_estimate": 4,
+      "remaining_at_estimate": 12,
+      "estimated_additional_usd": {
+        "low": 120,
+        "high": 300
+      }
+    },
+    {
+      "repository": "transformers",
+      "listed": 20,
+      "accepted_at_estimate": 1,
+      "remaining_at_estimate": 19,
+      "estimated_additional_usd": {
+        "low": 400,
+        "high": 900
+      }
+    },
+    {
+      "repository": "diffusers",
+      "listed": 20,
+      "accepted_at_estimate": 0,
+      "remaining_at_estimate": 20,
+      "estimated_additional_usd": {
+        "low": 400,
+        "high": 900
+      }
+    },
+    {
+      "repository": "tokenizers",
+      "listed": 14,
+      "accepted_at_estimate": 0,
+      "remaining_at_estimate": 14,
+      "estimated_additional_usd": {
+        "low": 150,
+        "high": 350
+      }
+    }
+  ],
+  "base_estimate_usd": {
+    "low": 1420,
+    "high": 3250
+  },
+  "contingency_fraction": 0.25,
+  "recommended_additional_usd": 3000,
+  "assumptions": [
+    "Existing accepted tasks and prepared source-free images are reused.",
+    "One meaningful scoped environment per suitable PR, with deterministic verification, wrong and valid controls, one blind Sonnet rollout and reviewed trace.",
+    "At most three consolidated repair rounds per run, with an explicit unresolved outcome at the limit.",
+    "Small real models, local data and pinned offline assets; actual CUDA or distributed execution for hardware-dependent claims.",
+    "Inference and cloud compute only; no engineer labor, training on the resulting tasks or repeated solver evaluation sweeps."
+  ],
+  "limitations": [
+    "Per-repository ranges are planning estimates based on list composition and observed campaigns; they are not measured marginal costs for every remaining PR.",
+    "Native hardware validation for AMD ROCm, AWS Neuron and some specialized kernels needs additional provider support and hardware scoping.",
+    "Maintenance-only changes may not support a useful coding task without broadening beyond the PR.",
+    "Unknown historical reservations are not counted as confirmed charges or automatically reclaimed.",
+    "Tokenizers requires Rust source collection and verifier support; current Tasksmith export accepts Python source changes. Budget excludes human engineering labor.",
+    "Observed acceptance includes engineering intervention. Estimate assumes continued assistance and excludes assistant-session usage outside the campaign ledger; unattended full-list yield is unproven."
+  ],
+  "observed_cost_anchors": {
+    "first_ten_including_bootstrap_and_recovery_usd": "100.325379",
+    "scale30_expansion_accounted_at_estimate_usd": "245.750109",
+    "expansion_additional_accepted_at_estimate": 13,
+    "scope": "Recorded model usage and conservative compute estimates, including failed or unfinished attempts; not provider invoices."
+  },
+  "pricing_sources": [
+    "https://modal.com/pricing",
+    "https://platform.claude.com/docs/en/about-claude/pricing"
+  ]
+}

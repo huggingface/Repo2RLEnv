@@ -4,7 +4,64 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class HubAsset(BaseModel):
+    """Public model/tokenizer data fetched during remote image construction."""
+
+    model_config = ConfigDict(extra="forbid")
+    repo_id: str = Field(pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    filenames: list[str] = Field(min_length=1, max_length=64)
+    max_bytes: int = Field(default=268435456, ge=1, le=2147483648)
+    purpose: str = Field(min_length=10, max_length=500)
+    cache_aliases: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("cache_aliases")
+    @classmethod
+    def cache_names(cls, values):
+        import re
+
+        if len(set(values)) != len(values):
+            raise ValueError("Hub cache aliases must be unique")
+        for value in values:
+            parts = value.split("/")
+            if (
+                not re.fullmatch(
+                    r"[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)?", value
+                )
+                or any(len(part) > 96 or part.endswith((".", "-", ".git")) for part in parts)
+                or "--" in value
+                or ".." in value
+            ):
+                raise ValueError("Hub cache aliases must be explicit valid repository IDs")
+        return sorted(values)
+
+    @field_validator("filenames")
+    @classmethod
+    def data_files(cls, values):
+        from pathlib import PurePosixPath
+
+        from repo2rlenv.emitter.bundle import relative_asset_path
+
+        if len(values) != len(set(values)):
+            raise ValueError("Hub asset filenames must be unique")
+        for value in values:
+            relative_asset_path("environment/assets/" + value)
+            if PurePosixPath(value).is_absolute():
+                raise ValueError("Hub filenames must be relative")
+            if PurePosixPath(value).suffix not in {
+                ".json",
+                ".txt",
+                ".model",
+                ".tiktoken",
+                ".jinja",
+                ".safetensors",
+                ".bin",
+            } or any(symbol in value for symbol in "*?[]"):
+                raise ValueError("List exact model/tokenizer data files, without code or globs")
+        return sorted(values)
 
 
 class PythonRepositoryProfile(BaseModel):
@@ -13,15 +70,50 @@ class PythonRepositoryProfile(BaseModel):
     test_paths: list[str] = Field(min_length=1)
     private_test_paths: list[str] = Field(default_factory=list)
     pytest_args: list[str] = Field(default_factory=list)
+    test_selectors: list[str] = Field(default_factory=list)
+    public_exclude: list[str] = Field(default_factory=list)
+    materialize_document_links: list[str] = Field(default_factory=list, max_length=32)
     base_image: str = "python:3.12-slim"
+    use_system_site_packages: bool = False
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3"])
+    hub_assets: list[HubAsset] = Field(default_factory=list, max_length=8)
     install_command: str = "python -m pip install --no-cache-dir -e ."
     task_install_command: str | None = None
     freeze_git_version: bool = False
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
     exclude_candidate_ids: list[str] = Field(default_factory=list)
+    test_cpus: int = Field(default=1, ge=1, le=16, strict=True)
+    test_memory_mb: int = Field(default=2048, ge=128, le=65536, strict=True)
 
-    @field_validator("source_paths", "test_paths", "private_test_paths")
+    @model_validator(mode="after")
+    def pinned_asset_dependencies(self):
+        if self.hub_assets:
+            if not any(
+                item.lower().replace("_", "-").startswith("huggingface-hub==")
+                for item in self.dependencies
+            ):
+                raise ValueError("Hub assets require a compatible huggingface-hub== version pin")
+            if len({asset.repo_id for asset in self.hub_assets}) != len(self.hub_assets):
+                raise ValueError("Choose one pinned revision per model/tokenizer repository")
+            cache_names = [
+                name.replace("/", "--")
+                for asset in self.hub_assets
+                for name in [asset.repo_id, *asset.cache_aliases]
+            ]
+            if len(set(cache_names)) != len(cache_names):
+                raise ValueError("Hub cache aliases and canonical repositories must not collide")
+            if sum(asset.max_bytes for asset in self.hub_assets) > 2147483648:
+                raise ValueError("Combined Hub asset allowance must not exceed 2 GiB")
+        return self
+
+    @field_validator(
+        "source_paths",
+        "test_paths",
+        "private_test_paths",
+        "public_exclude",
+        "test_selectors",
+        "materialize_document_links",
+    )
     @classmethod
     def safe_paths(cls, values: list[str]) -> list[str]:
         from repo2rlenv.emitter.bundle import relative_asset_path
@@ -30,6 +122,19 @@ class PythonRepositoryProfile(BaseModel):
             relative_asset_path("environment/" + value)
             if value.startswith("-"):
                 raise ValueError("Repository paths cannot be command options")
+        return values
+
+    @field_validator("materialize_document_links")
+    @classmethod
+    def document_links_only(cls, values: list[str]) -> list[str]:
+        from pathlib import PurePosixPath
+
+        if len(set(values)) != len(values) or any(
+            PurePosixPath(value).suffix.lower() not in {".md", ".rst", ".txt"} for value in values
+        ):
+            raise ValueError(
+                "Document links must be unique Markdown, reStructuredText or text paths"
+            )
         return values
 
     @field_validator(

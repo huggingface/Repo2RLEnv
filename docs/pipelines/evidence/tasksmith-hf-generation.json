@@ -1,0 +1,1462 @@
+{
+  "recorded_at": "2026-09-13T03:53:54.376137+00:00",
+  "acceptance_profile": "practical-generation-v1",
+  "scope": "First ten original HF PRs; new CPU tasks, separate from the previous five-task pilot",
+  "bootstrap_scope": "Six CPU and six L4-host checks; five repositories exercised CUDA, Tokenizers remained CPU",
+  "selected_prs": 10,
+  "accepted_tasks": 10,
+  "trial_counts": {
+    "baseline": 10,
+    "oracle": 10,
+    "rollout": 10,
+    "wrong_solution": 13,
+    "valid_alternative": 11
+  },
+  "tasks": [
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3075",
+      "title": "Fix FSDP auto_wrap using characters instead of full str for layers",
+      "source_base": "b5235f21d83c7f714a44d876cfd6fd0b1339dd38",
+      "source_head": "f8ff93658f99e46323218af834ecfd8fc30a4581",
+      "source_diff_sha256": "4ef90165b1282622cdf955e6ec99206b3138e2d0d502ac40bb5f578b1023b7b0",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:15a58a8e62e155601487f7008eb8db4881d0955962ca03fcd1918be6eb4aca8e",
+      "status": "usable",
+      "scores": {
+        "task": 3,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_failure",
+      "review_sha256": "26ef0c17b81f240c3619ab4989d87f8605a259f7e8fdcde011d706c2d7f38803",
+      "final_inventory_sha256": "76b7147ef9067e0a1b2e45db81d0b74a326e3e9ace698e5915a2520242818e80",
+      "task_directory": "tasksmith-5d12db5414d2",
+      "required_test_count": 10,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:15a58a8e62e155601487f7008eb8db4881d0955962ca03fcd1918be6eb4aca8e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-5d12db5414d2/trials/00-baseline/result.json",
+          "result_sha256": "d4c43fbcd926affc5506d3b5ffac09ecd5139366f42a012942635a12d1e4dfbf"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:15a58a8e62e155601487f7008eb8db4881d0955962ca03fcd1918be6eb4aca8e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-5d12db5414d2/trials/01-oracle/result.json",
+          "result_sha256": "bf776f74207ae7c5ab19bb556aa5b683128c08c9946c2c0b2f8a0a2746455298"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:15a58a8e62e155601487f7008eb8db4881d0955962ca03fcd1918be6eb4aca8e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-5d12db5414d2/trials/02-rollout/result.json",
+          "result_sha256": "60ffa9de783a1d5a607aacb2917a3ce0e35fa267df604f9d53101171dfbb05cb"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:b9bbda0c61d938e24e1dc5adcbe0f55771abf2f41b9efb3f38d9116963ae593f",
+          "probe_name": "metadata-first-entry-only",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-5d12db5414d2/trials/03-probe/result.json",
+          "result_sha256": "4fc059d74b59e20b04f7a6a32cf7dde8b7422f52047461652a2c5b70e7a9d966"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:18193a3025ffb0b4414e72aa48bec3d00229075c2a9795e397b605c7214061de",
+          "probe_name": "metadata-comprehension-copy",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-5d12db5414d2/trials/04-probe/result.json",
+          "result_sha256": "09fb54c005ba22bf6a3e7acaa58204f1d35e32bbc1044166571e824785b05af9"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3251",
+      "title": "Allow for full dynamo config passed to Accelerator",
+      "source_base": "08101b9dde2b1a9658c2e363e3e9f5663ba06073",
+      "source_head": "aa44e81e09f815e7554478e48d9d92427fee3c88",
+      "source_diff_sha256": "ad2f04ae45c402841d662b1ebbf2e3c79401239f368f3463a1200c3cc1b3656f",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:2155f4b9174ea3c521802c5e6b40ff75165dcbfeb3cdc2f98537e9b8289b5b25",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "cb87438f39187380bd11bb4107e8370a6bd1402dcc2098e7b2f793e27227952f",
+      "final_inventory_sha256": "a1c9d09417dfb5b607b898fc64411bfd24cf579ef5da3c3f7b8c6132c1a12a74",
+      "task_directory": "tasksmith-58e016fc946a",
+      "required_test_count": 8,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:2155f4b9174ea3c521802c5e6b40ff75165dcbfeb3cdc2f98537e9b8289b5b25",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-58e016fc946a/trials/00-baseline/result.json",
+          "result_sha256": "f460c04f7f1a64ee0eb2c5e5363c510bfd823342623c2981f6b753373091e5aa"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:2155f4b9174ea3c521802c5e6b40ff75165dcbfeb3cdc2f98537e9b8289b5b25",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-58e016fc946a/trials/01-oracle/result.json",
+          "result_sha256": "080e896864625d3cda83f7be03a91d748ba928c5320e098029967f213a0771a3"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:2155f4b9174ea3c521802c5e6b40ff75165dcbfeb3cdc2f98537e9b8289b5b25",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-58e016fc946a/trials/02-rollout/result.json",
+          "result_sha256": "04b555db41113454b85e4299b0703950e6a7338269652158b5b6cb2f8c5d2f11"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:64ae9cd082f550f812e9ede0e2b6cf2adf7418e007c8cc4531b98b280dba5964",
+          "probe_name": "discard-unchecked-plugin-settings",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-58e016fc946a/trials/03-probe/result.json",
+          "result_sha256": "8ba9be3f7074a4cad8fd56ad48e9b7208b76a38fdaf5b2af50144c4785674780"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:dfa73f8f30294120c69a7eddf3b0a5c8d5fbbe7d1d05419d09e89a62aef26ce4",
+          "probe_name": "equivalent-nested-default-resolution",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-58e016fc946a/trials/04-probe/result.json",
+          "result_sha256": "a7fd3d10371aea72093eb4b8ff5cfed438e4bfdf209c5d9aa6c8cd170cc7b136"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3850",
+      "title": "Allow non-Tensor values in a batch with `dispatch_batches=True`",
+      "source_base": "9a20895d4b7e7aa35ba9123a93c65948a53a6ec7",
+      "source_head": "bec8a3eda417b0f365a15f58556d4b66539935a2",
+      "source_diff_sha256": "55a2741ed13782d8697e9c282ffc46f595fb37e98c9c8b5b2b6b4fe765d3b81e",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:36f87bb9c29dd25abe01937baef7916870a09902343c29db2248bed55dc49a26",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "d200dc81a2854789fc14992fba879cc8483a83072bff2488e66009083369fd6a",
+      "final_inventory_sha256": "d773ffa68fa6deb69131967179125709447ca38f8f8adbc4f42dfb282f734e36",
+      "task_directory": "tasksmith-3d762a2acfee",
+      "required_test_count": 11,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:36f87bb9c29dd25abe01937baef7916870a09902343c29db2248bed55dc49a26",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3d762a2acfee/trials/00-baseline/result.json",
+          "result_sha256": "f9c1d542e9563525f7f632e0f4527fdbefe2b003e770de52c819e82ed3505c4b"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:36f87bb9c29dd25abe01937baef7916870a09902343c29db2248bed55dc49a26",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3d762a2acfee/trials/01-oracle/result.json",
+          "result_sha256": "39dbf3c1e4130fd73b57feecd7f59c1ef55bf5a59f7cd79a902835360892e813"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:8a504b9c9b28a876bf881fc622ab3061b340565ddf079c080348382d4498337e",
+          "probe_name": "restrictingleaves",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-3d762a2acfee/trials/02-probe/result.json",
+          "result_sha256": "876ce39c896969011890afbe844bf8b830d63d5f83c7820e6248258023088ea2"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:052dac0c750270c56b231ee2575b43c7b9594bde2017ee4cfb6714cdec9dea7f",
+          "probe_name": "preserveoriginalbranchlayout",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-3d762a2acfee/trials/03-probe/result.json",
+          "result_sha256": "c0a39af1b97172ab25d2345bd565e92e1a54f4225ec5e80234103cb353d70e5b"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:36f87bb9c29dd25abe01937baef7916870a09902343c29db2248bed55dc49a26",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3d762a2acfee/trials/04-rollout/result.json",
+          "result_sha256": "e1b3d896153aa350cc68177ab612d0a1491ead7ff3d8a1059753c68c1ee09812"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3684",
+      "title": "\u201cStop Halving My Batch!\u201d \u00b7 Default back-off 0.5 \u2192 0.9",
+      "source_base": "55e518a762b84f8927fe87599a545f9c917b7ce5",
+      "source_head": "c93a0aa0187a0d97c7dbe0473826a8b4a5912496",
+      "source_diff_sha256": "7056ba404579e77e6bda60c082e298199cd66069711298b60b17421cae17b3e1",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:5c4a6ca62a21e2c6ea3d6541211418186395b3ee936190ba6f746add0eedb795",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "01d30651c5fb33f43a8bc3c381dbd199b48b4b99325a4c6c6c356cb36ed67502",
+      "final_inventory_sha256": "fea8622c0021a616fa40a5b3156345b7f9dcc1517ef6fb4f407e5f1feac967d5",
+      "task_directory": "tasksmith-e38398f4d9df",
+      "required_test_count": 8,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:5c4a6ca62a21e2c6ea3d6541211418186395b3ee936190ba6f746add0eedb795",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e38398f4d9df/trials/00-baseline/result.json",
+          "result_sha256": "503cf4c6780349d1f1c5ad46d90035d0f7471d90b633a192a47db4282ecfdf16"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:5c4a6ca62a21e2c6ea3d6541211418186395b3ee936190ba6f746add0eedb795",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e38398f4d9df/trials/01-oracle/result.json",
+          "result_sha256": "2376075ecfecf60d3a29487c3f656bd3ee53f9e35cd878b79e9ce8f0a4da590d"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:5c4a6ca62a21e2c6ea3d6541211418186395b3ee936190ba6f746add0eedb795",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e38398f4d9df/trials/02-rollout/result.json",
+          "result_sha256": "972ca9f10db20d1501fee78486353097770a4f8ba129318f24fc08c9296732cb"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:3929613dcadc4028f4a344f12d5b0c796c6a7e5423858c9abe611d06516fa8db",
+          "probe_name": "retry-unrelated-runtime-errors",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-e38398f4d9df/trials/03-probe/result.json",
+          "result_sha256": "92ca98fdc991de9bae5b4c9a5e27b3b4616afc50fd68d34fe8f6a42b6020ae1b"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:66d99a13aa25f21d0b5cf7d9dfd76ce6fee47099185d40b51ecc74f1ae73f099",
+          "probe_name": "commuted-default-product",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-e38398f4d9df/trials/04-probe/result.json",
+          "result_sha256": "71bf415dcd2b7e8bb5d084697053cddf5f10c26a67c9001e9ab8aea93ba74398"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3969",
+      "title": "Feat: Support dynamic batch size in BatchSamplerShard with even_batches",
+      "source_base": "77eb5cf6087d91227d77ebbe65121501eb56d098",
+      "source_head": "bac18660fa05e7f731d4f7bdaedf11750c2224c9",
+      "source_diff_sha256": "33f38bf995a0d750e77dad7f3722e8f849657251b7c27593b21179eb5a74d24f",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:065ab8284cef357f9d8a48ed9642e66e0ecc54fb3b8eedce4a70333475b50dff",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "3c35b85ad41fbfc67f8e589d457dda871ffacdf93bb66175c4eb1c4294a8338c",
+      "final_inventory_sha256": "d32fb50e4ebd42c8ac3c564723207b296278055e618914826184e2a0464cc2dc",
+      "task_directory": "tasksmith-f1fb6bb8619d",
+      "required_test_count": 9,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:065ab8284cef357f9d8a48ed9642e66e0ecc54fb3b8eedce4a70333475b50dff",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-f1fb6bb8619d/trials/00-baseline/result.json",
+          "result_sha256": "0b0849dd1e342233999923269fa9faea79cd4140d883e4c6b0d822de65702c36"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:065ab8284cef357f9d8a48ed9642e66e0ecc54fb3b8eedce4a70333475b50dff",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-f1fb6bb8619d/trials/01-oracle/result.json",
+          "result_sha256": "2c31c84c82ebddc874436d2488b9f9e9527b1f6d5dc334e541933babf36b7998"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:065ab8284cef357f9d8a48ed9642e66e0ecc54fb3b8eedce4a70333475b50dff",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-f1fb6bb8619d/trials/02-rollout/result.json",
+          "result_sha256": "19b3e53bb4d210b33f654f7ea3f5aa4f8202f4559bc248423b172008b9bed66e"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:c43f3cd7be4bbca16838fa5e31590db2d9af668df6df6ee26d65fe4eb3a977a2",
+          "probe_name": "fixed-size-iteration-erased",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-f1fb6bb8619d/trials/03-probe/result.json",
+          "result_sha256": "247a016e51ade66ffdfda652e8acf5336d8fa653abbcd53474be3be97f835bad"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:201f082677d20e0eb53406136a976220daf6ca7eeac48a124d4ad9177f065f07",
+          "probe_name": "equivalent-shard-length-arithmetic",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-f1fb6bb8619d/trials/04-probe/result.json",
+          "result_sha256": "9c6eed1546c25975cbd501cd7b91d059bacb67907a024a918ba8316b43bb7a34"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3150",
+      "title": "POC: Allow for a `data_seed`",
+      "source_base": "f4ee5a2dc77d5b6bfc889d0b74fbc0678ae56119",
+      "source_head": "fc28ab07d76988b5c37ce8a2892c8f7b7da47932",
+      "source_diff_sha256": "5d33d033da8ae116536cf215acb1a441ba88f6c1efc2d8f12d1c54d36f2fd9d1",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:d65b49d44e7e838ffd5bf00ed5780efb4bdae0b52bf737cc4dd851b81ca47a56",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "dba3fba47fc08c491da57c392e8c0f222ce76aafb7e365ab476831124287be14",
+      "final_inventory_sha256": "eee1162a8288f94c178b4596a585654ca3c0e0c50d80bd9d33ad8131ce74b5f9",
+      "task_directory": "tasksmith-3960c9b5f1c6",
+      "required_test_count": 26,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:d65b49d44e7e838ffd5bf00ed5780efb4bdae0b52bf737cc4dd851b81ca47a56",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3960c9b5f1c6/trials/00-baseline/result.json",
+          "result_sha256": "1a183d2c146e71b81563280f1017e7db56f6e141e8da2c3c8d9c2f2dbcd3ff95"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:d65b49d44e7e838ffd5bf00ed5780efb4bdae0b52bf737cc4dd851b81ca47a56",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3960c9b5f1c6/trials/01-oracle/result.json",
+          "result_sha256": "67813625e51eff754955ecb7de673b4a47dffe47db361b2eaa14a929914489ab"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:d65b49d44e7e838ffd5bf00ed5780efb4bdae0b52bf737cc4dd851b81ca47a56",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-3960c9b5f1c6/trials/02-rollout/result.json",
+          "result_sha256": "aad8ef60c66f462369fd2f08d088bb7f7d09834982fbe503dd857786db63d2d4"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:7762e9d229d11cea8d2a4b28a83888dd3893d5abba6e65113a0ae43a653ef841",
+          "probe_name": "omitacceleratorseedforwarding",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-3960c9b5f1c6/trials/03-probe/result.json",
+          "result_sha256": "4ad7af981cf01c3a6498ec73fd269923af905fb0dd53853a5f887476e4848ce3"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:a0a91f37f96e0d89965f2682e6949e210c2cb41a85b678e86f92e93cb956ffc3",
+          "probe_name": "explicitkeywordseedparameter",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-3960c9b5f1c6/trials/04-probe/result.json",
+          "result_sha256": "dfce26db741ee9c089728eda11cd6238d3c60ccd9a4f33f6d3033836f7035dde"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/2962",
+      "title": "FIX: Inject from state dict into compiled model",
+      "source_base": "e70542269c4f9668dbf9607ca383333ef7723b48",
+      "source_head": "b5f4f2ae3b4fdb8d586b69c68cc590d6db2a5da3",
+      "source_diff_sha256": "1391561780a353af23af58a232a1657bc5d4abf8d1136f371bf6ecbe914b3509",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:4583adc5680ba5bc94a50dc53a19868b319b97122bef372f9bed142f55cc35cd",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "520fb1954fe12ac4b73c0a440139907978f823c6c961db23b304fedf6b4db9d6",
+      "final_inventory_sha256": "0d4fac6a9eeda9208aa773ed04650a263a237d3905b39bf7323a24b7ad1472bb",
+      "task_directory": "tasksmith-e1ba3292a5bc",
+      "required_test_count": 12,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:4583adc5680ba5bc94a50dc53a19868b319b97122bef372f9bed142f55cc35cd",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/00-baseline/result.json",
+          "result_sha256": "e772fb06a65fa865b03adc5aafa0ab745d2add50a1ff545dc6de39741b8d7c25"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:4583adc5680ba5bc94a50dc53a19868b319b97122bef372f9bed142f55cc35cd",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/01-oracle/result.json",
+          "result_sha256": "740b94f1a4aa168033e0c9e4c7a60ddc6a437e9203fd1364b1d38bf47974af78"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:7e811af93538a4f6047ff4c5fbc265d90b2f7989ce5b8ce51afceb0f8ba503ed",
+          "probe_name": "configuration-driven-targeting",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/02-probe/result.json",
+          "result_sha256": "ff876471dd4d54a6a652ee1d961d767713db7b1ee57ab8c40e7e78c1d7bd6697"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:e7829fe76442e1de95bc86b9ce3b3be3c8bab3af14367925c6495dd57991bc51",
+          "probe_name": "conditional-prefix-removal",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/03-probe/result.json",
+          "result_sha256": "75fde1fe69000045d0cb6a1a5b9013c65863357e9b502127ae0b1069b5b2325e"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:d0f621e89c2eaec7fd9a9fe4972c072b271d5a4996a227849e9eb459f1789f47",
+          "probe_name": "preserve-real-module-paths",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/04-probe/result.json",
+          "result_sha256": "382d82280d9f25533585c0b0238615fdccfc46af42fa7713ab5b80c5870d8f60"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:8f9bb5668d0402d2c7aaa8b0c189ee26f5f5b0874d363b130db6ae637dcc32c8",
+          "probe_name": "suffix-checkpoint-overmatching",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/05-probe/result.json",
+          "result_sha256": "ab062f9badd376c78a63c0fadf752c9985e9741e21c0732c69aa8774d2e700b9"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:4583adc5680ba5bc94a50dc53a19868b319b97122bef372f9bed142f55cc35cd",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-e1ba3292a5bc/trials/06-rollout/result.json",
+          "result_sha256": "87a77da5a5a95708b83c90f99c9e6529d779eafcf9d3d0bb221d9aa21b7f33d8"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/3302",
+      "title": "FIX Bug when targeting an nn.Parameter on the root module",
+      "source_base": "aa2b673629adf5c2340ea835604da73bc747212a",
+      "source_head": "ee67e3e98f1f50e4a1230872ebf11b40d434c605",
+      "source_diff_sha256": "2bbc5c52b86e9d0362696aeb379e197446011d37e0cae83aa52405b269d5387b",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:3acbf89bc1f90341bea990a69a934f16c86bbad1a0254729f8243d0c5aae965b",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "e933284cfd9bd8d5800f87f181b04902bb4401649269d97d37835a56d2b8bd76",
+      "final_inventory_sha256": "7526d7d03bef92b823cc14c6a5e009a70c093e9119041f4544bda4b08e953545",
+      "task_directory": "tasksmith-749ff8d440e1",
+      "required_test_count": 4,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:3acbf89bc1f90341bea990a69a934f16c86bbad1a0254729f8243d0c5aae965b",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-749ff8d440e1/trials/00-baseline/result.json",
+          "result_sha256": "043150cb80a34c0b4dbb6e041b16ebcbf72f61611063e647b7d46494b69cfb15"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:3acbf89bc1f90341bea990a69a934f16c86bbad1a0254729f8243d0c5aae965b",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-749ff8d440e1/trials/01-oracle/result.json",
+          "result_sha256": "a93596278789ba43c0b01881c3886beb959eacf643106e08cf8f9cbe70a55e70"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:3acbf89bc1f90341bea990a69a934f16c86bbad1a0254729f8243d0c5aae965b",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-749ff8d440e1/trials/02-rollout/result.json",
+          "result_sha256": "cf3403c3f9c2c8f1596f55faa2a69bc6d86cb716a3abdcf1b24ce2c5eae777a3"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:1a41b805f337e638e7c2f27a91feb8ee61f6bb29aa0a514ee6b80365214da2e5",
+          "probe_name": "qualified-targets-skip-adaptation",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-749ff8d440e1/trials/03-probe/result.json",
+          "result_sha256": "4f9f09a89a9ae79476766f149ffcdbd150a0f72babe5cb972bf1df08ea2658b8"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:a62ddbdb06cce3c40248ca1b61b2e4150f0893339a5c54ed4d17f21d7f58d9e9",
+          "probe_name": "equivalent-empty-owner-check",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-749ff8d440e1/trials/04-probe/result.json",
+          "result_sha256": "02fe5947cc8dc28ede7236c367e4332e7d27af672bb6b6321b793b429b4223ff"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/3350",
+      "title": "ENH Allow multiple adapters when using target_parameters",
+      "source_base": "ddd04c51131aa40bef169c6d777ece9e7a483f59",
+      "source_head": "09802c1b43fff9b087be42e149d70e5350ff407a",
+      "source_diff_sha256": "1c5b7634391d3b2dda67bcdf3ea523ba19dcc296665c8c225861c7a61767b109",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "retain",
+      "bundle_hash": "sha256:3049cc9813052fd21529d84c43525097d64de3379f7a9ab5891092d3e6963b7e",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 3
+      },
+      "rollout_assessment": "legitimate_failure",
+      "review_sha256": "f61b025529dfb504017b9dd7d2c0f3b94b05e8e4879a763a48815d530c7b0f7e",
+      "final_inventory_sha256": "9f5cec5c7a8996002c1a675971a88bada7e213517362a4c2f2c99064ea44dd83",
+      "task_directory": "tasksmith-0d2d1e298e86",
+      "required_test_count": 7,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:3049cc9813052fd21529d84c43525097d64de3379f7a9ab5891092d3e6963b7e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/00-baseline/result.json",
+          "result_sha256": "1532a6c03dbfc114f871d05f6680484d8955b34241c1751ad9dccb1cd4925556"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:3049cc9813052fd21529d84c43525097d64de3379f7a9ab5891092d3e6963b7e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/01-oracle/result.json",
+          "result_sha256": "1d1cb167f4c97d8c1019f8f860278a5af61eccc20ce80b683d37e24d480b553d"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:81d8bf1d360d8d6ba8480f5bafe2dcbce2d47b8a1dca9cf0b5a15093b604d830",
+          "probe_name": "configuration-only-second-adapter",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/02-probe/result.json",
+          "result_sha256": "8d200538712e1bd1af6ae05abdd2bbf34b9b8ff0e76a17376f471e4e664f6518"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:7bb89b9c807543d912a8e215f351aedde530aa8b83d0a99494c7d8be835188e4",
+          "probe_name": "immutable-target-set-comparison",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/03-probe/result.json",
+          "result_sha256": "aa2eec2814d2e55da5a8947ba85631b621c9c5706507355e17e01cf8af8e5cf9"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:71ee697ad80476eb1fa37522870e43e5e718d223b400c74576411129af7e44ab",
+          "probe_name": "outermost-parameter-wrapper-only",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/04-probe/result.json",
+          "result_sha256": "ec32c6ab09e3c06c8de080582d3b246431b05602ef12f1d529aa69bc013abb1c"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:3049cc9813052fd21529d84c43525097d64de3379f7a9ab5891092d3e6963b7e",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-0d2d1e298e86/trials/05-rollout/result.json",
+          "result_sha256": "f24d59d6307b974bcababa31ae09285a9cb8cebb7ffbc1753f8a1733c04522b6"
+        }
+      ]
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6066",
+      "title": "Add `get_cosine_scaled_reward`",
+      "source_base": "7b4c3b3b208c8611ff23818e8483cd2a6eaecb35",
+      "source_head": "489d7ee091374f80ce9b35e87a25cca41defc6f3",
+      "source_diff_sha256": "42f022dd24425ef9e095aca8fe96ded592fbfa3f70f83695aa71d6dd025a503b",
+      "workspace_strategy": "head_minus_source_patch",
+      "upstream_test_policy": "replace",
+      "bundle_hash": "sha256:9b32939b8b64d87524f1327e3205619f5b78ddfa1fc090e0f7cd25d54c3410d8",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_success",
+      "review_sha256": "4256de26a99f7ab4f253603dec0a539aca6080ffcac6a8e687da8c9f969271fc",
+      "final_inventory_sha256": "f0352d8c179c52a722ef8f5bbecd85c075c03fbb4d20954d85d150fd1e4d22a6",
+      "task_directory": "tasksmith-b71e9e0a47b6",
+      "required_test_count": 14,
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:9b32939b8b64d87524f1327e3205619f5b78ddfa1fc090e0f7cd25d54c3410d8",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/00-baseline/result.json",
+          "result_sha256": "2f8553d82bcdc4c231a3f420323525a823e1fd9abb9bad7b449057087074f8d3"
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:9b32939b8b64d87524f1327e3205619f5b78ddfa1fc090e0f7cd25d54c3410d8",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/01-oracle/result.json",
+          "result_sha256": "fb6772fdfc6e12450e94f14ecccfe4bc8ddc2d8ca74e043ec3058561e69401ba"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:9b32939b8b64d87524f1327e3205619f5b78ddfa1fc090e0f7cd25d54c3410d8",
+          "probe_name": null,
+          "probe_kind": null,
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/02-rollout/result.json",
+          "result_sha256": "5e5ab34827d79cd655c1f7c6dfebbb7a5bf2f34b6eefa127278baae938e14653"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:6d15320e36d29786b523e0b119ed7a2cc14e03a7e5f5ce03d61069604d6326a1",
+          "probe_name": "ignore-configured-token-budget",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/03-probe/result.json",
+          "result_sha256": "ea365c0cb072f2e644c0f93f8860e19d2d98cb96197de1f7507fdef21b91eb44"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:989f28fa9c4ddccb85192cf9e6e4d958265a91d08117c8f7ec320e5d2e673f0d",
+          "probe_name": "partial-based-cosine-factory",
+          "probe_kind": "valid_alternative",
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/04-probe/result.json",
+          "result_sha256": "7e78abafe2cf4c8bab5cbbd56f77033d44f2f32e79d9a0cf82a487ebfc0294e3"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:104e83d30b59922be0474c021cdf45d21c9367c6a3213f88acd96ea6680b32fd",
+          "probe_name": "substring-instead-of-math-correct",
+          "probe_kind": "wrong_solution",
+          "result": "evidence/tasksmith-b71e9e0a47b6/trials/05-probe/result.json",
+          "result_sha256": "5a7c9094b780c8e14282c53e246bdaa5921636226bd836dbb995f83f4afda03e"
+        }
+      ]
+    }
+  ],
+  "raw_generation_runs": [
+    {
+      "record": "campaign/00-first-ten-v1.json",
+      "sha256": "9ccc7af360d75905f9fc0e995546727076f8d4044761efddf5c3cb55f91886d8",
+      "panel": "hf-cpu-first-ten",
+      "inputs": 10,
+      "attempted": 4,
+      "generated": 3,
+      "usable": 0
+    },
+    {
+      "record": "campaign/01-first-ten-v2.json",
+      "sha256": "bc5534a9a41221ccbe44512dfb073441193c0f3e557a65d2971ecd4cbe3fdaac",
+      "panel": "hf-cpu-first-ten",
+      "inputs": 10,
+      "attempted": 7,
+      "generated": 6,
+      "usable": 3
+    },
+    {
+      "record": "campaign/02-remaining-four-v1.json",
+      "sha256": "94d4d01f6279228e647f3af0d88dfc63fa6b7a8e0c8d62e131550b63be3e5ec2",
+      "panel": "hf-first-ten-remaining-four",
+      "inputs": 4,
+      "attempted": 4,
+      "generated": 1,
+      "usable": 0
+    },
+    {
+      "record": "campaign/03-document-link-recovery-v1.json",
+      "sha256": "1c1acf97bc2573238c8f04a2960ca9a061f874776cff8b9e3682308ebdd7ab7c",
+      "panel": "hf-document-link-recovery",
+      "inputs": 3,
+      "attempted": 3,
+      "generated": 2,
+      "usable": 0
+    },
+    {
+      "record": "campaign/04-final-trl-feature-v1.json",
+      "sha256": "fd45750b51664e42f9340688d7e3cafec63fe6f70167ba0578b64dc8fc4f9611",
+      "panel": "hf-final-trl-feature",
+      "inputs": 1,
+      "attempted": 1,
+      "generated": 0,
+      "usable": 0
+    },
+    {
+      "record": "campaign/05-final-trl-feature-v2.json",
+      "sha256": "089c551209ffb3de83cbdd7460ff121a032e2f173e9e3e621167da7b3ac1c0c2",
+      "panel": "hf-final-trl-feature",
+      "inputs": 1,
+      "attempted": 1,
+      "generated": 1,
+      "usable": 0
+    }
+  ],
+  "run_count_note": "Runs overlap and include interrupted next-candidate inspections; do not sum their generated or usable counts as unique tasks. Follow-up reviews are bound in each final task record.",
+  "artifact": {
+    "archive": "delivery.tar.gz",
+    "sha256": "4d5b55b6d42d7cff00f9595ed0efd19a1fca9bbbac4f3fe7c80abd396cf3e428",
+    "bytes": 97672840
+  },
+  "cost": {
+    "accounting": "Recorded model usage and conservative compute estimates; not provider invoices",
+    "phase_accounted_usd": "100.325379",
+    "stage_accounted_usd": {
+      "quality_review": "52.739739",
+      "solver_rollouts": "3.883004",
+      "quality_repairs": "6.750079",
+      "remote_compute": "29.507053",
+      "investigation": "5.188584",
+      "task_and_verifier_design": "2.256920"
+    },
+    "campaign_ledger": {
+      "limit_usd": "477.570000",
+      "accounted_usd": "309.038318",
+      "reserved_usd": "15.543377",
+      "remaining_usd": "152.988305"
+    },
+    "prior_spend_outside_ledger_usd": "22.430000",
+    "phases": {
+      "quality-recovery-v9": {
+        "accounted_usd": "3.188308",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "2.418569",
+            "reserved_usd": "0.000000",
+            "operations": 5
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.769739",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          }
+        }
+      },
+      "quality-recovery-v8": {
+        "accounted_usd": "1.432878",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.432878",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          }
+        }
+      },
+      "quality-recovery-v6": {
+        "accounted_usd": "1.765873",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.041681",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.724192",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          }
+        }
+      },
+      "quality-recovery-v1": {
+        "accounted_usd": "1.527436",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.527436",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          }
+        }
+      },
+      "quality-recovery-v7": {
+        "accounted_usd": "4.463579",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_repairs": {
+            "accounted_usd": "0.520621",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "quality_review": {
+            "accounted_usd": "3.294977",
+            "reserved_usd": "0.000000",
+            "operations": 7
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.647981",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          }
+        }
+      },
+      "quality-recovery-v2": {
+        "accounted_usd": "2.087141",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "2.087141",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          }
+        }
+      },
+      "quality-recovery-v10": {
+        "accounted_usd": "2.754341",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.514517",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          },
+          "remote_compute": {
+            "accounted_usd": "1.080452",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.159372",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          }
+        }
+      },
+      "quality-recovery-v11": {
+        "accounted_usd": "1.189501",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.189501",
+            "reserved_usd": "0.000000",
+            "operations": 2
+          }
+        }
+      },
+      "quality-recovery-v5": {
+        "accounted_usd": "1.997307",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.997307",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          }
+        }
+      },
+      "quality-recovery-v3": {
+        "accounted_usd": "1.965274",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.965274",
+            "reserved_usd": "0.000000",
+            "operations": 5
+          }
+        }
+      },
+      "quality-recovery-v4": {
+        "accounted_usd": "1.452961",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "quality_review": {
+            "accounted_usd": "1.452961",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          }
+        }
+      },
+      "first-ten-v2": {
+        "accounted_usd": "17.487067",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "0.532832",
+            "reserved_usd": "0.000000",
+            "operations": 30
+          },
+          "quality_repairs": {
+            "accounted_usd": "1.340921",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          },
+          "quality_review": {
+            "accounted_usd": "11.145026",
+            "reserved_usd": "0.000000",
+            "operations": 32
+          },
+          "remote_compute": {
+            "accounted_usd": "3.031984",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.849137",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.587167",
+            "reserved_usd": "0.000000",
+            "operations": 22
+          }
+        }
+      },
+      "first-ten-v1": {
+        "accounted_usd": "12.840901",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "1.084513",
+            "reserved_usd": "0.000000",
+            "operations": 47
+          },
+          "quality_repairs": {
+            "accounted_usd": "1.942293",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          },
+          "quality_review": {
+            "accounted_usd": "6.072881",
+            "reserved_usd": "0.000000",
+            "operations": 13
+          },
+          "remote_compute": {
+            "accounted_usd": "3.027735",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.309031",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.404448",
+            "reserved_usd": "0.000000",
+            "operations": 16
+          }
+        }
+      },
+      "remaining-four-v1": {
+        "accounted_usd": "9.157893",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "2.535945",
+            "reserved_usd": "0.000000",
+            "operations": 90
+          },
+          "quality_repairs": {
+            "accounted_usd": "0.456831",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "quality_review": {
+            "accounted_usd": "2.810941",
+            "reserved_usd": "0.000000",
+            "operations": 6
+          },
+          "remote_compute": {
+            "accounted_usd": "2.826814",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.190600",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.336762",
+            "reserved_usd": "0.000000",
+            "operations": 13
+          }
+        }
+      },
+      "document-link-recovery-v1": {
+        "accounted_usd": "16.784955",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "0.682431",
+            "reserved_usd": "0.000000",
+            "operations": 28
+          },
+          "quality_repairs": {
+            "accounted_usd": "1.443802",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          },
+          "quality_review": {
+            "accounted_usd": "10.405041",
+            "reserved_usd": "0.000000",
+            "operations": 22
+          },
+          "remote_compute": {
+            "accounted_usd": "3.483100",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "solver_rollouts": {
+            "accounted_usd": "0.232952",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.537629",
+            "reserved_usd": "0.000000",
+            "operations": 19
+          }
+        }
+      },
+      "final-trl-feature-v2": {
+        "accounted_usd": "5.678388",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "0.235460",
+            "reserved_usd": "0.000000",
+            "operations": 9
+          },
+          "quality_repairs": {
+            "accounted_usd": "1.045611",
+            "reserved_usd": "0.000000",
+            "operations": 2
+          },
+          "quality_review": {
+            "accounted_usd": "2.383608",
+            "reserved_usd": "0.000000",
+            "operations": 5
+          },
+          "remote_compute": {
+            "accounted_usd": "1.813480",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.200229",
+            "reserved_usd": "0.000000",
+            "operations": 3
+          }
+        }
+      },
+      "final-trl-feature-v1": {
+        "accounted_usd": "1.468999",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "investigation": {
+            "accounted_usd": "0.117403",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          },
+          "remote_compute": {
+            "accounted_usd": "1.160911",
+            "reserved_usd": "0.000000",
+            "operations": 1
+          },
+          "task_and_verifier_design": {
+            "accounted_usd": "0.190685",
+            "reserved_usd": "0.000000",
+            "operations": 4
+          }
+        }
+      },
+      "bootstrap": {
+        "accounted_usd": "13.082577",
+        "reserved_usd": "0.000000",
+        "stages": {
+          "remote_compute": {
+            "accounted_usd": "13.082577",
+            "reserved_usd": "0.000000",
+            "operations": 12
+          }
+        }
+      }
+    }
+  },
+  "schema_version": 1,
+  "execution": {
+    "provider": "modal",
+    "author_runtime": "pi",
+    "harbor_version": "0.20.0",
+    "task_schema": "1.3",
+    "learner_and_verifier_network": "no-network",
+    "all_phase_workers_terminated": true,
+    "author_model": "anthropic/claude-sonnet-4-6",
+    "review_model": "openai/gpt-6-astra",
+    "repair_model": "openai/gpt-6-astra",
+    "solver_model": "anthropic/claude-sonnet-4-6"
+  },
+  "artifact_audit": {
+    "tasks": [
+      {
+        "task": "tasksmith-5d12db5414d2",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 223
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-58e016fc946a",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 230
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-3d762a2acfee",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 107
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-e38398f4d9df",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 105
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-f1fb6bb8619d",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 155
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-3960c9b5f1c6",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 4
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 163
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-e1ba3292a5bc",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 195
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-749ff8d440e1",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 2
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 769
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-0d2d1e298e86",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 4
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 820
+          }
+        },
+        "native_receipts_unchanged": true
+      },
+      {
+        "task": "tasksmith-b71e9e0a47b6",
+        "protected_trees": {
+          "solution": {
+            "unchanged": true,
+            "files": 3
+          },
+          "environment/source": {
+            "unchanged": true,
+            "files": 242
+          }
+        },
+        "native_receipts_unchanged": true
+      }
+    ],
+    "credential_scan": {
+      "files": 14307,
+      "configured_values_checked": 7,
+      "matches": 0
+    },
+    "scope": "Byte integrity, protected source/reference equality and literal configured-credential scan; target code was not executed"
+  },
+  "schema_audit": [
+    {
+      "task": "tasksmith-5d12db5414d2",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-58e016fc946a",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-3d762a2acfee",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-e38398f4d9df",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-f1fb6bb8619d",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-3960c9b5f1c6",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-e1ba3292a5bc",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-749ff8d440e1",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-0d2d1e298e86",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    },
+    {
+      "task": "tasksmith-b71e9e0a47b6",
+      "harbor_parse_passed": true,
+      "network_mode": "no-network",
+      "public_git_history_present": false
+    }
+  ],
+  "limitations": [
+    "Ten selected CPU PRs from a 114-PR inventory; this is not universal or first-attempt conversion yield.",
+    "Dependency and orchestration fixes, automated verifier repairs, and manually assembled evidence summaries were needed.",
+    "Focused behavioral tests and one final Sonnet attempt per task do not establish exhaustive correctness or difficulty calibration.",
+    "GPU-host bootstrap readiness is distinct from GPU task generation.",
+    "Full source bundles and trajectories are retained in the delivery archive; original absolute paths are mapped to portable copies by its manifest."
+  ],
+  "generation_pipeline_commit": "216016da828cd973066d51fea58e469f3998ddde",
+  "generation_pipeline_ci": "https://github.com/huggingface/Repo2RLEnv/actions/runs/34735190170"
+}

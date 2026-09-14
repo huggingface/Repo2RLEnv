@@ -1,0 +1,10 @@
+{
+  "name": "cpu-hf-pilot",
+  "prs": [
+    "https://github.com/more-itertools/more-itertools/pull/1193",
+    "https://github.com/more-itertools/more-itertools/pull/1251",
+    "https://github.com/huggingface/huggingface_hub/pull/1316",
+    "https://github.com/huggingface/smolagents/pull/1003",
+    "https://github.com/pallets/click/pull/3865"
+  ]
+}

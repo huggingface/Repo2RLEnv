@@ -1,0 +1,686 @@
+# Tasksmith: 50 verified PR tasks
+
+The September 14 result has **50 independently accepted PR tasks** from the
+supplied 114-PR inventory: **39 CPU tasks and 11 GPU tasks**. All 50 have a
+Harbor specification, execution controls and an independently reviewed blind
+Sonnet attempt. Sonnet solved 19; the other 31 retain legitimate failures or
+recorded timeouts. Acceptance evaluates the task and verifier, not solver success.
+
+[The complete task inventory](evidence/tasksmith-scale50-accepted.json) lists
+every source PR, pinned source revisions, task hash, resources, audit hash and
+Sonnet result.
+
+| Repository | Accepted | CPU | GPU | Sonnet solved |
+| --- | ---: | ---: | ---: | ---: |
+| Accelerate | 13 | 8 | 5 | 7 |
+| Diffusers | 9 | 9 | 0 | 3 |
+| PEFT | 10 | 9 | 1 | 3 |
+| Transformers | 5 | 4 | 1 | 1 |
+| TRL | 13 | 9 | 4 | 5 |
+| Total | 50 | 39 | 11 | 19 |
+
+Six tasks require one GPU and five require two. Two recorded Sonnet attempts
+timed out: Diffusers #13226's submitted code passed, while Accelerate #4015's
+submitted code failed. Both outcomes retain their timeout records.
+
+Acceptance binds the exact task revision to its baseline, reference, installed
+wrong-solution and valid-alternative controls, plus an independently reviewed
+blind rollout. Solver failure can be legitimate and does not reject a task.
+These results include assisted repairs; they do not measure unattended conversion
+yield. Earlier revisions and superseded approvals remain available as evidence.
+
+The expansion began with 24 accepted tasks. Parallel execution supports eight
+independent PR controllers with a separate GPU ceiling, while smaller recovery
+waves use lower limits. CPU and real GPU tasks share the acceptance policy.
+
+## Final validation and delivery
+
+The historical audit reopened seven approvals after finding unfair checks,
+runtime fixtures or an instruction leak. HiDream and Z-Image also needed fresh
+validation. The earlier 47-task checkpoint was therefore provisional. The current
+count includes reviewed corrections and newly completed execution evidence.
+
+```mermaid
+flowchart LR
+    G[50 unique PRs with Harbor tasks] --> C[Baseline, reference and semantic controls]
+    C --> S[Blind Sonnet rollout and independent review]
+    S --> A[50 independently accepted]
+    A --> D[Portable tasks, labels and original evidence]
+    D --> V[Check every archive byte and scan for credentials]
+```
+
+| Task | Correction | Current result |
+| --- | --- | --- |
+| Accelerate #3075 | Accept the supported `None` representation for no wrapping | Accepted; reference 10/10 |
+| Accelerate #3142 | Make simulated version lookups consistent with package metadata | Accepted; reference 19/19, new Sonnet attempt 17/19 |
+| Accelerate #4015 | Accept equivalent default root policies while retaining distributed checks | Accepted; reference 16/16, captured timeout submission freshly graded 10/16 |
+| Transformers #39826 | Test generic processor behavior without requiring a private class declaration | Accepted; reference 11/11, new Sonnet attempt 4/11 |
+| TRL #5349 | Use a real model-output container, correct interpreter and faithful public decoder API | Accepted; fresh reference and both valid alternatives 15/15, Sonnet 8/15 |
+| TRL #6150 | Compare actual per-batch margins with independent values; install a real alternative | Accepted; reference 8/8 |
+| PEFT #3083 | Describe layout and loading behavior without the internal remedy | Accepted; reference 10/10 |
+| Diffusers #11281 | Supply the explicit local LoRA artifact filename | Accepted; reference 11/11 |
+| Diffusers #12703 | Expose a supported public Flex-attention configuration for the tiny CPU task | Accepted; reference 37/37 |
+
+The Z-Image task exercises real transformer, scheduler, VAE decode and batched
+classifier-free guidance. Installed mutations that disable timestep conditioning
+or guidance fail for their intended effects. Its scope is tiny CPU execution with
+the documented backend and equal-length precomputed embeddings; it does not claim
+pretrained image quality or numerical parity across every attention backend.
+
+Later native continuations reuse exact completed controls and execute only missing
+phases. Accelerate #4015 uses a new verifier run against its preserved timed-out
+submission; the original timeout and uncertain model charge remain recorded.
+The other completed continuations have fresh normal Sonnet attempts. No reward
+from an older task revision is rebound to changed task content.
+
+An earlier TRL rollout exposed a fake model missing the public `get_decoder()`
+method. The corrected fixture preserves all 15 cases and passes a new installed
+alternative that uses that accessor. Fresh baseline, reference, four probes and
+Sonnet execution all completed on the corrected task hash. Sonnet passed 8/15;
+the seven failures catch its missing optional `logit_scale` default. The old
+fixture's unfair failures remain recorded against the old revision. The shared
+review prompt now explicitly separates fixture defects from solver errors within
+the same attempt. This final GPU validation cost $5.75 with no remaining holds.
+
+The activated overall cap is **$1,025**, including the historical external $22.43;
+the expansion allowance is $405. Admission retains uncertain costs, unused live
+allocations and a $20 global margin. Learner and verifier sandbox reservations can
+overlap, so a task's final settled cost can be much smaller than the allowance
+needed to complete it without interruption.
+
+The final expansion ledger records **$392.01 booked and $4.98 still held**.
+It added 26 accepted PRs to the original 24 and also paid for repairs and
+revalidation of that original cohort. This is **$15.08 booked per additional
+accepted task**, including failed attempts and recovery work.
+
+| Expansion cost component | Booked USD |
+| --- | ---: |
+| Authoring and investigation models | $63.91 |
+| Quality review and repair models | $86.06 |
+| Blind solver models | $21.20 |
+| Remote compute estimates | $220.83 |
+| Total | $392.01 |
+
+Across the earlier reproductions and Tasksmith work together, the program records
+**$972.45 booked including historical external costs, plus $21.07 held**:
+$993.52 counted against the $1,025 cap. No paid task controllers remain running.
+Uncertain historical charges remain reserved. Compute amounts are elapsed-resource
+estimates, not final provider invoices; interactive Codex assistance is excluded.
+
+Portable delivery is complete: **50 tasks and 866,433 files** in the
+**5.49 GB** archive `tasksmith-50-verified.tar.gz`. It is saved locally under
+`workspace/tasksmith-scale50/delivery/` alongside its verification receipt and
+is kept outside Git. Every archived file was read back and matched to its expected
+checksum, including generated metadata. No configured credentials or unapproved
+provider-token matches were found. Exact copies of documented public upstream CI
+fixtures are preserved under a reviewed file-and-path policy.
+
+Archive SHA256:
+
+```text
+095c7802cd594861d0b2ee63374904d0d67c0e3043817296eb733841587ddd90
+```
+
+The archive's `README.md` and `manifest.json` locate every Harbor task. Each entry
+contains its uniform evaluation label, unchanged trials and independent audit,
+and mappings from original paths to packaged evidence. Required raw task and
+probe references are included; optional campaign-wide context limitations remain
+explicit. Original and superseded revisions are preserved.
+
+The final packager uses an indexed lookup for immutable evidence paths. All
+12,505 sampled resolutions matched the previous implementation; the lookup was
+87 times faster including index construction. This is a lookup benchmark, not
+a claimed speedup for the whole pipeline. The final packaging regression selection
+passes 80 tests; all byte, task, probe and credential checks remain in place.
+
+Current `needs_repair` labels are written to separate copies under
+`workspace/tasksmith-scale50/audit-retained/`. The status reader applies exact-hash
+holds to every historical version and continues counting those copies as generated.
+The shared review prompt now explicitly checks equivalent defaults, realistic model
+outputs, coherent version fixtures and actual calculated metrics. These checks
+address the observed defects without requiring exhaustive implementation coverage.
+
+## Retain every generated environment
+
+The following sections preserve earlier campaign checkpoints. Their counts,
+budgets and pending work describe those checkpoints; the current result is above.
+
+The initial historical catalog contains 319 Harbor task copies: 291 reproduction
+outputs from 14 recipes and 28 Tasksmith PR outputs. Its second diagnosis snapshot
+records 24 verified tasks, 29 tasks needing repair, 265 unverified tasks and one
+blocked task. Unverified does not mean bad:
+historical controls and assistant ratings remain available, but do not establish
+the complete quality profile for those exact originals.
+
+Every copy carries the same `metadata.repo2env.evaluation` table in `task.toml`.
+The original configurations, tasks and trial records remain unchanged. The
+catalog also references 134 previous Tasksmith revisions, including a stale
+intermediate task with an integrity failure; that revision is not accepted.
+
+The current local catalog lives at `workspace/tasksmith-scale50/catalog-v2/`. Its
+`SUMMARY.md`, `summary.json` and `index.json` provide counts and task paths.
+These copies reference original evidence; they are not a portable replacement
+for the complete archived task-and-evidence deliveries. The first catalog remains
+unchanged. [Public counts by recipe](evidence/tasksmith-catalog-319.json) contain
+no private paths or traces.
+
+The four unfinished Tasksmith outputs now have specific current-revision
+diagnoses: TRL #6116 fails its reference control; TRL #6001 tests pooling through
+test-side simulation; Diffusers #13921 has a verifier timeout, interrupted oracle
+and cache configuration mismatch; Accelerate #3720 has a prepared interpreter
+fix awaiting fresh GPU validation. Diagnosis manifests bind the inspected files
+and distinguish current findings from earlier revision history.
+
+## First expansion findings
+
+The first three attempts cost **$12.12** in accounted model usage and conservative
+compute estimates. All three workers were confirmed terminated and their
+reservations reconciled. Two Harbor tasks were generated; one attempt stopped
+before bootstrap. These are additional to the historical 319-task catalog.
+
+| PR | Observed result | Disposition |
+| --- | --- | --- |
+| PEFT #2661 | Reference passes; a repaired alternative passes nine tests and fails an internal boolean assertion. The final correction has an invalid traceback citation. | Retain for review of observable cache behavior versus implementation-specific grading. |
+| Accelerate #3529 | The automated profile passes, including both generic probes and a reviewed unsuccessful Sonnet rollout. Its thirteen tests never execute the compiled model. | Exclude this revision from the target until actual execution coverage is verified. |
+| Diffusers #13168 | Investigation exhausts fourteen calls with an incomplete source-root profile. | Retain the investigation and retry with complete source coverage; no Harbor task exists yet. |
+
+The accepted target count therefore remains **24**, despite one new automated
+profile pass. Raw results are preserved. Separate diagnosis copies under
+`workspace/tasksmith-scale50/pilot-diagnoses-v1/` label both generated tasks
+`needs_repair`; their manifests distinguish measured outcomes from static
+counterexamples that have not yet been executed.
+
+The next runtime incorporates the observed failures into shared behavior:
+
+- Explicit `compiled_execution` requirements demand a wrong-solution probe that
+  preserves wrappers but breaks runtime behavior. Requirements live in hashed
+  task metadata; adding them creates a new revision and requires fresh evidence.
+- Review distinguishes internal-state assertions from the public behavior that
+  valid alternative implementations must preserve.
+- Probe-only repairs reuse unchanged successful probes after validating their
+  complete saved evidence. Failed or changed probes still run again.
+- Citation corrections identify the exact failing path and quote within the
+  existing bounded correction attempt. Source-profile errors list every omitted
+  file and the field that needs correction.
+- Explicit Hub aliases preserve offline lookup names while reusing the canonical
+  asset download layer. GPU quality releases and reconciles its idle author
+  worker before allocating native trial resources.
+
+The first batch's admission controller was drained before further dispatch.
+Its remaining **$187.88342** expansion allowance carries forward; a continuation
+must not reset the original $200 ceiling.
+
+`batch-v2` is the continuation. Its first two candidates reuse the retained PEFT
+and Accelerate tasks with fresh review and execution. Accelerate receives the
+explicit `compiled_execution` requirement on a new, hashed task copy. Diffusers
+receives complete-source feedback and eighteen bounded author calls. The other
+candidate PRs and two-worker concurrency remain unchanged.
+
+The repaired Accelerate task subsequently passed its baseline/reference controls,
+the same broken-forward probe, a distinct valid alternative and a judged blind
+Sonnet rollout. The broken-forward probe changed from reward 1 on the defective
+verifier to reward 0 on the repaired verifier, specifically at the numerical
+output assertion. Sonnet passed nine of fourteen tests and failed through genuine
+implementation errors. Independent evidence review accepted this helper/API task,
+bringing the accepted total to **25**; this does not claim complete
+Accelerator/DeepSpeed integration or performance reproduction.
+
+For faster expansion, the frozen v3 continuation uses four total PR controllers
+with at most two GPU controllers. The shared budget still covers all previous
+attempts. Sonnet remains the default; one metered Opus 4.6 escalation can resolve
+a review after its bounded Sonnet calls are exhausted. Literal evidence checks
+remain required. Improved feedback identifies quotes absent from every supplied
+document, and review guidance separates advisory labels from actual task evidence.
+Both remaining v2 jobs finished and their workers were reconciled before the
+concurrency change. Design retries can revise the previous draft directly; the
+seed remains unvalidated and every submission must pass normal validation.
+Review corrections and escalation receive the latest parsed draft, including
+after additional source reads.
+
+Accelerate #3098 was also independently accepted, bringing the total to **26**.
+Its reference passed 23 tests with one hardware skip; Sonnet passed 22 and failed
+one because it retained a function that the instruction explicitly required
+removing. The wrong-behavior and valid-alternative probes both behaved as
+expected. Diffusers #13168 stopped at 26 passing tests and one invalid fixture;
+its next design receives the concrete component-loading correction.
+
+V3 starts with **$176.13069** after the first two phases accounted for $23.86931
+and released all their reservations. It has 35 pending PRs and initially admits
+four prepared-task recoveries: PEFT #2661, Diffusers #13921, TRL #6001 and
+Accelerate #3720. Every retained task receives fresh quality checks.
+
+## V4: fresh PRs and bounded recovery
+
+V3 finished eleven attempts and accounted for **$33.659913**, with no remaining
+phase reservations. PEFT #3083 passed independent inspection, bringing acceptance
+to **27**. PEFT #2939 passed its automated profile but remains excluded: its
+instruction promises the smallest rank meeting an energy threshold, while the
+tests check patterns and reconstruction error without independently asserting
+the cutoff. A constant-rank escape is an unexecuted hypothesis, not a measured
+reward hack. The original result and a separate `needs_repair` copy are retained.
+
+V4 contains **24 fresh PRs and ten recoveries**. The first three fresh PRs run
+alongside Diffusers #13168 using its exact previously successful bootstrap
+profile. Further fresh PRs precede the remaining recoveries. A prepared profile
+binds the PR URL, commits, source diff, resource requirement and complete recipe;
+it skips profile rediscovery but still requires fresh remote bootstrap. It does
+not import an earlier readiness result.
+
+The runtime incorporates concrete review and repair failures:
+
+- Selected private test assertions precede large reference patches and generic
+  helpers in the evidence pack. Review must trace central requirements to those
+  assertions and use exact inventory paths for additional reads.
+- Overlapping search windows merge within the remaining context allowance.
+  Existing cited evidence stays unchanged and omitted windows are explicit.
+- The existing repair correction receives the rejected proposal, permitted probe
+  changes and remaining calls. Invalid wrong-solution probes remain unresolved;
+  the verifier must not be weakened merely to reject a no-op probe.
+- Diffusers #13921 has a preserved assisted wrapper revision: the outer timeout
+  exceeds the inner timeout and the grader receives image-defined offline cache
+  variables. All selectors and scored test IDs remain unchanged. This revision
+  still needs fresh execution evidence.
+
+V1–v3 together accounted for **$57.529223**, leaving **$142.470777** for v4 under
+the same cumulative $200 ceiling. Historical unresolved holds remain separate
+and intact. The final runtime passed **1,226 local tests**, with six skipped
+(two optional-dependency suites and four opt-in integration checks).
+
+## V5 preparation: reuse working builds and test model behavior
+
+At the September 14 preparation checkpoint, independently accepted tasks remain
+**27**. V4 admission is drained while its active GPU jobs finish. Transformers
+#35348 and #36521 passed the automated profile, but independent review holds their
+exact revisions for missing numerical coverage of central model behavior. PEFT
+#2952 also needs adaptation, sampling and checkpoint-regeneration assertions.
+These findings preserve the original results and separate labeled diagnosis
+copies; they do not declare unexecuted escape hypotheses to be observed hacks.
+
+The next runtime adds three reusable corrections:
+
+- Mixed source roots include explicit standalone Python files without collecting
+  their entire parent directories. This resolves the export failure encountered
+  after Diffusers #13168 established 33 reference passes and eight baseline failures.
+- Proven uninstalled wrong-solution probes can be corrected within the existing
+  repair allowance. Bound receipts and a grounded diagnosis are required; an
+  earlier successful installation keeps the counterexample immutable.
+- Failed and timed-out builds retain bounded private stdout/stderr and causal
+  exception excerpts, so a long echoed Docker command cannot hide the error.
+
+New and repaired neural-model tasks explicitly request `model_behavior` coverage.
+The wrong implementation must preserve interfaces and shapes while corrupting a
+promised computation. Independent assertions must reject it. Applying that
+requirement changes the task identity and requires fresh execution evidence.
+Settled rollout success/failure labels must also agree with the recorded reward.
+Contradictions enter the existing bounded review correction path; a legitimate
+solver failure can still support task acceptance. The 27 earlier accepted tasks
+have no label/reward disagreements in their rehashed rollout results.
+The combined runtime passes **1,297 local tests**, with four opt-in integration
+checks skipped; Ruff, generated prompt references, documentation and wheel build
+also pass. This is implementation validation, not acceptance of pending tasks.
+
+V5 preparation preserves successful exact-PR profiles and the complete prior
+Diffusers #13168 design. Two source-bound recovery proposals correct a tokenizer
+download allowance and a missing test dependency. Nine additional CPU candidates
+have been inspected; a tenth reserve requires a separately prepared two-GPU
+configuration. None of these proposals constitutes a completed environment.
+The launcher must wait for all prior children and provider receipts to reconcile,
+then recompute the remaining allowance across every phase before dispatch.
+
+The ordinary expansion ceiling remains **$200**, within the original **$1,000**
+campaign authorization. The user authorized a small final overrun, bounded here
+to **$50**: up to $250 for the expansion and $1,050 overall only if needed after
+the ordinary allowance is exhausted. This reserve is not activated by V5
+preparation; historical uncertain holds remain intact.
+
+## V5 results and V6 continuation
+
+V5 finished seven PR attempts. Diffusers #13168 and Accelerate #4059 passed
+independent inspection, increasing acceptance from 27 to **29**. Two other
+automated profile passes remain on exact-revision holds:
+
+| PR | Independent finding | Next action |
+| --- | --- | --- |
+| PEFT #2952 | Its wrong-solution control fails during import with an indentation error. Hidden `init_weights` requirements are missing from the instruction, and central numerical coverage is incomplete. | Repair the instruction and behavioral tests, then obtain a functioning semantic counterexample. |
+| Diffusers #13226 | Token-selection and entropy assertions do not establish their claimed behavior. Hidden API requirements also account for many solver failures. | Align the public contract and private tests; exercise the actual predicted values and intended entropy distinction. |
+
+Transformers #44160 failed bootstrap. Transformers #36790 reached a successful
+bootstrap but exhausted construction repairs. Diffusers #11602 also established
+a working bootstrap before stopping without a task. Their source-bound successful
+profiles and failure evidence remain available for continuation.
+
+The refreshed panel contains **70 PRs: 29 accepted, ten generated but not
+accepted, nine attempted without a task, and 22 unattempted**. Generation yield
+is 39/48 (81%) and acceptance yield is 29/48 (60%) among attempted PRs. These
+include prior accepted tasks; V5 alone accepted two of seven attempts. Task
+copies, revisions and semantic controls do not increase the unique-PR count.
+
+V6 carries two shared fixes:
+
+- Behavioral negative controls need syntax-valid mutations and an actual
+  assertion failure during verifier execution. Import/collection failures cannot
+  establish rejection of an incorrect algorithm, and review cannot downgrade
+  this missing evidence into an optional improvement. This is an execution
+  requirement; independent review still checks whether the assertion measures
+  the claimed behavior.
+- Learner images restore the task virtual environment in both login shells and
+  noninteractive Bash. A real L4 smoke identified `su learner` as the boundary
+  that replaced PATH. All six checks now pass across direct execution, login
+  shells and Harbor tmux, using both `python` and `python3`. See
+  [learner runtime](learner_runtime.md) for the emitted setup and validation.
+
+Accelerate #3529's earlier compiled-execution proof predates the new evidence
+journal. A bounded revalidation reran its two controls: the broken forward failed
+a numerical assertion, and the valid alternative passed. The task and its earlier
+baseline, reference and Sonnet evidence remain unchanged. This refresh cost
+**$1.438431**; the two learner-runtime smoke attempts cost **$0.777260** combined.
+Both amounts are included in the cumulative expansion budget, with their workers
+terminated and reservations released.
+
+At V6 launch, the implementation passed **1,324 tests**, with four opt-in integration
+checks skipped, and all 17 generated prompt references match their sources. The
+next queue pairs retained CPU repairs with small fresh GPU PRs, before large model
+additions. Prepared task copies receive the shared runtime correction when
+needed and must earn fresh quality evidence. The default three-repair limit,
+four-controller limit and two-GPU-controller limit remain unchanged. The queue
+continues to retain unsuccessful tasks and diagnoses.
+
+## V6 results and the eight-controller continuation
+
+V6 finished ten attempts and accounted for **$40.408777**, with no remaining
+phase reservations. Six passed the automated profile; independent inspection
+accepted Diffusers #13921, bringing the total to **30**. Its reference and valid
+alternative each passed 40 scored checks. Removing LoRA scaling caused two real
+numerical failures. The blind Sonnet attempt made twenty read-only calls and
+left the feature unimplemented; the resulting 38 failures reflect the missing
+feature, not an environment failure.
+
+The five other automated passes remain retained for repair. TRL #6001's verifier
+simulates pooling rather than measuring the production path; PEFT #2939 lacks
+the promised energy-threshold rank checks; Transformers #36521 needs central
+projector and image-placement assertions. TRL #6139 reveals its exact patch and
+does not exercise the required real distributed behavior. Accelerate #3720 has
+sound GPU checks, but its rollout was rejected for harmless editor backups
+before tests ran. Their original results and separate diagnoses remain available.
+
+V7 begins with four prepared recoveries and four construction candidates,
+then refills free slots from the remaining queue. Each PR has its own coding
+agent, sandbox, receipts and candidate spending cap. It runs at most eight PR
+controllers and two GPU controllers in total. No earlier drained wave is reopened.
+
+Shared changes address observed failures:
+
+- Readiness checks reject absent test-file selectors before expensive builds.
+- Saved repair diagnoses appear before large patches in the review context.
+- Prepared semantic probe definitions retain their exact task binding and run
+  afresh; previous rewards are not imported as new evidence.
+- A task that becomes eligible for its blind rollout after probe review now
+  receives that rollout within its remaining allowance.
+- Private grading accepts bounded regular Python editor backups, discarding
+  them only after submission validation; immutable assets stay protected.
+- CPU construction emits source directories as artifacts with strict required
+  and immutable-file contracts. One earlier control spent 178 seconds collecting
+  964 individual files and 150 seconds preparing verification, versus 29 seconds
+  in pytest. A fresh Sana CPU control subsequently took 73 seconds overall,
+  including 12 seconds collecting/stopping and four seconds preparing grading.
+  This is a cross-task comparison, not a controlled same-task speedup estimate.
+
+The integrated runtime passes **1,364 local tests**, with four opt-in live checks
+skipped. Ruff, all 17 prompt references, documentation and the wheel build pass.
+These implementation checks do not establish acceptance of the queued tasks.
+
+## V7 outcomes and prepared V8 recovery
+
+V7 finished all 18 admitted PRs and then drained. It spent **$64.26**, with no
+remaining reservations for that wave. Eleven candidates produced Harbor tasks;
+seven received automated passes. Independent inspection accepted two additional
+PRs, bringing the total to **32**:
+
+| Accepted PR | Evidence |
+| --- | --- |
+| Accelerate #3720 | Real two-rank CUDA/NCCL ownership and mesh caching; reference and valid alternative pass 24 checks, wrong cache behavior fails two. Sonnet passes 23 and omits one required state field. |
+| Transformers #35348 | Real tiny DINO model; reference and valid alternative pass 14 checks. The wrong classifier formula fails the numerical assertion. Sonnet leaves the requested exports incomplete. |
+
+Nine recovery copies were prepared as **assisted and unverified**, retaining
+their original source, reference and failed execution records:
+
+| PR | Prepared correction |
+| --- | --- |
+| PEFT #2661 | Observe actual DoRA work reuse and invalidation without requiring a particular private cache field. |
+| PEFT #2939 | Preserve numerical LoKr rank checks while removing undocumented exception-message matches. |
+| PEFT #2952 | Describe the existing initialization option required by the verifier. |
+| Diffusers #11602 | Check the initial SCM image/noise mixture numerically before the scheduler updates it. |
+| Diffusers #13226 | Exercise public scheduler/pipeline behavior, actual token writeback and unequal-entropy loss inputs; clarify required constructor options. |
+| Transformers #36790 | Execute real processor token expansion and numerical image/projector behavior without requiring a private merger implementation. |
+| Transformers #36521 | Correct numerical fixture variables and alternative-probe installation; remove private projector-field requirements. |
+| TRL #6001 | Call real constructors, production batch methods and async scheduling; replace source-regex grading and an invalid alternative. |
+| TRL #6187 | Remove the exact patch from the instruction and require successful two-GPU generation/synchronization before scoring observations. |
+
+V8 ran nine prepared tasks, admitting up to eight controllers and at most two GPU
+controllers under a shared **$100** allowance. These tasks reused existing build
+artifacts and ran fresh baseline/reference controls, exact prepared probes and
+blind Sonnet 4.6 rollouts. Opus 4.6 handles review and repair in this wave; repeated Sonnet reviews
+had missed concrete contract and verifier defects. Repairs remain bounded at
+three. The practical acceptance bar requires meaningful behavioral evidence,
+without demanding exhaustive coverage or solver success.
+
+The runtime also incorporates the observed failures: review checks undocumented
+constraints, generated fixtures must complete the intended production path,
+repairs can append exact test IDs without reconstructing large contract lists,
+and a narrow static guard rejects direct implementation-source grading in the
+generated behavioral test. **1,406 local tests pass**, with four opt-in live
+checks skipped; prompt references, Ruff, docs and wheel validation pass.
+
+## V8 results and the next twelve candidates
+
+V8 completed all nine PRs for **$28.77**, with no remaining wave reservations or
+active workers. Eight passed the automated profile. Independent inspection
+accepted **six of nine (67%)**, bringing the total to **38/50**; 43 unique PRs
+have Harbor exports. This wave's cost includes recovery validation, not the
+previous cost of generating these tasks.
+
+| Accepted PR | Behavioral evidence | Sonnet result |
+| --- | --- | --- |
+| PEFT #2661 | Real DoRA numerical equivalence, saved tensor work and lifecycle; two wrong implementations fail and two storage alternatives pass. | 10/10 |
+| PEFT #2939 | Real adapter conversion and checkpoint reload; known-spectrum rank/product checks reject a constant-rank implementation. | 1/25; exploration ended without source changes |
+| PEFT #2952 | Actual PVeRA training, gradients, sharing and checkpoint behavior; deterministic-mean mutation fails stochasticity. | 14/16 |
+| Transformers #36521 | Actual Aya vision/projector/language-model path; wrong activation fails numerically and an equivalent reshape passes. | 14/14 |
+| Transformers #36790 | Actual processor expansion, projector math and image placement/influence; three wrong implementations fail their intended assertions. | 7/24; exports unfinished |
+| TRL #6187 | Real two-rank NCCL, explicit local-device selection and production generation completion; missing synchronization and an exception after synchronization fail. | 12/12 |
+
+Three outputs remain `needs_repair`, with originals and every failed revision
+retained. Sana's core SCM verifier now works, but the instruction leaves strength
+rounding unspecified; the prepared instruction defines it. LLaDA now tests real
+token writeback and loss behavior, but omits public keywords required by its
+verifier; the prepared instruction records those signatures and defaults. TRL's
+pooling verifier calls the production methods, but its backend fixture supplies
+log-probabilities in the wrong tuple position. Three automatic repairs did not
+correct that position; a separate corrected fixture is ready for fresh execution.
+These copies remain unverified until their new controls, probes and rollouts pass
+review.
+
+V9 queues twelve PRs: those three recoveries, PEFT #3079,
+TRL #6139 and #6078, PEFT #3098, and Diffusers #12619, #11281, #11812, #14045 and
+#12703. They are all from the original seed list. Prepared designs and corrected
+profiles reduce repeated investigation; their fresh bootstrap and feature
+validation are still required. The frozen plan has a shared **$80** allowance
+from remaining expansion funds. Final admission retained every previous charge
+and hold: $265.65 of the $350 expansion allocation was already used or reserved,
+and $137.82 remained in the overall ledger. Eight controllers, at most two GPU
+controllers, process four prepared tasks, four prepared designs and four fresh
+CPU candidates. Eighteen controller guard tests cover the actual twelve inputs,
+source and resource conflicts, duplicate tasks, cleanup and budget admission.
+
+Two observed failures are now addressed in owned code. A narrow patch fallback
+restores CRLF source only when both pinned Git blob identities match; it preserves
+the original patch and rejects true mismatches. Fixture repair prompts require
+the complete production return contract and explicit expansion of unpacked tuple
+fields before proposing an edit. Exact-source prepared designs can now skip
+repeated authoring after fresh bootstrap confirms their bound dependency profile;
+a changed profile falls back to ordinary authoring. **1,439 local tests pass**,
+with four opt-in checks skipped. These changes do not increase the three-repair
+limit.
+
+## V9 results and parallel recovery
+
+V9 completed twelve attempts for **$47.31** in accounted model usage and
+conservative compute estimates. All workers have confirmed cleanup; a **$2.00**
+uncertain model reservation remains. Six tasks passed the automated profile.
+Independent inspection accepted four, bringing the total to **42/50**:
+
+| Accepted PR | Behavioral evidence | Sonnet result |
+| --- | --- | --- |
+| Diffusers #11602, Sana | Real SCM sine/cosine behavior; the wrong numerical implementation fails and an equivalent strength calculation passes. | 7/14; strength parsing and a public keyword remain wrong |
+| Diffusers #13226, LLaDA | Actual token writeback and loss behavior; the wrong implementation fails 14 assertions and the alternative passes all 47 checks. | Submitted code passes 47/47; the agent later reaches its time limit during further checking |
+| PEFT #3098, GLoRA | Actual adapter numerical behavior; corrupting the A/B roles fails eight checks and the equivalent expression passes all 13. | 1/13; exploration ends without source changes |
+| TRL #6139 | Real two-L4 PEFT/NCCL execution; missing synchronization fails the generation-boundary assertion and asynchronous synchronization followed by wait passes. The external vLLM engine boundary is mocked. | Synchronizes only when weights change, missing synchronization on every generation |
+
+Two automated passes remain held for concrete instruction/verifier fairness
+defects. Flux #11812 requires an undocumented private helper; Krea #14045 requires
+undocumented component/configuration interfaces. Corrected copies require fresh
+controls, probes and rollouts. Four other generated tasks retain incomplete
+quality evidence, and two attempts stopped at bootstrap. Failed artifacts remain
+available for diagnosis.
+
+V10 launched **six recovery controllers concurrently**, alongside the final V9
+CPU job until it drained. Its inputs are TRL #6001 and #6078, PEFT #3079, and
+Diffusers #12619, #11281 and #12703. Five use CPU workers; one uses native Modal
+with two L4 GPUs. Its shared allowance is **$30**. Moving another $30 of existing
+global headroom into the internal expansion allocation raises that allocation
+from $350 to **$380**, while the overall ceiling remains **$1,000**. Admission
+includes all earlier charges and holds, the preceding wave's entire unused
+allowance and a $20 global margin. Pending jobs are not accepted tasks.
+
+The shared implementation now addresses four observed execution failures:
+
+- Explicit test CPU/memory requirements flow from the repository profile into
+  bootstrap and the exported verifier. HiDream #11281's unchanged readiness
+  tests now both pass with 8 GiB after the previous 2 GiB run was killed for
+  memory. The dependency image was rebuilt on the new worker; this observation
+  does not establish an image cache hit or feature acceptance.
+- Native Modal build failures retain bounded, redacted causal logs. Dependency
+  failures can be diagnosed without treating an empty build log as evidence.
+- Probe scripts run in a child shell, so their own `exit 0` cannot bypass the
+  trusted source-change audit and completion marker.
+- Review context lists exact selected private verifier paths. Batch admission
+  validates prior accepted evidence once, then rechecks the live budget and
+  overlapping controller state immediately before allocation.
+
+The integrated owned source passes **1,475 local tests**, with four opt-in live
+checks skipped. Ruff, all 17 generated prompt references, documentation and
+wheel/source checks pass. V10 uses a frozen checkout and wheel, so integrating
+these changes into the draft PR does not change a running experiment.
+
+## V10 and V11: 47 accepted tasks
+
+V10 completed six attempts for **$21.52**. Independent review accepted TRL
+#6078 and Diffusers #12619. HiDream #11281 passed the automated profile, but
+inspection found that its new LoRA loader was not executed by the verifier.
+Z-Image #12703's wrong adaLN implementation still passed. Both remain available
+with repair diagnoses; an automated pass does not override a concrete verifier
+defect.
+
+V11 reused three prepared CPU tasks and completed for **$8.65**, with at most
+two controllers at once. All three now have independent acceptance records.
+
+| Accepted PR | Evidence | Blind Sonnet result |
+| --- | --- | --- |
+| TRL #6078, GMPO | Reference and valid alternative pass 19 checks, including real optimizer steps. The arithmetic-mean corruption fails five numerical checks. | 19/19 |
+| Diffusers #12619 | Reference and valid alternative pass 17 checks. Removing warnings causes ten expected-warning failures. | 17/17 |
+| TRL #6001, environment pooling | Reference and a complete LIFO alternative pass 12 checks. Eager reconstruction fails actual factory-count and instance-reuse assertions. | 6/12; no source changes within its 30-episode limit |
+| Diffusers #14045, Krea | Reference and fused SwiGLU alternative pass 14 checks. Replacing sigmoid with tanh fails an independent numerical assertion. | 13/14; incorrect use of the Qwen VAE scaling configuration |
+| Diffusers #11812, Flux Kontext | Reference and algebraic alternative pass 10 checks. Reversed CFG produces -22 where the required scheduler input is 26. Position IDs are observed through public inference. | 10/10; implements the pipeline and exports |
+
+TRL #6001 exposed a deterministic classification error: the phrase “created
+lazily” referred to environment pooling, but the quality rule inferred a lazy
+generator-output requirement. The owned rule now distinguishes these contracts.
+A separate reassessment changes only the status and reason of the completed
+assessment after checking all original trial, probe, review and task bindings.
+It adds no model or solver calls; the original result remains unchanged.
+
+CPU rollout admission can now wait briefly when another job's temporary shared
+reservation prevents dispatch. It preserves the final denied budget scopes and
+does not wait for spent-budget exhaustion, increase a cap or release uncertain
+holds. The combined budget, quality, publication and task-focus regression
+selection passes **205 tests**. The preceding full budget-change suite passed
+**1,495 tests**, with four opt-in live checks skipped.
+
+The remaining prepared PRs are PEFT #3079, HiDream #11281 and Z-Image #12703.
+V12 runs the first two concurrently, on two L4s and CPU respectively, under a
+shared **$20** allowance. It uses the same checked wheel and exact source commit
+from a separate clean checkout. Z-Image's revised verifier has passed static
+preflight and still needs fresh cloud execution. None of these pending results
+counts toward the 47 accepted tasks.
+
+Completed V1–V11 waves account for **$342.16** and 23 newly accepted tasks, or
+**$14.88 per accepted task**, including failed attempts, retries and auxiliary
+work. Of that cost, 54% is cloud compute, 19% authoring/investigation, 22% quality
+review/repair and 5% blind solver model calls. This excludes ongoing V12, earlier
+work that produced the original 24 tasks, and interactive Codex assistance.
+Compute figures are reconciled estimates rather than final provider invoices.
+
+## Execution and budget
+
+```mermaid
+flowchart TD
+    Old[24 existing verified PR tasks] --> Target[Target: 50 unique verified PR tasks]
+    Inputs[114 original candidate PRs] --> Panel[70-PR campaign panel]
+    Panel --> Freeze[Freeze sources, resource options, controller and runtime]
+    Freeze --> Budget[Global ceiling: 1000 USD; wave allowance checked before admission]
+    Budget --> Parallel[Up to eight isolated PR processes; at most two GPU]
+    Parallel --> Fresh[Fresh source: investigate, bootstrap, design, construct]
+    Parallel --> Recovery[Prepared task: verify source binding and reuse artifact]
+    Fresh --> Quality[Controls, review, probes, blind Sonnet rollout and bounded repair]
+    Recovery --> Quality
+    Quality --> Save[Retain every generated task, label and diagnosis]
+    Save --> Accepted{Current revision verified?}
+    Accepted -->|Yes| Target
+    Accepted -->|No| Next[Try the next PR while budget remains]
+    Next --> Budget
+```
+
+The overall ceiling remains **$1,000**, including $22.43 of historical external
+cost; the ordinary global ledger remains $977.57. V7 used the earlier cumulative
+expansion allocation of $250. V8 allocates another $100 from unused headroom
+inside that same overall ceiling, raising the cumulative expansion allocation
+to **$350**. Its own shared allowance is $100, with at least $20 retained outside
+the wave at admission. Previous failures, auxiliary checks and uncertain holds
+remain charged against these limits. No ledger or allowance resets. Compute
+accounting uses conservative estimates rather than provider invoices.
+V10's internal allocation increases to $380 as described above; its $30 wave
+cap remains part of that allocation.
+
+Reservations for builders, authoring, review, repair, solvers and native GPU
+allocations share the same SQLite transaction. Worker lifetimes are explicit:
+3,600 seconds with a $3 reservation for the smaller CPU profile, and 4,800 seconds
+with $4 for larger workers. Model reservations are based on observed costs;
+reported overruns remain visible and reduce later headroom.
+
+The coding runtime for new construction remains Pi with Sonnet. V8 uses Opus
+review/repair and blind Sonnet rollouts for the prepared tasks listed above.
+Each receives fresh quality checks. Fifty independently accepted tasks remain
+the target; current counts distinguish prepared inputs from validated outputs.
+
+## Inspect or resume
+
+```bash
+repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v8
+repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
+repo2rlenv tasks show PATH_TO_TASK --json
+```
+
+The completed V8 wave uses `workspace/tasksmith-scale50/batch-plan-v8.json`; its
+configuration, frozen runtime, subprocess logs and final report are under
+`workspace/tasksmith-scale50/batch-v8/`. `continuation-v8.json` records its
+allowance after all prior phases and exact excluded revisions. Do not resume
+admission for the drained V1–V7
+batches. Their parent reports may be stale; completed child receipts remain the
+source of truth. Completed attempts are not blindly
+repeated. Provider or child-process uncertainty stops dispatch until receipts
+are reconciled. The controller stops admitting work once the target or batch
+allowance is reached.
+
+See [parallel campaign contracts](tasksmith_parallel_campaigns.md),
+[evaluation label semantics](task_evaluation_labels.md), and the
+[autonomy audit](tasksmith_autonomy.md). Historical acceptance includes assisted
+work; the new batch's unattended yield must be measured from its own receipts.

@@ -13,6 +13,11 @@ class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+ProbeFocus = Literal[
+    "general", "lazy_output", "numeric_tolerance", "compiled_execution", "model_behavior"
+]
+
+
 class Citation(Record):
     path: str
     quote: str = Field(min_length=1, max_length=1000)
@@ -35,7 +40,9 @@ class Issue(Record):
 
 class ReadRequest(Record):
     path: str
-    query: str | None
+    query: str | None = Field(
+        description="One exact literal substring to search, not a regex or a list of words. Use separate read requests for different terms."
+    )
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
 
@@ -49,7 +56,7 @@ class ReadRequest(Record):
 class SemanticProbe(Record):
     name: str = Field(pattern=r"^[a-z][a-z0-9-]{0,35}$")
     kind: Literal["wrong_solution", "valid_alternative"]
-    focus: Literal["general", "lazy_output", "numeric_tolerance"] = "general"
+    focus: ProbeFocus = "general"
     rationale: str = Field(min_length=1)
     evidence: list[Citation] = Field(min_length=1)
     # Run after the reference in a private probe variant, never on the controller.
@@ -103,14 +110,26 @@ class Repair(Record):
     explanation: str = Field(max_length=1500)
     addressed_issues: list[str] = Field(min_length=1)
     edits: list[Edit] = Field(max_length=16)
+    append_expected_passes: list[str] = Field(
+        default_factory=list,
+        max_length=256,
+        description=(
+            "Append only new exact case IDs to existing tests/contract.json.expected_passes; "
+            "preserve all existing IDs and do not also text-edit that contract."
+        ),
+    )
     probe_replacements: list[SemanticProbe] = Field(default_factory=list, max_length=4)
 
     @model_validator(mode="after")
     def targeted_changes(self):
-        if not self.edits and not self.probe_replacements:
-            raise ValueError("A repair must change task files or an invalid alternative probe")
-        if any(probe.kind != "valid_alternative" for probe in self.probe_replacements):
-            raise ValueError("Previously demonstrated wrong-solution probes cannot be replaced")
+        if not self.edits and not self.append_expected_passes and not self.probe_replacements:
+            raise ValueError("A repair must change task files or a diagnosed invalid probe")
+        if any(not value.strip() for value in self.append_expected_passes):
+            raise ValueError("Appended expected-pass IDs must be nonempty")
+        if len(set(self.append_expected_passes)) != len(self.append_expected_passes):
+            raise ValueError("Duplicate appended expected-pass IDs")
+        # Replacement eligibility depends on preserved execution evidence and is
+        # enforced by QualityLoop, never inferred from a model-authored patch.
         return self
 
 
@@ -125,7 +144,7 @@ class LoopOptions(Record):
     )
     repair: bool = False
     run_rollout: bool = False
-    max_repairs: int = Field(default=2, ge=0, le=5)
+    max_repairs: int = Field(default=3, ge=0, le=5)
     max_read_rounds: int = Field(default=2, ge=0, le=4)
     max_probes: int = Field(default=2, ge=0, le=4)
     context_chars: int = Field(default=100000, ge=16000, le=250000)
@@ -136,6 +155,7 @@ class LoopOptions(Record):
     success_reward: float = Field(default=1.0, allow_inf_nan=False)
     model_reservation_usd: str = "1.00"
     solver_reservation_usd: str = "4.00"
+    shared_reservation_wait_sec: int = Field(default=30, ge=0, le=300, strict=True)
     max_spend_usd: str = "15.00"
 
     @model_validator(mode="after")

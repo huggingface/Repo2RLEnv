@@ -83,6 +83,9 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     # is additive — old readers ignore the new subtable, new readers see it.
     repo2env.setdefault("spec_version", "0.2.0")
     repo2env.setdefault("content_hash", _content_hash(task))
+    from repo2rlenv.emitter.evaluation import generated_evaluation
+
+    repo2env["evaluation"] = generated_evaluation()
     # Default reward kinds — sandbox-required tasks override with
     # test_execution as the primary signal
     if task.test_script is not None:

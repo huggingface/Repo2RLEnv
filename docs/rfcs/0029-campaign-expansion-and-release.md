@@ -1,4 +1,4 @@
-# RFC 0028: Bounded expansion and immutable Harbor releases
+# RFC 0029: Bounded expansion and immutable Harbor releases
 
 Status: implemented; generation and publication evidence are recorded per release.
 

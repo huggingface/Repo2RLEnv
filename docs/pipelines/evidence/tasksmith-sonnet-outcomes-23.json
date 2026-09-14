@@ -1,0 +1,255 @@
+{
+  "accepted": 23,
+  "solved": 10,
+  "by_repository": {
+    "accelerate": {
+      "accepted": 9,
+      "solved": 5
+    },
+    "peft": {
+      "accepted": 4,
+      "solved": 2
+    },
+    "transformers": {
+      "accepted": 1,
+      "solved": 0
+    },
+    "trl": {
+      "accepted": 9,
+      "solved": 3
+    }
+  },
+  "tasks": [
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3075",
+      "repository": "accelerate",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-5d12db5414d2/trials/02-rollout/result.json",
+      "result_sha256": "60ffa9de783a1d5a607aacb2917a3ce0e35fa267df604f9d53101171dfbb05cb"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3251",
+      "repository": "accelerate",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-58e016fc946a/trials/02-rollout/result.json",
+      "result_sha256": "04b555db41113454b85e4299b0703950e6a7338269652158b5b6cb2f8c5d2f11"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3850",
+      "repository": "accelerate",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-3d762a2acfee/trials/04-rollout/result.json",
+      "result_sha256": "e1b3d896153aa350cc68177ab612d0a1491ead7ff3d8a1059753c68c1ee09812"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3684",
+      "repository": "accelerate",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-e38398f4d9df/trials/02-rollout/result.json",
+      "result_sha256": "972ca9f10db20d1501fee78486353097770a4f8ba129318f24fc08c9296732cb"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3969",
+      "repository": "accelerate",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-f1fb6bb8619d/trials/02-rollout/result.json",
+      "result_sha256": "19b3e53bb4d210b33f654f7ea3f5aa4f8202f4559bc248423b172008b9bed66e"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3150",
+      "repository": "accelerate",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-3960c9b5f1c6/trials/02-rollout/result.json",
+      "result_sha256": "aad8ef60c66f462369fd2f08d088bb7f7d09834982fbe503dd857786db63d2d4"
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/2962",
+      "repository": "peft",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-e1ba3292a5bc/trials/06-rollout/result.json",
+      "result_sha256": "87a77da5a5a95708b83c90f99c9e6529d779eafcf9d3d0bb221d9aa21b7f33d8"
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/3302",
+      "repository": "peft",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-749ff8d440e1/trials/02-rollout/result.json",
+      "result_sha256": "cf3403c3f9c2c8f1596f55faa2a69bc6d86cb716a3abdcf1b24ce2c5eae777a3"
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/3350",
+      "repository": "peft",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-0d2d1e298e86/trials/05-rollout/result.json",
+      "result_sha256": "f24d59d6307b974bcababa31ae09285a9cb8cebb7ffbc1753f8a1733c04522b6"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6066",
+      "repository": "trl",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-hf-scale/delivery/evidence/tasksmith-b71e9e0a47b6/trials/02-rollout/result.json",
+      "result_sha256": "5e5ab34827d79cd655c1f7c6dfebbb7a5bf2f34b6eefa127278baae938e14653"
+    },
+    {
+      "source": "https://github.com/huggingface/peft/pull/3212",
+      "repository": "peft",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/peft3212-repair-v2/quality/trials/r1-rollout/scale30-peft3212-repair-v2-q-r1-rollout/tasksmith-35c1a487454c__zUR6TXk/result.json",
+      "result_sha256": "8ce50c67c436b5104b34ce4af8dd5c5cc1f6a40b1d11d7ad2c62b57145dbe023"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3674",
+      "repository": "accelerate",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/accelerate3674-repair-v1/quality/trials/r0-rollout/scale30-accelerate3674-repair-v1-r0-rollout/r2e-2b1e87c846912a4c6217409f/result.json",
+      "result_sha256": "bce2343e29fb06df8b1206d9272153dfdad6abb02e6f3447863f3476d3c8f4d1"
+    },
+    {
+      "source": "https://github.com/huggingface/transformers/pull/35669",
+      "repository": "transformers",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/recovery-cpu-first-v1/candidates/333d8be2d5aa/quality/trials/r0-rollout/scale30-recover-cpu-first-v1-333d8be2d5aa-r0-rollout/tasksmith-333d8be2d5aa__Lupwjir/result.json",
+      "result_sha256": "d0543969faf44c0d1b11d68277e0c8438d8cc6b7021956dd9d532fdc366366b0"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6152",
+      "repository": "trl",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/cpu-pair-repair-v1/candidates/03a6a091b12f/quality/trials/r0-rollout/scale30-cpu-pair-repair-v1-03a6a091b12f-r0-rollout/tasksmith-03a6a091b12f__jKsfLHe/result.json",
+      "result_sha256": "f8868b64c662d8e76186120004274e2e9b63e0503e475253e7e620e06bb05316"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6228",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/cpu-pair-repair-v1/candidates/1fe00f939ab9/quality/trials/r0-rollout/scale30-cpu-pair-repair-v1-1fe00f939ab9-r0-rollout/tasksmith-1fe00f939ab9__KxSpbFo/result.json",
+      "result_sha256": "ff082e12d19c4857ab13cbf1f943bf0a3f3ff1fd3b335f7d5a28287675fa7c1f"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5575",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/memory-finish-repair-v4/quality/trials/r0-rollout/scale30-recover-memory-finish-v4-r0-rollout/r2e-c4732a4ed4caf861859ae19a/result.json",
+      "result_sha256": "d9ee37cce48cd030b67d5d1f0f2463a589bfaed44c8c1b069e0165192d6d14c1"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/3142",
+      "repository": "accelerate",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/scaler-finish-repair-v4/quality/trials/r0-rollout/scale30-recover-scaler-finish-v4-r0-rollout/r2e-54e8c88c31b298df6a248b51/result.json",
+      "result_sha256": "b4262cc20a8818d4969a403c5b519c538e1da7bc1eb63ae5ed0300136a8e4fc2"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6206",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/cpu-controls-repair-v5/candidates/9f3fb07e5766/quality/trials/r0-rollout/scale30-recover-cpu-controls-v5-9f3fb07e5766-r0-rollout/tasksmith-9f3fb07e5766__h2RAbQM/result.json",
+      "result_sha256": "9a194350256788bc0021f4cd7e8d34180ef1dee41edea222ec05575ed86791a1"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5501",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/logging-fixture-repair-v2/quality/trials/r0-rollout/scale30-recover-logging-fixture-v2-quality-r0-rollout/tasksmith-0ea2241cceeb__QV3kgtn/result.json",
+      "result_sha256": "33deef348bd3bef45837a03d13aa769147a36f2af5657d4fc7daf33c7d7e5dbe"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/6150",
+      "repository": "trl",
+      "reward": 1.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_success",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/recovery-offline-trl-v1/candidates/466b1e8e082b/quality/trials/r0-rollout/scale30-recover-offline-trl-v1-q-466b1e8e-r0-rollout/tasksmith-466b1e8e082b__M4iYCEF/result.json",
+      "result_sha256": "fa00b99ed58358f43982aeb794025f9a0ab6082771bc8de72ef2ac1db3356ddf"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5791",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/cpu-finish-repair-v5/candidates/150751b5c0ba/quality/trials/r0-rollout/scale30-recover-cpu-finish-v5-150751b5c0ba-r0-rollout/tasksmith-150751b5c0ba__vyudfMW/result.json",
+      "result_sha256": "7b33315bf5793a863fa0c4aa4f188af690eb8d817312121f08e3adc1dc48cf6e"
+    },
+    {
+      "source": "https://github.com/huggingface/accelerate/pull/4015",
+      "repository": "accelerate",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/fsdp-resume-repair-v7/quality/trials/resumed-rollout/scale30-recover-fsdp-resume-v7-verifier-resume/r2e-c9b2c03aa2da66e4c58668c0/result.json",
+      "result_sha256": "407338960edc1727907a4f1da875c98b69cfc3e850cc54db17e48e028efe6d14"
+    },
+    {
+      "source": "https://github.com/huggingface/trl/pull/5349",
+      "repository": "trl",
+      "reward": 0.0,
+      "model": "anthropic/claude-sonnet-4-6",
+      "assessment": "legitimate_failure",
+      "exception_type": null,
+      "result": "workspace/tasksmith-scale30/chunked-resume-repair-v7/quality/trials/resumed-rollout/scale30-recover-chunked-resume-v7-verifier-resume/r2e-da5bea94d4fdc122130c8a9b/result.json",
+      "result_sha256": "654701f9b86177547e604c868cbcc3995422807657260b91ffa64bac3342b658"
+    }
+  ],
+  "scope": "One recorded blind Sonnet rollout per accepted task; sample outcome, not a repeated pass-rate estimate."
+}

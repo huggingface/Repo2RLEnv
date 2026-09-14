@@ -2,7 +2,7 @@
 
 Use an explicit selection to publish a recipe's retained and newly generated tasks
 as one dataset. This workflow does not change the task artifacts or their quality
-labels. See [RFC 0028](../rfcs/0028-campaign-expansion-and-release.md) for the contracts.
+labels. See [RFC 0029](../rfcs/0029-campaign-expansion-and-release.md) for the contracts.
 
 ```mermaid
 flowchart LR

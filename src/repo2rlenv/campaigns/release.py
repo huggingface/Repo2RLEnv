@@ -173,7 +173,7 @@ def _card(plan: ReleasePlan, manifest: dict) -> str:
         {
             "license": "other",
             "license_name": "mixed-source-licenses",
-            "license_link": "LICENSES.md",
+            "license_link": f"https://huggingface.co/datasets/{plan.repo_id}/blob/main/LICENSES.md",
             "language": ["en"],
             "tags": ["reinforcement-learning", "coding", "harbor", "repo2rlenv", plan.recipe],
             "size_categories": ["n<1K"],

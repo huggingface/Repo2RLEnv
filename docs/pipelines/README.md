@@ -245,3 +245,5 @@ class Pipeline(Protocol):
 
 Dataset publication: [immutable Harbor releases](dataset_release.md), including
 quality labels, evidence manifests, cost accounting and executable-mode archives.
+
+The [Tasksmith PR harness](tasksmith.md) connects remote repository investigation, cached bootstrap, PR regression construction and the shared quality loop.

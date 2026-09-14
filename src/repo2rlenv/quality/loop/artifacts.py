@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import shutil
 import tempfile
 import tomllib
@@ -13,8 +14,15 @@ from pathlib import Path
 import tomli_w
 
 from repo2rlenv.emitter.bundle import inspect_bundle, relative_asset_path
+from repo2rlenv.emitter.evaluation import generated_evaluation
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.quality.loop.models import Repair, SemanticProbe, TrialRecord
+from repo2rlenv.quality.loop.verifier_policy import (
+    TASKSMITH_BEHAVIOR_PATH,
+    check_behavioral_verifier,
+)
+
+EXPECTED_PASSES_CONTRACT = "tests/contract.json"
 
 
 def digest(path: Path) -> str:
@@ -58,7 +66,14 @@ def refresh_identity(task: Path) -> str:
     config = tomllib.loads(config_path.read_text())
     metadata = config.get("metadata", {}).get("repo2env", {})
     if "bundle_hash" in metadata:
-        metadata["bundle_hash"] = inspect_bundle(task)["bundle_hash"]
+        identity = inspect_bundle(task)["bundle_hash"]
+        if identity != metadata["bundle_hash"]:
+            metadata["evaluation"] = {
+                **generated_evaluation(subject_bundle_hash=identity),
+                "reason_codes": ["task_changed"],
+                "detail": "Task content changed; validate this revision before acceptance.",
+            }
+        metadata["bundle_hash"] = identity
         config_path.write_text(tomli_w.dumps(config))
     return task_identity(task)
 
@@ -71,12 +86,20 @@ def edit_path(value: str) -> str:
 
 
 def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
-    """Apply exact replacements to a copy; no generated code executes locally."""
+    """Apply exact replacements and case-ID appends to a new, unverified copy."""
     task_identity(task)
     if destination.exists():
         raise FileExistsError(destination)
-    if sum(len(edit.new) for edit in repair.edits) > 150000:
+    if (
+        sum(len(edit.new) for edit in repair.edits)
+        + sum(len(value) for value in repair.append_expected_passes)
+        > 150000
+    ):
         raise ValueError("Repair exceeds the text-edit limit")
+    if repair.append_expected_passes and any(
+        edit_path(edit.path) == EXPECTED_PASSES_CONTRACT for edit in repair.edits
+    ):
+        raise ValueError("Cannot append expected passes and text-edit tests/contract.json together")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".repair-", dir=destination.parent) as temporary:
         copied = Path(temporary) / task.name
@@ -93,8 +116,17 @@ def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
                 with path.open("x") as handle:
                     handle.write(edit.new)
                 path.chmod(0o755 if edit.executable else 0o644)
+        if repair.append_expected_passes:
+            _append_expected_passes(copied, repair.append_expected_passes)
         if not (copied / "instruction.md").read_text().strip():
             raise ValueError("Repair erased the task instruction")
+        config = tomllib.loads((copied / "task.toml").read_text())
+        behavior = copied / TASKSMITH_BEHAVIOR_PATH
+        if (
+            config.get("metadata", {}).get("repo2env", {}).get("recipe") == "tasksmith"
+            and behavior.is_file()
+        ):
+            check_behavioral_verifier(behavior.read_text())
         new_hash = refresh_identity(copied)
         if new_hash == task_identity(task) and not repair.probe_replacements:
             raise ValueError("Repair did not change the task")
@@ -110,6 +142,32 @@ def apply_repair(task: Path, repair: Repair, destination: Path) -> Path:
     return destination
 
 
+def _append_expected_passes(task: Path, additions: list[str]) -> None:
+    def unique_fields(pairs):
+        fields = {}
+        for key, value in pairs:
+            if key in fields:
+                raise ValueError(f"tests/contract.json contains duplicate field: {key}")
+            fields[key] = value
+        return fields
+
+    path = task / EXPECTED_PASSES_CONTRACT
+    if not path.is_file():
+        raise ValueError("Appending expected passes requires an existing tests/contract.json file")
+    contract = json.loads(path.read_text(), object_pairs_hook=unique_fields)
+    existing = contract.get("expected_passes") if isinstance(contract, dict) else None
+    if not isinstance(existing, list) or any(
+        not isinstance(value, str) or not value.strip() for value in existing
+    ):
+        raise ValueError("tests/contract.json must contain a list of nonempty expected-pass IDs")
+    if len(set(existing)) != len(existing):
+        raise ValueError("tests/contract.json contains duplicate expected-pass IDs")
+    if set(existing).intersection(additions):
+        raise ValueError("Appended expected-pass IDs already exist in tests/contract.json")
+    contract["expected_passes"] = [*existing, *additions]
+    path.write_text(json.dumps(contract, indent=2) + "\n")
+
+
 def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:
     """Private reference-then-mutation control; instruction/tests/build stay exact."""
     if destination.exists():
@@ -122,10 +180,45 @@ def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:
     if private.exists():
         raise ValueError("Task already uses the reserved probe filename")
     (destination / "solution/solve.sh").rename(private)
+    before, after = "", ""
+    contract_path = task / "tests/contract.json"
+    if contract_path.is_file():
+        contract = json.loads(contract_path.read_text())
+        if contract.get("submitted_files") or contract.get("submitted_roots"):
+            # Scope this guard to the explicit collection contract of owned
+            # repository tasks. Other Harbor tasks may have different boundaries.
+            audit = destination / "solution/quality-probe-audit.py"
+            boundary = destination / "solution/quality-probe-contract.json"
+            if audit.exists() or boundary.exists():
+                raise ValueError("Task already uses a reserved probe audit filename")
+            shutil.copyfile(Path(__file__).with_name("probe_audit.py"), audit)
+            boundary.write_text(
+                json.dumps(
+                    {
+                        **{
+                            key: contract.get(key, {} if key == "immutable_assets" else [])
+                            for key in ("submitted_files", "submitted_roots", "immutable_assets")
+                        },
+                        "require_valid_python": probe.kind == "wrong_solution"
+                        and probe.focus in {"model_behavior", "compiled_execution"},
+                    }
+                )
+            )
+            command = (
+                "python /solution/quality-probe-audit.py "
+                "/solution/quality-probe-contract.json /tmp/quality-probe-before.json "
+            )
+            before, after = command + "before\n", "\n" + command + "after\n"
     wrapper = destination / "solution/solve.sh"
     wrapper.write_text(
         "#!/bin/bash\nset -eu\nbash /solution/quality-original-solve.sh\n"
-        + probe.script
+        + before
+        # A successful exit in the supplied script must not skip the trusted
+        # change audit or completion receipt. Nonzero exits still stop setup.
+        + "bash -eu -c "
+        + shlex.quote(probe.script)
+        + "\n"
+        + after
         + "\nprintf '__QUALITY_PROBE_COMPLETED__\\n'\n"
     )
     wrapper.chmod(0o755)

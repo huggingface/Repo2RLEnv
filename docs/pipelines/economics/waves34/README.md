@@ -1,17 +1,17 @@
 # Six-recipe expansion economics
 
-Snapshot: 2026-09-14T16:36:05.650827+00:00
+Snapshot: 2026-09-14T16:38:43.933381+00:00
 
 Generation exports, not independent quality acceptance. Parent reservations and child costs describe the same money. Active cloud usage remains reserved until reconciliation; a zero booked compute amount is not free compute.
 
 | Recipe | Retained | New exports | Total / 100 | Model USD | Other accounted USD | Reserved USD | Available USD |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| swe-flow | 24 | 20 | 44 | 0.881332 | 2.047713 | 6.150000 | 90.920955 |
-| seta-seed2synth | 23 | 7 | 30 | 3.948228 | 1.213308 | 7.900000 | 86.938464 |
-| seta-evol | 20 | 8 | 28 | 3.716167 | 2.16835 | 9.900000 | 84.215483 |
-| tmax | 20 | 3 | 23 | 4.695773 | 0 | 8.800000 | 86.504227 |
-| terminalworld | 20 | 8 | 28 | 3.512116 | 1.071365 | 7.800000 | 87.616519 |
-| dataarc | 20 | 15 | 35 | 3.486922 | 1.105439 | 5.400000 | 90.007639 |
+| swe-flow | 24 | 23 | 47 | 0.9655 | 4.126736 | 6.900000 | 88.007764 |
+| seta-seed2synth | 23 | 9 | 32 | 4.443906 | 1.213308 | 8.650000 | 85.692786 |
+| seta-evol | 20 | 10 | 30 | 4.311869 | 2.16835 | 10.050000 | 83.469781 |
+| tmax | 20 | 3 | 23 | 5.380179 | 0 | 8.150000 | 86.469821 |
+| terminalworld | 20 | 11 | 31 | 4.376309 | 1.071365 | 7.900000 | 86.652326 |
+| dataarc | 20 | 20 | 40 | 4.095325 | 1.105439 | 6.150000 | 88.649236 |
 
 Each recipe has a $100 cap. Model charges include recorded unsuccessful attempts;
 other accounted amounts include estimated worker/build costs once reconciled.

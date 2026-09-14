@@ -21,19 +21,23 @@ class ModalWorker:
 
         image = modal.Image.from_registry(spec.image or "ubuntu:24.04", add_python="3.12")
         image = (
-            image.env({"DEBIAN_FRONTEND": "noninteractive"})
-            .apt_install(
-                "docker.io",
-                "docker-buildx",
-                "docker-compose-v2",
-                "git",
-                "curl",
-                "ca-certificates",
-                "python3-venv",
+            modal.Image.from_id(spec.snapshot_id)
+            if spec.snapshot_id
+            else (
+                image.env({"DEBIAN_FRONTEND": "noninteractive"})
+                .apt_install(
+                    "docker.io",
+                    "docker-buildx",
+                    "docker-compose-v2",
+                    "git",
+                    "curl",
+                    "ca-certificates",
+                    "python3-venv",
+                )
+                .pip_install("uv==0.10.9")
+                .run_commands("mkdir -p /work /evidence", "python -m venv /opt/repo2rlenv")
+                .env({"PATH": "/opt/repo2rlenv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"})
             )
-            .pip_install("uv==0.10.9")
-            .run_commands("mkdir -p /work /evidence", "python -m venv /opt/repo2rlenv")
-            .env({"PATH": "/opt/repo2rlenv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"})
         )
         sandbox = modal.Sandbox.create(
             "/usr/bin/dockerd",

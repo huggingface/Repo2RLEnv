@@ -1,0 +1,471 @@
+{
+  "archive": {
+    "bytes": 5635507,
+    "packaged_files_checked_for_configured_credentials": 1535,
+    "path": "workspace/tasksmith-cpu-hf-pilot.tar.gz",
+    "sha256": "308093809bd62210f62cdbdb9acb98631beba1d7b60e38891b1a6f22d5853545"
+  },
+  "caveats": [
+    "v4 reused three generations and generated two tasks afresh; its cost is not a from-scratch five-task price.",
+    "The first task inherited an earlier repaired revision; final-run repair counts exclude earlier attempts.",
+    "Scores use focused tests and one Sonnet attempt per final revision, not exhaustive verification or difficulty calibration."
+  ],
+  "costs": {
+    "campaign": {
+      "accounted_usd": "208.712939",
+      "limit_usd": "477.570000",
+      "remaining_usd": "253.313684",
+      "reserved_usd": "15.543377"
+    },
+    "note": "Model costs are usage-based estimates. Compute is a conservative estimate, not a provider invoice. Interrupted model calls retain their reservations.",
+    "original_campaign_limit_usd": "500.00",
+    "outside_ledger_prior_usd": "22.43",
+    "runs": [
+      {
+        "accounted_usd": "1.159531",
+        "compute_estimate_usd": "0.561241",
+        "reserved_usd": "0.138465",
+        "run": "v1"
+      },
+      {
+        "accounted_usd": "2.330708",
+        "compute_estimate_usd": "0.757045",
+        "reserved_usd": "0.654912",
+        "run": "v2"
+      },
+      {
+        "accounted_usd": "12.226557",
+        "compute_estimate_usd": "0.988070",
+        "reserved_usd": "0",
+        "run": "v3"
+      },
+      {
+        "accounted_usd": "9.39653",
+        "compute_estimate_usd": "1.124180",
+        "reserved_usd": "0",
+        "run": "v4"
+      }
+    ],
+    "tasksmith_accounted_usd": "25.113326",
+    "tasksmith_reserved_usd": "0.793377"
+  },
+  "execution": {
+    "all_tasksmith_workers_terminated": true,
+    "author_runtime": "pi",
+    "harbor_version": "0.20.0",
+    "provider": "modal",
+    "task_schema": "1.3"
+  },
+  "final_trial_count": 26,
+  "generated": 5,
+  "inputs": 5,
+  "models": {
+    "author": "anthropic/claude-sonnet-4-6",
+    "repair": "openai/gpt-6-astra",
+    "review": "openai/gpt-6-astra",
+    "solver": "anthropic/claude-sonnet-4-6"
+  },
+  "panel": "cpu-hf-pilot",
+  "quality_scope": "practical-generation-v1, focused behavioral checks and one blind Sonnet rollout per final revision",
+  "recorded_on": "2026-09-13",
+  "run": "tasksmith-pilot-v4",
+  "runtime_sha256": "8bea2724e23d4ff5ec4ebeacce2ddeac80e1b4f5ccb9199668823f202c8fa612",
+  "schema_version": 1,
+  "source_commit": "a716d3d9be45412a6a72da87bc0af379aae5bcc1",
+  "tasks": [
+    {
+      "bundle_hash": "sha256:1d35812bdfedc9ac6f7ca375ed47dd810ad17ea59a248972f73d35e192ea776b",
+      "final_expected_tests": 11,
+      "id": "971bab11a446",
+      "initial_fail_to_pass": 1,
+      "initial_pass_to_pass": 10,
+      "protected_source_and_oracle_unchanged": true,
+      "quality_accounted_usd": "0.674102",
+      "quality_reserved_usd": "0",
+      "relative_task": "tasks/tasksmith-971bab11a446",
+      "repairs_in_final_run": 0,
+      "rollout_assessment": "legitimate_success",
+      "scores": {
+        "leakage": 4,
+        "task": 3,
+        "verifier": 4
+      },
+      "source_base": "5d946b3590bfe92f1465c1b9b9830dd434745c84",
+      "source_diff_sha256": "8a8c486130781b231fd9e96e76e57941647b18e79466ec26a443bad951e771da",
+      "source_head": "f51a53bfd2fe9504063a33ef5f4a73e30d82d0e2",
+      "source_url": "https://github.com/more-itertools/more-itertools/pull/1193",
+      "status": "usable",
+      "trials": [
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/0-baseline",
+          "exception_type": null,
+          "result_sha256": "48b50e9c91727949d3c7c9e24e6806892dd4de9888b18157e8c3d1ae51b4d9e3",
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/1-oracle",
+          "exception_type": null,
+          "result_sha256": "650d9bf46a70305f049745e528dd8dff0bdc843f1e1cedfcca214023ea7d7d98",
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/2-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "wrong_solution",
+            "name": "empty-lengths-bypasses-mismatch"
+          },
+          "result_sha256": "9bf9addd2232e38b7e700d5983885f8bf57c43162067b205b6c8bd705fb69217",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/3-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "wrong_solution",
+            "name": "materialize-before-first-yield"
+          },
+          "result_sha256": "0f35d402a2c2e7bf984b9efd24670d42799bd8f78517ba73d8e821b6f1cb11fb",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/4-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "valid_alternative",
+            "name": "empty-check-after-length-ordering"
+          },
+          "result_sha256": "871375d6af5e8c74b7c1c6f38eef75d8d7614e4d799996eea8070e68ceef6c66",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/971bab11a446/5-rollout",
+          "exception_type": null,
+          "result_sha256": "a7475b91fb420957156b54ee12e0fdb414f996bcf46c9059621bb61ddec95812",
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ],
+      "workspace_strategy": "head_minus_source_patch"
+    },
+    {
+      "bundle_hash": "sha256:a588ab5831ff83c5736868d050e3fac51a8169d2a1a74727a72b5064ee750912",
+      "final_expected_tests": 8,
+      "id": "238209de9683",
+      "initial_fail_to_pass": 1,
+      "initial_pass_to_pass": 6,
+      "protected_source_and_oracle_unchanged": true,
+      "quality_accounted_usd": "1.517503",
+      "quality_reserved_usd": "0",
+      "relative_task": "tasks/tasksmith-238209de9683",
+      "repairs_in_final_run": 1,
+      "rollout_assessment": "legitimate_success",
+      "scores": {
+        "leakage": 4,
+        "task": 4,
+        "verifier": 4
+      },
+      "source_base": "a826a4e09e3f2782822c71da6670e9275735ad3e",
+      "source_diff_sha256": "8bc3853bc9eb120472065c44c11faf065ce62b1d1fba19fe45a17561cc763a8d",
+      "source_head": "7847d4324a581da8d0919734a8e50b2a6573b780",
+      "source_url": "https://github.com/more-itertools/more-itertools/pull/1251",
+      "status": "usable",
+      "trials": [
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/238209de9683/0-baseline",
+          "exception_type": null,
+          "result_sha256": "c804b2a4628e24511850cd3e6e9a394c47a3b6dee4e0547205db11e76a8b87ac",
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/238209de9683/1-oracle",
+          "exception_type": null,
+          "result_sha256": "b30a4aea117bbaf42e329d5a47b4fc2b9b356dbb1c940663da3c65d38ea4928e",
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/238209de9683/2-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "lazy_output",
+            "kind": "wrong_solution",
+            "name": "materialize-before-first-yield"
+          },
+          "result_sha256": "df95f4c975ad724f8d80ed97023b83e482b18c290295b761dc83846a42fe145a",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/238209de9683/3-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "valid_alternative",
+            "name": "helper-based-lazy-classification"
+          },
+          "result_sha256": "c0ae5c94e515dcf3e3c09cbb5f0e5750b8bb691765c5ce06e110da5c0dc5dd26",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "80a9417b67e56322f9b18b4148514cdeffb65ecfec25c50628cd79fed321bfc4",
+          "evidence": "evidence/238209de9683/4-rollout",
+          "exception_type": null,
+          "result_sha256": "385613ac55a53d4efe2cbe0284f8513c91a10f0d6d56e99fd34fe93bb5029596",
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ],
+      "workspace_strategy": "head_minus_source_patch"
+    },
+    {
+      "bundle_hash": "sha256:1f532d204331f3e9a7eb3b83d6226ac97591a3d36cca8586ff1fabd3a049b5e5",
+      "final_expected_tests": 9,
+      "id": "8b49e820cbc5",
+      "initial_fail_to_pass": 1,
+      "initial_pass_to_pass": 7,
+      "protected_source_and_oracle_unchanged": true,
+      "quality_accounted_usd": "2.566503",
+      "quality_reserved_usd": "0",
+      "relative_task": "tasks/tasksmith-8b49e820cbc5",
+      "repairs_in_final_run": 1,
+      "rollout_assessment": "legitimate_success",
+      "scores": {
+        "leakage": 4,
+        "task": 4,
+        "verifier": 3
+      },
+      "source_base": "b55240e3091c5729e891335d69c8ec72a8021047",
+      "source_diff_sha256": "bb58b876e9c5568367011d0999b200531a7dfcc8ed152c374c3a61d3611e4ced",
+      "source_head": "874307673e7d5121e781c49a27a6b8394ee8e9d0",
+      "source_url": "https://github.com/huggingface/huggingface_hub/pull/1316",
+      "status": "usable",
+      "trials": [
+        {
+          "artifact_manifest_sha256": "ee52713d5fd3b54966781e56768582c9a49b9dde1653bd81be2424cc1826d3f0",
+          "evidence": "evidence/8b49e820cbc5/0-baseline",
+          "exception_type": null,
+          "result_sha256": "391fa7282f1ed0050326483f27e995f2059225e5dffebdde9094c18d0ba52d92",
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "artifact_manifest_sha256": "ee52713d5fd3b54966781e56768582c9a49b9dde1653bd81be2424cc1826d3f0",
+          "evidence": "evidence/8b49e820cbc5/1-oracle",
+          "exception_type": null,
+          "result_sha256": "11c7b72bc379844c87953f22243cae574fdeacaf4ca2cb78377c8ff6feffc3ea",
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "artifact_manifest_sha256": "ee52713d5fd3b54966781e56768582c9a49b9dde1653bd81be2424cc1826d3f0",
+          "evidence": "evidence/8b49e820cbc5/2-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "wrong_solution",
+            "name": "select-first-snapshot-instead-of-ref"
+          },
+          "result_sha256": "8be09521750a3316c30ad717b3369d4a5b0dad5f216eb207f5245456db4763a7",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "ee52713d5fd3b54966781e56768582c9a49b9dde1653bd81be2424cc1826d3f0",
+          "evidence": "evidence/8b49e820cbc5/3-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "valid_alternative",
+            "name": "pathlib-reference-resolution"
+          },
+          "result_sha256": "043578a7b22567ccd9870edc2e64922a7ee24b145464c68ee54a8eed341c1c82",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "ee52713d5fd3b54966781e56768582c9a49b9dde1653bd81be2424cc1826d3f0",
+          "evidence": "evidence/8b49e820cbc5/4-rollout",
+          "exception_type": null,
+          "result_sha256": "f4910be8162a5fb1c0e63699f7c9a2dae69b7e8d9321d8bb6a4ded37dab3c844",
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ],
+      "workspace_strategy": "head_minus_source_patch"
+    },
+    {
+      "bundle_hash": "sha256:21f0de8523aad9c86b3e093412a0e88580f3a2fc91ee71c5a48d846b69596194",
+      "final_expected_tests": 19,
+      "id": "6cc6afbcb7f5",
+      "initial_fail_to_pass": 1,
+      "initial_pass_to_pass": 17,
+      "protected_source_and_oracle_unchanged": true,
+      "quality_accounted_usd": "1.634942",
+      "quality_reserved_usd": "0",
+      "relative_task": "tasks/tasksmith-6cc6afbcb7f5",
+      "repairs_in_final_run": 1,
+      "rollout_assessment": "legitimate_success",
+      "scores": {
+        "leakage": 4,
+        "task": 4,
+        "verifier": 3
+      },
+      "source_base": "80e387f446fffb998b776460078755f5b49c624f",
+      "source_diff_sha256": "85b118a0d0c95fed42eb4a7b741cbe3177bd5923e501a1e354e3a9e8f0315f79",
+      "source_head": "025e3f4c53c786a1c4dfe0c15cd7453d56975cd2",
+      "source_url": "https://github.com/huggingface/smolagents/pull/1003",
+      "status": "usable",
+      "trials": [
+        {
+          "artifact_manifest_sha256": "9fa3525339bc93f655178a3f5fc4e19b5883cbf453496f9f28914fabbc166f8b",
+          "evidence": "evidence/6cc6afbcb7f5/0-baseline",
+          "exception_type": null,
+          "result_sha256": "a03939c258f5e39e2db6f6f53923a9fc0729319b3c493924fc996654f65ce9f6",
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "artifact_manifest_sha256": "9fa3525339bc93f655178a3f5fc4e19b5883cbf453496f9f28914fabbc166f8b",
+          "evidence": "evidence/6cc6afbcb7f5/1-oracle",
+          "exception_type": null,
+          "result_sha256": "a3df454a13f9bb8edecfa4957aef651790ad75a1958c6d782993fc4c21b022b0",
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "artifact_manifest_sha256": "9fa3525339bc93f655178a3f5fc4e19b5883cbf453496f9f28914fabbc166f8b",
+          "evidence": "evidence/6cc6afbcb7f5/2-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "wrong_solution",
+            "name": "omit-tool-argument-decoding"
+          },
+          "result_sha256": "33482cccf295095722ab808268350e81870d1845c13e0c55da1bf91e839f61aa",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "9fa3525339bc93f655178a3f5fc4e19b5883cbf453496f9f28914fabbc166f8b",
+          "evidence": "evidence/6cc6afbcb7f5/3-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "valid_alternative",
+            "name": "equivalent-json-decoder"
+          },
+          "result_sha256": "1e7dc7cf8b0ef9c561bcdd464ddf218ca15861a03e1c7a748ace63ce4d119121",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "9fa3525339bc93f655178a3f5fc4e19b5883cbf453496f9f28914fabbc166f8b",
+          "evidence": "evidence/6cc6afbcb7f5/4-rollout",
+          "exception_type": null,
+          "result_sha256": "af13052e6a903ac617719d4057c80a644fd79fea5f1b4d0c8b7ddb7ee5248c98",
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ],
+      "workspace_strategy": "head_minus_source_patch"
+    },
+    {
+      "bundle_hash": "sha256:3ac96e879c1bf92f6ee7b5ccf4685ae33691c46704ab88a974df466fa292b691",
+      "final_expected_tests": 36,
+      "id": "6382d7ac76fb",
+      "initial_fail_to_pass": 6,
+      "initial_pass_to_pass": 30,
+      "protected_source_and_oracle_unchanged": true,
+      "quality_accounted_usd": "1.337083",
+      "quality_reserved_usd": "0",
+      "relative_task": "tasks/tasksmith-6382d7ac76fb",
+      "repairs_in_final_run": 0,
+      "rollout_assessment": "legitimate_success",
+      "scores": {
+        "leakage": 4,
+        "task": 4,
+        "verifier": 3
+      },
+      "source_base": "6d5bac5c712195cbfa9666ba0ecbf0573cdea356",
+      "source_diff_sha256": "a5be529bc51b266103b7755d74b9361eea34287b15912b1fd0be2f8007e9a6b5",
+      "source_head": "f67c2bb6c2f055c1c7a57cd46c3697fc26a7742e",
+      "source_url": "https://github.com/pallets/click/pull/3865",
+      "status": "usable",
+      "trials": [
+        {
+          "artifact_manifest_sha256": "5ac6eafa55536f5e24b3a7705aa2641a3f2a25cc794d6fb5bf8280e5ec75e7c9",
+          "evidence": "evidence/6382d7ac76fb/0-baseline",
+          "exception_type": null,
+          "result_sha256": "d7a281c10f4288180ca4db8fbd2310becc2f42039a090454ae6a0264d7dbafa8",
+          "reward": 0.0,
+          "role": "baseline"
+        },
+        {
+          "artifact_manifest_sha256": "5ac6eafa55536f5e24b3a7705aa2641a3f2a25cc794d6fb5bf8280e5ec75e7c9",
+          "evidence": "evidence/6382d7ac76fb/1-oracle",
+          "exception_type": null,
+          "result_sha256": "c685f09081d9a2172e6ac220303c41772274d34ff968ca19f04fe53dfcee2c6f",
+          "reward": 1.0,
+          "role": "oracle"
+        },
+        {
+          "artifact_manifest_sha256": "5ac6eafa55536f5e24b3a7705aa2641a3f2a25cc794d6fb5bf8280e5ec75e7c9",
+          "evidence": "evidence/6382d7ac76fb/2-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "wrong_solution",
+            "name": "uppercase-only-sentence-boundary"
+          },
+          "result_sha256": "5d39684dcb93e36cb593834d9bbd183927a1bb9eb766aee03e42cb1e6834a076",
+          "reward": 0.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "5ac6eafa55536f5e24b3a7705aa2641a3f2a25cc794d6fb5bf8280e5ec75e7c9",
+          "evidence": "evidence/6382d7ac76fb/3-probe",
+          "exception_type": null,
+          "probe": {
+            "focus": "general",
+            "kind": "valid_alternative",
+            "name": "independent-whole-word-shortener"
+          },
+          "result_sha256": "d4fb0d584c116a107e14ad948c0f03a0f30a783c0a0d2bdf738a3b77e77061ab",
+          "reward": 1.0,
+          "role": "probe"
+        },
+        {
+          "artifact_manifest_sha256": "5ac6eafa55536f5e24b3a7705aa2641a3f2a25cc794d6fb5bf8280e5ec75e7c9",
+          "evidence": "evidence/6382d7ac76fb/4-rollout",
+          "exception_type": null,
+          "result_sha256": "05e23293c814d9362931a3235152ee82f89d9ea48285ff11b27dced432168f9e",
+          "reward": 1.0,
+          "role": "rollout"
+        }
+      ],
+      "workspace_strategy": "head_minus_source_patch"
+    }
+  ],
+  "usable": 5
+}

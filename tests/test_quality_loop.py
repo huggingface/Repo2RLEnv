@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,6 +18,7 @@ from repo2rlenv.quality.loop.artifacts import (
     digest,
     import_trial,
     probe_variant,
+    refresh_identity,
     task_identity,
 )
 from repo2rlenv.quality.loop.client import JsonModel, ModelRequestError, RunBudget, response_schema
@@ -30,8 +35,16 @@ from repo2rlenv.quality.loop.models import (
     SemanticProbe,
     TrialRecord,
 )
+from repo2rlenv.quality.loop.protocol import (
+    distinct_probes,
+    resolve_json_citations,
+    resolve_markdown_citations,
+    resolve_verifier_paths,
+)
+from repo2rlenv.quality.loop.requirements import with_probe_requirements
 from repo2rlenv.quality.loop.runner import (
     QualityLoop,
+    _reusable_probe_trial,
     control_failures,
     probe_failures,
     required_probe_focus,
@@ -189,6 +202,7 @@ def test_repairs_copy_and_revalidate_everything(task, tmp_path):
     assert result.repairs == 1
     assert task_identity(task) == before != result.bundle_hash
     assert len(remote.calls) == 9
+    assert not any("after-rollout" in key for key in loop.model.calls)
     assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
         "baseline",
         "oracle",
@@ -196,6 +210,61 @@ def test_repairs_copy_and_revalidate_everything(task, tmp_path):
         "probe",
         "rollout",
     ]
+    assert remote.closed
+
+
+def test_append_only_registration_revalidates_new_task_and_preserves_existing_probes(
+    task, tmp_path
+):
+    contract_path = task / "tests/contract.json"
+    contract_path.write_text('{"expected_passes": ["old-case"]}')
+    original_hash = refresh_identity(task)
+
+    class AppendModel(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            if schema is Repair:
+                return Repair(
+                    explanation="Register the existing behavioral case in the reward manifest.",
+                    addressed_issues=["Weak arithmetic check"],
+                    edits=[],
+                    append_expected_passes=["new-case"],
+                )
+            payload = json.loads(user)
+            broken = "new-case" not in payload["documents"]["tests/contract.json"]
+            rolled = any("rollout/result.json" in path for path in payload["documents"])
+            return review(
+                broken=broken,
+                propose=payload["probe_limit"] > 0,
+                rollout="legitimate_success" if rolled else "not_run",
+            )
+
+    class AppendTrials(Trials):
+        def run(self, current, role, key):
+            trial = super().run(current, role, key)
+            if role == "probe" and "probe0" in key:
+                registered = json.loads((current / "tests/contract.json").read_text())[
+                    "expected_passes"
+                ]
+                trial.reward = 0.0 if "new-case" in registered else 1.0
+            return trial
+
+    remote = AppendTrials(tmp_path / "evidence")
+    runner = make_loop(tmp_path, model=AppendModel(), remote=remote, repair=True)
+    result = runner.run(task)
+    assert result.status == "usable", result.reasons
+    assert result.repairs == 1
+    assert task_identity(task) == original_hash != result.bundle_hash
+    assert json.loads(contract_path.read_text())["expected_passes"] == ["old-case"]
+    assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
+        "baseline",
+        "oracle",
+        "probe",
+        "probe",
+        "rollout",
+    ]
+    assert len(remote.calls) == 9
+    assert [trial.probe for trial in result.trials if trial.role == "probe"] == probes()
     assert remote.closed
 
 
@@ -207,6 +276,24 @@ def test_false_positive_cannot_be_outvoted_by_model(task, tmp_path):
     assert any("wrong_solution earned 1" in reason for reason in result.reasons)
 
 
+def test_budget_denied_control_does_not_trigger_paid_diagnosis(task, tmp_path):
+    class DeniedTrials(Trials):
+        def run(self, task, role, key):
+            trial = super().run(task, role, key)
+            return trial.model_copy(update={"exception_type": "BudgetExceeded", "reward": None})
+
+    class NoModel:
+        def ask(self, *args):
+            pytest.fail("A budget denial does not need model diagnosis or repair")
+
+    remote = DeniedTrials(tmp_path / "evidence")
+    result = make_loop(tmp_path, remote=remote, model=NoModel(), run_rollout=True).run(task)
+    assert result.status == "budget_exhausted"
+    assert len(result.trials) == 1 and result.trials[0].exception_type == "BudgetExceeded"
+    assert [role for role, *_ in remote.calls] == ["baseline"]
+    assert remote.closed
+
+
 def test_legitimate_solver_failure_keeps_a_sound_task(task, tmp_path):
     remote = Trials(tmp_path / "evidence", solver_failure=True)
     result = make_loop(tmp_path, remote=remote, model=Model(solver_failure=True), repair=True).run(
@@ -214,6 +301,73 @@ def test_legitimate_solver_failure_keeps_a_sound_task(task, tmp_path):
     )
     assert result.status == "usable"
     assert next(trial for trial in result.trials if trial.role == "rollout").reward == 0
+
+
+@pytest.mark.parametrize("solver_failure", [False, True])
+def test_post_probe_review_can_unlock_one_rollout_on_same_revision(task, tmp_path, solver_failure):
+    class PassingProbes(Trials):
+        def run(self, task, role, key):
+            trial = super().run(task, role, key)
+            if role == "probe" and "probe0" in key:
+                trial.reward = 0.0
+            return trial
+
+    class ClearedAfterProbes(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            assert schema is Review
+            outcome = "legitimate_failure" if solver_failure else "legitimate_success"
+            return review(
+                broken=key.startswith("r0-before"),
+                propose=key.startswith("r0-before"),
+                rollout=outcome if key.startswith("r0-after-rollout") else "not_run",
+            )
+
+    remote = PassingProbes(tmp_path / "evidence", solver_failure=solver_failure)
+    model = ClearedAfterProbes()
+    result = make_loop(tmp_path, remote=remote, model=model, run_rollout=True).run(task)
+    assert result.status == "usable", result.reasons
+    assert result.repairs == 0 and result.bundle_hash == task_identity(task)
+    assert [role for role, _, _ in remote.calls] == [
+        "baseline",
+        "oracle",
+        "probe",
+        "probe",
+        "rollout",
+    ]
+    assert model.calls == ["r0-before-0", "r0-after-0", "r0-after-rollout-0"]
+    assert remote.closed
+
+
+@pytest.mark.parametrize("cpu_denial", [False, True])
+def test_post_probe_rollout_budget_denial_skips_further_model_calls(task, tmp_path, cpu_denial):
+    reason = "Budget scope batch-child-quality: requested $3, remaining $1 (reservation_pressure)"
+
+    class DeniedRollout(Trials):
+        def run(self, task, role, key):
+            if role == "rollout" and cpu_denial:
+                raise BudgetExceeded(reason)
+            trial = super().run(task, role, key)
+            if role == "probe" and "probe0" in key:
+                trial.reward = 0.0
+            if role == "rollout":
+                trial.reward, trial.exception_type = None, "BudgetExceeded"
+            return trial
+
+    class ClearedAfterProbes(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls.append(key)
+            assert key in {"r0-before-0", "r0-after-0"}
+            return review(broken=key.startswith("r0-before"), propose=key.startswith("r0-before"))
+
+    remote = DeniedRollout(tmp_path / "evidence")
+    model = ClearedAfterProbes()
+    result = make_loop(tmp_path, remote=remote, model=model, run_rollout=True).run(task)
+    assert result.status == "budget_exhausted"
+    if cpu_denial:
+        assert result.reasons == [reason]
+    assert model.calls == ["r0-before-0", "r0-after-0"]
+    assert remote.closed
 
 
 def test_review_only_is_never_validated(task, tmp_path):
@@ -268,6 +422,222 @@ def test_repeated_invalid_patch_stops_without_changing_task(task, tmp_path):
     assert result.bundle_hash == task_identity(task)
 
 
+def test_probe_collisions_preserve_distinct_scripts_and_retained_controls():
+    retained = probes()
+    collision = retained[0].model_copy(update={"script": "printf '8' > /workspace/answer.txt"})
+    repeated = retained[1].model_copy(update={"name": "renamed-repeat"})
+    before = [p.model_dump() for p in retained]
+    normalized = distinct_probes([collision, repeated, collision], retained)
+    assert len(normalized) == 1
+    assert normalized[0].name not in {p.name for p in retained}
+    assert normalized[0].model_dump(exclude={"name"}) == collision.model_dump(exclude={"name"})
+    assert distinct_probes([collision], retained) == normalized
+    assert [p.model_dump() for p in retained] == before
+
+
+@pytest.mark.parametrize(
+    ("quote", "data"),
+    [
+        ('"test_result": "failed"', {"statuses": {"tests.behavior::test_result": "failed"}}),
+        (
+            '"probe_failures": ["wrong solution passed"]',
+            {"probe_failures": ["wrong solution passed"]},
+        ),
+    ],
+)
+def test_json_citation_resolution_keeps_decisions_and_uses_actual_bytes(quote, data):
+    decision = review()
+    decision.verifier = decision.verifier.model_copy(deep=True)
+    decision.verifier.evidence = [Citation(path="evidence/checks.json", quote=quote)]
+    before = decision.model_dump()
+    document = json.dumps(data, indent=2)
+    normalized, changes = resolve_json_citations(decision, {"evidence/checks.json": document})
+    assert len(changes) == 1
+    assert normalized.verifier.evidence[0].quote in document
+    assert normalized.verifier.status == decision.verifier.status
+    assert normalized.verifier.explanation == decision.verifier.explanation
+    assert decision.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"a::test_result": "failed", "b::test_result": "failed"},
+        {"a::test_result": "passed"},
+        {"a::another_test": "failed"},
+        {"message": 'the text says "test_result": "failed"'},
+    ],
+)
+def test_json_citations_do_not_resolve_ambiguous_or_unsupported_claims(data):
+    decision = review()
+    decision.verifier.evidence = [
+        Citation(path="evidence/checks.json", quote='"test_result": "failed"')
+    ]
+    normalized, changes = resolve_json_citations(
+        decision, {"evidence/checks.json": json.dumps(data)}
+    )
+    assert not changes and normalized == decision
+
+
+def test_markdown_citation_restores_only_missing_inline_formatting():
+    quote = "MetaClip2TextModel – text encoder; `pooler_output` selects the first EOS token."
+    document = (
+        "- `MetaClip2TextModel` – text encoder; `pooler_output` selects the first EOS token.\n"
+    )
+    decision = review()
+    decision.task = decision.task.model_copy(deep=True)
+    decision.task.evidence = [Citation(path="instruction.md", quote=quote)]
+    before = decision.model_dump()
+    normalized, changes = resolve_markdown_citations(decision, {"instruction.md": document})
+    assert len(changes) == 1
+    assert normalized.task.evidence[0].quote in document
+    assert normalized.model_dump(exclude={"task"}) == decision.model_dump(exclude={"task"})
+    assert normalized.task.model_dump(exclude={"evidence"}) == decision.task.model_dump(
+        exclude={"evidence"}
+    )
+    assert decision.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    ("path", "document"),
+    [
+        ("instruction.md", "`First` selects 2 tokens from the incoming sequence.\n"),
+        ("instruction.md", "`First` selects 1 token from the incoming sequence.\n" * 2),
+        ("instruction.md", "```python\n`First` selects 1 token from the incoming sequence.\n```"),
+        ("instruction.md", "~~~text\n`First` selects 1 token from the incoming sequence.\n~~~"),
+        ("instruction.md", "    `First` selects 1 token from the incoming sequence.\n"),
+        ("instruction.md", "\\`First\\` selects 1 token from the incoming sequence.\n"),
+        ("instruction.md", "``First`` selects 1 token from the incoming sequence.\n"),
+        ("source.py", "`First` selects 1 token from the incoming sequence.\n"),
+    ],
+)
+def test_markdown_citations_keep_unsupported_or_ambiguous_quotes(path, document):
+    decision = review()
+    decision.task.evidence = [
+        Citation(path=path, quote="First selects 1 token from the incoming sequence.")
+    ]
+    normalized, changes = resolve_markdown_citations(decision, {path: document})
+    assert not changes and normalized == decision
+
+
+def test_large_private_pr_context_is_bounded_and_remains_searchable(task, tmp_path):
+    context_data = {
+        "kind": "merged_pr",
+        "source_diff": "unchanged line\n" * 30000 + "UNIQUE_CONTRACT: correct behavior",
+    }
+    loop = QualityLoop(
+        LoopOptions(context_chars=16000),
+        tmp_path / "bounded-context",
+        BudgetLedger(tmp_path / "bounded.sqlite3", limit_usd="1"),
+        task_context=context_data,
+    )
+    context = loop._context(task, [])
+    excerpt = context.documents["evidence/task-context.json"]
+    assert len(excerpt) <= 4000 and "Excerpt ends" in excerpt
+    assert "UNIQUE_CONTRACT" not in excerpt
+    assert any(item["path"] == "evidence/task-context.json" for item in context.inventory)
+    context.read_more(
+        [
+            ReadRequest(
+                path="evidence/task-context.json", query="UNIQUE_CONTRACT", start_line=1, end_line=1
+            )
+        ]
+    )
+    assert (
+        "UNIQUE_CONTRACT: correct behavior"
+        in context.documents["evidence/task-context.json:search=UNIQUE_CONTRACT"]
+    )
+    assert "documents" in json.loads(context.payload())
+
+
+def test_saved_repair_findings_precede_long_pr_patch_without_more_context(task, tmp_path):
+    context_data = {
+        "kind": "merged_pr",
+        "source_diff": "unchanged line\n" * 30000 + "UNIQUE_SOURCE: retained patch",
+        "campaign_design_guidance": {
+            "current_diagnosis": "Distinct pixel values must reject the known naive reshape.",
+        },
+    }
+    original = json.dumps(context_data)
+    loop = QualityLoop(
+        LoopOptions(context_chars=16000),
+        tmp_path / "diagnosis-context",
+        BudgetLedger(tmp_path / "diagnosis.sqlite3", limit_usd="1"),
+        task_context=context_data,
+    )
+    context = loop._context(task, [])
+    excerpt = context.documents["evidence/task-context.json"]
+    assert "Distinct pixel values must reject the known naive reshape." in excerpt
+    assert "UNIQUE_SOURCE" not in excerpt
+    assert len(excerpt) <= 4000 and "Excerpt ends" in excerpt
+    assert sum(map(len, context.documents.values())) <= 16000
+    assert json.dumps(context_data) == original
+    context.read_more(
+        [
+            ReadRequest(
+                path="evidence/task-context.json", query="UNIQUE_SOURCE", start_line=1, end_line=1
+            )
+        ]
+    )
+    assert (
+        "UNIQUE_SOURCE: retained patch"
+        in context.documents["evidence/task-context.json:search=UNIQUE_SOURCE"]
+    )
+
+
+def test_short_verifier_path_requires_unique_exact_match(task):
+    path = task / "tests/source/tests/contract.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("assert actual == expected\n")
+    repair = Repair(
+        explanation="Fix fixture",
+        addressed_issues=["fixture"],
+        edits=[
+            Edit(
+                path="tests/contract.py",
+                old="assert actual == expected",
+                new="assert result == expected",
+                executable=False,
+            )
+        ],
+    )
+    resolved = resolve_verifier_paths(task, repair)
+    assert resolved.edits[0].path == "tests/source/tests/contract.py"
+    assert repair.edits[0].path == "tests/contract.py"
+    assert path.read_text() == "assert actual == expected\n"
+    other = task / "tests/other/contract.py"
+    other.parent.mkdir()
+    other.write_text(path.read_text())
+    assert resolve_verifier_paths(task, repair) == repair
+    other.unlink()
+    path.write_text("assert actual == unexpected\n")
+    assert resolve_verifier_paths(task, repair) == repair
+    repair.edits[0].old = ""
+    assert resolve_verifier_paths(task, repair) == repair
+
+
+def test_path_resolution_never_redirects_to_source_or_outside_task(task, tmp_path):
+    outside = tmp_path / "contract.py"
+    outside.write_text("original")
+    (task / "tests/contract.py").symlink_to(outside)
+    repair = Repair(
+        explanation="Fixture",
+        addressed_issues=["fixture"],
+        edits=[
+            Edit(
+                path="tests/missing/contract.py",
+                old="original",
+                new="replacement",
+                executable=False,
+            )
+        ],
+    )
+    assert resolve_verifier_paths(task, repair) == repair
+    repair.edits[0].path = "tests/../solution/solve.sh"
+    with pytest.raises(ValueError):
+        resolve_verifier_paths(task, repair)
+
+
 @pytest.mark.parametrize(
     "path", ["../escape", "/tmp/escape", "environment/../../escape", "task.toml"]
 )
@@ -301,6 +671,74 @@ def test_probe_keeps_task_and_verifier_bytes(task, tmp_path):
     assert (revised / "solution/quality-original-solve.sh").read_bytes() == (
         task / "solution/solve.sh"
     ).read_bytes()
+
+
+def test_repository_probe_audits_the_collected_submission(task, tmp_path):
+    contract = task / "tests/contract.json"
+    contract.write_text(
+        json.dumps({"submitted_files": ["answer.txt"], "expected_passes": ["private"]})
+    )
+    refresh_identity(task)
+    revised = probe_variant(task, probes()[0], tmp_path / "probe" / task.name)
+    wrapper = (revised / "solution/solve.sh").read_text()
+    assert wrapper.index("before\n") < wrapper.index(shlex.quote(probes()[0].script))
+    assert wrapper.index("after\n") < wrapper.index("__QUALITY_PROBE_COMPLETED__")
+    assert (revised / "solution/quality-probe-audit.py").is_file()
+    boundary = json.loads((revised / "solution/quality-probe-contract.json").read_text())
+    assert boundary["submitted_files"] == ["answer.txt"]
+    assert "expected_passes" not in boundary
+    assert (revised / "tests/contract.json").read_bytes() == contract.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "ending,change,success",
+    [
+        ("exit 0", True, True),
+        ("exit 7", True, False),
+        ("false", True, False),
+        ("exit 0", False, False),
+    ],
+)
+def test_probe_shell_exit_cannot_bypass_the_change_audit(task, tmp_path, ending, change, success):
+    # Execute only this owned wrapper and audit against a tiny text fixture.
+    # Target repositories and their tests are never imported locally.
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    contract = task / "tests/contract.json"
+    contract.write_text(json.dumps({"submitted_files": ["answer.txt"]}))
+    refresh_identity(task)
+    script = (probes()[0].script + "\n" if change else "") + ending
+    probe = probes()[0].model_copy(update={"script": script})
+    revised = probe_variant(task, probe, tmp_path / "probe" / task.name)
+    substitutions = {
+        "/solution/": str(revised / "solution") + "/",
+        "/workspace": str(workspace),
+        "/tmp/quality-probe-before.json": str(tmp_path / "before.json"),
+    }
+    for name in ["solve.sh", "quality-original-solve.sh", "quality-probe-audit.py"]:
+        path = revised / "solution" / name
+        text = path.read_text()
+        for old, new in substitutions.items():
+            text = text.replace(old, new)
+        path.write_text(text)
+    result = subprocess.run(
+        ["bash", str(revised / "solution/solve.sh")],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env={
+            **os.environ,
+            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+        },
+    )
+    assert (workspace / "answer.txt").read_text() == ("7" if change else "4")
+    assert (result.returncode == 0) is success
+    assert ("__QUALITY_PROBE_COMPLETED__" in result.stdout) is success
+    assert ("__QUALITY_PROBE_CHANGED_FILES__" in result.stdout) is success
+    if success:
+        changes = json.loads(result.stdout.splitlines()[0].split(" ", 1)[1])
+        assert set(changes) == {"answer.txt"}
+        assert changes["answer.txt"]["before"] != changes["answer.txt"]["after"]
 
 
 def test_fabricated_citation_is_rejected(task):
@@ -538,6 +976,51 @@ def test_generator_input_does_not_imply_lazy_output(task, tmp_path):
     assert required_probe_focus(revised) == set()
 
 
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_explicit_requirement_rejects_generic_probes(task, tmp_path, focus):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
+    assert required_probe_focus(task) == set()
+    assert required_probe_focus(revised) == {focus}
+    result = make_loop(
+        tmp_path,
+        remote=Trials(tmp_path / "results"),
+        model=Model(honest=False),
+        run_rollout=True,
+        max_read_rounds=0,
+    ).run(revised)
+    assert result.status == "needs_evidence"
+    assert focus in result.reasons[0]
+    assert not any(item.role in {"rollout", "probe"} for item in result.trials)
+
+
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_explicit_probe_requirement_survives_task_repair(task, tmp_path, focus):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
+    loop = make_loop(tmp_path, repair=True)
+    retained = probes()
+    retained[0].focus = focus
+    repaired, resulting_probes = loop._repair(
+        revised, review(broken=True), loop._context(revised, []), retained, 0, ["Weak check"]
+    )
+    assert task_identity(repaired) != task_identity(revised)
+    assert required_probe_focus(repaired) == {focus}
+    assert resulting_probes == retained
+
+
+@pytest.mark.parametrize("focus", ["compiled_execution", "model_behavior"])
+def test_repair_cannot_remove_explicit_probe_metadata(task, tmp_path, focus):
+    revised = with_probe_requirements(task, tmp_path / "input" / task.name, [focus])
+    repair = Repair(
+        explanation="Try to bypass the requirement",
+        addressed_issues=["required control"],
+        edits=[Edit(path="task.toml", old=focus, new="general", executable=False)],
+    )
+    with pytest.raises(ValueError):
+        apply_repair(revised, repair, tmp_path / "revision" / task.name)
+    assert required_probe_focus(revised) == {focus}
+    assert not (tmp_path / "revision" / task.name).exists()
+
+
 def test_known_counterexamples_are_bound_and_replayed(task, tmp_path):
     path = tmp_path / "probes.json"
     path.write_text(
@@ -565,14 +1048,16 @@ def test_openai_schema_requires_focus_even_for_legacy_read_defaults():
     assert "default" not in schema["$defs"]["SemanticProbe"]["properties"]["focus"]
 
 
-def test_wrong_solution_counterexample_cannot_be_replaced():
-    with pytest.raises(ValueError, match="cannot be replaced"):
-        Repair(
-            explanation="Discard an inconvenient counterexample",
-            addressed_issues=["probe"],
-            edits=[],
-            probe_replacements=[probes()[0]],
-        )
+def test_wrong_solution_proposal_requires_runtime_evidence_authorization():
+    # The schema accepts a proposal; only the loop can inspect its execution
+    # history. Missing proof and installed controls are rejected in protocol tests.
+    proposal = Repair(
+        explanation="Correct a control whose installation failed",
+        addressed_issues=["probe"],
+        edits=[],
+        probe_replacements=[probes()[0]],
+    )
+    assert proposal.probe_replacements[0].kind == "wrong_solution"
 
 
 class AlternativeRepairModel(Model):
@@ -617,6 +1102,49 @@ class AlternativeTrials(Trials):
         if role == "probe":
             correct_alternative = "corrected" in (task / "solution/solve.sh").read_text()
             result.reward = float("probe1" in key and correct_alternative)
+        return self.bind_result(task, result, key)
+
+    def bind_result(self, task, result, key):
+        """Preserve the same local receipt layout as both real trial adapters."""
+        role = result.role
+        result.agent = {"baseline": "nop", "oracle": "oracle", "probe": "oracle"}.get(
+            role, "terminus-2"
+        )
+        result.agent_exit_code = 0
+        trial_id = "test-" + key
+        path = self.root / key / trial_id / task.name / "result.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "config": {
+                        "task": {"path": str(task)},
+                        "agent": {"name": result.agent, "model_name": result.model},
+                    },
+                    "verifier_result": {"rewards": {"reward": result.reward}},
+                    "exception_info": {"exception_type": result.exception_type}
+                    if result.exception_type
+                    else None,
+                }
+            )
+        )
+        logs = path.parent / "agent"
+        logs.mkdir(exist_ok=True)
+        (logs / "exit-code.txt").write_text("0")
+        if role == "probe":
+            (logs / "oracle.txt").write_text("__QUALITY_PROBE_COMPLETED__\n")
+        result.result = str(path)
+        result.result_sha256 = digest(path)
+        (self.root / key / "trial.json").write_text(
+            json.dumps(
+                {
+                    "state": "completed",
+                    "trial_id": trial_id,
+                    "bundle_hash": result.bundle_hash,
+                    "result_sha256": result.result_sha256,
+                }
+            )
+        )
         return result
 
 
@@ -630,7 +1158,6 @@ def test_probe_only_repair_reuses_controls_and_preserves_counterexample(task, tm
     assert result.bundle_hash == task_identity(task)
     assert [role for role, key, _ in remote.calls if key.startswith("r1")] == [
         "probe",
-        "probe",
         "rollout",
     ]
     wrong = next(
@@ -638,7 +1165,128 @@ def test_probe_only_repair_reuses_controls_and_preserves_counterexample(task, tm
     )
     assert wrong.probe == probes()[0]
     assert wrong.reward == 0
+    assert "/r0-probe0/" in wrong.result
+    assert len([item for item in result.trials if item.role == "probe"]) == 2
+    assert not (tmp_path / "quality/probes/r1-probe0").exists()
     assert (tmp_path / "quality/revisions/r1/repair.json").is_file()
+
+
+def test_task_repair_invalidates_previously_successful_probes(task, tmp_path):
+    class TaskRepairModel(AlternativeRepairModel):
+        def ask(self, schema, *args):
+            response = super().ask(schema, *args)
+            if schema is Repair:
+                response.edits = [
+                    Edit(
+                        path="tests/test.sh",
+                        old="weak check",
+                        new="strong check",
+                        executable=True,
+                    )
+                ]
+            return response
+
+    remote = AlternativeTrials(tmp_path / "results")
+    result = make_loop(tmp_path, remote=remote, model=TaskRepairModel(), repair=True).run(task)
+    assert result.status == "usable", result.reasons
+    assert result.bundle_hash != task_identity(task)
+    assert [key for _, key, _ in remote.calls if key.startswith("r1")] == [
+        "r1-baseline",
+        "r1-oracle",
+        "r1-probe0",
+        "r1-probe1",
+        "r1-rollout",
+    ]
+    assert all("/r1-" in trial.result for trial in result.trials)
+
+
+@pytest.mark.parametrize("failure", ["reward", "infrastructure", "uninstalled", "exit"])
+def test_probe_only_repair_reruns_unchanged_failed_probes(task, tmp_path, failure):
+    class RecoveringTrials(AlternativeTrials):
+        def run(self, task, role, key):
+            result = super().run(task, role, key)
+            if key == "r0-probe0":
+                if failure == "reward":
+                    result.reward = 1.0
+                elif failure == "infrastructure":
+                    result.exception_type = "AgentExecutionError"
+                elif failure == "uninstalled":
+                    result.probe_installed = False
+                result = self.bind_result(task, result, key)
+                if failure == "exit":
+                    result.agent_exit_code = 1
+                    (Path(result.result).parent / "agent/exit-code.txt").write_text("1")
+            return result
+
+    remote = RecoveringTrials(tmp_path / "results")
+    result = make_loop(tmp_path, remote=remote, model=AlternativeRepairModel(), repair=True).run(
+        task
+    )
+    assert result.status == "usable", result.reasons
+    assert result.bundle_hash == task_identity(task)
+    assert [key for _, key, _ in remote.calls if key.startswith("r1")] == [
+        "r1-probe0",
+        "r1-probe1",
+        "r1-rollout",
+    ]
+    assert all("/r1-" in trial.result for trial in result.trials if trial.role == "probe")
+
+
+@pytest.mark.parametrize("kind", ["wrong_solution", "valid_alternative"])
+def test_probe_reuse_requires_the_entire_unchanged_definition(task, tmp_path, kind):
+    probe = next(item for item in probes() if item.kind == kind)
+    if kind == "valid_alternative":
+        probe = probe.model_copy(update={"script": probe.script + " # corrected"})
+    variant = probe_variant(task, probe, tmp_path / "variants" / task.name)
+    key = "r0-probe0" if kind == "wrong_solution" else "r0-probe1"
+    trial = AlternativeTrials(tmp_path / "results").run(variant, "probe", key)
+    trial.probe = probe
+    assert _reusable_probe_trial(trial, probe, task_identity(task), 1.0)
+    for change in (
+        {"script": probe.script + "\nprintf done"},
+        {"rationale": "Changed diagnosis"},
+        {"focus": "numeric_tolerance"},
+        {"evidence": [Citation(path="instruction.md", quote="Write the sum")]},
+    ):
+        assert not _reusable_probe_trial(
+            trial, probe.model_copy(update=change), task_identity(task), 1.0
+        )
+
+
+@pytest.mark.parametrize(
+    "tamper", ["result", "parent", "definition", "variant", "marker", "receipt", "symlink"]
+)
+def test_successful_probe_reuse_checks_original_bound_evidence(task, tmp_path, tamper):
+    probe = probes()[0]
+    variant = probe_variant(task, probe, tmp_path / "variants" / task.name)
+    trial = AlternativeTrials(tmp_path / "results").run(variant, "probe", "r0-probe0")
+    trial.probe = probe
+    result = Path(trial.result)
+    if tamper == "result":
+        result.write_text(result.read_text() + " ")
+    elif tamper in {"parent", "definition"}:
+        manifest = variant.parent / "probe.json"
+        data = json.loads(manifest.read_text())
+        if tamper == "parent":
+            data["parent_hash"] = "sha256:" + "0" * 64
+        else:
+            data["probe"]["script"] += "\nprintf changed"
+        manifest.write_text(json.dumps(data))
+    elif tamper == "variant":
+        (variant / "tests/test.sh").write_text("changed verifier")
+    elif tamper == "marker":
+        (result.parent / "agent/oracle.txt").write_text("not completed")
+    elif tamper == "receipt":
+        receipt = result.parents[2] / "trial.json"
+        data = json.loads(receipt.read_text())
+        data["state"] = "running"
+        receipt.write_text(json.dumps(data))
+    else:
+        moved = result.with_name("moved.json")
+        result.rename(moved)
+        result.symlink_to(moved)
+    with pytest.raises(ValueError):
+        _reusable_probe_trial(trial, probe, task_identity(task), 1.0)
 
 
 @pytest.mark.parametrize("defect", ["diagnosis", "name", "focus", "evidence"])
@@ -660,6 +1308,58 @@ def test_alternative_repair_requires_grounding_and_stable_identity(task, tmp_pat
     assert result.status == "needs_evidence"
     assert result.repairs == 0
     assert not (tmp_path / "quality/revisions/r1").exists()
+    if defect == "evidence":
+        assert "probe_replacements[0] (valid-format).evidence[0]" in result.reasons[0]
+        assert "path='instruction.md'" in result.reasons[0]
+        assert "quote='invented contract'" in result.reasons[0]
+
+
+@pytest.mark.parametrize("defect", ["unknown_path", "traceback"])
+def test_alternative_repair_corrects_citation_once_with_source_context(task, tmp_path, defect):
+    actual = "assert False is True\nE   AssertionError: assert False is True\n"
+    bad_quote = actual.replace("E   ", "")
+    citation_path = "evidence/3-probe/verifier/stdout.txt"
+    bad_path = "evidence/3-probe/not-an-artifact.txt" if defect == "unknown_path" else citation_path
+
+    class LoggedTrials(AlternativeTrials):
+        def run(self, *args):
+            result = super().run(*args)
+            if args[2] == "r0-probe1":
+                directory = Path(result.result).parent / "verifier"
+                directory.mkdir()
+                (directory / "stdout.txt").write_text(actual)
+            return result
+
+    class CorrectingModel(AlternativeRepairModel):
+        def ask(self, schema, model, system, user, key):
+            response = super().ask(schema, model, system, user, key)
+            if schema is Repair:
+                if key.endswith("-correction1"):
+                    payload = json.loads(user)
+                    feedback = payload["patch_feedback"][0]
+                    assert "probe_replacements[0] (valid-format).evidence[0]" in feedback
+                    assert f"path={bad_path!r}" in feedback
+                    assert f"quote={bad_quote!r}" in feedback
+                    if defect == "traceback":
+                        excerpt = citation_path + ":search=assert False is True"
+                        assert actual in payload["documents"][excerpt]
+                else:
+                    response.probe_replacements = [
+                        response.probe_replacements[0].model_copy(
+                            update={"evidence": [Citation(path=bad_path, quote=bad_quote)]}
+                        )
+                    ]
+            return response
+
+    model = CorrectingModel()
+    result = make_loop(
+        tmp_path, remote=LoggedTrials(tmp_path / "results"), model=model, repair=True
+    ).run(task)
+    assert result.status == "usable", result.reasons
+    assert [key for key in model.calls if "repair" in key] == [
+        "r0-repair",
+        "r0-repair-correction1",
+    ]
 
 
 def test_review_contains_actual_repository_test_failure(task, tmp_path):
@@ -691,3 +1391,203 @@ def test_large_baseline_inventory_cannot_hide_later_probe_failure(task, tmp_path
     script_path = "evidence/1-probe/probe-script.sh"
     context.read_more([ReadRequest(path=script_path, query=None, start_line=1, end_line=2)])
     assert context.documents[script_path + ":L1-L2"] == probes()[1].script
+
+
+def test_immutable_oracle_cannot_be_changed_by_component_repair(task, tmp_path):
+    class OracleEditingModel(Model):
+        def ask(self, schema, model, system, user, key):
+            if schema is Repair:
+                return Repair(
+                    explanation="Attempt to alter the oracle",
+                    addressed_issues=["Weak check"],
+                    edits=[
+                        Edit(
+                            path="solution/solve.sh",
+                            old="printf '4'",
+                            new="printf '5'",
+                            executable=True,
+                        )
+                    ],
+                )
+            return super().ask(schema, model, system, user, key)
+
+    before = task_identity(task)
+    loop = QualityLoop(
+        LoopOptions(repair=True),
+        tmp_path / "quality",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="20"),
+        model_client=OracleEditingModel(),
+        trial_runner=Trials(tmp_path / "evidence"),
+        protected_paths=("solution", "environment/source"),
+    )
+    result = loop.run(task)
+    assert result.status == "needs_evidence"
+    assert "immutable source or oracle" in result.reasons[0]
+    assert task_identity(task) == before
+    assert not (tmp_path / "quality/revisions/r1").exists()
+
+
+def test_selected_unittest_methods_are_in_initial_review_context(task):
+    path = task / "tests/source/tests/test_large.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "class InterleaveEvenlyTests:\n    def test_no_iterables(self):\n        assert result == []\n"
+    )
+    (task / "tests/contract.json").write_text(
+        json.dumps(
+            {"expected_passes": ["tests.test_large.InterleaveEvenlyTests::test_no_iterables"]}
+        )
+    )
+    context = EvidenceContext(task, [], limit=100000)
+    assert "test_no_iterables" in context.documents["tests/source/tests/test_large.py"]
+
+
+def test_real_build_failure_text_is_available_without_guessing(task, tmp_path):
+    path = tmp_path / "evidence/result.json"
+    path.parent.mkdir()
+    path.write_text(
+        json.dumps(
+            {
+                "exception_info": {
+                    "exception_message": "ConfigError: Description file README.rst does not exist"
+                }
+            }
+        )
+    )
+    trial = TrialRecord(
+        role="oracle",
+        bundle_hash=task_identity(task),
+        result=str(path),
+        result_sha256=digest(path),
+        agent="oracle",
+        model=None,
+        reward=None,
+        exception_type="RuntimeError",
+        binding="receipt",
+    )
+    context = EvidenceContext(task, [trial], limit=100000)
+    assert (
+        "Description file README.rst does not exist"
+        in context.documents["evidence/0-oracle/result.json"]
+    )
+
+
+def test_selected_class_wins_over_generic_method_names_and_source_copies(task, tmp_path):
+    private = task / "tests/source/tests/test_large.py"
+    private.parent.mkdir(parents=True)
+    private.write_text(
+        "\n".join(
+            f"class Unrelated{i}:\n    def test_empty(self):\n        assert unrelated == []\n"
+            for i in range(250)
+        )
+        + "\nclass ValueChainTests:\n    def test_empty(self):\n        assert selected_regression == []\n"
+    )
+    unrelated = task / "tests/source/library/more.py"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text("def more():\n    pass\n" * 200)
+    (task / "tests/contract.json").write_text(
+        json.dumps(
+            {
+                "expected_passes": ["tests.test_large.ValueChainTests::test_empty"],
+                "test_paths": ["tests/test_large.py::ValueChainTests"],
+            }
+        )
+    )
+    refresh_identity(task)
+    evidence = Trials(tmp_path / "results").run(task, "baseline", "baseline")
+    context = EvidenceContext(task, [evidence], limit=100000)
+    assert "selected_regression" in context.documents["tests/source/tests/test_large.py"]
+    assert "tests/source/library/more.py" not in context.documents
+
+
+def test_review_reads_missing_evidence_before_demanding_probe_scripts(task, tmp_path):
+    class Reader(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            self.calls.append(payload)
+            if len(self.calls) == 1:
+                return review().model_copy(
+                    update={
+                        "read_requests": [
+                            ReadRequest(
+                                path="tests/test.sh", query="weak check", start_line=1, end_line=1
+                            )
+                        ]
+                    }
+                )
+            assert "tests/test.sh:search=weak check" in payload["documents"]
+            return review(propose=True)
+
+    model = Reader()
+    loop = make_loop(tmp_path, model=model, max_read_rounds=1)
+    result, _ = loop._review(task, [], "read", probe_limit=2)
+    assert not result.read_requests
+    assert len(model.calls) == 2
+
+
+def test_review_reserves_a_slot_for_valid_alternative(task, tmp_path):
+    class WrongOnly(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            self.calls.append(payload)
+            assert payload["required_probe_kinds"] == ["valid_alternative", "wrong_solution"]
+            value = review(propose=True)
+            if len(self.calls) == 1:
+                value.probes = [probes()[0], probes()[0].model_copy(update={"name": "other-wrong"})]
+            else:
+                assert "missing control kinds" in payload["protocol_feedback"][-1]
+            return value
+
+    model = WrongOnly()
+    value, _ = make_loop(tmp_path, model=model)._review(task, [], "kinds", probe_limit=2)
+    assert {p.kind for p in value.probes} == {"wrong_solution", "valid_alternative"}
+    assert len(model.calls) == 2
+
+
+def test_blocking_task_defect_can_be_repaired_before_authoring_probes(task, tmp_path):
+    class Defect(Model):
+        def ask(self, *args):
+            return review(broken=True, propose=False)
+
+    value, _ = make_loop(tmp_path, model=Defect())._review(task, [], "defect", probe_limit=2)
+    assert value.issues and not value.probes
+
+
+def test_review_inventory_preserves_readable_paths_without_duplicate_hash_tokens(task):
+    context = EvidenceContext(task, [], limit=100000)
+    for index in range(600):
+        key = f"evidence/3-probe/artifacts/workspace/large_package/module_{index:04}.py"
+        context.inventory.append({"path": key, "bytes": 200, "sha256": "a" * 64})
+        context.omitted.append(key + ": context budget")
+    payload = json.loads(context.payload())
+    entries = {
+        "/".join(filter(None, [prefix, name])): size
+        for prefix, files in payload["inventory_by_directory"].items()
+        for name, size in files.items()
+    }
+    assert entries == {item["path"]: item["bytes"] for item in context.inventory}
+    assert entries[key] == 200
+    assert payload["budget_omissions"]["count"] >= 600
+    assert "a" * 64 not in json.dumps(payload)
+    assert all("sha256" in item for item in context.inventory)
+
+
+def test_original_task_intent_and_protected_paths_reach_reviewer(task, tmp_path):
+    class IntentModel(Model):
+        def ask(self, schema, model, system, user, key):
+            payload = json.loads(user)
+            assert payload["protected_paths"] == ["solution"]
+            context = json.loads(payload["documents"]["evidence/task-context.json"])
+            assert context["kind"] == "merged_pr"
+            assert context["source_diff"] == "fixed original change"
+            return review()
+
+    loop = QualityLoop(
+        LoopOptions(),
+        tmp_path / "review",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="5"),
+        protected_paths=("solution",),
+        task_context={"kind": "merged_pr", "source_diff": "fixed original change"},
+        model_client=IntentModel(),
+    )
+    loop._review(task, [], "intent", probe_limit=0)

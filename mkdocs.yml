@@ -146,6 +146,10 @@ nav:
   - Quickstart: quickstart.md
   - Pipelines:
       - Overview: pipelines/README.md
+      - Dataset releases: pipelines/dataset_release.md
+      - Wave 1 economics: pipelines/economics/wave1/README.md
+      - Six-recipe expansion: pipelines/waves34_scale100.md
+      - Expansion economics: pipelines/economics/waves34/README.md
       - "pr_diff (stable)": pipelines/pr_diff.md
       - "pr_runtime (stable)": pipelines/pr_runtime.md
       - "commit_runtime (stable)": pipelines/commit_runtime.md
@@ -155,7 +159,18 @@ nav:
       - Owned recipes: pipelines/owned_recipes.md
       - Follow the prompts: pipelines/prompt_reference.md
       - Harbor review and repair: pipelines/quality_loop.md
+      - Learner Python runtime: pipelines/learner_runtime.md
+      - Task evaluation labels: pipelines/task_evaluation_labels.md
+      - Parallel Tasksmith campaigns: pipelines/tasksmith_parallel_campaigns.md
+      - Tasksmith expansion to 50: pipelines/tasksmith_scale50.md
       - Quality pilot results: pipelines/quality_pilot.md
+      - Tasksmith PR harness: pipelines/tasksmith.md
+      - Tasksmith five-PR results: pipelines/tasksmith_cpu_hf_pilot.md
+      - Tasksmith HF bootstrap and scale: pipelines/tasksmith_hf_scale.md
+      - Tasksmith plan for 30 HF tasks: pipelines/tasksmith_scale30.md
+      - Tasksmith recovery progress: pipelines/tasksmith_scale30_recovery_progress.md
+      - Tasksmith autonomy audit: pipelines/tasksmith_autonomy.md
+      - Tasksmith full-list budget: pipelines/tasksmith_full_list_budget.md
       - Tasksmith lessons: pipelines/tasksmith_pilot_learnings.md
       - "repo_mutate / swe_smith (experimental)": pipelines/repo_mutate.md
       - "terminal_synth / seta_seed2synth (experimental)": pipelines/terminal_synth.md
@@ -174,6 +189,7 @@ nav:
       - Complete prompt reference:
           - Shared terminal stages: pipelines/prompts/shared_terminal.md
           - Review and repair: pipelines/prompts/quality_loop.md
+          - Tasksmith: pipelines/prompts/tasksmith.md
           - SWE-smith: pipelines/prompts/swe_smith.md
           - SETA Seed2Synth: pipelines/prompts/seta_seed2synth.md
           - SETA Evol: pipelines/prompts/seta_evol.md
@@ -217,6 +233,8 @@ nav:
       - "0025 — sec_bench recipe": rfcs/0025-sec-bench-recipe.md
       - "0026 — scaler recipe": rfcs/0026-scaler-recipe.md
       - "0027 — Harbor review and repair": rfcs/0027-harbor-quality-loop.md
+      - "0028 — Tasksmith PR harness": rfcs/0028-tasksmith-pr-pilot.md
+      - "0029 — Campaign expansion and releases": rfcs/0029-campaign-expansion-and-release.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

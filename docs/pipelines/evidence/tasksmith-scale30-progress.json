@@ -1,0 +1,305 @@
+{
+  "schema_version": "1",
+  "recorded_at": "2026-09-13T09:21:35.608882+00:00",
+  "target_total": 30,
+  "retained_accepted": 10,
+  "new_accepted": 4,
+  "accepted_total": 14,
+  "new_tasks": [
+    {
+      "pr": "https://github.com/huggingface/peft/pull/3212",
+      "source_head": "13cb6f1ce69e60f1cebd323466a321aa948ddcac",
+      "source_diff_sha256": "331dbe7b96688b787d60a661adb38cbd4a69cbf1b57421e90904507ca32c149f",
+      "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+      "status": "usable",
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 3
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "da75c6569499b85ff76f3623b36b70766dff7e40bcda91c2464f8ff1765a17f1",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "2f035850c785fd3be1c2a27c50c1debb6bf49f4addb6001ed31a017f1fea322d",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:d81a2d0f74fafd58a4fddea3cf5c3ecae161c4fa91ce6512adb969ffef2141c8",
+          "result_sha256": "013bbd64d6d641aeff2e4d2841f35865bd12e7e6671e989856377fcbe364ee44",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:6b428560e571ee979a7a2f3a0c1d48f84b1297640593ddd2b537ae8acb34d1d8",
+          "result_sha256": "7c949fd75967788e3787c33c06fbc23325080da4093d41599538142d36ea1f18",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:8f9968f8d647775e489e4eb3c081a34a2bce0507fdce2f525c766e703fd6c7bc",
+          "result_sha256": "8ce50c67c436b5104b34ce4af8dd5c5cc1f6a40b1d11d7ad2c62b57145dbe023",
+          "probe_kind": null
+        }
+      ],
+      "recovery_compute_and_model_usd": "3.732279",
+      "recovery_reserved_usd": "0",
+      "cost_scope": "This targeted recovery only; initial generation and unsuccessful repairs remain charged to the original CPU wave.",
+      "repair": "Pin Transformers 5.7.0 and tokenizers 0.22.2, use an actual local CLIPTextModel conversion fixture with both memory modes, and align expected test identities after parameterization. Preserve starting source and the actual PR reference."
+    },
+    {
+      "pr": "https://github.com/huggingface/accelerate/pull/3674",
+      "source_head": "bc3753dfb3020e651c7cc48d908f820996b65278",
+      "source_diff_sha256": "5f41ad9fbffab51273e3d54ba15bd785228f2a1191216c465a4fd67db5fd9ef7",
+      "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+      "status": "usable",
+      "gpus": 1,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "32395e8a0a90522f5f3e1770f48acdccf749051431ad453c3d63d8aa165f5159",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "b1a139aa941e5af942dd923df96b2799246d92ad1c43ba1182bb77b724147347",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:d69861784823fd49c2dc26c857e2c27d58903ab400979a3107f353d9d0bc7b8a",
+          "result_sha256": "6576b32683f206b5ae00874ecf79b1e7410af0eb10ad0f3632c1f364532f5186",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:7129d574caa20daf7b4fb79c182578d833e7025a15b88878e6893d801627e29d",
+          "result_sha256": "58bdff89353e772de2756071a3551e7f089327bbaf64a8b1f5822f33e32ea3af",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:3c8c5280fcd0c226b01d2ebb64c713e1b12e6ccf3e01b20305abab30495b49aa",
+          "result_sha256": "f5ba60f97f1dad49897f503a29ec08a866e3ffbdcdeb99cadce6316f9fd14f8b",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:315554b526973ff4536a4b78b90193879568e70c97a2e67cdbaf3be304f3f882",
+          "result_sha256": "bce2343e29fb06df8b1206d9272153dfdad6abb02e6f3447863f3476d3c8f4d1",
+          "probe_kind": null
+        }
+      ],
+      "recovery_compute_and_model_usd": "5.274237",
+      "recovery_reserved_usd": "0",
+      "cost_scope": "Final targeted recovery only; earlier GPU generation and unsuccessful repairs remain charged to their original attempts.",
+      "repair": "Observe actual tensor copies and conversions; exclude genuine no-op Tensor.to calls. Preserve source/reference/instruction and rerun both retained valid alternatives plus the wrong implementation."
+    },
+    {
+      "pr": "https://github.com/huggingface/trl/pull/6228",
+      "source_head": "96d543da3a4259c6a1d6f87c91fc89e5f71937eb",
+      "source_diff_sha256": "b3b62c1571b0300879118cfb252101344e2627a1b84edd43872a66e332a13dd7",
+      "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+      "status": "usable",
+      "gpus": 0,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 4
+      },
+      "rollout_assessment": "legitimate_failure",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "c37d0b649e38fef7b77973bb263eb0a15b206706b41f8734d8bcffac8bf903d9",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "5359a0baeb715dac42f5a2ceb4afe3f448c819ca5935b2cb22ed938295d98e5e",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:7febe54a81d24f06e9cdc32baf2677e8a2b59919b29b6832d3663a36f1a1fea4",
+          "result_sha256": "9d6fc7b5ac6d80c85c4592fd73488d068ea3c5bbe1797e5396c969c3ef8a4b86",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:52af658577489c8ba5032fb6f4a676768a334f6d8d96eab0a54d7de9143f9ece",
+          "result_sha256": "a0442f98807198c82e3edcc76587e3ccceafcfaf6485311b745808945a84e314",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "rollout",
+          "reward": 0.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:333dd6b79c9c8217a02c91948cc94e580dba5d6780ff82437310e7b79a5c9cce",
+          "result_sha256": "ff082e12d19c4857ab13cbf1f943bf0a3f3ff1fd3b335f7d5a28287675fa7c1f",
+          "probe_kind": null
+        }
+      ],
+      "final_review_and_rollout_usd": "1.499622",
+      "cost_scope": "Final recovery model calls only. All four prior controls were reused by exact hash. Shared recovery worker cost and original generation/repairs remain in the campaign ledger.",
+      "repair": "No further task edits. Finish the missing Sonnet rollout after the prior local quality cap prevented its reservation."
+    },
+    {
+      "pr": "https://github.com/huggingface/trl/pull/6152",
+      "source_head": "472c7f9c924674c0ced18bc608a737191466334f",
+      "source_diff_sha256": "018c7f48e9e0867070b3ed577ea5c96b1bd14ab148b4472c76648033084faa74",
+      "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+      "status": "usable",
+      "gpus": 0,
+      "scores": {
+        "task": 4,
+        "verifier": 3,
+        "leakage": 3
+      },
+      "rollout_assessment": "legitimate_success",
+      "trials": [
+        {
+          "role": "baseline",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "0a7855a976bb5013c98b3236e4b5ec48a3aec3903a3d594957bb111c1d524edc",
+          "probe_kind": null
+        },
+        {
+          "role": "oracle",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "36d2d2d702e891247ee6693820f1709a6438c730d93eff13f4d2b2761ddfc86f",
+          "probe_kind": null
+        },
+        {
+          "role": "probe",
+          "reward": 0.0,
+          "model": null,
+          "bundle_hash": "sha256:494577c1bafe920981624c0075a6bc072d5f127a0a6e291d9627122017f21e48",
+          "result_sha256": "adc5dc357c55982f90b705248ed1001c6fea8bb2a2affe8dcf562e62b9ecf48c",
+          "probe_kind": "wrong_solution"
+        },
+        {
+          "role": "probe",
+          "reward": 1.0,
+          "model": null,
+          "bundle_hash": "sha256:754cf8a0b6fafe8d2b86616ba1088adac4abdd38f1398c305f8d5ae0eec5f193",
+          "result_sha256": "fdb19e6fffc032cc8194e939d9c5feeaaf05a109f8d6238708283c93e12050d6",
+          "probe_kind": "valid_alternative"
+        },
+        {
+          "role": "rollout",
+          "reward": 1.0,
+          "model": "anthropic/claude-sonnet-4-6",
+          "bundle_hash": "sha256:51fc3cd2d5e9662a4bee9b3d0bb873b8177c4486f766bd3fe832591e302ad122",
+          "result_sha256": "f8868b64c662d8e76186120004274e2e9b63e0503e475253e7e620e06bb05316",
+          "probe_kind": null
+        }
+      ],
+      "final_review_and_rollout_usd": "2.038853",
+      "cost_scope": "Final recovery model calls only. Shared recovery worker cost and original generation/repairs remain in the campaign ledger.",
+      "repair": "Provide an actual temporary disk-backed dataset for reference-log-prob precomputation. Retain sync-on rejection and successful default-off construction; preserve reference and starting source."
+    }
+  ],
+  "known_failure": {
+    "pr": "https://github.com/huggingface/trl/pull/6116",
+    "status": "reference_conflict",
+    "finding": "The fixed reference fails its stated idempotence promise for already-tokenized DPO inputs with KeyError chosen. The separate verifier also needs independent expectations. A generated bundle is not an accepted task.",
+    "evidence": "workspace/tasksmith-scale30/wave1-cpu-v1/candidates/0816da569af6/quality/result.json"
+  },
+  "limitations": [
+    "This is a dated progress snapshot, not the final 30-task delivery.",
+    "One real GPU task is accepted; Transformers bundles are still under validation.",
+    "A legitimate Sonnet failure can be accepted; it is not repaired into an easier task."
+  ],
+  "substitution": {
+    "replaces": "https://github.com/huggingface/trl/pull/6116",
+    "replaced_status": "reference_conflict",
+    "reason": "Executed merged reference raises KeyError chosen on already-tokenized DPO data despite its documented idempotence claim. Preserve that failed attempt; use another original-inventory PR to reach the total target.",
+    "replacement": {
+      "url": "https://github.com/huggingface/trl/pull/5501",
+      "id": "0ea2241cceeb",
+      "head": "e294047ca750a3267a0f93caba817c0115d1bc4c",
+      "source_diff_sha256": "8c0898a8f8cf606aa0e3a790be6ae967834b12deb78b9e062964feb8bde43526",
+      "lane": "cpu",
+      "proposed_task": "Support configured Trackio completion-table logging in DistillationTrainer, including simultaneous backends, logging cadence, row sampling and buffer clearing.",
+      "verification_idea": "Call the real trainer logging method on bounded CPU fixtures. Observe backend transport calls without live network; assert independently constructed table content, step values, row bounds, correct selected backends and unchanged logging cadence. Do not require unavailable backends to work.",
+      "status": "queued_in_wave3_cpu_v2"
+    }
+  },
+  "delivery": {
+    "tasks": 14,
+    "archive": "/Users/adithya/projects/Repo2RLEnv-tasksmith/workspace/tasksmith-scale30/delivery-14.tar.gz",
+    "sha256": "3483886677ff5c4f058d822fa4c49fca229fdd9cad523795af7208f952e88d06",
+    "bytes": 131583896,
+    "audit": {
+      "tasks": 14,
+      "trials": 75,
+      "new_protected_trees_unchanged": 4,
+      "credential_scan": {
+        "files": 21181,
+        "configured_values_checked": 7,
+        "matches": 0
+      },
+      "scope": "Byte integrity and recorded execution checks; no target code executed on controller."
+    }
+  },
+  "budget_checkpoint": {
+    "accounted_including_prior_external_usd": "435.699890",
+    "accounting": "Model usage plus conservative compute estimates; outstanding reservations are not confirmed charges.",
+    "authorized_usd": "500.00",
+    "available_usd": "14.486949",
+    "reserved_usd": "49.813161"
+  }
+}

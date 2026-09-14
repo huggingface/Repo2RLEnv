@@ -14,9 +14,13 @@ def _methods(node: ast.AST, parents: tuple[str, ...] = ()):
             yield parents, child
 
 
-def test_excerpts(root: Path, identities: list[str]) -> dict[str, str]:
+def test_excerpts(
+    root: Path, identities: list[str], *, additional_sources: dict[str, str] | None = None
+) -> dict[str, str]:
     excerpts = {}
-    for path in sorted(root.rglob("test*.py")):
+    additions = additional_sources or {}
+    paths = set(root.rglob("test*.py")) | {root / name for name in additions}
+    for path in sorted(paths):
         module = path.relative_to(root).with_suffix("").as_posix().replace("/", ".")
         relevant = [
             identity
@@ -25,7 +29,8 @@ def test_excerpts(root: Path, identities: list[str]) -> dict[str, str]:
         ]
         if not relevant:
             continue
-        source = path.read_text()
+        relative = path.relative_to(root).as_posix()
+        source = additions[relative] if relative in additions else path.read_text()
         tree = ast.parse(source)
         nodes = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
 

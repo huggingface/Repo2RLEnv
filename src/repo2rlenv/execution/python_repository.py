@@ -15,6 +15,7 @@ from pathlib import Path
 from repo2rlenv.bootstrap import ensure_bootstrap
 from repo2rlenv.execution.job import container_labels
 from repo2rlenv.execution.lifecycle import save_record
+from repo2rlenv.execution.python_build import dependency_recipe
 from repo2rlenv.quality.test_results import parse_junit
 from repo2rlenv.spec.input import AuthSpec, BootstrapSpec, LLMSpec, RepoSpec
 from repo2rlenv.spec.recipe_options import PythonRepositoryProfile
@@ -41,6 +42,7 @@ def test_image(
     *,
     replacement: tuple[Path, str] | None = None,
     replacements: dict[str, Path] | None = None,
+    removals: tuple[str, ...] = (),
     instrumentation: TestInstrumentation | None = None,
 ):
     """Run each test suite from a clean image, with no network or host mounts."""
@@ -50,7 +52,9 @@ def test_image(
         "python",
         "-m",
         "pytest",
-        *options.test_paths,
+        "-o",
+        "addopts=",
+        *(options.test_selectors or options.test_paths),
         *options.pytest_args,
         "-q",
         "--tb=short",
@@ -60,6 +64,21 @@ def test_image(
         command = ["python", "/tmp/instrument.py", *instrumentation.arguments, *command[3:]]
         if any(Path(name).name != name for name in instrumentation.outputs):
             raise ValueError("Instrumentation outputs must be filenames in /tmp")
+    if removals:
+        from repo2rlenv.emitter.bundle import relative_asset_path
+
+        for relative in removals:
+            relative_asset_path("environment/" + relative)
+        if set(removals) & (set(replacements or {}) | ({replacement[1]} if replacement else set())):
+            raise ValueError("A test source path cannot be replaced and removed")
+        command = [
+            "sh",
+            "-c",
+            "rm -f -- "
+            + shlex.join(["/workspace/" + path for path in removals])
+            + " && exec "
+            + shlex.join(command),
+        ]
     _run(
         [
             "docker",
@@ -70,9 +89,9 @@ def test_image(
             "--network",
             "none",
             "--cpus",
-            "1",
+            str(options.test_cpus),
             "--memory",
-            "2g",
+            f"{options.test_memory_mb}m",
             "--pids-limit",
             "256",
             "--workdir",
@@ -99,8 +118,14 @@ def test_image(
         (output / "stderr.txt").write_text(result.stderr)
         state = json.loads(_run(["docker", "inspect", name]).stdout)[0]["State"]
         save_record(output / "state.json", state)
-        if state.get("OOMKilled") or state.get("Running"):
-            raise ValueError("Test container did not complete within its resource contract")
+        if state.get("OOMKilled"):
+            raise ValueError(
+                f"Test container exhausted its {options.test_memory_mb} MiB memory limit "
+                "(OOMKilled=true); preserve the selected behavior and adjust test_memory_mb "
+                "within the worker allocation"
+            )
+        if state.get("Running"):
+            raise ValueError("Test container is still running; readiness did not complete")
         _run(["docker", "cp", f"{name}:/tmp/results.xml", str(output / "results.xml")])
         if instrumentation is not None:
             for filename in instrumentation.outputs:
@@ -124,20 +149,56 @@ def repository_source_files(base: Path, options: PythonRepositoryProfile) -> lis
     return sorted(path for path in paths if not any(path.is_relative_to(test) for test in tests))
 
 
+def materialize_document_links(base: Path, options: PythonRepositoryProfile) -> list[dict]:
+    """Preserve explicitly selected document contents without exporting symlinks."""
+    base = base.resolve()
+    copies = []
+    for relative in options.materialize_document_links:
+        path = base / relative
+        try:
+            target = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f"Document link is missing or cyclic: {relative}") from exc
+        if (
+            not path.parent.resolve().is_relative_to(base)
+            or not target.is_relative_to(base)
+            or not target.is_file()
+            or target.suffix.lower() not in {".md", ".rst", ".txt"}
+        ):
+            raise ValueError(
+                f"Document link must resolve to a document file inside the snapshot: {relative}"
+            )
+        if path.is_symlink():
+            copies.append((path, target, target.read_bytes()))
+    records = []
+    for path, target, contents in copies:
+        path.unlink()
+        path.write_bytes(contents)
+        records.append(
+            {
+                "path": path.relative_to(base).as_posix(),
+                "target": target.relative_to(base).as_posix(),
+                "sha256": hashlib.sha256(contents).hexdigest(),
+            }
+        )
+    return records
+
+
 def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destination: Path):
     if os.environ.get("REPO2RLENV_REMOTE_WORKER") != "1":
         raise RuntimeError("Repository execution is remote only")
     dockerfile = (
-        f"FROM {options.base_image}\nWORKDIR /workspace\n"
-        + (
-            f"RUN python -m pip install --no-cache-dir {shlex.join(options.dependencies)}\n"
-            if options.dependencies
-            else ""
+        dependency_recipe(
+            options.base_image,
+            options.dependencies,
+            use_system_site_packages=options.use_system_site_packages,
+            hub_assets=options.hub_assets,
         )
         + "COPY . /workspace\n"
         f"RUN {options.install_command}\n"
         "RUN rm -rf /workspace/.git /root/.cache/pip\n"
-        "ENV PYTHONDONTWRITEBYTECODE=1\n"
+        "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
+        "ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1\n"
     )
     digest = hashlib.sha256(dockerfile.encode()).hexdigest()
     profile = Path("/work/bootstrap-profiles") / f"{digest}.Dockerfile"
@@ -158,13 +219,21 @@ def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destina
         _run(["docker", "cp", f"{container}:/workspace", str(base)])
     finally:
         _run(["docker", "rm", container], check=False)
+    clean_snapshot(base, options, destination)
+    return boot, base
+
+
+def clean_snapshot(base: Path, options: PythonRepositoryProfile, destination: Path) -> None:
+    links = materialize_document_links(base, options)
+    save_record(destination / "snapshot-document-links.json", {"materialized": links})
     # A snapshot may contain bytecode or generated build files. Keep them out of
-    # task source archives and refuse links rather than dereferencing host paths.
-    for path in sorted(base.rglob("*"), reverse=True):
-        if path.is_symlink():
-            raise ValueError(
-                f"Repository snapshot has a symlink requiring explicit support: {path.relative_to(base)}"
-            )
+    # task source archives; all links not explicitly materialized remain unsupported.
+    paths = sorted(base.rglob("*"), reverse=True)
+    linked = [path.relative_to(base).as_posix() for path in paths if path.is_symlink()]
+    if linked:
+        raise ValueError(
+            "Repository snapshot has symlinks requiring explicit support: " + ", ".join(linked)
+        )
+    for path in paths:
         if path.is_dir() and path.name in {".git", "__pycache__", ".pytest_cache", "build", "dist"}:
             shutil.rmtree(path)
-    return boot, base
