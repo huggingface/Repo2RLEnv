@@ -107,11 +107,11 @@ The lifecycle any new pipeline goes through, adapted to yours:
 |---|---|
 | **Initial PR** | (link) |
 | **Shipping release** | v?.?.? |
-| **Source file** | [`src/repo2rlenv/pipelines/<name>.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/<name>.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `<Name>Options` |
-| **Doc page** | [`docs/pipelines/<name>.md`](../pipelines/<name>.md) |
-| **Findings / release notes** | [`docs/release_notes/v?.?.?/findings-<name>.md`](../release_notes/) *(if published)* |
-| **Reference dataset** | [`AdithyaSK/repo2rlenv-<name>`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-<name>) *(if published)* |
+| **Source file** | `src/repo2rlenv/pipelines/<name>.py` |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `<Name>Options` |
+| **Doc page** | `docs/pipelines/<name>.md` |
+| **Findings / release notes** | `docs/release_notes/v?.?.?/findings-<name>.md` *(if published)* |
+| **Reference dataset** | `AdithyaSK/repo2rlenv-<name>` *(if published)* |
 | **Follow-up PRs** | List post-initial merges that materially changed the pipeline — `#66` LLM synthesis, `#69` hardening, etc. Keep concise; the git log is the source of truth. |
 
 Any material changes to the pipeline *after* it ships (design pivots, new options, breaking-change PRs) get appended here or in a new "Change history" subsection. Small polish PRs don't need to be listed.

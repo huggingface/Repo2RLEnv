@@ -137,27 +137,34 @@ four out of twelve, the native bronze threshold). The snapshot records file
 changes and bounded content prefixes. The test author consumes that execution
 evidence before the fresh baseline/reference trials.
 
-The initial 20-task milestone is complete; the current campaign targets
-**100 generated tasks**, with counts in the [release inventory](releases.md).
-The [interim Hub release](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld)
-contains **99 tasks**, including 20 retained tasks and 79 new exports with matching
-baseline reward 0 and reference reward 1 evidence. The last task is pending its
-budget-bounded recovery; this release does not reduce the generation target.
+The [Hub release](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld)
+contains **100 tasks**, meeting the generation target: 20 retained tasks and
+80 new exports with hash-matched baseline reward 0 and reference reward 1 evidence.
+The [release inventory](releases.md) records the published artifact revision.
 
-The expansion accounts for **$99.44**: $54.32 in model usage across 2,380 calls
-and $45.12 in estimated worker/build costs, or **$1.26 per new export**. These
+The expansion accounts for **$100.47**: $54.34 in model usage across 2,381 calls
+and $46.13 in estimated worker/build costs, or **$1.26 per new export**. These
 figures include filtered inputs, failed attempts and repairs, and exclude the
 20 retained tasks and future independent quality evaluation. All workers are
-stopped. The [generation evidence](evidence/terminalworld-generation-99.json)
-records the incomplete target, costs and two known verifier findings. The
+stopped. The [generation evidence](evidence/terminalworld-generation-100.json)
+records the completed target, costs and three known verifier findings. The
 [source audit](evidence/terminalworld-source-diversity.json) separates source-URL
 coverage from claims about workflow diversity or task difficulty.
 
-Two released tasks are labeled `needs_repair`: their instructions require working
-scripts, but their verifiers check source strings and saved output without running
-those scripts. The other 97 tasks are labeled `unverified` for independent quality
+Three released tasks are labeled `needs_repair`: two require working scripts
+that their verifiers never execute; the third asks for POSIX process behavior
+but checks source keywords and executable format without establishing that behavior.
+The other 97 tasks are labeled `unverified` for independent quality
 acceptance. The compact review is useful feedback, but its presence alone does
 not prove that these semantic gaps are absent.
+
+The final export used an assisted recovery of an already completed design and
+environment response after the empty-fixture schema fix. It reused those outputs,
+replayed the reference on Daytona, authored tests and passed fresh controls before
+file review. Its provenance records the intervention and its verifier gap remains
+explicitly labeled. No source export or interim release was overwritten. A bounded
+$5 allocation from unused expansion funds raised this recipe's cap to $105; the
+overall $600 expansion cap was unchanged.
 
 Partial-solution probes, independent
 leakage/shortcut checks and blind solver rollouts follow the generation campaign.

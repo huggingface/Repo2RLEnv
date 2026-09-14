@@ -1,7 +1,9 @@
 # SWE-flow, SETA and terminal expansion to 100
 
-Authorized and launched on 14 September 2026. Each of the six listed recipes has
-a separate **$100 hard cap**, for **$600 maximum additional spend**. This campaign
+Authorized and launched on 14 September 2026 with approximately **$100 per recipe**
+and **$600 maximum additional spend**. The initial six child caps were $100 each.
+The final TerminalWorld recovery received up to $5 of unused parent funds, raising
+its child cap to $105 while retaining the $600 overall cap. This campaign
 is separate from Wave 1 and the already funded Endless Terminals expansion.
 The directory is named `owned-waves34-100`; its manifest also includes the
 remaining Wave 2 recipe, SWE-flow.
@@ -26,8 +28,9 @@ the [release inventory](releases.md) records current progress.
 Historical estimates come from the [quality pilot](quality_pilot.md);
 they include an allocated shared-compute proxy and are not provider invoices or
 guarantees. New repositories, bounded repair attempts and source filtering can
-change the actual cost. Caps are enforced independently; one recipe cannot spend
-another recipe's unused allocation.
+change the actual cost. Child caps are enforced independently. An allocation change
+must be recorded in the parent and child ledgers before spending; the scheduler
+does not automatically borrow from another recipe.
 
 Six independent Daytona workers started at 15:54 UTC, each with four CPUs, 8 GiB
 RAM and a two-hour limit. Each reserves $1.80 for estimated resource lifetime and
@@ -39,7 +42,7 @@ Endless Terminals runs separately.
 
 ```mermaid
 flowchart TD
-  A[User authorization: six caps of $100] --> B[Record 127 retained task identities]
+  A[Budget: about $100 per recipe; $600 total] --> B[Record 127 retained task identities]
   B --> C[Cache source inputs and freeze runtime]
   C --> D1[SWE-flow: pinned Funcy repository]
   C --> D2[Seed2Synth: attributed question and answer seeds]
@@ -51,8 +54,8 @@ flowchart TD
   E --> F[Fresh unsolved and reference controls]
   F --> G[Local Harbor exports and retained failure evidence]
   G --> H[Inspect task, verifier, diversity and measured cost]
-  H --> I[Allocate distinct remaining inputs within each $100 cap]
-  I --> J[Stop at 100 exports or an explicit budget or execution limit]
+  H --> I[Allocate distinct remaining inputs within recorded child caps]
+  I --> J[Stop at the task target or budget or execution limit]
 ```
 
 ## Sources and recipe fidelity
@@ -151,13 +154,23 @@ Independent semantic review, adversarial probes and blind solver rollouts remain
 separate. Preserve unsuccessful candidates and their diagnostics; do not count
 them as exports or silently rewrite retained tasks.
 
-The $600 parent reserves $100 for each recipe child. These are the same funds,
+The $600 parent initially reserved $100 for each recipe child. These are the same funds,
 not costs to add together. Pilot completion stops workers and reconciles their
 estimated lifetime, but leaves each recipe's parent allocation held for future
 batches. The allocation settles only when that recipe's expansion is concluded.
 Measure model calls, failed attempts, worker lifetime, new exports and retained
 exports separately. Report per-export cost only against newly generated exports,
 and label estimated compute separately from invoiced charges.
+
+The final target is complete: **555 tasks**, comprising 127 retained and 428 new
+exports. TerminalWorld's final recovery reused completed authoring output under
+the corrected empty-fixture schema, then replayed the reference and ran fresh
+controls on Daytona. Its $5 extra allocation used unused parent funds under the
+existing approximate per-recipe authorization; no new budget approval is claimed.
+TerminalWorld finished at $100.47. The final export retains an assisted provenance
+label and a diagnosed verifier gap. Its earlier failed recovery remains in the
+costs and receipts. All generation workers are stopped; uncertain model charges
+remain reserved pending provider evidence.
 
 The [per-recipe economics snapshot](economics/waves34/README.md) separates model
 charges, accounted worker estimates, reservations and available budget. Refresh

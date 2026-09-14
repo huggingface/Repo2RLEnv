@@ -9,7 +9,7 @@ This is **Harbor's responsibility**, not Repo2RLEnv's — but understanding it m
 - Harbor ships **25 agent harnesses** (≈22 distinct coding agents + 2 testing helpers + 1 alias) — see [§1](#1-the-25-built-in-agents)
 - Every agent extends `BaseAgent` with shared params (`logs_dir`, `model_name`, `mcp_servers`) plus declarative `CliFlag` / `EnvVar` mappings — see [§2](#2-agent-contract)
 - The LLM **never runs inside the task sandbox** — agent makes outbound HTTPS calls to wherever it's hosted (cloud API or your tunneled vLLM) — see [§3](#3-llm-hosting)
-- Token IDs and logprobs are captured **inside the agent's container** to `/logs/agent/`, then read back via volume mount or SDK download into `trial_result.agent_result.rollout_details` — see [§4](#4-rl-traces--logprobs--how-data-leaves-the-sandbox)
+- Token IDs and logprobs are captured **inside the agent's container** to `/logs/agent/`, then read back via volume mount or SDK download into `trial_result.agent_result.rollout_details` — see [§4](#4-rl-traces-logprobs-how-data-leaves-the-sandbox)
 - Terminus 2 self-reports rollout details; for other agents, an OpenAI-compatible proxy in front of vLLM works as an alternative — see [§5](#5-two-paths-for-token-id-capture)
 
 ## 1. The 25 built-in agents

@@ -109,7 +109,7 @@ pipeline = cls(generation_input, options)
 result = pipeline.run(out_dir)   # returns PipelineResult(candidates, emitted, skipped, out_dir, skip_reasons)
 ```
 
-`Pipeline` is a `runtime_checkable` Protocol — every entry in `PIPELINES` duck-conforms. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](./pipelines/) for per-pipeline docs.
+`Pipeline` is a `runtime_checkable` Protocol — every entry in `PIPELINES` duck-conforms. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](../pipelines/README.md) for per-pipeline docs.
 
 ## `repo2rlenv.emitter.harbor`
 

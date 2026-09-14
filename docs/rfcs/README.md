@@ -63,7 +63,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0016 | `repo_reconstruct` / `swe_flow` | experimental; PR #109 | [0016-swe-flow-recipe.md](0016-swe-flow-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
 | 0017 | `equivalence_tests` / `r2e` | experimental; PR #109 | [0017-r2e-recipe.md](0017-r2e-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
 | 0018 | `terminal_synth` / `tmax` | experimental; PR #109 | [0018-tmax-recipe.md](0018-tmax-recipe.md) | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
-| 0019 | `terminal_reconstruct` / `terminalworld` | experimental; PR #109 | [0019-terminalworld-recipe.md](0019-terminalworld-recipe.md) | [99 tasks; target 100](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| 0019 | `terminal_reconstruct` / `terminalworld` | experimental; PR #109 | [0019-terminalworld-recipe.md](0019-terminalworld-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
 | 0020 | `terminal_synth` / `endless_terminals` | experimental; PR #109 | [0020-endless-terminals-recipe.md](0020-endless-terminals-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
 | 0021 | `env_repair` / `cli_gym` | experimental; PR #109 | [0021-cli-gym-recipe.md](0021-cli-gym-recipe.md) | [25 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
 | 0022 | `terminal_synth` / `dataarc` | experimental; PR #109 | [0022-dataarc-terminal-recipe.md](0022-dataarc-terminal-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |

@@ -1,0 +1,60 @@
+{
+  "all_workers_terminated": true,
+  "as_of": "2026-09-14T19:55:33.423798+00:00",
+  "diversity": {
+    "unspecified": 100
+  },
+  "economics": {
+    "accounted_usd": "100.474361",
+    "estimated_cloud_build_usd": "46.131863",
+    "limit_usd": "105.000000",
+    "model_calls": 2381,
+    "model_usd": "54.342498",
+    "new_exports": 80,
+    "reserved_usd": "0.000000",
+    "retained_exports": 20,
+    "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+    "unresolved_model_operations": 0,
+    "usd_per_new_export": "1.2559295125"
+  },
+  "generation_complete": true,
+  "known_findings": [
+    {
+      "files": {
+        "instruction.md": "adadf9c65562ac54cb86b8ccc680ae17f0a67bb68079a23225f8a2903a6d199f",
+        "tests/test_outputs.py": "02bd88239b0dafd2d3e74630034bebb70e71a1c0ab67c69684c1b37460c0207e"
+      },
+      "finding": "The instruction asks for a do_mes.py script that imports a module and writes a result. The verifier executes the module import, but checks do_mes.py by source keywords and checks a saved result without invoking the requested script.",
+      "original_reviewed_at": "2026-09-14T15:58:25.861026+00:00",
+      "task_id": "terminalworld-bd334c2135e67549"
+    },
+    {
+      "files": {
+        "instruction.md": "926ab1bad11c24000feb4ffa89c4df6933c468331d7fadec6cedf3212cf5d272",
+        "tests/test_outputs.py": "f5978e6a7454d7355e25eca6ae074d2d6dad4e04779733d2c4749e553916231f"
+      },
+      "finding": "The instruction requires an Expect script that spawns and drives /app/test.py. The verifier checks the script for the strings test.py, Edwin and Fox and checks a saved transcript; it never executes the Expect script. These checks do not establish the requested automation behavior.",
+      "task_id": "terminalworld-36762fd7ea569f63"
+    },
+    {
+      "files": {
+        "environment/Dockerfile": "3db1240eac72fd5681feadff4963b1f67c294ddf956b4b85a9f46cd6c9fe9c0e",
+        "instruction.md": "1eb42768381cf91ded41b974ff0ba9f3be7f5584ea51e0f19a4148b6b7dad9ce",
+        "solution/solve.sh": "15aa7e8798a766e687e54a781e75098d27faaa0b37a5f23b0fb99a527cb486d1",
+        "tests/test_outputs.py": "bec0af1b016c9451e753998ee6b7ae921466dfd09abf7025836d4b409f160a2d"
+      },
+      "finding": "The instruction requires a C program that forks, prints parent and child messages, waits for its child and executes /usr/bin/yes. The verifier checks source substrings, execute permissions and ELF magic, but never compiles the submitted source or establishes that the binary implements the requested process behavior. It also strips result.txt whitespace despite the exact-text instruction. Passing the reference control does not establish these behaviors.",
+      "task_id": "terminalworld-0f57921141b1857f"
+    }
+  ],
+  "recipe": "terminalworld",
+  "source_audit_sha256": "84b4e7470c21d3ed791b5bad4328b24340bff0cabd8394142825ef909ea85781",
+  "summary": {
+    "integrity_or_parse_errors": 0,
+    "new_exports": 80,
+    "new_matched_baseline_reference": 80,
+    "retained_exports": 20,
+    "total_exports": 100
+  },
+  "target": 100
+}

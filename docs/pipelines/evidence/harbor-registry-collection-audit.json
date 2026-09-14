@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-14T19:40:49.849478+00:00",
+  "at": "2026-09-14T19:59:11.990724+00:00",
   "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
   "collection_items": 21,
   "datasets": [
@@ -100,6 +100,14 @@
       "task_count": 55
     },
     {
+      "artifact_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
+      "collection_member": true,
+      "recipe": "terminalworld",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "task_count": 100
+    },
+    {
       "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
       "collection_member": true,
       "recipe": "dataarc",
@@ -114,17 +122,9 @@
       "registry_passed": true,
       "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
       "task_count": 50
-    },
-    {
-      "artifact_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
-      "collection_member": true,
-      "recipe": "terminalworld",
-      "registry_passed": true,
-      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
-      "task_count": 99
     }
   ],
   "published_datasets": 15,
-  "published_tasks": 1329,
+  "published_tasks": 1330,
   "scope": "Public collection membership and Harbor registry task names, paths, repository URLs and artifact revision pins. No task execution or semantic validation."
 }

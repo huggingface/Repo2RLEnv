@@ -1,12 +1,12 @@
 {
-  "as_of": "2026-09-14T19:39:28.505769+00:00",
+  "as_of": "2026-09-14T19:56:52.776192+00:00",
   "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
   "expected_final_inventory": 1330,
-  "generated": 1329,
-  "generation_targets_reached": 14,
+  "generated": 1330,
+  "generation_targets_reached": 15,
   "minimum_target": 1325,
   "published_datasets": 15,
-  "published_tasks": 1329,
+  "published_tasks": 1330,
   "recipes": [
     {
       "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
@@ -577,28 +577,28 @@
       "target": 55
     },
     {
-      "artifact_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
+      "artifact_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
       "economics": {
-        "accounted_usd": "99.444046",
-        "estimated_cloud_build_usd": "45.120538",
-        "limit_usd": "100.000000",
-        "model_calls": 2380,
-        "model_usd": "54.323508",
-        "new_exports": 79,
+        "accounted_usd": "100.474361",
+        "estimated_cloud_build_usd": "46.131863",
+        "limit_usd": "105.000000",
+        "model_calls": 2381,
+        "model_usd": "54.342498",
+        "new_exports": 80,
         "reserved_usd": "0.000000",
         "retained_exports": 20,
         "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
         "unresolved_model_operations": 0,
-        "usd_per_new_export": "1.258785392405063291139240506"
+        "usd_per_new_export": "1.2559295125"
       },
-      "generated": 99,
+      "generated": 100,
       "guide": "terminalworld.md",
       "pipeline": "terminal_reconstruct",
-      "publication_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
+      "publication_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
       "publication_state": "completed",
-      "published_tasks": 99,
+      "published_tasks": 100,
       "quality_counts": {
-        "needs_repair": 2,
+        "needs_repair": 3,
         "unverified": 97
       },
       "recipe": "terminalworld",

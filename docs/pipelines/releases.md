@@ -1,8 +1,8 @@
 # Harbor dataset release inventory
 
-Snapshot: 2026-09-14T19:39:28.505769+00:00
+Snapshot: 2026-09-14T19:56:52.776192+00:00
 
-**1329 generated tasks; 14/15 generation targets reached; 15 datasets published (1329 tasks).**
+**1330 generated tasks; 15/15 generation targets reached; 15 datasets published (1330 tasks).**
 
 The target is 100 tasks for twelve owned recipes, 55 TMax tasks, 50 verified Tasksmith tasks, and at least 20 CLI-Gym tasks. CLI-Gym already produced 25; all are retained, so the final inventory is expected to contain **1,330 tasks**. TMax was capped at 55 at the user's request. SEC-bench remains excluded.
 
@@ -24,7 +24,7 @@ Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEn
 | [seta-seed2synth](terminal_synth.md) | `terminal_synth / seta_seed2synth` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
 | [seta-evol](task_evolve.md) | `task_evolve / seta_evol` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
 | [tmax](tmax.md) | `terminal_synth / tmax` | 55 / 55 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
-| [terminalworld](terminalworld.md) | `terminal_reconstruct / terminalworld` | 99 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [terminalworld](terminalworld.md) | `terminal_reconstruct / terminalworld` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
 | [dataarc](dataarc.md) | `terminal_synth / dataarc` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
 | [tasksmith](tasksmith.md) | `tasksmith run` | 50 / 50 | [Published](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
 
@@ -54,7 +54,7 @@ These costs include unsuccessful attempts within the stated campaign. Model-only
 | seta-seed2synth | 77 | $54.64 | $0.71 | Models + estimated cloud/build usage |
 | seta-evol | 80 | $44.72 | $0.56 | Models + estimated cloud/build usage; $1.25 remains reserved separately |
 | tmax | 35 | $73.51 | $2.10 | Models + estimated cloud/build usage; $5.00 remains reserved separately |
-| terminalworld | 79 | $99.44 | $1.26 | Models + estimated cloud/build usage |
+| terminalworld | 80 | $100.47 | $1.26 | Models + estimated cloud/build usage |
 | dataarc | 80 | $26.57 | $0.33 | Models + estimated cloud/build usage |
 | tasksmith | 26 | $392.01 | $15.08 | Historical expansion including quality, rollouts and estimated compute; not the cost of all 50 |
 

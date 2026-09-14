@@ -130,14 +130,21 @@ release. Both datasets load in Harbor Visualiser. Each audit names the exact
 published revision; subsequent annotation releases require their own file audit.
 
 The [current recipe release audit](evidence/harbor-release-label-audit.json) covers
-**1,279 tasks across all fourteen owned recipe datasets**, including uniform-label
-revisions, TMax's 55 tasks, Seed2Synth's 100 and TerminalWorld's interim 99.
+**1,280 tasks across all fourteen owned recipe datasets**, including uniform-label
+revisions, TMax's 55 tasks, Seed2Synth's 100 and TerminalWorld's final 100.
 These overlap the earlier recipe cohorts; do not add their counts together.
 Tasksmith's 50-task release is checked separately. The
 [registry and collection audit](evidence/harbor-registry-collection-audit.json)
-covers all **1,329 published tasks in fifteen datasets** and their artifact pins.
-The [release inventory](releases.md) preserves the remaining 100-task TerminalWorld
-target separately from its published count.
+covers all **1,330 published tasks in fifteen datasets** and their artifact pins.
+The [release inventory](releases.md) records each completed generation target and
+its published count. The final labels are 50 verified, 5 needing repair and 1,275
+without established independent quality acceptance. Publication preserves these
+distinctions; generation controls do not promote tasks to verified.
+
+The [final publication audit](evidence/harbor-final-publication-audit.json) rechecks
+all fifteen final artifact revisions: **214,097 files and 1,330 Harbor tasks**,
+including Tasksmith. The registry audit verifies that consumers resolve those
+same revisions. These are artifact and format checks, not semantic acceptance.
 
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside

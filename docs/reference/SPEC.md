@@ -23,7 +23,7 @@ class GenerationInput(BaseModel):
 | Model | Required fields | Notes |
 |---|---|---|
 | `RepoSpec` | `url` | `access ∈ {public, private, auto}`, optional `auth_token_env`, `ref` defaults to `HEAD` |
-| `PipelineSpec` | `name`, `options` | `name` is an enum (see [pipelines/](./pipelines/)); `options` is validated against the named pipeline's Options model with `extra="forbid"` |
+| `PipelineSpec` | `name`, `options` | `name` is an enum (see [pipelines/](../pipelines/README.md)); `options` is validated against the named pipeline's Options model with `extra="forbid"` |
 | `LLMSpec` | `provider`, `model` | `provider/model` resolves to a LiteLLM identifier; supports `endpoint` for self-hosted vLLM/Ollama |
 | `OutputSpec` | `destination`, `org`, `dataset_name` | `destination` is a local path; publish separately via `repo2rlenv push` |
 | `QASpec` | (none) | Defaults to `[diff_parse]` for the lite path; full pipelines opt into `[determinism, oracle_consistency, llm_judge, false_negative]` |

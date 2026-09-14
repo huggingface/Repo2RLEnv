@@ -66,7 +66,11 @@ inventory snapshot. A racing export cannot release a slot before the inventory
 counts it. Repository diversity also has an explicit per-source cap. This is
 separate from `BudgetLedger`, which reserves worker/model costs transactionally.
 
-The six new recipe campaigns each have a $100 cap. Parent holds and child charges
+The six recipe campaigns started with $100 child caps under a $600 parent cap.
+The final TerminalWorld recovery received a recorded allocation of up to $5 from
+unused parent funds, raising that child's cap to $105 while keeping the total
+unchanged. This implements the existing approximate per-recipe authorization;
+the scheduler does not automatically borrow funds. Parent holds and child charges
 represent the same funds and must not be summed. New batches use Daytona, with no
 automatic provider fallback. Interrupted or ambiguous dispatches require receipt
 reconciliation; controllers adopt confirmed live jobs instead of replaying them.
