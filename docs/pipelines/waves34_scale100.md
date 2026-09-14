@@ -17,8 +17,13 @@ remaining Wave 2 recipe, SWE-flow.
 | 4 | [TerminalWorld](terminalworld.md) | 20 | 80 | about $63 | $100 | 5 |
 | 4 | [DataArc](dataarc.md) | 20 | 80 | about $83 | $100 | 5 |
 
-The objective is **473 new exports plus 127 retained tasks**, giving 100 per
-recipe. Historical estimates come from the [quality pilot](quality_pilot.md);
+The initial objective was **473 new exports plus 127 retained tasks**, giving 100
+per recipe. The user subsequently closed TMax at **55 tasks**: 20 retained and 35
+new exports. The revised expansion target is **555 tasks**, with the other five
+recipes still targeting 100 each. The table preserves the original allocations;
+the [release inventory](releases.md) records current progress.
+
+Historical estimates come from the [quality pilot](quality_pilot.md);
 they include an allocated shared-compute proxy and are not provider invoices or
 guarantees. New repositories, bounded repair attempts and source filtering can
 change the actual cost. Caps are enforced independently; one recipe cannot spend

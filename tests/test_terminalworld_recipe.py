@@ -20,9 +20,7 @@ def test_recording_environment_can_start_without_extra_fixture_files():
     )
     assert environment.environment_files == []
     with pytest.raises(ValueError, match="cannot replace"):
-        environment.model_validate(
-            {**environment.model_dump(), "environment_setup": "USER root"}
-        )
+        environment.model_validate({**environment.model_dump(), "environment_setup": "USER root"})
 
 
 def test_recording_screen_excludes_flagged_text_from_author_input(tmp_path):

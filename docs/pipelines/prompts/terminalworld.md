@@ -849,7 +849,7 @@ def design(seed, *, model, ledger, receipt, operation_id, resume, min_score=4):
 
 ### materialize.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py) · SHA-256 `619a5a8fc02a16d444b7cb1936455bdd54b637d04ed0a35f262590a5acee7edc`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py) · SHA-256 `1fd5fd44750ca9cb507f821a3963d19b62baea01409478961c255258fc602316`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -967,21 +967,7 @@ def materialize(
         reservation_usd="0.90",
         max_tokens=7000,
         resume=input.execution.resume,
-        system=files(__package__).joinpath("tests_prompt.md").read_text()
-        + (
-            "\n\nOWNED RUNTIME ADAPTATION: return the requested TestProgram JSON. "
-            "Write five to ten top-level pytest test_ functions using only the standard "
-            "library and already installed dependencies. Use the observed snapshot and "
-            "the public requirements; never reproduce the reference computation. All "
-            "tests must fail in the initial unsolved state and pass after the reference. "
-            "Do not grade reference-invented banners or incidental implementation choices."
-            " When the public deliverable is a reusable script, invoke it on fresh private "
-            "inputs, check exit status and results, and isolate stale output. Saved reports "
-            "and source keywords are not evidence of successful execution. Keep expected "
-            "values, protected input hashes and verifier helpers private; do not recompute "
-            "baselines from learner-editable files. Compare numeric values according to "
-            "the public tolerance and formatting contract."
-        ),
+        system=test_author_prompt(),
         user=json.dumps(
             {
                 "instruction": design.draft_spec,
@@ -1003,6 +989,24 @@ def materialize(
         tests_python=tests.code,
         weights=[{"name": name, "weight": 1 / len(names)} for name in names],
     ).model_dump_json()
+
+
+def test_author_prompt() -> str:
+    """Shared native test-author instructions for generation and saved-state recovery."""
+    return files(__package__).joinpath("tests_prompt.md").read_text() + (
+        "\n\nOWNED RUNTIME ADAPTATION: return the requested TestProgram JSON. "
+        "Write five to ten top-level pytest test_ functions using only the standard "
+        "library and already installed dependencies. Use the observed snapshot and "
+        "the public requirements; never reproduce the reference computation. All "
+        "tests must fail in the initial unsolved state and pass after the reference. "
+        "Do not grade reference-invented banners or incidental implementation choices."
+        " When the public deliverable is a reusable script, invoke it on fresh private "
+        "inputs, check exit status and results, and isolate stale output. Saved reports "
+        "and source keywords are not evidence of successful execution. Keep expected "
+        "values, protected input hashes and verifier helpers private; do not recompute "
+        "baselines from learner-editable files. Compare numeric values according to "
+        "the public tolerance and formatting contract."
+    )
 ````
 
 </details>

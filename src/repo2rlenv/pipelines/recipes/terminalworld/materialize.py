@@ -108,21 +108,7 @@ def materialize(
         reservation_usd="0.90",
         max_tokens=7000,
         resume=input.execution.resume,
-        system=files(__package__).joinpath("tests_prompt.md").read_text()
-        + (
-            "\n\nOWNED RUNTIME ADAPTATION: return the requested TestProgram JSON. "
-            "Write five to ten top-level pytest test_ functions using only the standard "
-            "library and already installed dependencies. Use the observed snapshot and "
-            "the public requirements; never reproduce the reference computation. All "
-            "tests must fail in the initial unsolved state and pass after the reference. "
-            "Do not grade reference-invented banners or incidental implementation choices."
-            " When the public deliverable is a reusable script, invoke it on fresh private "
-            "inputs, check exit status and results, and isolate stale output. Saved reports "
-            "and source keywords are not evidence of successful execution. Keep expected "
-            "values, protected input hashes and verifier helpers private; do not recompute "
-            "baselines from learner-editable files. Compare numeric values according to "
-            "the public tolerance and formatting contract."
-        ),
+        system=test_author_prompt(),
         user=json.dumps(
             {
                 "instruction": design.draft_spec,
@@ -144,3 +130,21 @@ def materialize(
         tests_python=tests.code,
         weights=[{"name": name, "weight": 1 / len(names)} for name in names],
     ).model_dump_json()
+
+
+def test_author_prompt() -> str:
+    """Shared native test-author instructions for generation and saved-state recovery."""
+    return files(__package__).joinpath("tests_prompt.md").read_text() + (
+        "\n\nOWNED RUNTIME ADAPTATION: return the requested TestProgram JSON. "
+        "Write five to ten top-level pytest test_ functions using only the standard "
+        "library and already installed dependencies. Use the observed snapshot and "
+        "the public requirements; never reproduce the reference computation. All "
+        "tests must fail in the initial unsolved state and pass after the reference. "
+        "Do not grade reference-invented banners or incidental implementation choices."
+        " When the public deliverable is a reusable script, invoke it on fresh private "
+        "inputs, check exit status and results, and isolate stale output. Saved reports "
+        "and source keywords are not evidence of successful execution. Keep expected "
+        "values, protected input hashes and verifier helpers private; do not recompute "
+        "baselines from learner-editable files. Compare numeric values according to "
+        "the public tolerance and formatting contract."
+    )

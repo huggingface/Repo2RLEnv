@@ -84,6 +84,12 @@ learner image. The builder receives execution errors for bounded repairs.
 The campaign is capped at **55 generated tasks** at the user's request, including
 20 retained tasks and 35 new exports. The [release inventory](releases.md) records
 publication and final economics.
+The completed expansion accounts for **$73.51** across model calls and estimated
+worker costs, or **$2.10 per new export**. A further **$5.00 remains reserved** for
+four uncertain model calls. The denominator is the 35 new exports; the 20 retained
+tasks were generated earlier. Failed attempts and the small model pilot are
+included. See the [generation evidence](evidence/tmax-generation-55.json).
+
 It runs the native initial-state
 check and a fresh Harbor baseline/reference pair. Detailed reward-hack review,
 blind solver trials and acceptance follow after all recipes reach their

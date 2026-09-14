@@ -1,10 +1,10 @@
 # Harbor dataset release inventory
 
-Snapshot: 2026-09-14T18:23:30.912449+00:00
+Snapshot: 2026-09-14T19:07:17.725416+00:00
 
-**1312 generated tasks; 12/15 generation targets reached; 12 datasets published (1075 tasks).**
+**1328 generated tasks; 13/15 generation targets reached; 13 datasets published (1130 tasks).**
 
-The target is 100 tasks for thirteen owned recipes, 50 verified Tasksmith tasks, and at least 20 CLI-Gym tasks. CLI-Gym already produced 25; all are retained, so the final inventory is expected to contain **1,375 tasks**. SEC-bench remains excluded.
+The target is 100 tasks for twelve owned recipes, 55 TMax tasks, 50 verified Tasksmith tasks, and at least 20 CLI-Gym tasks. CLI-Gym already produced 25; all are retained, so the final inventory is expected to contain **1,330 tasks**. TMax was capped at 55 at the user's request. SEC-bench remains excluded.
 
 Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). It also links the six earlier native-pipeline datasets under their existing owners. Those historical collections are outside this new-generation denominator.
 
@@ -21,10 +21,10 @@ Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEn
 | [endless-terminals](endless_terminals.md) | `terminal_synth / endless_terminals` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
 | [cli-gym](env_repair.md) | `env_repair / cli_gym` | 25 / 20 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
 | [swe-flow](repo_reconstruct.md) | `repo_reconstruct / swe_flow` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
-| [seta-seed2synth](terminal_synth.md) | `terminal_synth / seta_seed2synth` | 92 / 100 | Pending |
+| [seta-seed2synth](terminal_synth.md) | `terminal_synth / seta_seed2synth` | 99 / 100 | Pending |
 | [seta-evol](task_evolve.md) | `task_evolve / seta_evol` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
-| [tmax](tmax.md) | `terminal_synth / tmax` | 52 / 100 | Pending |
-| [terminalworld](terminalworld.md) | `terminal_reconstruct / terminalworld` | 93 / 100 | Pending |
+| [tmax](tmax.md) | `terminal_synth / tmax` | 55 / 55 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
+| [terminalworld](terminalworld.md) | `terminal_reconstruct / terminalworld` | 99 / 100 | Pending |
 | [dataarc](dataarc.md) | `terminal_synth / dataarc` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
 | [tasksmith](tasksmith.md) | `tasksmith run` | 50 / 50 | [Published](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
 
@@ -51,7 +51,7 @@ These costs include unsuccessful attempts within the stated campaign. Model-only
 | swe-flow | 76 | $22.91 | $0.30 | Models + estimated cloud/build usage |
 | seta-seed2synth | In progress | See ledger | — | [Current expansion snapshot](economics/waves34/README.md) |
 | seta-evol | 80 | $44.72 | $0.56 | Models + estimated cloud/build usage; $1.25 remains reserved separately |
-| tmax | In progress | See ledger | — | [Current expansion snapshot](economics/waves34/README.md) |
+| tmax | 35 | $73.51 | $2.10 | Models + estimated cloud/build usage; $5.00 remains reserved separately |
 | terminalworld | In progress | See ledger | — | [Current expansion snapshot](economics/waves34/README.md) |
 | dataarc | 80 | $26.57 | $0.33 | Models + estimated cloud/build usage |
 | tasksmith | 26 | $392.01 | $15.08 | Historical expansion including quality, rollouts and estimated compute; not the cost of all 50 |

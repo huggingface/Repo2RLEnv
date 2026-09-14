@@ -1,15 +1,15 @@
 {
-  "as_of": "2026-09-14T18:23:30.912449+00:00",
+  "as_of": "2026-09-14T19:07:17.725416+00:00",
   "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
-  "expected_final_inventory": 1375,
-  "generated": 1312,
-  "generation_targets_reached": 12,
-  "minimum_target": 1370,
-  "published_datasets": 12,
-  "published_tasks": 1075,
+  "expected_final_inventory": 1330,
+  "generated": 1328,
+  "generation_targets_reached": 13,
+  "minimum_target": 1325,
+  "published_datasets": 13,
+  "published_tasks": 1130,
   "recipes": [
     {
-      "artifact_commit": "95fea218297d1cf455593130d8ac0b4532049cb3",
+      "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 15.881671708333332,
@@ -41,17 +41,17 @@
       "generated": 100,
       "guide": "repo_mutate.md",
       "pipeline": "repo_mutate",
-      "publication_commit": "ab4a6d0ce41fe4fefebc9eee76c1352f34a0827e",
+      "publication_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "swe-smith",
       "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
       "target": 100
     },
     {
-      "artifact_commit": "c1fe34577f1671c55965f193ca2a5a071bb7aa57",
+      "artifact_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 18.6449185,
@@ -86,17 +86,17 @@
       "generated": 100,
       "guide": "r2e.md",
       "pipeline": "equivalence_tests",
-      "publication_commit": "6527eab926348107c6089c94d93f079f740ba62f",
+      "publication_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "r2e",
       "repo_id": "HuggingEnvs/repo2rlenv-r2e",
       "target": 100
     },
     {
-      "artifact_commit": "325d9a6880d39f16bf35a052188c211d451c2f78",
+      "artifact_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 17.078973383333334,
@@ -129,17 +129,17 @@
       "generated": 100,
       "guide": "pr_to_env.md",
       "pipeline": "pr_to_env",
-      "publication_commit": "30aa7cc51743d4bf29ec56e9fb0d65d1bf2d1c06",
+      "publication_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "swe-gen",
       "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
       "target": 100
     },
     {
-      "artifact_commit": "d40299beeb2e59be3216b0b285c5542e9554338f",
+      "artifact_commit": "917f48135e7368c42b962860c2475975d0b87b12",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 10.819085425,
@@ -172,17 +172,17 @@
       "generated": 100,
       "guide": "swe_next.md",
       "pipeline": "pr_runtime",
-      "publication_commit": "bd888b60c4793b35f48cb56824d55bf278c96b2d",
+      "publication_commit": "917f48135e7368c42b962860c2475975d0b87b12",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "swe-next",
       "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
       "target": 100
     },
     {
-      "artifact_commit": "d19e8c118aad282f61e0d1666510e60b0648789a",
+      "artifact_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 6.912505333333333,
@@ -217,17 +217,17 @@
       "generated": 100,
       "guide": "r2e_gym.md",
       "pipeline": "commit_runtime",
-      "publication_commit": "4bb0ddf7b27c8c85f7546dc25b72ede92dcb4ce6",
+      "publication_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "r2e-gym",
       "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
       "target": 100
     },
     {
-      "artifact_commit": "59ccbee2b67dc32ed597435b8432491af5ef1c5a",
+      "artifact_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
       "economics": {
         "recipe": {
           "median_completed_batch_minutes": 10.784617241666666,
@@ -261,17 +261,17 @@
       "generated": 100,
       "guide": "scaler.md",
       "pipeline": "reasoning_synth",
-      "publication_commit": "a541dfefbc0edcd40d61fe0b1e1e0b6ee96101b7",
+      "publication_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "scaler",
       "repo_id": "HuggingEnvs/repo2rlenv-scaler",
       "target": 100
     },
     {
-      "artifact_commit": "0463608e376b4feb3b0d90be6376db583c57f871",
+      "artifact_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
       "economics": {
         "accounted_usd": "41.514544",
         "batches": [
@@ -398,17 +398,17 @@
       "generated": 100,
       "guide": "endless_terminals.md",
       "pipeline": "terminal_synth",
-      "publication_commit": "0463608e376b4feb3b0d90be6376db583c57f871",
+      "publication_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "endless-terminals",
       "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
       "target": 100
     },
     {
-      "artifact_commit": "336a7620de053cc711c79f966ae72bb461ad1ca3",
+      "artifact_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
       "economics": {
         "accounted_usd": "5.712143",
         "batches": [
@@ -447,17 +447,17 @@
       "generated": 25,
       "guide": "env_repair.md",
       "pipeline": "env_repair",
-      "publication_commit": "336a7620de053cc711c79f966ae72bb461ad1ca3",
+      "publication_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 25
+        "unverified": 25
       },
       "recipe": "cli-gym",
       "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
       "target": 20
     },
     {
-      "artifact_commit": "80a2219f73b5af5655005fda39da32809d9f9726",
+      "artifact_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
       "economics": {
         "accounted_usd": "22.906998",
         "estimated_cloud_build_usd": "18.857685",
@@ -473,11 +473,11 @@
       "generated": 100,
       "guide": "repo_reconstruct.md",
       "pipeline": "repo_reconstruct",
-      "publication_commit": "80a2219f73b5af5655005fda39da32809d9f9726",
+      "publication_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 98,
-        "needs_repair": 2
+        "needs_repair": 2,
+        "unverified": 98
       },
       "recipe": "swe-flow",
       "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
@@ -488,7 +488,7 @@
       "economics": {
         "scope": "Expansion in progress; see the current ledger snapshot."
       },
-      "generated": 92,
+      "generated": 99,
       "guide": "terminal_synth.md",
       "pipeline": "terminal_synth",
       "publication_commit": null,
@@ -499,7 +499,7 @@
       "target": 100
     },
     {
-      "artifact_commit": "716111f7d6dff5ee8fc1a0b5378450d7ce11a849",
+      "artifact_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
       "economics": {
         "accounted_usd": "44.720351",
         "estimated_cloud_build_usd": "13.969454",
@@ -516,36 +516,48 @@
       "generated": 100,
       "guide": "task_evolve.md",
       "pipeline": "task_evolve",
-      "publication_commit": "716111f7d6dff5ee8fc1a0b5378450d7ce11a849",
+      "publication_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "seta-evol",
       "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
       "target": 100
     },
     {
-      "artifact_commit": null,
+      "artifact_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
       "economics": {
-        "scope": "Expansion in progress; see the current ledger snapshot."
+        "accounted_usd": "73.511497",
+        "estimated_cloud_build_usd": "14.678519",
+        "limit_usd": "100.000000",
+        "model_calls": 764,
+        "model_usd": "58.832978",
+        "new_exports": 35,
+        "reserved_usd": "5.000000",
+        "retained_exports": 20,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "unresolved_model_operations": 4,
+        "usd_per_new_export": "2.100328485714285714285714286"
       },
-      "generated": 52,
+      "generated": 55,
       "guide": "tmax.md",
       "pipeline": "terminal_synth",
-      "publication_commit": null,
-      "publication_state": "not_started",
-      "quality_counts": null,
+      "publication_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
+      "publication_state": "completed",
+      "quality_counts": {
+        "unverified": 55
+      },
       "recipe": "tmax",
-      "repo_id": null,
-      "target": 100
+      "repo_id": "HuggingEnvs/repo2rlenv-tmax",
+      "target": 55
     },
     {
       "artifact_commit": null,
       "economics": {
         "scope": "Expansion in progress; see the current ledger snapshot."
       },
-      "generated": 93,
+      "generated": 99,
       "guide": "terminalworld.md",
       "pipeline": "terminal_reconstruct",
       "publication_commit": null,
@@ -556,7 +568,7 @@
       "target": 100
     },
     {
-      "artifact_commit": "16e72391a3830bdba85df1c9f97b2c9b7e911924",
+      "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
       "economics": {
         "accounted_usd": "26.567285",
         "estimated_cloud_build_usd": "12.036370",
@@ -572,10 +584,10 @@
       "generated": 100,
       "guide": "dataarc.md",
       "pipeline": "terminal_synth",
-      "publication_commit": "16e72391a3830bdba85df1c9f97b2c9b7e911924",
+      "publication_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
       "publication_state": "completed",
       "quality_counts": {
-        "exported": 100
+        "unverified": 100
       },
       "recipe": "dataarc",
       "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
