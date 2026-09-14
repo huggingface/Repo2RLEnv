@@ -1,73 +1,74 @@
 # Tasksmith: retain outputs and expand to 50 verified PR tasks
 
-The September 13 expansion starts with **24 verified PR tasks** and targets **50**
-from the original 114-PR list. A frozen panel contains 26 primary candidates and
-11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. The September 14 audit initially left
-41 accepted tasks. The first three V14 recoveries bring this to
-**44 accepted tasks and 50 unique PRs with generated Harbor tasks**.
-Earlier counts included historical approvals that the final semantic review has
-since superseded. Those original tasks and approvals remain available as evidence.
-The panel includes small CPU workloads and real GPU execution. Acceptance requires
-the shared quality profile for the exact revision and inspection of its verifier
-and rollout evidence. Solver failure can be legitimate and does not by itself
-reject a task.
+The September 14 checkpoint has **49 independently accepted PR tasks** and
+**50 unique PRs with generated Harbor tasks** from the supplied 114-PR inventory.
+TRL #5349 is the last task in validation. Its corrected reference passes all
+15 required cases; fresh probes and a blind Sonnet rollout are still running.
 
-## Current repair pass
+Acceptance binds the exact task revision to its baseline, reference, installed
+wrong-solution and valid-alternative controls, plus an independently reviewed
+blind rollout. Solver failure can be legitimate and does not reject a task.
+These results include assisted repairs; they do not measure unattended conversion
+yield. Earlier revisions and superseded approvals remain available as evidence.
 
-V12 added a verified two-GPU PEFT #3079 task. Its reference and alternative collective
-pass all seven tests; removing adapter tensor-parallel hooks causes actual trained
-weights to diverge across ranks. Sonnet used its bounded attempt to explore the
-implementation and submitted no edits. That incomplete attempt is retained.
+The expansion began with 24 accepted tasks. Parallel execution supports eight
+independent PR controllers with a separate GPU ceiling, while smaller recovery
+waves use lower limits. CPU and real GPU tasks share the acceptance policy.
 
-The final historical audit found seven revisions needing correction. Six have
-verifier or runtime defects, and PEFT #3083 also exposes an internal guard and exact
-tensor expression in its instruction. At that checkpoint, HiDream and Z-Image also
-needed fresh validation; HiDream has since passed. The earlier 47-task count was
-provisional.
+## Final validation and delivery
+
+The historical audit reopened seven approvals after finding unfair checks,
+runtime fixtures or an instruction leak. HiDream and Z-Image also needed fresh
+validation. The earlier 47-task checkpoint was therefore provisional. The current
+count includes reviewed corrections and newly completed execution evidence.
 
 ```mermaid
 flowchart LR
-    G[50 unique PRs with Harbor tasks] --> A[44 accepted after three V14 recoveries]
-    G --> H[6 awaiting complete validation]
-    H --> R[Prepared repairs or missing-evidence continuation]
-    R --> C[Fresh baseline, reference and semantic probes]
+    G[50 unique PRs with Harbor tasks] --> A[49 independently accepted]
+    G --> H[TRL 5349 in validation]
+    H --> R[Reuse exact completed evidence]
+    R --> C[Run only missing control stages]
     C --> S[Blind Sonnet rollout and independent review]
     S --> A
+    A --> D[Portable tasks, labels and original evidence]
+    D --> V[Check every archive byte and scan for credentials]
 ```
 
-| Task | Observed issue | Repair |
+| Task | Correction | Current result |
 | --- | --- | --- |
-| Accelerate #3075 | Empty wrapping selection rejects the supported `None` representation | Check the absence of wrapping behavior |
-| Accelerate #3142 | Simulated versions disagree with installed-package metadata | Virtualize the actual version lookup paths consistently |
-| Accelerate #4015 | Explicit `None` is rejected although it requests the default root policy | Accept equivalent default calls; preserve real distributed checks |
-| Transformers #39826 | A private class declaration is required by a behavior-only instruction | Exercise generic tokenizer and image-processing behavior |
-| TRL #5349 | A fake model output lacks normal indexing; old learner shell selected the wrong interpreter | Use a real output container and the existing learner startup setup |
-| TRL #6150 | Logging checks miss the actual per-batch margin; the alternative does not change source | Compare production calculations with independent values and install a real alternative |
-| PEFT #3083 | Instructions supply part of the internal implementation | State layouts, idempotence and loading behavior without the remedy |
-| Diffusers #11281 | Offline LoRA loader fixture omits the local weight filename | Supply the explicit local artifact name |
-| Diffusers #12703 | Native attention rejects the merged reference's two-sample CFG mask | Investigate an explicitly supported backend; validation remains incomplete |
+| Accelerate #3075 | Accept the supported `None` representation for no wrapping | Accepted; reference 10/10 |
+| Accelerate #3142 | Make simulated version lookups consistent with package metadata | Accepted; reference 19/19, new Sonnet attempt 17/19 |
+| Accelerate #4015 | Accept equivalent default root policies while retaining distributed checks | Accepted; reference 16/16, captured timeout submission freshly graded 10/16 |
+| Transformers #39826 | Test generic processor behavior without requiring a private class declaration | Accepted; reference 11/11, new Sonnet attempt 4/11 |
+| TRL #5349 | Use a real model-output container and the correct learner interpreter | Reference 15/15; remaining validation in progress |
+| TRL #6150 | Compare actual per-batch margins with independent values; install a real alternative | Accepted; reference 8/8 |
+| PEFT #3083 | Describe layout and loading behavior without the internal remedy | Accepted; reference 10/10 |
+| Diffusers #11281 | Supply the explicit local LoRA artifact filename | Accepted; reference 11/11 |
+| Diffusers #12703 | Expose a supported public Flex-attention configuration for the tiny CPU task | Accepted; reference 37/37 |
 
-Seven prepared recoveries are running in V14, with three concurrent
-controllers and at most one GPU controller. Z-Image and the extra PEFT instruction
-repair follow separately. The batch has a shared $24 ceiling inside the existing
-$1,000 campaign budget. Prepared copies are unverified until their fresh evidence
-passes review; they do not increase the accepted count.
+The Z-Image task exercises real transformer, scheduler, VAE decode and batched
+classifier-free guidance. Installed mutations that disable timestep conditioning
+or guidance fail for their intended effects. Its scope is tiny CPU execution with
+the documented backend and equal-length precomputed embeddings; it does not claim
+pretrained image quality or numerical parity across every attention backend.
 
-The first independently accepted V14 results are Accelerate #3075 (10 tests),
-HiDream #11281 (11 tests), and TRL #6150 (8 tests). Their reference and valid
-alternative pass, and the wrong implementations fail for the intended behavior.
-Sonnet solves #3075 and #6150; its HiDream attempt reads source without submitting
-an implementation. Together these three recovery passes account for $6.56,
-excluding earlier attempts and using recorded model usage and estimated compute.
+Later native continuations reuse exact completed controls and execute only missing
+phases. Accelerate #4015 uses a new verifier run against its preserved timed-out
+submission; the original timeout and uncertain model charge remain recorded.
+The other completed continuations have fresh normal Sonnet attempts. No reward
+from an older task revision is rebound to changed task content.
 
-Accelerate #3142 has six successful control/probe executions but cannot reserve
-both its model and GPU sandbox under the local quality ceiling. Accelerate #4015
-has a captured timed-out learner submission; its later verifier allocation is
-also denied, while Harbor retains the earlier timeout as the headline exception.
-These are missing execution evidence, not new task defects. Dedicated continuations
-retain the validated checks and captured source, and run only the missing phases.
-An uncertain model reservation remains held until accounting evidence resolves it.
+The activated overall cap is **$1,025**, including the historical external $22.43;
+the expansion allowance is $405. Admission retains uncertain costs, unused live
+allocations and a $20 global margin. Learner and verifier sandbox reservations can
+overlap, so a task's final settled cost can be much smaller than the allowance
+needed to complete it without interruption.
+
+Portable delivery is being staged separately from the originals. Each entry
+contains a labeled Harbor task, unchanged trial and audit evidence, and mappings
+for original absolute paths. Required raw task and probe references are copied and
+hash-checked. Final publication requires 50 accepted unique PRs, a credential scan
+and verification of every archived file. Staging alone does not establish delivery.
 
 Current `needs_repair` labels are written to separate copies under
 `workspace/tasksmith-scale50/audit-retained/`. The status reader applies exact-hash
@@ -77,6 +78,9 @@ outputs, coherent version fixtures and actual calculated metrics. These checks
 address the observed defects without requiring exhaustive implementation coverage.
 
 ## Retain every generated environment
+
+The following sections preserve earlier campaign checkpoints. Their counts,
+budgets and pending work describe those checkpoints; the current result is above.
 
 The initial historical catalog contains 319 Harbor task copies: 291 reproduction
 outputs from 14 recipes and 28 Tasksmith PR outputs. Its second diagnosis snapshot
