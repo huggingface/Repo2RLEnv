@@ -76,12 +76,6 @@ plugins:
       separator: '[\s​\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - minify:
       minify_html: true
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: iso_date
-      fallback_to_build_date: true
-      exclude:
-        - pipelines/prompts/*
 
 # Extensions
 markdown_extensions:
