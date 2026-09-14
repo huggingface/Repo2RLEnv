@@ -1,10 +1,27 @@
-# Tasksmith: retain outputs and expand to 50 verified PR tasks
+# Tasksmith: 50 verified PR tasks
 
-The September 14 checkpoint has **49 independently accepted PR tasks** and
-**50 unique PRs with generated Harbor tasks** from the supplied 114-PR inventory.
-TRL #5349 is the last task in validation. Its completed rollout exposed a fake
-model that omits the public `get_decoder()` method. A three-line fixture correction
-preserves all 15 required cases and is prepared for fresh GPU validation.
+The September 14 result has **50 independently accepted PR tasks** from the
+supplied 114-PR inventory: **39 CPU tasks and 11 GPU tasks**. All 50 have a
+Harbor specification, execution controls and an independently reviewed blind
+Sonnet attempt. Sonnet solved 19; the other 31 retain legitimate failures or
+recorded timeouts. Acceptance evaluates the task and verifier, not solver success.
+
+[The complete task inventory](evidence/tasksmith-scale50-accepted.json) lists
+every source PR, pinned source revisions, task hash, resources, audit hash and
+Sonnet result.
+
+| Repository | Accepted | CPU | GPU | Sonnet solved |
+| --- | ---: | ---: | ---: | ---: |
+| Accelerate | 13 | 8 | 5 | 7 |
+| Diffusers | 9 | 9 | 0 | 3 |
+| PEFT | 10 | 9 | 1 | 3 |
+| Transformers | 5 | 4 | 1 | 1 |
+| TRL | 13 | 9 | 4 | 5 |
+| Total | 50 | 39 | 11 | 19 |
+
+Six tasks require one GPU and five require two. Two recorded Sonnet attempts
+timed out: Diffusers #13226's submitted code passed, while Accelerate #4015's
+submitted code failed. Both outcomes retain their timeout records.
 
 Acceptance binds the exact task revision to its baseline, reference, installed
 wrong-solution and valid-alternative controls, plus an independently reviewed
@@ -25,12 +42,9 @@ count includes reviewed corrections and newly completed execution evidence.
 
 ```mermaid
 flowchart LR
-    G[50 unique PRs with Harbor tasks] --> A[49 independently accepted]
-    G --> H[TRL 5349 fixture correction]
-    H --> R[New revision with unchanged public task]
-    R --> C[Fresh baseline, reference and four semantic controls]
+    G[50 unique PRs with Harbor tasks] --> C[Baseline, reference and semantic controls]
     C --> S[Blind Sonnet rollout and independent review]
-    S --> A
+    S --> A[50 independently accepted]
     A --> D[Portable tasks, labels and original evidence]
     D --> V[Check every archive byte and scan for credentials]
 ```
@@ -41,7 +55,7 @@ flowchart LR
 | Accelerate #3142 | Make simulated version lookups consistent with package metadata | Accepted; reference 19/19, new Sonnet attempt 17/19 |
 | Accelerate #4015 | Accept equivalent default root policies while retaining distributed checks | Accepted; reference 16/16, captured timeout submission freshly graded 10/16 |
 | Transformers #39826 | Test generic processor behavior without requiring a private class declaration | Accepted; reference 11/11, new Sonnet attempt 4/11 |
-| TRL #5349 | Use a real model-output container, correct interpreter and faithful public decoder API | Previous reference 15/15; new fixture awaiting fresh validation |
+| TRL #5349 | Use a real model-output container, correct interpreter and faithful public decoder API | Accepted; fresh reference and both valid alternatives 15/15, Sonnet 8/15 |
 | TRL #6150 | Compare actual per-batch margins with independent values; install a real alternative | Accepted; reference 8/8 |
 | PEFT #3083 | Describe layout and loading behavior without the internal remedy | Accepted; reference 10/10 |
 | Diffusers #11281 | Supply the explicit local LoRA artifact filename | Accepted; reference 11/11 |
@@ -59,21 +73,39 @@ submission; the original timeout and uncertain model charge remain recorded.
 The other completed continuations have fresh normal Sonnet attempts. No reward
 from an older task revision is rebound to changed task content.
 
-The latest TRL rollout used `get_decoder()` successfully with the real tiny Llama
-model, but four synthetic-model checks rejected that public access path because
-the fake lacked the method. Seven separate failures were genuine missing-default
-errors in the submission. Independent review keeps these causes separate, even
-though the automated review called the whole attempt legitimate. The prepared
-fixture repair includes a valid public-decoder control in addition to the original
-three probes. A $13.50 fresh-validation allowance fits the existing campaign cap.
-The shared review prompt now explicitly distinguishes this fixture defect from
-other solver errors in the same attempt.
+An earlier TRL rollout exposed a fake model missing the public `get_decoder()`
+method. The corrected fixture preserves all 15 cases and passes a new installed
+alternative that uses that accessor. Fresh baseline, reference, four probes and
+Sonnet execution all completed on the corrected task hash. Sonnet passed 8/15;
+the seven failures catch its missing optional `logit_scale` default. The old
+fixture's unfair failures remain recorded against the old revision. The shared
+review prompt now explicitly separates fixture defects from solver errors within
+the same attempt. This final GPU validation cost $5.75 with no remaining holds.
 
 The activated overall cap is **$1,025**, including the historical external $22.43;
 the expansion allowance is $405. Admission retains uncertain costs, unused live
 allocations and a $20 global margin. Learner and verifier sandbox reservations can
 overlap, so a task's final settled cost can be much smaller than the allowance
 needed to complete it without interruption.
+
+The final expansion ledger records **$392.01 booked and $4.98 still held**.
+It added 26 accepted PRs to the original 24 and also paid for repairs and
+revalidation of that original cohort. This is **$15.08 booked per additional
+accepted task**, including failed attempts and recovery work.
+
+| Expansion cost component | Booked USD |
+| --- | ---: |
+| Authoring and investigation models | $63.91 |
+| Quality review and repair models | $86.06 |
+| Blind solver models | $21.20 |
+| Remote compute estimates | $220.83 |
+| Total | $392.01 |
+
+Across the earlier reproductions and Tasksmith work together, the program records
+**$972.45 booked including historical external costs, plus $21.07 held**:
+$993.52 counted against the $1,025 cap. No paid task controllers remain running.
+Uncertain historical charges remain reserved. Compute amounts are elapsed-resource
+estimates, not final provider invoices; interactive Codex assistance is excluded.
 
 Portable delivery is being staged separately from the originals. Each entry
 contains a labeled Harbor task, unchanged trial and audit evidence, and mappings
