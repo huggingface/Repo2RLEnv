@@ -3,8 +3,8 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. After V9, **42 independently accepted tasks**
-are available; 48 unique PRs have generated Harbor tasks in the expansion panel.
+with at most two GPU controllers. After V11, **47 accepted tasks**
+are available; 50 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
@@ -437,6 +437,54 @@ The integrated owned source passes **1,475 local tests**, with four opt-in live
 checks skipped. Ruff, all 17 generated prompt references, documentation and
 wheel/source checks pass. V10 uses a frozen checkout and wheel, so integrating
 these changes into the draft PR does not change a running experiment.
+
+## V10 and V11: 47 accepted tasks
+
+V10 completed six attempts for **$21.52**. Independent review accepted TRL
+#6078 and Diffusers #12619. HiDream #11281 passed the automated profile, but
+inspection found that its new LoRA loader was not executed by the verifier.
+Z-Image #12703's wrong adaLN implementation still passed. Both remain available
+with repair diagnoses; an automated pass does not override a concrete verifier
+defect.
+
+V11 reused three prepared CPU tasks and completed for **$8.65**, with at most
+two controllers at once. All three now have independent acceptance records.
+
+| Accepted PR | Evidence | Blind Sonnet result |
+| --- | --- | --- |
+| TRL #6078, GMPO | Reference and valid alternative pass 19 checks, including real optimizer steps. The arithmetic-mean corruption fails five numerical checks. | 19/19 |
+| Diffusers #12619 | Reference and valid alternative pass 17 checks. Removing warnings causes ten expected-warning failures. | 17/17 |
+| TRL #6001, environment pooling | Reference and a complete LIFO alternative pass 12 checks. Eager reconstruction fails actual factory-count and instance-reuse assertions. | 6/12; no source changes within its 30-episode limit |
+| Diffusers #14045, Krea | Reference and fused SwiGLU alternative pass 14 checks. Replacing sigmoid with tanh fails an independent numerical assertion. | 13/14; incorrect use of the Qwen VAE scaling configuration |
+| Diffusers #11812, Flux Kontext | Reference and algebraic alternative pass 10 checks. Reversed CFG produces -22 where the required scheduler input is 26. Position IDs are observed through public inference. | 10/10; implements the pipeline and exports |
+
+TRL #6001 exposed a deterministic classification error: the phrase “created
+lazily” referred to environment pooling, but the quality rule inferred a lazy
+generator-output requirement. The owned rule now distinguishes these contracts.
+A separate reassessment changes only the status and reason of the completed
+assessment after checking all original trial, probe, review and task bindings.
+It adds no model or solver calls; the original result remains unchanged.
+
+CPU rollout admission can now wait briefly when another job's temporary shared
+reservation prevents dispatch. It preserves the final denied budget scopes and
+does not wait for spent-budget exhaustion, increase a cap or release uncertain
+holds. The combined budget, quality, publication and task-focus regression
+selection passes **205 tests**. The preceding full budget-change suite passed
+**1,495 tests**, with four opt-in live checks skipped.
+
+The remaining prepared PRs are PEFT #3079, HiDream #11281 and Z-Image #12703.
+V12 runs the first two concurrently, on two L4s and CPU respectively, under a
+shared **$20** allowance. It uses the same checked wheel and exact source commit
+from a separate clean checkout. Z-Image's revised verifier has passed static
+preflight and still needs fresh cloud execution. None of these pending results
+counts toward the 47 accepted tasks.
+
+Completed V1–V11 waves account for **$342.16** and 23 newly accepted tasks, or
+**$14.88 per accepted task**, including failed attempts, retries and auxiliary
+work. Of that cost, 54% is cloud compute, 19% authoring/investigation, 22% quality
+review/repair and 5% blind solver model calls. This excludes ongoing V12, earlier
+work that produced the original 24 tasks, and interactive Codex assistance.
+Compute figures are reconciled estimates rather than final provider invoices.
 
 ## Execution and budget
 
