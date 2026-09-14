@@ -147,6 +147,12 @@ additional repair source exceeds the context limit, the controller includes that
 failure in the correction feedback instead of discarding the correction call.
 Unknown provider outcomes are never retried this way.
 
+For a mock return or argument mismatch, both prompts require the complete production
+unpack/signature and fixture construction. They ask the model to expand starred
+prefixes and map positions to fields before editing, preserving the real production
+call and assertions. Fresh controls still decide whether the repair works; this
+guidance adds no model calls or repair rounds.
+
 When registering new cases in an existing `tests/contract.json`, a repair can use
 `append_expected_passes` with only the new exact IDs. This preserves the old IDs,
 their order and all other contract fields; it rejects duplicate/empty IDs, invalid
