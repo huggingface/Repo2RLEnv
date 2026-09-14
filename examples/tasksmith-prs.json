@@ -1,0 +1,7 @@
+{
+  "name": "tasksmith-prs",
+  "prs": [
+    "https://github.com/more-itertools/more-itertools/pull/1193",
+    "https://github.com/more-itertools/more-itertools/pull/1251"
+  ]
+}

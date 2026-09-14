@@ -1,9 +1,0 @@
-{
-  "at": "2026-09-14T19:59:14.009276+00:00",
-  "dataset": "HuggingEnvs/repo2rlenv-terminalworld",
-  "evaluation_status": "needs_repair",
-  "generation_provenance": "assisted",
-  "sample_task": "terminalworld-0f57921141b1857f",
-  "scope": "Read-only Harbor Visualiser listing and a diagnosed task detail confirm final count, assisted provenance and canonical evaluation label.",
-  "task_count": 100
-}

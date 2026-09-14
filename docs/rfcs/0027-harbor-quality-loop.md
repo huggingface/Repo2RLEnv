@@ -90,5 +90,5 @@ dependency. No new library dependency is introduced by this component.
 - CLI: `repo2rlenv quality run` and `quality show`
 - Tests: `tests/test_quality_loop.py`
 - Native recovery tests: `tests/test_native_verifier_recovery.py`
-- Intervention status: [autonomy audit](../pipelines/tasksmith_autonomy.md)
-- Evidence background: [quality pilot](../pipelines/quality_pilot.md)
+- Intervention status: [Tasksmith execution boundaries](../pipelines/tasksmith.md)
+- Evidence background: [measured results](../pipelines/economics.md)

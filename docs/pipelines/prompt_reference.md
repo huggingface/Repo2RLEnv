@@ -152,8 +152,8 @@ a general retry mechanism for provider outages.
 
 ## Keep the reference in sync
 
-The detailed prompt pages are generated from repository-owned files, not from a
-second manually maintained copy of the prompts. Each excerpt records its source
+The detailed prompt pages are generated from canonical source during each MkDocs
+build and are ignored by Git. Each excerpt records its source
 path and SHA-256. After changing prompt text, inline additions, examples or schemas:
 
 ```bash
@@ -161,7 +161,7 @@ uv run python docs/_tools/generate_prompt_reference.py
 uv run python docs/_tools/generate_prompt_reference.py --check
 ```
 
-CI checks for drift. Edit the walkthroughs when control flow or stage meaning
+CI generates the pages, checks their source agreement, and builds the site from a clean checkout. Edit the walkthroughs when control flow or stage meaning
 changes; generated source excerpts cannot replace that explanation. Upstream
 credits, source revisions, licenses and deviations remain in each recipe's guide,
 RFC and packaged provenance file.

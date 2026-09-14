@@ -1,4 +1,4 @@
-"""Render the prompt reference from owned sources; --check detects documentation drift."""
+"""Build the ignored prompt reference from canonical repository sources."""
 
 from __future__ import annotations
 
@@ -7,8 +7,6 @@ import ast
 import hashlib
 import json
 from pathlib import Path
-
-from repo2rlenv.ui import console
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPES = ROOT / "src/repo2rlenv/pipelines/recipes"
@@ -196,32 +194,40 @@ def tasksmith() -> str:
     return result.rstrip() + "\n"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Fail if committed references differ")
-    args = parser.parse_args()
+def pages() -> dict[str, str]:
+    """Return deterministic pages without importing or executing pipeline code."""
     catalog = {r["id"]: r for r in json.loads((RECIPES / "catalog.json").read_text())}
-    expected = {
-        OUTPUT / f"{recipe}.md": render(recipe, catalog[recipe]["title"]) for recipe in ASSEMBLY
-    }
-    expected[OUTPUT / "shared_terminal.md"] = shared()
-    expected[OUTPUT / "quality_loop.md"] = quality_loop()
-    expected[OUTPUT / "tasksmith.md"] = tasksmith()
+    expected = {f"{recipe}.md": render(recipe, catalog[recipe]["title"]) for recipe in ASSEMBLY}
+    expected["shared_terminal.md"] = shared()
+    expected["quality_loop.md"] = quality_loop()
+    expected["tasksmith.md"] = tasksmith()
+    return expected
+
+
+def generate(output: Path = OUTPUT, *, check: bool = False) -> int:
+    expected = {output / name: text for name, text in pages().items()}
     changed = [
         path for path, text in expected.items() if not path.exists() or path.read_text() != text
     ]
-    if args.check:
+    if check:
         if changed:
-            console.error(
-                "Prompt docs are stale. Run uv run python docs/_tools/generate_prompt_reference.py"
+            raise ValueError(
+                "Generated prompt docs differ; run python docs/_tools/generate_prompt_reference.py"
             )
-            raise SystemExit(1)
-        console.success(f"{len(expected)} prompt references match their source files")
-        return
-    OUTPUT.mkdir(parents=True, exist_ok=True)
+        return len(expected)
+    output.mkdir(parents=True, exist_ok=True)
     for path in changed:
         path.write_text(expected[path])
-    console.success(f"Updated {len(changed)} prompt references")
+    return len(expected)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="Check already generated references")
+    parser.add_argument("--out", type=Path, default=OUTPUT)
+    args = parser.parse_args()
+    count = generate(args.out, check=args.check)
+    print(f"{count} prompt references {'checked' if args.check else 'generated'}")
 
 
 if __name__ == "__main__":

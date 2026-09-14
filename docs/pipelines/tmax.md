@@ -88,31 +88,15 @@ All dependency installation happens during image build. The solver runs as
 Initial-state tests, final-state tests and the reference stay outside the
 learner image. The builder receives execution errors for bounded repairs.
 
-The campaign is capped at **55 generated tasks** at the user's request, including
-20 retained tasks and 35 new exports. The [release inventory](releases.md) records
-publication and final economics.
-The completed expansion accounts for **$73.51** across model calls and estimated
-worker costs, or **$2.10 per new export**. A further **$5.00 remains reserved** for
-four uncertain model calls. The denominator is the 35 new exports; the 20 retained
-tasks were generated earlier. Failed attempts and the small model pilot are
-included. See the [generation evidence](evidence/tmax-generation-55.json).
+The [published dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax)
+contains 55 tasks. The measured sample added 35, averaging **$2.10 per new task**
+including failed attempts and estimated compute. See [economics](economics.md)
+for the sample denominator and unresolved charges.
 
 It runs the native initial-state
 check and a fresh Harbor baseline/reference pair. Detailed reward-hack review,
-blind solver trials and acceptance follow after all recipes reach their
-generation targets. TMax v2 multimodal fixtures, metric verifiers and the
+blind solver trials and independent acceptance are separate from generation. TMax v2 multimodal fixtures, metric verifiers and the
 upstream large sampled-solution stage are outside this first profile.
-
-## Author cost experiment
-
-A three-candidate trial with `openai/gpt-5.4-mini` produced **0 exports** after
-the normal initial build and two-repair bound. Its 27 model calls cost an estimated
-$0.30; worker/build estimates added $1.03. The same native stages, draft review
-and initial/final execution controls remained enabled. All failed candidates
-and feedback were retained, and the campaign continued with its existing Sonnet
-author configuration. This small, unpaired sample does not rank the models; it
-shows why per-token price alone is insufficient for choosing a generator.
-See the [experiment evidence](evidence/tmax-author-cost-pilot.json).
 
 Use the [shared worker, budget and progress interface](owned_recipes.md) for
 Modal or Daytona. Credit: [TMax](https://github.com/hamishivi/tmax), Apache-2.0,

@@ -8,6 +8,10 @@ on:
       - docs/**
       - mkdocs.yml
       - requirements-docs.txt
+      - src/repo2rlenv/pipelines/recipes/**
+      - src/repo2rlenv/tasksmith/**
+      - src/repo2rlenv/quality/**
+      - src/repo2rlenv/campaigns/structured.py
       - .github/workflows/deploy-docs.yml
   workflow_dispatch:
 
@@ -39,10 +43,7 @@ jobs:
         run: pip install -r requirements-docs.txt
 
       - name: Build MkDocs site
-        # Non-strict: some draft RFCs link to future pipeline docs that
-        # don't exist yet — warnings, not errors. Will tighten to
-        # `--strict` once every RFC has a shipped pipeline doc.
-        run: mkdocs build --verbose
+        run: mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

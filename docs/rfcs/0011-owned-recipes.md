@@ -11,10 +11,6 @@ behind the existing pipeline interface. Share remote bootstrap, Harbor emission,
 quality evaluation, spending controls and the Rich CLI; preserve each method's
 algorithm, provenance and separate results.
 
-The user approved a single integration PR on September 11. RFC commits precede
-implementation commits in this PR. The upstream reproduction draft PR #101 stays
-unchanged. This overrides the usual separate RFC-PR process for this integration.
-
 ## Motivation
 
 The upstream experiments produced 28 distinct exports, 21 execution-contrast
@@ -45,10 +41,11 @@ flowchart LR
   B --> C[Remote bootstrap/cache]
   C --> D[Owned recipe]
   D --> E[Harbor bundle]
-  E --> F[Execution contrast]
-  F --> G[Leakage and verifier checks]
+  E --> F[Recorded generation checks]
+  F --> I[Export and explicit evaluation label]
+  I -. Optional independent evaluation .-> G[Leakage and verifier checks]
   G --> H[Blind and adversarial rollouts]
-  H --> I[Accepted tasks and evidence]
+  H --> I
 ```
 
 The remote execution adapter provides bounded commands, file transfer, build
@@ -80,43 +77,19 @@ configuration. Reports and traces stay outside learner-visible artifacts.
 
 ## Verification
 
-### Campaign sequencing update
+Generation checks are recipe-specific: source/test contrast, terminal baseline and
+reference trials, or deterministic instance checks. A successful export has a
+complete Harbor contract and its recorded generation evidence. It does not claim
+independent semantic quality or blind-solver success.
 
-The user subsequently prioritized implementing the generation recipes and
-producing **20 distinct tasks per recipe before the detailed quality campaign**.
-During this phase require a valid Harbor bundle, actual remote execution and a
-working reference, with baseline contrast where the method supplies it. Defer
-exhaustive verifier attacks and blind Sonnet/Opus trace reviews until the collection
-exists. Generated and execution-verified counts remain separate from quality
-acceptance. This was the initial milestone; the user later authorized expansion
-and publication before exhaustive quality validation.
+The [review and repair loop](0027-harbor-quality-loop.md) can independently assess
+instruction, verifier and leakage, run behavioral probes and review solver traces.
+Repairs create new identities and invalidate affected evidence. Uniform labels
+preserve unverified exports and known issues for later diagnosis.
 
-The current delivery target is **100 tasks for twelve recipes, 55 TMax tasks and
-25 retained CLI-Gym tasks**, plus Tasksmith's separately audited 50-task cohort.
-The [release inventory](../pipelines/releases.md) records live publication
-snapshots and cost scopes. [RFC 0030](0030-campaign-expansion-and-release.md)
-defines bounded expansion, retained failures, uniform labels and immutable releases.
-
-SEC-bench was subsequently excluded from this integration campaign at the user's
-request. The active milestone covers **14 recipes**, including SCALER's reasoning
-instances. RFC 0025 remains a deferred design; it does not represent an implemented
-or required generator for this campaign.
-
-The original quality-acceptance proposal called for a fresh build, intended baseline failure, two clean
-oracle successes, expected nonempty test identities, required regression success,
-isolation and shortcut/partial-solution checks. Preserve each reward scale;
-an empty test report or infrastructure error never yields success. Independent
-Sonnet and Opus rollouts measure difficulty and expose task/verifier defects.
-Do not require every solver to succeed. Unknown criteria are not passes. These
-are quality checks, not a claim about every generation export. Actual reviewed
-bundles retain their policy, checks and evidence; the
-[quality-loop guide](../pipelines/quality_loop.md) describes the implemented
-component and its bounds.
-
-Test source/config compatibility, recipe registries, package assets, CLI/Rich/plain
-output, interruption/resume, reservation reconciliation, verifier integrity and
-provider cleanup. Run the existing pipeline contract tests, full CI matrix,
-wheel/sdist install checks, docs checks and remote Harbor trials.
+The [dataset index](../pipelines/releases.md) records current outputs;
+[RFC 0030](0030-campaign-expansion-and-release.md) defines selection and publication.
+SEC-bench remains deferred and is not an implemented recipe.
 
 ## Anti-contamination
 
@@ -137,20 +110,11 @@ not a replacement for all the method-specific algorithms.
 
 ## Yield and suitability
 
-The implementation began in RFC order with 1 → 5 → 20 task pilots. The current
-generation expansion covers all fourteen implemented recipes under their recorded
-campaign limits; source filtering and failed candidates remain visible. SCALER
-expands reasoning families and does not claim repository coding or new-family
-synthesis.
-
-The original integration plan recorded $477.57 remaining from its $500 allowance
-and proposed a $0.50-per-accepted-task expansion threshold. Those figures describe
-that initial plan. Later, explicitly authorized campaigns have separate ledgers
-and generation targets; current costs and reservations are recorded in the
-[economics reports](../pipelines/releases.md#measured-economics). Do not infer a
-current balance from the initial plan, sum parent allocations with their child
-charges, or present generation cost as the cost of independent acceptance.
-Budget exhaustion preserves evidence and reports the shortfall.
+Use supported input profiles and report distinct attempted candidates, new exports
+and independent acceptance separately. [Economics](../pipelines/economics.md)
+defines the sample denominators and cost scopes. Missing measurements remain
+unavailable. SCALER's programmatic generation has zero model cost but still uses
+compute; Tasksmith's assisted evaluation cost is not a generation-only benchmark.
 
 ## Dependencies
 
@@ -160,35 +124,17 @@ libraries may be optional extras. No runtime import/install/clone of upstream
 research projects, no reliance on ignored references or reproduction artifacts.
 Target repository cloning is an input operation and remains supported.
 
-Supporting methods become owned stages: RepoLaunch (bootstrap), SWE-Flow-Trace
-(tracing), SWE-bench-Live (collection), released SWE-rebench V2 components
-(annotation/build/evaluation), SWE-Dev (test synthesis), SWE-Mutation (probes),
-harden-v0 (adversarial repair) and SecVerifier (security validation). Measure them
-on 20 suitable existing cases initially; they do not inflate new-task counts.
+Bootstrap, tracing and quality are shared components rather than additional task
+counts. Each supported recipe's source map and implementation limits are recorded
+in its own guide and provenance file.
 
 ## Alternatives considered
 
 One upstream install per recipe violates ownership. One generic generator loses
 the methodological distinctions. A new CLI framework duplicates existing Rich
-and argparse infrastructure. A full Tasksmith rewrite is unnecessary for these
-ports; Tasksmith may consume the shared owned stages later.
+and argparse infrastructure. Tasksmith uses the shared execution, bootstrap and quality stages through its
+agent-driven construction route.
 
-## Rollout plan
-
-Ship discoverable recipe metadata, typed input, common events/budget, general
-emission and remote execution first. Register recipes as executable only after
-their implementation and smoke checks exist. For each, supply strict options,
-an RFC, guide, sample config, exact source attribution and packaged license/prompt
-assets, then the measured campaign. Keep one new integration PR with sequential
-commits and an evidence checklist. No release/version bump or merge is implicit.
-
-## Open questions
-
-Daytona network policy is account-tier dependent; Modal VM currently lacks GPUs.
-Probe capabilities and pin SDK/Harbor contracts before advertising support. Three
-upstream generators and several supporting components remain blocked or source-only;
-registration is not completion. Population-wide quality and full campaign cost
-remain empirical questions.
 
 ## References
 
@@ -201,5 +147,6 @@ remain empirical questions.
 
 ## Implementation
 
-In progress. Completion requires owned working recipes and independently audited
-artifacts, not merely a public command or emitted directory.
+Fourteen research recipes and Tasksmith are implemented. The [guides](../pipelines/README.md)
+describe their supported profiles. Generation exports, published artifacts and
+independent quality acceptance remain distinct.

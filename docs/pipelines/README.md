@@ -10,16 +10,9 @@ For the 14 owned research recipes, start with the
 [follow the actual prompts](prompt_reference.md). Each recipe has a stage diagram,
 call-by-call input/output table, concrete example and complete prompt reference.
 
-The [quality pilot and scaling report](quality_pilot.md) records sampled task
-reviews, Sonnet rollouts, verifier defects and measured cost estimates. See
-[Tasksmith lessons](tasksmith_pilot_learnings.md) for recommended harness changes.
-
-Current local campaigns: [Wave 1: six completed 100-task collections](wave1_scale100.md) and
-[Wave 2: Endless Terminals expansion and completed CLI-Gym target](wave2_pilot.md).
-The [SWE-flow, SETA and Wave 4 expansion](waves34_scale100.md) records five
-100-task objectives and the revised TMax target of 55, with separate campaign caps.
-The [release inventory](releases.md) brings together all fifteen delivery targets,
-published Harbor datasets, current generation counts and scoped per-task economics.
+Compare [observed yield and cost per task](economics.md), or browse the
+[published Harbor datasets](releases.md). Measurements distinguish generation,
+independent quality acceptance and solver success.
 
 Use the shared [Harbor review and repair loop](quality_loop.md) to review an
 existing task/rollout or run bounded remote validation and repairs from the CLI.

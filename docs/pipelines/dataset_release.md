@@ -108,43 +108,10 @@ helpers and oracle files. Finding only `task.toml` does not establish a complete
 upload. Parsing and publication completeness remain distinct from running the
 task's baseline, oracle and blind solver controls remotely.
 
-The [2026-09-14 publication audit](evidence/harbor-hub-publication-20260914.json)
-compared all 82,127 released files across six datasets (600 tasks) against Hub
-Git/LFS content identities, with no missing or changed files. The live Harbor
-Visualiser listed all 100 tasks in each dataset and loaded a complete example
-from each. Dataset cards were corrected to use this viewer; original task files,
-archives and quality labels were preserved. The report records artifact commits
-separately from the later card corrections. This is publication integrity evidence,
-not an additional rollout or quality acceptance result.
-
-The [subsequent publication audit](evidence/harbor-hub-publication-additions-20260914.json)
-checks another **325 tasks and 22,028 files** across Endless Terminals, CLI-Gym,
-DataArc and SWE-Flow. Every staged file matches its published artifact revision.
-Harbor Visualiser lists the expected counts and loads each sampled instruction,
-configuration, environment, verifier and reference. SWE-Flow's two diagnosed
-instruction issues remain explicitly labeled `needs_repair` in its task files.
-
-The [Tasksmith and SETA Evol publication audit](evidence/harbor-hub-publication-tasksmith-evol-20260914.json)
-checks another **150 tasks and 106,715 files**, including the full 50-task Tasksmith
-release. Both datasets load in Harbor Visualiser. Each audit names the exact
-published revision; subsequent annotation releases require their own file audit.
-
-The [current recipe release audit](evidence/harbor-release-label-audit.json) covers
-**1,280 tasks across all fourteen owned recipe datasets**, including uniform-label
-revisions, TMax's 55 tasks, Seed2Synth's 100 and TerminalWorld's final 100.
-These overlap the earlier recipe cohorts; do not add their counts together.
-Tasksmith's 50-task release is checked separately. The
-[registry and collection audit](evidence/harbor-registry-collection-audit.json)
-covers all **1,330 published tasks in fifteen datasets** and their artifact pins.
-The [release inventory](releases.md) records each completed generation target and
-its published count. The final labels are 50 verified, 5 needing repair and 1,275
-without established independent quality acceptance. Publication preserves these
-distinctions; generation controls do not promote tasks to verified.
-
-The [final publication audit](evidence/harbor-final-publication-audit.json) rechecks
-all fifteen final artifact revisions: **214,097 files and 1,330 Harbor tasks**,
-including Tasksmith. The registry audit verifies that consumers resolve those
-same revisions. These are artifact and format checks, not semantic acceptance.
+The [published dataset index](releases.md) links every selected artifact revision
+and manifest. The current publication check compared 214,097 file identities and
+parsed 1,330 tasks with Harbor. These are format and integrity checks; per-task
+quality labels and diagnosed issues remain in each dataset manifest.
 
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside

@@ -1,65 +1,29 @@
-# Harbor dataset release inventory
+# Published Harbor datasets
 
-Snapshot: 2026-09-14T19:56:52.776192+00:00
+**1,330 tasks across 15 datasets.** Each dataset contains complete Harbor task directories, archives and a registry pinned to its artifact revision.
 
-**1330 generated tasks; 15/15 generation targets reached; 15 datasets published (1330 tasks).**
+Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). It also links six earlier native-pipeline datasets under their existing owners; they are outside these counts.
 
-The target is 100 tasks for twelve owned recipes, 55 TMax tasks, 50 verified Tasksmith tasks, and at least 20 CLI-Gym tasks. CLI-Gym already produced 25; all are retained, so the final inventory is expected to contain **1,330 tasks**. TMax was capped at 55 at the user's request. SEC-bench remains excluded.
+| Pipeline | Tasks | Evaluation labels | Dataset and pinned manifest |
+|---|---:|---|---|
+| [swe-smith](repo_mutate.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith/resolve/70449d9e6e0cfb10fd40c5ed0ad13649a4f23393/manifest.json) |
+| [r2e](r2e.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e/resolve/3371888a7fbc24f777e012b266ddfc64860f1970/manifest.json) |
+| [swe-gen](pr_to_env.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen/resolve/46f70216c01db67966cb5f8dc58f83357f5cf1c7/manifest.json) |
+| [swe-next](swe_next.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next/resolve/917f48135e7368c42b962860c2475975d0b87b12/manifest.json) |
+| [r2e-gym](r2e_gym.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym/resolve/2f7877053cb5dc13205b19bb972356c8cb0d5587/manifest.json) |
+| [scaler](scaler.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler/resolve/f5596a59fda8e0a129600a0283a4695c4089d3aa/manifest.json) |
+| [endless-terminals](endless_terminals.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals/resolve/80adde1459f297bac72cf95467d28a2c064231ee/manifest.json) |
+| [cli-gym](env_repair.md) | 25 | 25 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym/resolve/cd2c470fe2a8f285f1689d70bef4ed70e9972a1d/manifest.json) |
+| [swe-flow](repo_reconstruct.md) | 100 | 2 needs repair; 98 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow/resolve/b128e025e07bc2e2cd5b74f32accb02b04552b8a/manifest.json) |
+| [seta-seed2synth](terminal_synth.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth/resolve/b754de9fb40fd0f9e0ea6222fa850273b20f61ff/manifest.json) |
+| [seta-evol](task_evolve.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol/resolve/eb7b37ad9703bd79357fb078991fb606029d07ed/manifest.json) |
+| [tmax](tmax.md) | 55 | 55 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax/resolve/bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc/manifest.json) |
+| [terminalworld](terminalworld.md) | 100 | 3 needs repair; 97 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld/resolve/9e6460a5e2a3bfe5a59b87512c3df95117160667/manifest.json) |
+| [dataarc](dataarc.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc/resolve/eec33b1d7cafd420a2ad05eacabc2023e85bdd6c/manifest.json) |
+| [tasksmith](tasksmith.md) | 50 | 50 verified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith/resolve/2961be38506e8990656a67a21b9d8d5dd6606ec5/manifest.json) |
 
-Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). It also links the six earlier native-pipeline datasets under their existing owners. Those historical collections are outside this new-generation denominator.
+## What the labels establish
 
-## Delivery by method
+The release contains **50 verified, 5 needing repair and 1,275 unverified** tasks. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.
 
-| Recipe and guide | CLI pipeline / recipe | Generated / target | Publication |
-|---|---|---:|---|
-| [swe-smith](repo_mutate.md) | `repo_mutate / swe_smith` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
-| [r2e](r2e.md) | `equivalence_tests / r2e` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
-| [swe-gen](pr_to_env.md) | `pr_to_env / swe_gen` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
-| [swe-next](swe_next.md) | `pr_runtime / swe_next` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
-| [r2e-gym](r2e_gym.md) | `commit_runtime / r2e_gym` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
-| [scaler](scaler.md) | `reasoning_synth / scaler` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
-| [endless-terminals](endless_terminals.md) | `terminal_synth / endless_terminals` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
-| [cli-gym](env_repair.md) | `env_repair / cli_gym` | 25 / 20 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
-| [swe-flow](repo_reconstruct.md) | `repo_reconstruct / swe_flow` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
-| [seta-seed2synth](terminal_synth.md) | `terminal_synth / seta_seed2synth` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
-| [seta-evol](task_evolve.md) | `task_evolve / seta_evol` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
-| [tmax](tmax.md) | `terminal_synth / tmax` | 55 / 55 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
-| [terminalworld](terminalworld.md) | `terminal_reconstruct / terminalworld` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
-| [dataarc](dataarc.md) | `terminal_synth / dataarc` | 100 / 100 | [Published](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
-| [tasksmith](tasksmith.md) | `tasksmith run` | 50 / 50 | [Published](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
-
-## What the counts establish
-
-Each released task is a Harbor directory with its instruction, configuration, environment, trusted verifier and reference. Archives preserve executable modes. The [release workflow](dataset_release.md) records exact bundle identities, per-file publication audits and commit-pinned registries; the generic tabular Hub viewer is disabled in favor of Harbor Visualiser.
-
-The [public registry and collection audit](evidence/harbor-registry-collection-audit.json) checks membership and artifact revision pins for every published dataset in its snapshot. The [release-file audit](evidence/harbor-release-label-audit.json) checks the uniform-label revisions and subsequent releases against Hub file identities. The [package audit](evidence/owned-package-resources.json) checks that the built wheel includes recipe prompts, data, provenance, license notices and Tasksmith runtime assets.
-
-Generation controls and quality acceptance are separate. New expansion exports have their recipe's native checks and recorded baseline/reference contrast. Historical retained tasks have separate evidence scope. Tasksmith's selected 50 carry verified labels from its audited, assisted campaign; this does not imply unattended acceptance or that every task was solved by Sonnet. Known instruction/verifier defects remain diagnosed and labeled for repair.
-
-## Measured economics
-
-These costs include unsuccessful attempts within the stated campaign. Model-only prices and costs including estimated cloud usage are deliberately identified. Earlier retained-task costs, interactive assistant usage and future independent quality campaigns are excluded unless the row says otherwise.
-
-| Recipe | New exports in cost scope | Recorded USD | USD per new export | Cost scope |
-|---|---:|---:|---:|---|
-| swe-smith | 76 | $2.41 | $0.03 | Model only; shared cloud costs below |
-| r2e | 80 | $17.73 | $0.22 | Model only; shared cloud costs below |
-| swe-gen | 80 | $1.63 | $0.02 | Model only; shared cloud costs below |
-| swe-next | 80 | $7.51 | $0.09 | Model only; shared cloud costs below |
-| r2e-gym | 80 | $3.52 | $0.04 | Model only; shared cloud costs below |
-| scaler | 80 | $0.00 | $0.00 | Model only; shared cloud costs below |
-| endless-terminals | 80 | $41.51 | $0.52 | Models + estimated cloud/build usage |
-| cli-gym | 5 | $5.71 | $1.14 | Models + estimated cloud/build usage |
-| swe-flow | 76 | $22.91 | $0.30 | Models + estimated cloud/build usage |
-| seta-seed2synth | 77 | $54.64 | $0.71 | Models + estimated cloud/build usage |
-| seta-evol | 80 | $44.72 | $0.56 | Models + estimated cloud/build usage; $1.25 remains reserved separately |
-| tmax | 35 | $73.51 | $2.10 | Models + estimated cloud/build usage; $5.00 remains reserved separately |
-| terminalworld | 80 | $100.47 | $1.26 | Models + estimated cloud/build usage |
-| dataarc | 80 | $26.57 | $0.33 | Models + estimated cloud/build usage |
-| tasksmith | 26 | $392.01 | $15.08 | Historical expansion including quality, rollouts and estimated compute; not the cost of all 50 |
-
-Wave 1's six recipes share **$43.09** in estimated cloud/build costs, in addition to **$32.81** of model usage: **$75.90 accounted for 476 new exports**, with **$2.25** of uncertain model holds. Count this shared campaign once. Its per-recipe [source and timing reports](economics/wave1/README.md) explain why a zero-model-cost SCALER export is not free compute.
-
-Wave 2's [settled economics](evidence/wave2-generation-economics.json) include all four expansion campaigns. Tasksmith's [retrospective](tasksmith_campaign_retrospective.md) separates investigation, repair, rollout and cloud estimates. Parent allocations and child costs are the same funds; outstanding and uncertain reservations remain separate from actual recorded charges. Cloud estimates are not invoices.
-
-The [machine-readable snapshot](evidence/release-inventory.json) records artifact commits, quality-label distributions and each cost scope. Refresh this page with `python docs/_tools/update_release_inventory.py --releases workspace/owned-releases-100 --expansion workspace/owned-waves34-100`. This reads saved artifacts; it does not dispatch work or establish live provider state.
+Publication checks compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).

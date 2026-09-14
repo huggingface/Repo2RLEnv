@@ -32,7 +32,10 @@ A complete Harbor bundle: instruction, task configuration, environment, referenc
 
 ## Verification
 
-Require meaningful baseline failure, two fresh reference successes, nonempty expected test/result identities and required passing regressions. Use deterministic behavioral rewards; preserve a native nonzero negative reward where applicable. Independent leakage, partial-solution and shortcut checks plus blind Sonnet/Opus traces determine acceptance. Solver failure alone is not task failure.
+The linked pipeline guide specifies the implemented native generation checks.
+Generation exports and independent quality acceptance are separate: reference
+success does not establish verifier coverage or shortcut resistance. Shared
+review, repair and labeling contracts are defined in [RFC 0027](0027-harbor-quality-loop.md).
 
 ## Anti-contamination
 
@@ -44,7 +47,9 @@ Where the algorithm requires synthesis or review, use recorded role-specific mod
 
 ## Yield and suitability
 
-Start with supported native inputs. Target 20 generated distinct tasks per recipe first. Expanded quality validation and any 100-task scaling follow only after every recipe reaches its generation milestone. Pilot outputs are insufficient to promise yield. Each recipe guide will report the actually validated domain, sample counts, cost and limitations.
+See the pipeline guide for supported inputs and [measured economics](../pipelines/economics.md)
+for sample sizes, yield definitions and cost coverage. Results on a selected source
+profile do not imply universal input conversion.
 
 ## Dependencies
 
@@ -54,13 +59,7 @@ Repository-owned recipe code, existing source/auth/LLM/bootstrap helpers, remote
 
 A wrapper around upstream commands would preserve an uncontrolled runtime dependency. One generic generator for every method would lose method-specific behavior. Use owned stages with common execution and quality contracts instead; explicitly version deviations from the upstream baseline.
 
-## Original pilot rollout plan
 
-Implement the owned algorithm, verify fixture behavior, run remote 1/5/20 waves, complete quality evaluation and publish immutable artifact evidence. Integrate supporting stages where needed. Add the user guide, example configuration, acknowledgments and packaged notices before marking implementation complete.
-
-## Open questions
-
-Exact supported scope, quality yield and cost are implementation evidence to collect. An unresolved runtime or verifier issue blocks an acceptance claim rather than being hidden by a registered CLI command.
 
 ## References
 

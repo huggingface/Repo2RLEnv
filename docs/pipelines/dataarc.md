@@ -1,14 +1,14 @@
 # `terminal_synth / dataarc`
 
 DataArc augments complete Harbor tasks using its released terminal synthesis
-workflow. It preserves four distinct transformations:
+workflow: few-shot, self-instruct, in-depth evolution and in-breadth evolution.
 
 The September expansion completed **100 Harbor tasks** (20 retained, 80 new),
 published as [HuggingEnvs/repo2rlenv-dataarc](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc).
 All 80 new exports have hash-matched baseline reward 0 and reference reward 1.
 The expansion accounted for **$26.57**, approximately **$0.33 per new export**,
 including unsuccessful model attempts and estimated worker/build costs. The
-[completion evidence](evidence/dataarc-generation-100.json) separates those
+[published manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc/resolve/main/manifest.json) separates those
 controls from independent quality acceptance, which remains unestablished.
 
 ## Pipeline, step by step

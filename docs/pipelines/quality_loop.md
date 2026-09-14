@@ -5,7 +5,7 @@ rollout, and can run missing validation and repair the task remotely. It is a
 component shared by generation recipes, not another generator. Original tasks are
 preserved; each repair produces a separate Harbor directory.
 
-This implements the practical review approach from the [quality pilots](quality_pilot.md).
+Review the task, verifier and leakage against concrete evidence; generation controls alone do not establish semantic quality.
 It does **not** replace the older, stricter `QualityReport.accepted` contract.
 
 ## Execution and decisions

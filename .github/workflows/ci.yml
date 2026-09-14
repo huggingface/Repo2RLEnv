@@ -47,8 +47,27 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
-      - name: Prompt documentation matches implementation
-        run: uv run python docs/_tools/generate_prompt_reference.py --check
+      - name: Generate and verify documentation sources
+        run: |
+          uv run python docs/_tools/generate_prompt_reference.py
+          uv run python docs/_tools/generate_prompt_reference.py --check
+          uv run python docs/_tools/generate_metrics.py --check
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-docs.txt
+      - name: Build from canonical prompts and portable metrics
+        run: mkdocs build --strict
+      - name: No tracked files changed during build
+        run: git diff --exit-code
 
   test:
     name: Tests (py${{ matrix.python-version }})

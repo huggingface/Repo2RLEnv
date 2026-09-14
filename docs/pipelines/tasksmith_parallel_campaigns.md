@@ -1,4 +1,4 @@
-# Parallel Tasksmith campaigns
+# Tasksmith batch generation
 
 A batch runs independent PRs in separate controller processes. Each process owns
 one Tasksmith instance and one remote builder; each target build, test and solver

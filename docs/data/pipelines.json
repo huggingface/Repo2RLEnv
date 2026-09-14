@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "measured_on": "2026-09-14",
+  "scope": "Observed generation samples, excluding retained task costs and interactive assistant usage. Compute is estimated, not invoiced. Independent quality evaluation is separate. Missing values are unavailable, never zero.",
+  "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
+  "shared_compute": {
+    "recipes": [
+      "swe-smith",
+      "r2e",
+      "swe-gen",
+      "swe-next",
+      "r2e-gym",
+      "scaler"
+    ],
+    "sample_exports": 476,
+    "model_usd": "32.805526",
+    "compute_usd": "43.093688",
+    "total_usd": "75.899214",
+    "unresolved_usd": "2.250000",
+    "allocation": "Shared workers served multiple recipes; no defensible per-recipe compute allocation is recorded."
+  },
+  "pipelines": [
+    {
+      "recipe": "swe-smith",
+      "guide": "repo_mutate.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 76,
+      "model_usd": "2.407499",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "r2e",
+      "guide": "r2e.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "artifact_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "17.725424",
+      "unresolved_usd": "1.5",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-gen",
+      "guide": "pr_to_env.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "artifact_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "1.6346429999999998",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-next",
+      "guide": "swe_next.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "artifact_commit": "917f48135e7368c42b962860c2475975d0b87b12",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "7.514418",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "r2e-gym",
+      "guide": "r2e_gym.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "artifact_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "3.523542",
+      "unresolved_usd": "0.75",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "scaler",
+      "guide": "scaler.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "artifact_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "0",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": []
+    },
+    {
+      "recipe": "endless-terminals",
+      "guide": "endless_terminals.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
+      "artifact_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "29.468191",
+      "compute_usd": "12.046353",
+      "generation_usd": "41.514544",
+      "unresolved_usd": "0",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 99,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "cli-gym",
+      "guide": "env_repair.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
+      "artifact_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
+      "published_tasks": 25,
+      "quality_counts": {
+        "unverified": 25
+      },
+      "sample_exports": 5,
+      "model_usd": "3.543614",
+      "compute_usd": "2.168529",
+      "generation_usd": "5.712143",
+      "unresolved_usd": "0",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-flow",
+      "guide": "repo_reconstruct.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
+      "artifact_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
+      "published_tasks": 100,
+      "quality_counts": {
+        "needs_repair": 2,
+        "unverified": 98
+      },
+      "sample_exports": 76,
+      "model_usd": "4.049313",
+      "compute_usd": "18.857685",
+      "generation_usd": "22.906998",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "seta-seed2synth",
+      "guide": "terminal_synth.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+      "artifact_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 77,
+      "model_usd": "41.740588",
+      "compute_usd": "12.896534",
+      "generation_usd": "54.637122",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 112,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "seta-evol",
+      "guide": "task_evolve.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "artifact_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "30.750897",
+      "compute_usd": "13.969454",
+      "generation_usd": "44.720351",
+      "unresolved_usd": "1.250000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 92,
+      "unfinished_candidates": 1,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "tmax",
+      "guide": "tmax.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-tmax",
+      "artifact_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
+      "published_tasks": 55,
+      "quality_counts": {
+        "unverified": 55
+      },
+      "sample_exports": 35,
+      "model_usd": "58.832978",
+      "compute_usd": "14.678519",
+      "generation_usd": "73.511497",
+      "unresolved_usd": "5.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 104,
+      "unfinished_candidates": 8,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6",
+        "gpt-5.4-mini"
+      ]
+    },
+    {
+      "recipe": "terminalworld",
+      "guide": "terminalworld.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "artifact_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
+      "published_tasks": 100,
+      "quality_counts": {
+        "needs_repair": 3,
+        "unverified": 97
+      },
+      "sample_exports": 80,
+      "model_usd": "54.342498",
+      "compute_usd": "46.131863",
+      "generation_usd": "100.474361",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 1293,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 1145,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "dataarc",
+      "guide": "dataarc.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
+      "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "14.530915",
+      "compute_usd": "12.036370",
+      "generation_usd": "26.567285",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 83,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "tasksmith",
+      "guide": "tasksmith.md",
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "artifact_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "published_tasks": 50,
+      "quality_counts": {
+        "verified": 50
+      },
+      "sample_exports": 26,
+      "cost_scope": "Assisted expansion added 26 accepted PR tasks and included repairs to retained tasks; generation-only cost is not separable.",
+      "evaluation_sample": {
+        "author_model_usd": "63.912073",
+        "review_repair_model_usd": "86.06338",
+        "solver_model_usd": "21.197755",
+        "combined_compute_usd": "220.83248",
+        "total_usd": "392.005688",
+        "unresolved_usd": "4.982418"
+      },
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield."
+    }
+  ],
+  "tasksmith_observation": {
+    "verified": 50,
+    "sonnet_solved": 19,
+    "provenance": "assisted"
+  }
+}

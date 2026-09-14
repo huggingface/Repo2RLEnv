@@ -241,3 +241,8 @@ site/
 
 # Local helper scripts (not for distribution)
 scripts/
+
+# Generated prompt reference; MkDocs builds it from canonical source files.
+/docs/pipelines/prompts/
+# Raw campaign evidence belongs in workspace/, not in public documentation.
+/docs/pipelines/evidence/

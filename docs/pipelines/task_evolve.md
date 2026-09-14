@@ -101,7 +101,7 @@ unsuccessful attempts. One timed-out model request retains a separate **$1.25
 uncertain reservation**; it is not silently reported as either billed or free.
 All expansion workers are terminated. These costs exclude the 20 retained tasks
 and subsequent independent quality evaluation. See the
-[generation evidence](evidence/seta-evol-generation-100.json) and
+[generation economics](economics.md) and
 [published Harbor dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol).
 
 Generation does not imply difficulty calibration or independent quality acceptance. See

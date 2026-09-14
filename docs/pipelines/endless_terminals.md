@@ -87,7 +87,7 @@ execute on a fresh environment before the final baseline/reference pair.
 The builder can repair inconsistent fixtures or a failing reference within
 `max_repairs`. Every attempted input and execution outcome remains in the run.
 
-The initial milestone was 20 generated tasks. The [Wave 2 expansion](wave2_pilot.md)
+The [measured generation sample](economics.md)
 completed **100 tasks**, now published as
 [HuggingEnvs/repo2rlenv-endless-terminals](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals).
 All 80 newly generated tasks have hash-matched baseline-0/reference-1 controls;
