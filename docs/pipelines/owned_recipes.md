@@ -49,8 +49,7 @@ flowchart TD
 
 `pipeline.name` describes the generation family; `recipe` selects its
 research-inspired implementation. Existing native behavior remains available
-without a recipe. These 14 recipes are experimental. SEC-bench is deferred and
-excluded from the current campaign.
+without a recipe. These 14 recipes are experimental. SEC-bench is deferred and is not implemented.
 
 ```bash
 repo2rlenv pipelines list
@@ -59,7 +58,7 @@ repo2rlenv pipelines describe repo_mutate --recipe swe_smith --json
 
 The catalog distinguishes **planned** methods from executable **experimental**
 implementations. An executable recipe is not a claim of training-quality output.
-The approved sequence and expansion policy are in [RFC 0011](../rfcs/0011-owned-recipes.md).
+The shared architecture and ownership policy are in [RFC 0011](../rfcs/0011-owned-recipes.md).
 
 ## Where each stage runs
 

@@ -46,7 +46,7 @@ flowchart TD
     J --> K[Retry up to max_attempts_per_seed if any gate fails]
     K --> L[Run test alone → must FAIL]
     L --> M[Apply oracle → must PASS]
-    M --> N[Emit Harbor task<br/>(instruction bakes the task_module.py delivery contract)]
+    M --> N["Emit Harbor task<br/>(instruction bakes the task_module.py delivery contract)"]
 ```
 
 **Quality gates (added v0.8.6)** — the same LLM ships very different tasks under different prompts. Baseline runs produced generic OSS-Instruct problems that ignored the target repo (mean repo-anchoring score 1.4/5). Four post-synthesis gates now enforce anchoring:

@@ -66,7 +66,7 @@
         "unverified": 100
       },
       "sample_exports": 80,
-      "model_usd": "1.6346429999999998",
+      "model_usd": "1.634643",
       "unresolved_usd": "0",
       "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
       "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",

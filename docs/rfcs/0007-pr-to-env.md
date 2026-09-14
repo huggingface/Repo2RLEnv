@@ -79,10 +79,10 @@ The counter-argument: *"just add a `--pr-urls` option to `pr_runtime`."* That wo
 flowchart LR
     U[URL or urls_file] --> P[Parse: extract owner/repo/N per URL]
     P --> M{Group by repo}
-    M --> B[Ensure bootstrap per repo<br/>(reuses pr_runtime cache)]
+    M --> B["Ensure bootstrap per repo<br/>(reuses pr_runtime cache)"]
     B --> F[Fetch PR data via github.fetch_pr]
-    F --> V[Validate inside sandbox<br/>(reuses pr_runtime.validate_pr)]
-    V --> I[Synthesize instruction<br/>(reuses commit_runtime.synthesize_with_llm)]
+    F --> V["Validate inside sandbox<br/>(reuses pr_runtime.validate_pr)"]
+    V --> I["Synthesize instruction<br/>(reuses commit_runtime.synthesize_with_llm)"]
     I --> E[Emit Harbor task]
 ```
 
