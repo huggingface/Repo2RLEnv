@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `ce015565d31b2eff69248cac10aa057e820f42388c84b1765cc13694ae30ed50`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `1285d4219727f58204ccea0ae79593af626e26345a6df9978f96475db9490e7f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -39,6 +39,9 @@ Trace each central requirement to actual grading assertions, including promised
 minimality, thresholds and per-input variation. Test names and pass counts alone
 do not establish that coverage. Read missing private test bodies using their exact
 inventory/document paths; a rejected read is not permission to assume their contents.
+Use selected_verifier_files for the exact private assertion paths, even when the
+large inventory is represented by a catalogue. An unknown-path response may list
+exact basename matches; read those paths instead of repeating the rejected path.
 If those assertions remain unavailable, leave verifier adequacy unresolved.
 
 Cite exact nonempty excerpts using keys in documents. Do not fabricate citations.
@@ -527,7 +530,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `2c3217ce67a234dbaa864b8e11daf446d3c5db5b530cd44647c7ee6e7a878050`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/context.py) · SHA-256 `d06d1a2a7c1e87691c89e966d8e667d64885def24007acf96ba58eed6741b485`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -679,6 +682,7 @@ class EvidenceContext:
                         test_symbols[key] = nodes
             except (ValueError, AttributeError):
                 pass
+        self.verifier_paths = sorted(key for key in test_symbols if key in self._paths)
         # Selected assertions precede reference patches and generic grading
         # helpers, which can otherwise fill the entire task share. Every file
         # remains in the inventory, even when its initial excerpt does not fit.
@@ -908,7 +912,22 @@ class EvidenceContext:
         additions = {}
         for request in requests:
             if request.path not in self._paths and request.path not in self._texts:
-                raise ValueError(f"Requested file is not in evidence inventory: {request.path}")
+                matches = sorted(
+                    (
+                        key
+                        for key in self._paths.keys() | self._texts.keys()
+                        if Path(key).name == Path(request.path).name
+                    ),
+                    key=lambda key: (key not in self.verifier_paths, key),
+                )
+                guidance = (
+                    " Exact basename matches: " + ", ".join(matches[:8]) + "."
+                    if matches
+                    else " Use a path from the supplied inventory or search its catalogue."
+                )
+                raise ValueError(
+                    f"Requested file is not in evidence inventory: {request.path}." + guidance
+                )
             if request.path in self._texts:
                 text = self._texts[request.path]
             else:
@@ -999,6 +1018,8 @@ class EvidenceContext:
         result = json.dumps(
             {
                 "documents": self.documents,
+                "selected_verifier_files": self.verifier_paths[:32],
+                "selected_verifier_files_omitted": max(0, len(self.verifier_paths) - 32),
                 # Hashes remain in the local evidence record. They add no useful
                 # review context and repeat for every source copy and trial.
                 **self._inventory_payload(),

@@ -142,6 +142,7 @@ class EvidenceContext:
                         test_symbols[key] = nodes
             except (ValueError, AttributeError):
                 pass
+        self.verifier_paths = sorted(key for key in test_symbols if key in self._paths)
         # Selected assertions precede reference patches and generic grading
         # helpers, which can otherwise fill the entire task share. Every file
         # remains in the inventory, even when its initial excerpt does not fit.
@@ -371,7 +372,22 @@ class EvidenceContext:
         additions = {}
         for request in requests:
             if request.path not in self._paths and request.path not in self._texts:
-                raise ValueError(f"Requested file is not in evidence inventory: {request.path}")
+                matches = sorted(
+                    (
+                        key
+                        for key in self._paths.keys() | self._texts.keys()
+                        if Path(key).name == Path(request.path).name
+                    ),
+                    key=lambda key: (key not in self.verifier_paths, key),
+                )
+                guidance = (
+                    " Exact basename matches: " + ", ".join(matches[:8]) + "."
+                    if matches
+                    else " Use a path from the supplied inventory or search its catalogue."
+                )
+                raise ValueError(
+                    f"Requested file is not in evidence inventory: {request.path}." + guidance
+                )
             if request.path in self._texts:
                 text = self._texts[request.path]
             else:
@@ -462,6 +478,8 @@ class EvidenceContext:
         result = json.dumps(
             {
                 "documents": self.documents,
+                "selected_verifier_files": self.verifier_paths[:32],
+                "selected_verifier_files_omitted": max(0, len(self.verifier_paths) - 32),
                 # Hashes remain in the local evidence record. They add no useful
                 # review context and repeat for every source copy and trial.
                 **self._inventory_payload(),
