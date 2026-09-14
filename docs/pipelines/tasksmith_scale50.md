@@ -3,8 +3,8 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. After V8, **38 independently accepted tasks**
-are available; 43 unique PRs have generated Harbor tasks in the expansion panel.
+with at most two GPU controllers. After V9, **42 independently accepted tasks**
+are available; 48 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
@@ -388,6 +388,56 @@ a changed profile falls back to ordinary authoring. **1,439 local tests pass**,
 with four opt-in checks skipped. These changes do not increase the three-repair
 limit.
 
+## V9 results and parallel recovery
+
+V9 completed twelve attempts for **$47.31** in accounted model usage and
+conservative compute estimates. All workers have confirmed cleanup; a **$2.00**
+uncertain model reservation remains. Six tasks passed the automated profile.
+Independent inspection accepted four, bringing the total to **42/50**:
+
+| Accepted PR | Behavioral evidence | Sonnet result |
+| --- | --- | --- |
+| Diffusers #11602, Sana | Real SCM sine/cosine behavior; the wrong numerical implementation fails and an equivalent strength calculation passes. | 7/14; strength parsing and a public keyword remain wrong |
+| Diffusers #13226, LLaDA | Actual token writeback and loss behavior; the wrong implementation fails 14 assertions and the alternative passes all 47 checks. | Submitted code passes 47/47; the agent later reaches its time limit during further checking |
+| PEFT #3098, GLoRA | Actual adapter numerical behavior; corrupting the A/B roles fails eight checks and the equivalent expression passes all 13. | 1/13; exploration ends without source changes |
+| TRL #6139 | Real two-L4 PEFT/NCCL execution; missing synchronization fails the generation-boundary assertion and asynchronous synchronization followed by wait passes. The external vLLM engine boundary is mocked. | Synchronizes only when weights change, missing synchronization on every generation |
+
+Two automated passes remain held for concrete instruction/verifier fairness
+defects. Flux #11812 requires an undocumented private helper; Krea #14045 requires
+undocumented component/configuration interfaces. Corrected copies require fresh
+controls, probes and rollouts. Four other generated tasks retain incomplete
+quality evidence, and two attempts stopped at bootstrap. Failed artifacts remain
+available for diagnosis.
+
+V10 launched **six recovery controllers concurrently**, alongside the final V9
+CPU job until it drained. Its inputs are TRL #6001 and #6078, PEFT #3079, and
+Diffusers #12619, #11281 and #12703. Five use CPU workers; one uses native Modal
+with two L4 GPUs. Its shared allowance is **$30**. Moving another $30 of existing
+global headroom into the internal expansion allocation raises that allocation
+from $350 to **$380**, while the overall ceiling remains **$1,000**. Admission
+includes all earlier charges and holds, the preceding wave's entire unused
+allowance and a $20 global margin. Pending jobs are not accepted tasks.
+
+The shared implementation now addresses four observed execution failures:
+
+- Explicit test CPU/memory requirements flow from the repository profile into
+  bootstrap and the exported verifier. HiDream #11281's unchanged readiness
+  tests now both pass with 8 GiB after the previous 2 GiB run was killed for
+  memory. The dependency image was rebuilt on the new worker; this observation
+  does not establish an image cache hit or feature acceptance.
+- Native Modal build failures retain bounded, redacted causal logs. Dependency
+  failures can be diagnosed without treating an empty build log as evidence.
+- Probe scripts run in a child shell, so their own `exit 0` cannot bypass the
+  trusted source-change audit and completion marker.
+- Review context lists exact selected private verifier paths. Batch admission
+  validates prior accepted evidence once, then rechecks the live budget and
+  overlapping controller state immediately before allocation.
+
+The integrated owned source passes **1,475 local tests**, with four opt-in live
+checks skipped. Ruff, all 17 generated prompt references, documentation and
+wheel/source checks pass. V10 uses a frozen checkout and wheel, so integrating
+these changes into the draft PR does not change a running experiment.
+
 ## Execution and budget
 
 ```mermaid
@@ -416,6 +466,8 @@ to **$350**. Its own shared allowance is $100, with at least $20 retained outsid
 the wave at admission. Previous failures, auxiliary checks and uncertain holds
 remain charged against these limits. No ledger or allowance resets. Compute
 accounting uses conservative estimates rather than provider invoices.
+V10's internal allocation increases to $380 as described above; its $30 wave
+cap remains part of that allocation.
 
 Reservations for builders, authoring, review, repair, solvers and native GPU
 allocations share the same SQLite transaction. Worker lifetimes are explicit:
