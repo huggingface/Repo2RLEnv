@@ -323,7 +323,7 @@ execution records. They remain **assisted and unverified**:
 | TRL #6001 | Call real constructors, production batch methods and async scheduling; replace source-regex grading and an invalid alternative. |
 | TRL #6187 | Remove the exact patch from the instruction and require successful two-GPU generation/synchronization before scoring observations. |
 
-The prepared V8 wave admits up to eight controllers, at most two GPU controllers,
+V8 is running nine prepared tasks, admitting up to eight controllers, at most two GPU controllers,
 under a shared **$100** allowance. These tasks reuse existing build artifacts and
 run fresh baseline/reference controls, exact prepared probes and blind Sonnet 4.6
 rollouts. Opus 4.6 handles review and repair in this wave; repeated Sonnet reviews
@@ -381,16 +381,16 @@ the target; current counts distinguish prepared inputs from validated outputs.
 ## Inspect or resume
 
 ```bash
-repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v7
+repo2rlenv tasksmith show workspace/tasksmith-scale50/batch-v8
 repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repair
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
-The current continuation uses `workspace/tasksmith-scale50/batch-plan-v7.json`; its
+The current continuation uses `workspace/tasksmith-scale50/batch-plan-v8.json`; its
 configuration, frozen runtime, subprocess logs and live report are under
-`workspace/tasksmith-scale50/batch-v7/`. `continuation-v7.json` records its
+`workspace/tasksmith-scale50/batch-v8/`. `continuation-v8.json` records its
 allowance after all prior phases and exact excluded revisions. Do not resume
-admission for the drained V1–V6
+admission for the drained V1–V7
 batches. Their parent reports may be stale; completed child receipts remain the
 source of truth. Completed attempts are not blindly
 repeated. Provider or child-process uncertainty stops dispatch until receipts
