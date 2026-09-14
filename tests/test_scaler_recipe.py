@@ -6,6 +6,7 @@ from importlib.resources import files
 
 import pytest
 
+from repo2rlenv.pipelines.recipes.catalog import get_recipe
 from repo2rlenv.pipelines.recipes.scaler.export import export_task
 from repo2rlenv.pipelines.recipes.scaler.families import (
     load_families,
@@ -75,6 +76,7 @@ def test_reasoning_export_keeps_reference_private_and_negative_reward(tmp_path):
     }
     task = export_task(candidate, tmp_path, "test")
     config = tomllib.loads((task / "task.toml").read_text())
+    assert config["metadata"]["repo2env"]["recipe_version"] == get_recipe("scaler").recipe_version
     assert config["metadata"]["repo2env"]["reward_min"] == -1
     assert config["verifier"]["environment_mode"] == "separate"
     assert json.loads((task / "tests/reference.json").read_text()) == candidate["reference_answer"]

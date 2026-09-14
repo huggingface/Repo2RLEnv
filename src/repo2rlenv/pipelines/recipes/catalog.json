@@ -1,6 +1,7 @@
 [
   {
     "id": "swe_smith",
+    "recipe_version": "2",
     "title": "SWE-smith",
     "pipeline": "repo_mutate",
     "source_kinds": [
@@ -305,6 +306,7 @@
   },
   {
     "id": "scaler",
+    "recipe_version": "2",
     "title": "SCALER",
     "pipeline": "reasoning_synth",
     "source_kinds": [

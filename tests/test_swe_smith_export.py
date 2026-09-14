@@ -6,6 +6,7 @@ import tomllib
 import pytest
 
 from repo2rlenv.emitter.bundle import inspect_bundle
+from repo2rlenv.pipelines.recipes.catalog import get_recipe
 from repo2rlenv.pipelines.recipes.swe_smith.export import export_candidate
 from repo2rlenv.pipelines.recipes.swe_smith.options import SWESmithOptions
 
@@ -51,6 +52,9 @@ def test_export_separates_reference_and_uses_defective_build_contexts(exported):
         assert (exported / context / "source/LICENSE").exists()
     assert "123456789" in (exported / "solution/reference.py").read_text()
     config = tomllib.loads((exported / "task.toml").read_text())
+    assert (
+        config["metadata"]["repo2env"]["recipe_version"] == get_recipe("swe_smith").recipe_version
+    )
     assert config["verifier"]["environment_mode"] == "separate"
     assert config["environment"]["network_mode"] == "no-network"
     assert config["artifacts"] == [{"source": "/workspace/library/value.py"}]
