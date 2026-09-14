@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from repo2rlenv.campaigns.release import ReleasePlan, publish_release, stage_release, verify_release
+from repo2rlenv.campaigns.release import (
+    ReleasePlan,
+    publish_release,
+    recover_empty_upload,
+    stage_release,
+    verify_release,
+)
 from repo2rlenv.ui import console
 
 
@@ -29,12 +35,17 @@ def cmd_release(args):
         token = resolve_hf_token(AuthSpec())
         if not token:
             raise ValueError("Publishing requires HF_TOKEN or a configured Hub login")
-        data = publish_release(
-            args.directory,
-            api=HfApi(token=token),
-            receipt=args.receipt,
-            collection_slug=args.collection,
-        )
+        if args.recover_empty:
+            data = recover_empty_upload(
+                args.directory, api=HfApi(token=token), receipt=args.receipt
+            )
+        else:
+            data = publish_release(
+                args.directory,
+                api=HfApi(token=token),
+                receipt=args.receipt,
+                collection_slug=args.collection,
+            )
     if args.json:
         console.json(data)
     else:
@@ -62,6 +73,11 @@ def add_release_parser(subparsers):
     publish.add_argument("directory", type=Path)
     publish.add_argument("--receipt", type=Path, required=True)
     publish.add_argument("--collection")
+    publish.add_argument(
+        "--recover-empty",
+        action="store_true",
+        help="Confirm an uncommitted upload left an empty repository, then use bounded commits",
+    )
     for command in (stage, verify, publish):
         command.add_argument("--json", action="store_true")
         command.set_defaults(func=cmd_release)

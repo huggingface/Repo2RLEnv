@@ -109,3 +109,63 @@ def test_publication_pins_registry_and_records_collection(selection, tmp_path):
     api.add_collection_item.assert_called_once()
     assert publish_release(stage, api=api, receipt=receipt) == first
     assert api.upload_folder.call_count == 1
+
+
+def test_dataset_card_uses_an_absolute_license_url(selection, tmp_path):
+    import yaml
+
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    metadata = yaml.safe_load((stage / "README.md").read_text().split("---")[1])
+    assert (
+        metadata["license_link"]
+        == "https://huggingface.co/datasets/org/example/blob/main/LICENSES.md"
+    )
+
+
+def test_empty_upload_recovery_refuses_existing_remote_artifacts(selection, tmp_path):
+    from repo2rlenv.campaigns.release import recover_empty_upload
+
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    api = Mock()
+    api.upload_folder.side_effect = TimeoutError()
+    receipt = tmp_path / "receipt.json"
+    with pytest.raises(TimeoutError):
+        publish_release(stage, api=api, receipt=receipt)
+    api.repo_info.return_value = SimpleNamespace(sha="observed")
+    api.list_repo_files.return_value = [".gitattributes", "README.md"]
+    with pytest.raises(ValueError, match="Remote artifacts exist"):
+        recover_empty_upload(stage, api=api, receipt=receipt)
+    api.create_commit.assert_not_called()
+
+
+def test_empty_upload_recovery_pins_each_parent_and_finishes_registry(selection, tmp_path):
+    from repo2rlenv.campaigns.release import recover_empty_upload
+
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    api = Mock()
+    api.upload_folder.side_effect = TimeoutError()
+    receipt = tmp_path / "receipt.json"
+    with pytest.raises(TimeoutError):
+        publish_release(stage, api=api, receipt=receipt)
+    api.repo_info.return_value = SimpleNamespace(sha="empty")
+    api.list_repo_files.side_effect = lambda *a, **k: (
+        [".gitattributes"]
+        if k["revision"] == "empty"
+        else ["tasks/example/task.toml", "manifest.json", "tasks.tar.gz", "data/tasks.jsonl"]
+    )
+    commits = []
+
+    def commit(**kwargs):
+        assert kwargs["parent_commit"] == (commits[-1] if commits else "empty")
+        value = "chunk" + str(len(commits))
+        commits.append(value)
+        return SimpleNamespace(oid=value)
+
+    api.create_commit.side_effect = commit
+    result = recover_empty_upload(stage, api=api, receipt=receipt, batch_size=5)
+    assert result["state"] == "completed"
+    assert result["commit_sha"] == commits[-1]
+    assert len(commits) > 1

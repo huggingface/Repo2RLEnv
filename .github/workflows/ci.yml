@@ -67,10 +67,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install project + dev dependencies
-        run: uv sync --group dev --frozen
+        run: uv sync --group dev --all-extras --frozen
 
       - name: Run pytest
-        run: uv run pytest -q
+        run: uv run --all-extras pytest -q
 
   owned-contracts:
     name: Owned recipe contracts

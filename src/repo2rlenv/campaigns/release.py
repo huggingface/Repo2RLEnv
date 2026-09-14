@@ -261,8 +261,6 @@ def publish_release(
     directory: Path, *, api, receipt: Path, collection_slug: str | None = None
 ) -> dict:
     """Publish a verified snapshot; retry uncertain effects only after reconciliation."""
-    from repo2rlenv.hub import _build_registry_json
-
     files = verify_release(directory)
     manifest = json.loads((directory / "manifest.json").read_text())
     identity = hashlib.sha256((directory / "release-files.json").read_bytes()).hexdigest()
@@ -293,9 +291,19 @@ def publish_release(
     )
     record.update(state="uploaded", commit_sha=commit.oid)
     save_record(receipt, record)
+    return _finish_publish(directory, api=api, receipt=receipt, record=record)
+
+
+def _finish_publish(directory: Path, *, api, receipt: Path, record: dict) -> dict:
+    from repo2rlenv.hub import _build_registry_json
+
+    manifest = json.loads((directory / "manifest.json").read_text())
+    repo_id = record["repo_id"]
+    commit_sha = record["commit_sha"]
+    collection_slug = record.get("collection_slug")
     registry = _build_registry_json(
         repo_id,
-        commit.oid,
+        commit_sha,
         repo_id.split("/")[1],
         manifest["recipe"] + " Harbor tasks",
         [row["task_id"] for row in manifest["tasks"]],
@@ -307,7 +315,7 @@ def publish_release(
         path_or_fileobj=json.dumps(registry, indent=2).encode(),
         commit_message="Pin Harbor registry to the release commit",
     )
-    remote_paths = set(api.list_repo_files(repo_id, repo_type="dataset", revision=commit.oid))
+    remote_paths = set(api.list_repo_files(repo_id, repo_type="dataset", revision=commit_sha))
     required = {row["path"] + "/task.toml" for row in manifest["tasks"]} | {
         "manifest.json",
         "tasks.tar.gz",
@@ -331,3 +339,56 @@ def publish_release(
     )
     save_record(receipt, record)
     return record
+
+
+def recover_empty_upload(directory: Path, *, api, receipt: Path, batch_size: int = 250) -> dict:
+    """Recover a rejected/timed-out upload only after confirming no artifact commit.
+
+    Large atomic commits can time out at the Hub gateway. This explicit recovery
+    writes bounded commits with parent guards; uncertain chunks remain recorded
+    for inspection. It never overwrites a nonempty repository or retries a chunk.
+    """
+    from huggingface_hub import CommitOperationAdd
+
+    if not 1 <= batch_size <= 500:
+        raise ValueError("Publication batches must contain one to 500 files")
+    files = verify_release(directory)
+    record = json.loads(receipt.read_text())
+    identity = hashlib.sha256((directory / "release-files.json").read_bytes()).hexdigest()
+    if record["release_sha256"] != identity or record["repo_id"] != files["repo_id"]:
+        raise ValueError("Publication receipt belongs to another release")
+    if record["state"] != "upload_dispatched":
+        raise ValueError("Only an unconfirmed original upload can use empty-repository recovery")
+    repo_id = record["repo_id"]
+    parent = api.repo_info(repo_id, repo_type="dataset").sha
+    remote = set(api.list_repo_files(repo_id, repo_type="dataset", revision=parent))
+    if remote - {".gitattributes"}:
+        raise ValueError(
+            "Remote artifacts exist; inspect the committed release instead of replaying"
+        )
+    record.update(state="batch_upload", reconciled_empty_commit=parent, batches=[])
+    save_record(receipt, record)
+    paths = sorted(files["files"])
+    # Publish the release identity after its artifact files, as the completion marker.
+    paths.append("release-files.json")
+    for offset in range(0, len(paths), batch_size):
+        selected = paths[offset : offset + batch_size]
+        batch = {"state": "dispatched", "parent_commit": parent, "paths": selected}
+        record["batches"].append(batch)
+        save_record(receipt, record)
+        commit = api.create_commit(
+            repo_id=repo_id,
+            repo_type="dataset",
+            parent_commit=parent,
+            operations=[
+                CommitOperationAdd(path_in_repo=name, path_or_fileobj=directory / name)
+                for name in selected
+            ],
+            commit_message=f"Stage Harbor release files {offset + 1}-{offset + len(selected)}",
+        )
+        parent = commit.oid
+        batch.update(state="completed", commit_sha=parent)
+        save_record(receipt, record)
+    record.update(state="uploaded", commit_sha=parent)
+    save_record(receipt, record)
+    return _finish_publish(directory, api=api, receipt=receipt, record=record)

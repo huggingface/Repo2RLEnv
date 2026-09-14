@@ -68,3 +68,12 @@ A corrected task replaces its predecessor in the selected collection; it does no
 increase the task count. Preserve the original bundle and repair evidence outside
 the release selection. An unsolved/reference pair, a consistency review and a
 blind solver rollout are different evidence, and must remain separately labeled.
+
+If a large artifact upload timed out before creating a commit, use
+`release publish ... --recover-empty` with its original receipt. The command first
+checks that the remote repository contains only its initial `.gitattributes`.
+It then uploads bounded batches with parent-commit guards and records every
+confirmed commit. If any task artifacts already exist, or a recovery batch itself
+has an uncertain outcome, it stops for reconciliation instead of overwriting or
+replaying blindly. Dataset card license links use absolute HTTPS URLs, as required
+by the Hub's metadata validator.
