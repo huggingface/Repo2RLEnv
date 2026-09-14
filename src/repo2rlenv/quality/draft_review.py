@@ -46,6 +46,11 @@ If files are omitted, do not invent their contents. Cite the actual defect rathe
 than guessing from an omission. Use category instruction, verifier, leakage,
 reference or packaging. severity=blocking requires a material reproducible issue;
 otherwise use improvement. Return empty issues when no concrete defect is found.
+Keep summary under 400 characters. Limit each evidence quote to a short exact
+substring copied from its cited document; do not rewrite whitespace or assemble
+noncontiguous excerpts. Report at most three material issues. Never propose
+copying /solution or /tests into the learner image as a repair. The private
+reference may know expected answers; that alone is not leakage to the learner.
 """
 
 

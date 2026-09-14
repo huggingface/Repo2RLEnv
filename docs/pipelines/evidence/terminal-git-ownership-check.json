@@ -1,0 +1,20 @@
+{
+  "at": "2026-09-14T17:18:40.509741+00:00",
+  "checks": [
+    {
+      "name": "original_failure",
+      "returncode": 0
+    },
+    {
+      "name": "fixed_root_verifier",
+      "returncode": 0
+    },
+    {
+      "name": "new_paths_not_trusted",
+      "returncode": 0
+    }
+  ],
+  "passed": true,
+  "provider": "daytona",
+  "scope": "Owned synthetic Git repository in a disposable offline container; no target repository code or local Docker execution. Compute shares the recorded active worker lifetime."
+}

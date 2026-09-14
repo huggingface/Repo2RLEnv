@@ -53,7 +53,9 @@ def test_release_archive_roundtrip_preserves_modes_identity_and_labels(selection
     assert inspect_bundle(task)["bundle_hash"] == selection.tasks[0].bundle_hash
     assert inspect_bundle(task)["integrity_passed"]
     assert (task / "solution/solve.sh").stat().st_mode & 0o777 == 0o755
-    assert json.loads((stage / "manifest.json").read_text())["quality_counts"] == {"exported": 1}
+    manifest = json.loads((stage / "manifest.json").read_text())
+    assert manifest["quality_counts"] == {"unverified": 1}
+    assert manifest["tasks"][0]["generation_status"] == "exported"
     assert inspect_bundle(selection.tasks[0].path)["integrity_passed"]
 
 
@@ -65,6 +67,38 @@ def test_no_publication_for_changed_staging(selection, tmp_path):
     with pytest.raises(ValueError, match="Staged release changed"):
         publish_release(stage, api=api, receipt=tmp_path / "receipt.json")
     assert not api.mock_calls
+
+
+def test_nested_delivery_task_keeps_package_identity_when_released(selection, tmp_path):
+    selected = selection.tasks[0]
+    nested = tmp_path / "delivery" / "task"
+    nested.parent.mkdir()
+    selected.path.rename(nested)
+    selected.path = nested
+    selected.task_id = "example"
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    assert inspect_bundle(stage / "tasks/example")["bundle_hash"] == selected.bundle_hash
+    assert not (stage / "tasks/task").exists()
+    selected.task_id = "different"
+    with pytest.raises(ValueError, match="must match the Harbor package name"):
+        stage_release(selection, tmp_path / "mismatch")
+
+
+def test_release_rejects_evaluation_from_another_task_revision(selection, tmp_path):
+    import tomllib
+
+    import tomli_w
+
+    path = selection.tasks[0].path / "task.toml"
+    config = tomllib.loads(path.read_text())
+    config["metadata"]["repo2env"]["evaluation"]["subject_bundle_hash"] = "sha256:" + "0" * 64
+    path.write_text(tomli_w.dumps(config))
+    # Advisory metadata is outside the executable identity, so publication must
+    # independently reject a label attached to the wrong revision.
+    assert inspect_bundle(path.parent)["integrity_passed"]
+    with pytest.raises(ValueError, match="Evaluation label belongs to a different"):
+        stage_release(selection, tmp_path / "stage")
 
 
 def test_changed_source_or_duplicate_selection_cannot_be_staged(selection, tmp_path):
@@ -188,3 +222,23 @@ def test_empty_upload_recovery_pins_each_parent_and_finishes_registry(selection,
     assert result["state"] == "completed"
     assert result["commit_sha"] == commits[-1]
     assert len(commits) > 1
+
+
+def test_new_large_release_uses_bounded_commits_and_publishes_card_last(selection, tmp_path):
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    api = Mock()
+    api.repo_info.return_value = SimpleNamespace(sha="empty")
+    api.list_repo_files.side_effect = lambda *a, **k: (
+        [".gitattributes"]
+        if k["revision"] == "empty"
+        else [*verify_release(stage)["files"], "release-files.json"]
+    )
+    api.create_commit.return_value = SimpleNamespace(oid="uploaded")
+    result = publish_release(stage, api=api, receipt=tmp_path / "receipt.json", batch_size=5)
+    assert result["state"] == "completed"
+    api.upload_folder.assert_not_called()
+    batches = api.create_commit.call_args_list
+    assert all(len(c.kwargs["operations"]) <= 5 for c in batches)
+    last_paths = [op.path_in_repo for op in batches[-1].kwargs["operations"]]
+    assert last_paths[-2:] == ["README.md", "release-files.json"]

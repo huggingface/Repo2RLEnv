@@ -104,13 +104,29 @@ contrast checks. Regression tests check that the specification receives the exac
 docstrings used in the skeleton and that an excluded schedule does not consume
 the next candidate's execution slot.
 
-The frozen runtime SHA-256 is
+The initial pilot runtime SHA-256 was
 `e203906912d2ba282732b699f6f8ac463335cc23ee3e880236c0ddec073e5766`.
 39 focused tests passed across the relevant recipes, contracts, metering and read
 retries; targeted lint checks passed. These are software checks, not evidence
 that the new prompts eliminate the earlier semantic verifier defects. Prompt
 references preserve the full request assembly and generated requests remain in
 each run's receipts.
+
+Later scale batches carry their own pinned runtime hash. Revision `repair03`
+(`5b3f7e1d6f5eeaeb7228fb2db9969290d8817f4354151bfe758521193be7e46b`)
+fixes Git ownership checks: terminal images transfer the workspace to the learner,
+while Harbor executes the verifier as root. Git therefore rejected repositories
+created by the image with `detected dubious ownership`, repeatedly failing valid
+initial-state tests. The exporter now records only the image-created repository
+paths as Git safe directories before execution. It does not trust arbitrary new
+learner-created paths or use a global wildcard. A
+[Daytona regression check](evidence/terminal-git-ownership-check.json) reproduced
+the old failure, passed with the fix, and confirmed that a new path stays untrusted.
+
+The same revision asks the compact draft reviewer for a short summary and exact
+short quotations, reducing schema-correction calls. It explicitly forbids repairing
+packaging by baking reference solutions into the learner image. Existing jobs retain
+their original runtimes; only future allocations use this revision.
 
 ## Evidence, quality labels and economics
 

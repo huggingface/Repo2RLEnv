@@ -1,9 +1,9 @@
 # Wave 2: Endless Terminals and CLI-Gym pilot
 
-Started 14 September 2026. Current generation inventory: **54 Endless Terminals
-exports and 25 CLI-Gym exports**, as of 15:38 UTC. Four new Daytona batches are
-running toward the remaining 46 Endless Terminals exports. Earlier batches have
-finished and their workers are terminated. Wave 1 has also completed its six
+Started 14 September 2026; generation finished at 16:43 UTC. Final inventory:
+**100 Endless Terminals exports and 25 CLI-Gym exports**. All generation workers
+are terminated and all Wave 2 child costs are settled. Both datasets are published
+under HuggingEnvs with complete Harbor task folders. Wave 1 has completed its six
 100-task collections. The original pilot targeted five new exports per recipe;
 its results and subsequent expansions are recorded below. The updated objective
 is 100 Endless Terminals tasks and 20 CLI-Gym tasks. CLI-Gym had already exceeded
@@ -235,3 +235,28 @@ from the successful second expansion. The controller retains process ownership,
 configuration hashes and budget receipts, and does not silently repeat uncertain
 paid operations. `controller.json` records progress. Exports remain local and
 carry their generation status; independent quality acceptance is still separate.
+
+### Final result and publication — 14 September
+
+The four final workers exported 46 tasks and stopped at 16:43 UTC. Every new
+bundle has matching baseline-0/reference-1 receipts. This final batch accounted
+for **$21.289452** against its $40 cap, with no outstanding reservations.
+
+Across the pilot and three expansions, **80 new Endless Terminals tasks cost
+$41.514544**, or **$0.519 per new export**, including unsuccessful candidates and
+estimated worker/build costs. CLI-Gym's **five new tasks cost $5.712143**, or
+**$1.142 per new export**. These figures exclude the initial 20 tasks in each
+corpus, the interactive assistant and independent semantic review. The
+[per-batch economics](evidence/wave2-generation-economics.json) retain model and
+cloud estimates separately. CLI-Gym uses candidate-scoped model operation IDs;
+attribution includes those calls as well as the worker operation, not only IDs
+containing the run name.
+
+Published datasets:
+
+- [Endless Terminals — 100 Harbor tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals)
+- [CLI-Gym — 25 Harbor tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym)
+
+All 85 new tasks across the two recipes have hash-matched unsolved/reference
+controls. The original 40 retained tasks are identified separately. Publication
+and these generation controls do not establish independent quality acceptance.

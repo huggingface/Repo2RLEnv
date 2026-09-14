@@ -45,6 +45,7 @@ def cmd_release(args):
                 api=HfApi(token=token),
                 receipt=args.receipt,
                 collection_slug=args.collection,
+                batch_size=args.batch_size,
             )
     if args.json:
         console.json(data)
@@ -73,10 +74,17 @@ def add_release_parser(subparsers):
     publish.add_argument("directory", type=Path)
     publish.add_argument("--receipt", type=Path, required=True)
     publish.add_argument("--collection")
-    publish.add_argument(
+    method = publish.add_mutually_exclusive_group()
+    method.add_argument(
         "--recover-empty",
         action="store_true",
         help="Confirm an uncommitted upload left an empty repository, then use bounded commits",
+    )
+    method.add_argument(
+        "--batch-size",
+        type=int,
+        metavar="1..500",
+        help="Publish a new empty repository in bounded commits instead of one large commit",
     )
     for command in (stage, verify, publish):
         command.add_argument("--json", action="store_true")

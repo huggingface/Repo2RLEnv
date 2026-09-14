@@ -88,9 +88,14 @@ def dockerfile_for_setup(setup: str, agent_user: str | None = None) -> str:
         "WORKDIR /workspace\nCOPY . /workspace\n" + setup.rstrip() + "\nWORKDIR /workspace\n"
     )
     if agent_user:
+        # The verifier runs as root after ownership passes to the learner. Trust
+        # only repositories created by the authored image, not arbitrary paths
+        # the learner might introduce later or a global safe.directory wildcard.
         dockerfile += (
             f"RUN (id -u {agent_user} >/dev/null 2>&1 || useradd -m -s /bin/bash {agent_user}) "
             f"&& mkdir -p /home/{agent_user} && chown -R {agent_user}:{agent_user} /workspace /home/{agent_user}\n"
+            f"RUN find /workspace /home/{agent_user} -type d -name .git -prune "
+            "-exec sh -c 'git config --system --add safe.directory \"${1%/.git}\"' sh {} \\;\n"
             f"ENV HOME=/home/{agent_user}\n"
         )
     return dockerfile

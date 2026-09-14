@@ -3,6 +3,10 @@
 Use an explicit selection to publish a recipe's retained and newly generated tasks
 as one dataset. This workflow does not change the task artifacts or their quality
 labels. See [RFC 0029](../rfcs/0029-campaign-expansion-and-release.md) for the contracts.
+Release summaries prefer the uniform `metadata.repo2env.evaluation.status` when
+present, validate its revision binding, and preserve the legacy `quality_status`
+as `generation_status`. Task files retain both original fields. An old `exported`
+generation label must not hide a later `verified` or `needs_repair` assessment.
 
 ```mermaid
 flowchart LR
@@ -16,6 +20,10 @@ flowchart LR
 
 A release plan is JSON. Paths refer to the local selected exports; evidence and
 costs must describe actual receipts, with missing evidence stated explicitly.
+An optional `task_id` selects the published directory name for delivery layouts
+such as `entries/<id>/<hash>/task/`. It must match the name in `[task]` and does
+not change any bundle contents or hashes. Ordinary exports use their directory
+name by default.
 
 ```json
 {
@@ -50,6 +58,13 @@ not execute tasks or build images. `publish` requires configured Hub credentials
 It uploads selected artifacts only, retaining model/worker receipts locally.
 Existing incomplete publication receipts must be inspected and reconciled before
 another attempt. A completed receipt is returned without uploading twice.
+
+For a new large dataset, add `--batch-size 500` to `release publish`. This requires
+an empty destination repository and writes bounded, parent-guarded commits with
+a receipt for each batch. The card and release identity are written last; registry
+and collection entries are added only after every staged file is present. A
+partially uploaded repository is not a completed release. Uncertain batches stop
+for reconciliation; restarting with a new receipt would discard that evidence.
 
 Each dataset contains:
 

@@ -80,8 +80,12 @@ execute on a fresh environment before the final baseline/reference pair.
 The builder can repair inconsistent fixtures or a failing reference within
 `max_repairs`. Every attempted input and execution outcome remains in the run.
 
-The target is **20 generated tasks**, with detailed quality evaluation and
-blind rollouts deferred. Upstream's sampled solutions and training run are
+The initial milestone was 20 generated tasks. The [Wave 2 expansion](wave2_pilot.md)
+completed **100 tasks**, now published as
+[HuggingEnvs/repo2rlenv-endless-terminals](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals).
+All 80 newly generated tasks have hash-matched baseline-0/reference-1 controls;
+independent semantic quality evaluation and blind rollouts remain separate.
+Upstream's sampled solutions and training run are
 outside this generation milestone. Options and cloud setup follow the
 [shared interface](owned_recipes.md); the configuration records the actual
 author model rather than claiming the original Qwen settings.

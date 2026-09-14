@@ -550,7 +550,7 @@ def builder_prompt(native_prompt: str) -> str:
 
 ### draft.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/draft.py) · SHA-256 `e0427909743bca93a524fbf06bae593f02f6b42bcedb48833d3b859ed9722785`
+[Source: `src/repo2rlenv/pipelines/recipes/terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/draft.py) · SHA-256 `f260ee15b889e712337e07e539ebc000c3bbeb8ddd2d4d9c91a02cbba441c5c9`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -648,9 +648,14 @@ def dockerfile_for_setup(setup: str, agent_user: str | None = None) -> str:
         "WORKDIR /workspace\nCOPY . /workspace\n" + setup.rstrip() + "\nWORKDIR /workspace\n"
     )
     if agent_user:
+        # The verifier runs as root after ownership passes to the learner. Trust
+        # only repositories created by the authored image, not arbitrary paths
+        # the learner might introduce later or a global safe.directory wildcard.
         dockerfile += (
             f"RUN (id -u {agent_user} >/dev/null 2>&1 || useradd -m -s /bin/bash {agent_user}) "
             f"&& mkdir -p /home/{agent_user} && chown -R {agent_user}:{agent_user} /workspace /home/{agent_user}\n"
+            f"RUN find /workspace /home/{agent_user} -type d -name .git -prune "
+            "-exec sh -c 'git config --system --add safe.directory \"${1%/.git}\"' sh {} \\;\n"
             f"ENV HOME=/home/{agent_user}\n"
         )
     return dockerfile
@@ -727,7 +732,7 @@ def emit_draft(
 
 ### draft_review.py
 
-[Source: `src/repo2rlenv/quality/draft_review.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/draft_review.py) · SHA-256 `b611fbd79beeb7ddf6e2a9f6c03706d94b994e3ee90170df30ddef4c438f605d`
+[Source: `src/repo2rlenv/quality/draft_review.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/draft_review.py) · SHA-256 `2b1b35f35d3a46c3e5eb19e98e52d2d57979e551893e9cbf31764baaee9bb3fa`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -783,6 +788,11 @@ If files are omitted, do not invent their contents. Cite the actual defect rathe
 than guessing from an omission. Use category instruction, verifier, leakage,
 reference or packaging. severity=blocking requires a material reproducible issue;
 otherwise use improvement. Return empty issues when no concrete defect is found.
+Keep summary under 400 characters. Limit each evidence quote to a short exact
+substring copied from its cited document; do not rewrite whitespace or assemble
+noncontiguous excerpts. Report at most three material issues. Never propose
+copying /solution or /tests into the learner image as a repair. The private
+reference may know expected answers; that alone is not leakage to the learner.
 """
 
 

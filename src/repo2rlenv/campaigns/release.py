@@ -24,9 +24,17 @@ from repo2rlenv.execution.lifecycle import now, save_record
 class ReleaseTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
     path: Path
+    task_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")
     bundle_hash: str
     evidence: dict = Field(default_factory=dict)
     diagnostics: list[str] = Field(default_factory=list)
+
+    @field_validator("task_id")
+    @classmethod
+    def valid_task_id(cls, value):
+        if value is not None and ".." in value:
+            raise ValueError("Task IDs cannot contain '..'")
+        return value
 
 
 class ReleasePlan(BaseModel):
@@ -72,21 +80,23 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
     """Check exact identities, copy artifacts and create a mode-preserving archive."""
     if destination.exists():
         raise FileExistsError("Release staging already exists; verify it instead of overwriting")
-    names = [task.path.name for task in plan.tasks]
+    names = [task.task_id or task.path.name for task in plan.tasks]
     if len(set(names)) != len(names):
         raise ValueError("A release cannot contain duplicate task IDs")
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".release-", dir=destination.parent))
     try:
         rows = []
-        for selected in plan.tasks:
+        for selected, name in zip(plan.tasks, names, strict=True):
             identity = inspect_bundle(selected.path)
             if not identity["integrity_passed"] or identity["bundle_hash"] != selected.bundle_hash:
                 raise ValueError(f"Task content changed: {selected.path.name}")
             from harbor.models.task.task import Task
 
-            Task(selected.path)
-            target = temporary / "tasks" / selected.path.name
+            task = Task(selected.path)
+            if selected.task_id and task.config.task.name.split("/")[-1] != selected.task_id:
+                raise ValueError("Explicit task ID must match the Harbor package name")
+            target = temporary / "tasks" / name
             shutil.copytree(selected.path, target)
             copied = inspect_bundle(target)
             if copied != identity:
@@ -94,12 +104,21 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
             metadata = tomllib.loads((target / "task.toml").read_text())["metadata"]["repo2env"]
             if metadata.get("recipe", "").replace("_", "-") != plan.recipe.replace("_", "-"):
                 raise ValueError("Task recipe does not match release")
+            status = metadata.get("quality_status", "unknown")
+            if "evaluation" in metadata:
+                from repo2rlenv.emitter.evaluation import EvaluationLabel
+
+                label = EvaluationLabel.model_validate(metadata["evaluation"])
+                if label.subject_bundle_hash not in {None, identity["bundle_hash"]}:
+                    raise ValueError("Evaluation label belongs to a different task revision")
+                status = label.status
             rows.append(
                 {
                     "task_id": target.name,
                     "path": "tasks/" + target.name,
                     "bundle_hash": identity["bundle_hash"],
-                    "quality_status": metadata.get("quality_status", "unknown"),
+                    "quality_status": status,
+                    "generation_status": metadata.get("quality_status", "unknown"),
                     "metadata": metadata,
                     "evidence": selected.evidence,
                     "diagnostics": selected.diagnostics,
@@ -280,9 +299,16 @@ def verify_release(directory: Path) -> dict:
 
 
 def publish_release(
-    directory: Path, *, api, receipt: Path, collection_slug: str | None = None
+    directory: Path,
+    *,
+    api,
+    receipt: Path,
+    collection_slug: str | None = None,
+    batch_size: int | None = None,
 ) -> dict:
     """Publish a verified snapshot; retry uncertain effects only after reconciliation."""
+    if batch_size is not None and not 1 <= batch_size <= 500:
+        raise ValueError("Publication batches must contain one to 500 files")
     files = verify_release(directory)
     manifest = json.loads((directory / "manifest.json").read_text())
     identity = hashlib.sha256((directory / "release-files.json").read_bytes()).hexdigest()
@@ -305,6 +331,15 @@ def publish_release(
     api.create_repo(repo_id, repo_type="dataset", private=False, exist_ok=True)
     record["state"] = "upload_dispatched"
     save_record(receipt, record)
+    if batch_size is not None:
+        return _upload_empty_repository(
+            directory,
+            api=api,
+            receipt=receipt,
+            record=record,
+            files=files,
+            batch_size=batch_size,
+        )
     commit = api.upload_folder(
         repo_id=repo_id,
         repo_type="dataset",
@@ -371,8 +406,6 @@ def recover_empty_upload(directory: Path, *, api, receipt: Path, batch_size: int
     writes bounded commits with parent guards; uncertain chunks remain recorded
     for inspection. It never overwrites a nonempty repository or retries a chunk.
     """
-    from huggingface_hub import CommitOperationAdd
-
     if not 1 <= batch_size <= 500:
         raise ValueError("Publication batches must contain one to 500 files")
     files = verify_release(directory)
@@ -382,6 +415,16 @@ def recover_empty_upload(directory: Path, *, api, receipt: Path, batch_size: int
         raise ValueError("Publication receipt belongs to another release")
     if record["state"] != "upload_dispatched":
         raise ValueError("Only an unconfirmed original upload can use empty-repository recovery")
+    return _upload_empty_repository(
+        directory, api=api, receipt=receipt, record=record, files=files, batch_size=batch_size
+    )
+
+
+def _upload_empty_repository(
+    directory: Path, *, api, receipt: Path, record: dict, files: dict, batch_size: int
+) -> dict:
+    from huggingface_hub import CommitOperationAdd
+
     repo_id = record["repo_id"]
     parent = api.repo_info(repo_id, repo_type="dataset").sha
     remote = set(api.list_repo_files(repo_id, repo_type="dataset", revision=parent))
@@ -391,9 +434,9 @@ def recover_empty_upload(directory: Path, *, api, receipt: Path, batch_size: int
         )
     record.update(state="batch_upload", reconciled_empty_commit=parent, batches=[])
     save_record(receipt, record)
-    paths = sorted(files["files"])
+    paths = sorted(set(files["files"]) - {"README.md"})
     # Publish the release identity after its artifact files, as the completion marker.
-    paths.append("release-files.json")
+    paths.extend(["README.md", "release-files.json"])
     for offset in range(0, len(paths), batch_size):
         selected = paths[offset : offset + batch_size]
         batch = {"state": "dispatched", "parent_commit": parent, "paths": selected}
