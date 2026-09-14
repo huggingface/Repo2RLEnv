@@ -56,7 +56,17 @@ def required_probe_focus(task: Path) -> set[str]:
     """Narrow explicit contracts learned from actual pilot false acceptances."""
     instruction = (task / "instruction.md").read_text().lower()
     focus: set[str] = set(task_probe_focus(task))
-    if re.search(r"\blaz(?:y|ily)\b|\bgenerator function\b|\breturn a generator\b", instruction):
+    # Lazy initialization, caches and resource pools are not lazy *outputs*.
+    # Infer this legacy requirement only from output/iteration language;
+    # explicitly recorded focus requirements above always remain authoritative.
+    if re.search(
+        r"\bgenerator function\b|\breturn(?:s|ing)?\s+(?:a\s+)?generator\b"
+        r"|\blazy\s+(?:output|results?|values?|items?|elements?|iterators?|iterables?|generators?)\b"
+        r"|\blazily\s+(?:yield|return|produce|emit|iterate|stream)\b"
+        r"|\b(?:yield|return|produce|emit|iterate|stream)(?:s|ed|ing)?"
+        r"\s+(?:\w+\s+){0,3}lazily\b",
+        instruction,
+    ):
         focus.add("lazy_output")
     if re.search(r"\b(?:absolute|relative) error\b|\bnumerical? tolerance\b", instruction):
         focus.add("numeric_tolerance")
