@@ -3,7 +3,7 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. After V7, **32 independently accepted tasks**
+with at most two GPU controllers. After V8, **38 independently accepted tasks**
 are available; 43 unique PRs have generated Harbor tasks in the expansion panel.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
@@ -308,8 +308,8 @@ PRs, bringing the total to **32**:
 | Accelerate #3720 | Real two-rank CUDA/NCCL ownership and mesh caching; reference and valid alternative pass 24 checks, wrong cache behavior fails two. Sonnet passes 23 and omits one required state field. |
 | Transformers #35348 | Real tiny DINO model; reference and valid alternative pass 14 checks. The wrong classifier formula fails the numerical assertion. Sonnet leaves the requested exports incomplete. |
 
-Nine prepared recovery copies retain their original source, reference and failed
-execution records. They remain **assisted and unverified**:
+Nine recovery copies were prepared as **assisted and unverified**, retaining
+their original source, reference and failed execution records:
 
 | PR | Prepared correction |
 | --- | --- |
@@ -323,10 +323,10 @@ execution records. They remain **assisted and unverified**:
 | TRL #6001 | Call real constructors, production batch methods and async scheduling; replace source-regex grading and an invalid alternative. |
 | TRL #6187 | Remove the exact patch from the instruction and require successful two-GPU generation/synchronization before scoring observations. |
 
-V8 is running nine prepared tasks, admitting up to eight controllers, at most two GPU controllers,
-under a shared **$100** allowance. These tasks reuse existing build artifacts and
-run fresh baseline/reference controls, exact prepared probes and blind Sonnet 4.6
-rollouts. Opus 4.6 handles review and repair in this wave; repeated Sonnet reviews
+V8 ran nine prepared tasks, admitting up to eight controllers and at most two GPU
+controllers under a shared **$100** allowance. These tasks reused existing build
+artifacts and ran fresh baseline/reference controls, exact prepared probes and
+blind Sonnet 4.6 rollouts. Opus 4.6 handles review and repair in this wave; repeated Sonnet reviews
 had missed concrete contract and verifier defects. Repairs remain bounded at
 three. The practical acceptance bar requires meaningful behavioral evidence,
 without demanding exhaustive coverage or solver success.
@@ -338,6 +338,49 @@ and a narrow static guard rejects direct implementation-source grading in the
 generated behavioral test. **1,406 local tests pass**, with four opt-in live
 checks skipped; prompt references, Ruff, docs and wheel validation pass.
 
+## V8 results and the next twelve candidates
+
+V8 completed all nine PRs for **$28.77**, with no remaining wave reservations or
+active workers. Eight passed the automated profile. Independent inspection
+accepted **six of nine (67%)**, bringing the total to **38/50**; 43 unique PRs
+have Harbor exports. This wave's cost includes recovery validation, not the
+previous cost of generating these tasks.
+
+| Accepted PR | Behavioral evidence | Sonnet result |
+| --- | --- | --- |
+| PEFT #2661 | Real DoRA numerical equivalence, saved tensor work and lifecycle; two wrong implementations fail and two storage alternatives pass. | 10/10 |
+| PEFT #2939 | Real adapter conversion and checkpoint reload; known-spectrum rank/product checks reject a constant-rank implementation. | 1/25; exploration ended without source changes |
+| PEFT #2952 | Actual PVeRA training, gradients, sharing and checkpoint behavior; deterministic-mean mutation fails stochasticity. | 14/16 |
+| Transformers #36521 | Actual Aya vision/projector/language-model path; wrong activation fails numerically and an equivalent reshape passes. | 14/14 |
+| Transformers #36790 | Actual processor expansion, projector math and image placement/influence; three wrong implementations fail their intended assertions. | 7/24; exports unfinished |
+| TRL #6187 | Real two-rank NCCL, explicit local-device selection and production generation completion; missing synchronization and an exception after synchronization fail. | 12/12 |
+
+Three outputs remain `needs_repair`, with originals and every failed revision
+retained. Sana's core SCM verifier now works, but the instruction leaves strength
+rounding unspecified; the prepared instruction defines it. LLaDA now tests real
+token writeback and loss behavior, but omits public keywords required by its
+verifier; the prepared instruction records those signatures and defaults. TRL's
+pooling verifier calls the production methods, but its backend fixture supplies
+log-probabilities in the wrong tuple position. Three automatic repairs did not
+correct that position; a separate corrected fixture is ready for fresh execution.
+These copies remain unverified until their new controls, probes and rollouts pass
+review.
+
+The next draft contains twelve PRs: those three recoveries, PEFT #3079,
+TRL #6139 and #6078, PEFT #3098, and Diffusers #12619, #11281, #11812, #14045 and
+#12703. They are all from the original seed list. Prepared designs and corrected
+profiles reduce repeated investigation; their fresh bootstrap and feature
+validation are still required. The proposed shared allowance is **$80** from
+remaining expansion funds, subject to a fresh ledger check before dispatch.
+
+Two observed failures are now addressed in owned code. A narrow patch fallback
+restores CRLF source only when both pinned Git blob identities match; it preserves
+the original patch and rejects true mismatches. Fixture repair prompts require
+the complete production return contract and explicit expansion of unpacked tuple
+fields before proposing an edit. **1,419 local tests pass**, with four opt-in
+checks skipped. Neither change adds a model call or increases the three-repair
+limit.
+
 ## Execution and budget
 
 ```mermaid
@@ -345,7 +388,7 @@ flowchart TD
     Old[24 existing verified PR tasks] --> Target[Target: 50 unique verified PR tasks]
     Inputs[114 original candidate PRs] --> Panel[70-PR campaign panel]
     Panel --> Freeze[Freeze sources, resource options, controller and runtime]
-    Freeze --> Budget[Global ceiling: 1000 USD; V8 shared allowance: 100 USD]
+    Freeze --> Budget[Global ceiling: 1000 USD; wave allowance checked before admission]
     Budget --> Parallel[Up to eight isolated PR processes; at most two GPU]
     Parallel --> Fresh[Fresh source: investigate, bootstrap, design, construct]
     Parallel --> Recovery[Prepared task: verify source binding and reuse artifact]
@@ -386,8 +429,8 @@ repo2rlenv tasks list workspace/tasksmith-scale50/catalog-v2 --status needs_repa
 repo2rlenv tasks show PATH_TO_TASK --json
 ```
 
-The current continuation uses `workspace/tasksmith-scale50/batch-plan-v8.json`; its
-configuration, frozen runtime, subprocess logs and live report are under
+The completed V8 wave uses `workspace/tasksmith-scale50/batch-plan-v8.json`; its
+configuration, frozen runtime, subprocess logs and final report are under
 `workspace/tasksmith-scale50/batch-v8/`. `continuation-v8.json` records its
 allowance after all prior phases and exact excluded revisions. Do not resume
 admission for the drained V1–V7
