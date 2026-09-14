@@ -75,6 +75,12 @@ For added-source tasks, the new files are absent from both starting source snaps
 
 Generation and acceptance are different counters. `generated` means execution contrast and a Harbor bundle exist. `usable` means `practical-generation-v1` found sound instructions and verification, a failing baseline, passing oracle, rejected wrong implementation, accepted valid alternative and a legitimate learner rollout. A legitimate model failure can still establish a useful task. The old strict acceptance policy is unchanged.
 
+Explicit probe requirements in task metadata remain authoritative. The legacy
+instruction check infers `lazy_output` from generator or deferred output
+requirements; lazy resource initialization, caches and environment pools alone
+do not require a generator-output probe. These tasks still need the normal
+behavioral controls, wrong and valid implementation probes, and rollout review.
+
 ## Running the pilot
 
 Install Python dependencies and the pinned agent runtimes, then build the owned worker wheel:
