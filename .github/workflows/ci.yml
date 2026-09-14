@@ -102,6 +102,7 @@ jobs:
           tests/test_hf_bootstrap_resume.py tests/test_quality_context_scale.py
           tests/test_native_modal_accounting.py tests/test_native_verifier_recovery.py
           tests/test_native_modal_build_logs.py
+          tests/test_repository_test_resources.py
           tests/test_tasksmith_native_stages.py tests/test_tasksmith_build_logs.py
           tests/test_tasksmith_readiness_preflight.py
           tests/test_task_labels.py tests/test_quality_publication.py tests/test_tasksmith_batch.py
