@@ -188,6 +188,17 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+Check concrete equivalences before rejecting an implementation: an omitted keyword
+and explicit None may request the same library default, and a class declaration
+string may be one way to implement a public loader rather than its contract. Model
+output doubles should support the real object's indexing and attribute access.
+Version fixtures must consistently virtualize the lookup paths production code
+actually uses, including installed-package metadata when relevant; preserve queries
+for unrelated packages. Do not invent additional cases merely because these examples
+exist. Diagnose a specific mismatch with the task's actual code and assertions.
+For a requested computed metric, inspect its production calculation and independent
+expected value, not only whether logging emits the key or averages injected values.
+Check whether a constant placeholder would satisfy the central requirement's tests.
 For a fixture return/unpacking or argument mismatch, inspect the complete production
 unpack or signature and the fixture's construction, requesting the missing excerpt
 within the existing read budget. Explicitly expand starred prefixes such as *common

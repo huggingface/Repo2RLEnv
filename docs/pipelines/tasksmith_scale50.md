@@ -3,12 +3,63 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. After V11, **47 accepted tasks**
-are available; 50 unique PRs have generated Harbor tasks in the expansion panel.
+with at most two GPU controllers. The September 14 audit currently leaves
+**41 accepted tasks and 50 unique PRs with generated Harbor tasks**.
+Earlier counts included historical approvals that the final semantic review has
+since superseded. Those original tasks and approvals remain available as evidence.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
 the shared quality profile for the exact revision and inspection of its verifier
 and rollout evidence. Solver failure can be legitimate and does not by itself
 reject a task.
+
+## Current repair pass
+
+V12 added a verified two-GPU PEFT #3079 task. Its reference and alternative collective
+pass all seven tests; removing adapter tensor-parallel hooks causes actual trained
+weights to diverge across ranks. Sonnet used its bounded attempt to explore the
+implementation and submitted no edits. That incomplete attempt is retained.
+
+The final historical audit found seven revisions needing correction. Six have
+verifier or runtime defects, and PEFT #3083 also exposes an internal guard and exact
+tensor expression in its instruction. HiDream and Z-Image have generated tasks but
+still need successful fresh validation. The earlier 47-task count was provisional.
+
+```mermaid
+flowchart LR
+    G[50 unique PRs with Harbor tasks] --> A[41 currently accepted]
+    G --> H[7 historical revisions held]
+    G --> N[2 unfinished new validations]
+    H --> R[Separate repaired copies]
+    N --> R
+    R --> C[Fresh baseline, reference and semantic probes]
+    C --> S[Blind Sonnet rollout and independent review]
+    S --> A
+```
+
+| Task | Observed issue | Repair |
+| --- | --- | --- |
+| Accelerate #3075 | Empty wrapping selection rejects the supported `None` representation | Check the absence of wrapping behavior |
+| Accelerate #3142 | Simulated versions disagree with installed-package metadata | Virtualize the actual version lookup paths consistently |
+| Accelerate #4015 | Explicit `None` is rejected although it requests the default root policy | Accept equivalent default calls; preserve real distributed checks |
+| Transformers #39826 | A private class declaration is required by a behavior-only instruction | Exercise generic tokenizer and image-processing behavior |
+| TRL #5349 | A fake model output lacks normal indexing; old learner shell selected the wrong interpreter | Use a real output container and the existing learner startup setup |
+| TRL #6150 | Logging checks miss the actual per-batch margin; the alternative does not change source | Compare production calculations with independent values and install a real alternative |
+| PEFT #3083 | Instructions supply part of the internal implementation | State layouts, idempotence and loading behavior without the remedy |
+| Diffusers #11281 | Offline LoRA loader fixture omits the local weight filename | Supply the explicit local artifact name |
+| Diffusers #12703 | Native attention rejects the merged reference's two-sample CFG mask | Investigate an explicitly supported backend; validation remains incomplete |
+
+Seven prepared recoveries are running in V14, with three concurrent
+controllers and at most one GPU controller. Z-Image and the extra PEFT instruction
+repair follow separately. The batch has a shared $24 ceiling inside the existing
+$1,000 campaign budget. Prepared copies are unverified until their fresh evidence
+passes review; they do not increase the accepted count.
+
+Current `needs_repair` labels are written to separate copies under
+`workspace/tasksmith-scale50/audit-retained/`. The status reader applies exact-hash
+holds to every historical version and continues counting those copies as generated.
+The shared review prompt now explicitly checks equivalent defaults, realistic model
+outputs, coherent version fixtures and actual calculated metrics. These checks
+address the observed defects without requiring exhaustive implementation coverage.
 
 ## Retain every generated environment
 

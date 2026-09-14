@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `1285d4219727f58204ccea0ae79593af626e26345a6df9978f96475db9490e7f`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `b2af7536601f412904a36a065b1343094df3381492dbb2fcb4886d3ad474df6f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -202,6 +202,17 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+Check concrete equivalences before rejecting an implementation: an omitted keyword
+and explicit None may request the same library default, and a class declaration
+string may be one way to implement a public loader rather than its contract. Model
+output doubles should support the real object's indexing and attribute access.
+Version fixtures must consistently virtualize the lookup paths production code
+actually uses, including installed-package metadata when relevant; preserve queries
+for unrelated packages. Do not invent additional cases merely because these examples
+exist. Diagnose a specific mismatch with the task's actual code and assertions.
+For a requested computed metric, inspect its production calculation and independent
+expected value, not only whether logging emits the key or averages injected values.
+Check whether a constant placeholder would satisfy the central requirement's tests.
 For a fixture return/unpacking or argument mismatch, inspect the complete production
 unpack or signature and the fixture's construction, requesting the missing excerpt
 within the existing read budget. Explicitly expand starred prefixes such as *common
@@ -307,7 +318,7 @@ Do not solve the requested task in the learner starting source. Preserve the int
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `4b1ce9242c2122854699ee034231fe2d487c8efdb4c1b063b17720fc01a239f4`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/models.py) · SHA-256 `6c17fb14c45b20a1d91f93720b003e887981900f2d85df94fb3518c39a520841`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -472,6 +483,7 @@ class LoopOptions(Record):
     success_reward: float = Field(default=1.0, allow_inf_nan=False)
     model_reservation_usd: str = "1.00"
     solver_reservation_usd: str = "4.00"
+    shared_reservation_wait_sec: int = Field(default=30, ge=0, le=300, strict=True)
     max_spend_usd: str = "15.00"
 
     @model_validator(mode="after")
@@ -1405,7 +1417,7 @@ def behavioral_failure(trial: TrialRecord, success: float = 1.0) -> str | None:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `fd8f60bbb39e88317880392d109c6fce339b7a0a44246bd3f19c4a4d2dda06db`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `c05c5ee789e647f8d20cc3969bbed1cb6992a4ae63778e5e2cda8cf068f19a0f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1471,7 +1483,17 @@ def required_probe_focus(task: Path) -> set[str]:
     """Narrow explicit contracts learned from actual pilot false acceptances."""
     instruction = (task / "instruction.md").read_text().lower()
     focus: set[str] = set(task_probe_focus(task))
-    if re.search(r"\blaz(?:y|ily)\b|\bgenerator function\b|\breturn a generator\b", instruction):
+    # Lazy initialization, caches and resource pools are not lazy *outputs*.
+    # Infer this legacy requirement only from output/iteration language;
+    # explicitly recorded focus requirements above always remain authoritative.
+    if re.search(
+        r"\bgenerator function\b|\breturn(?:s|ing)?\s+(?:a\s+)?generator\b"
+        r"|\blazy\s+(?:output|results?|values?|items?|elements?|iterators?|iterables?|generators?)\b"
+        r"|\blazily\s+(?:yield|return|produce|emit|iterate|stream)\b"
+        r"|\b(?:yield|return|produce|emit|iterate|stream)(?:s|ed|ing)?"
+        r"\s+(?:\w+\s+){0,3}lazily\b",
+        instruction,
+    ):
         focus.add("lazy_output")
     if re.search(r"\b(?:absolute|relative) error\b|\bnumerical? tolerance\b", instruction):
         focus.add("numeric_tolerance")
@@ -2304,10 +2326,10 @@ class QualityLoop:
                     if same_task
                     else []
                 )
-        except BudgetExceeded:
+        except BudgetExceeded as exc:
             status, reasons = (
                 "budget_exhausted",
-                ["Per-run or campaign allowance exhausted; completed evidence retained"],
+                [str(exc)],
             )
         except (ValueError, FileNotFoundError, ModelRequestError) as exc:
             status, reasons = "needs_evidence", [str(exc)]
