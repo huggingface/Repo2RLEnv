@@ -32,9 +32,14 @@ _STATUSES = ("PASSED", "FAILED", "SKIPPED", "ERROR")
 # Verbose progress format: `tests/foo.py::test_x PASSED  [12%]` or `... FAILED`
 # Anchor the status to pytest's trailing reason/progress fields, so spaces and
 # status words inside a parameter ID remain part of the name.
+# console_output_style uses percentages, counts, or format_node_duration times.
+_PROGRESS = (
+    r"\[\s*\d+%\]|\[\s*\d+\s*/\s*\d+\s*\]"
+    r"|\d+(?:\.\d+)?(?:us|ms|s)|\d+m \d+s|\d+h \d+m"
+)
 _VERBOSE_RE = re.compile(
     r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
-    r"(?:\s+\(.*\))?(?:\s+\[\s*\d+%\])?$"
+    rf"(?:\s+\(.*\))?(?:\s+(?:{_PROGRESS}))?$"
 )
 # Consume a bracketed parameter suffix before looking for the diagnostic dash.
 # Lazy matching keeps brackets in the diagnostic from becoming part of the ID.
@@ -82,6 +87,11 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
             continue
 
         # --- format (1): verbose progress (NAME first, STATUS after) ---
+        # Reject assertion diffs and other non-test output before the regex:
+        # bracket-heavy lines can otherwise cause expensive backtracking.
+        head = line.split(None, 1)[0]
+        if "::" not in head and not head.endswith(".py"):
+            continue
         m = _VERBOSE_RE.match(line)
         if m:
             name = m.group("name")

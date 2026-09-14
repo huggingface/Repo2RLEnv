@@ -49,6 +49,48 @@ def test_summary_and_verbose_statuses_with_spaces(parser, status):
     assert parser(f"{node} {status} [100%]\n") == {node: status}
 
 
+@pytest.mark.parametrize(
+    "suffix", ["[ 8/17]", "[ 17 / 17 ]", "415.6us", "12.3ms", "1.234s", "2m 3s", "1h 2m"]
+)
+def test_count_and_duration_suffixes(parser, suffix):
+    nodes = {
+        "tests/test_calc.py::test_plain": "PASSED",
+        "tests/test_calc.py::test_eval[1 + 1]": "FAILED",
+        "tests/test_calc.py::test_eval[a PASSED (b)]": "SKIPPED",
+        "tests/test_calc.py": "ERROR",
+    }
+    log = "\n".join(
+        f"{node} {status}"
+        + (" (optional dependency)" if status == "SKIPPED" else "")
+        + f" {suffix}"
+        for node, status in nodes.items()
+    )
+    assert parser(log) == nodes
+
+
+def test_large_assertion_diff_does_not_stall_parsing():
+    # Isolate the timeout so a backtracking regression cannot hang the suite.
+    # Both parsers should skip this ~130 KB non-test line in milliseconds;
+    # the previous regex takes tens of seconds even on a fast machine.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from repo2rlenv.log_parsers.pytest_parser import parse_pytest\n"
+            "from repo2rlenv.pipelines._pr_runtime_verifier import parse_pytest as standalone\n"
+            "noise = 'E assert ' + ', '.join(f'[{i}, [x]]' for i in range(10000))\n"
+            "node = 'tests/test_calc.py::test_eval[1 + 1]'\n"
+            "log = noise + '\\n' + node + ' PASSED [100%]\\n'\n"
+            "for parser in (parse_pytest, standalone):\n"
+            "    assert parser(log) == {node: 'PASSED'}\n",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_skipped_reason_and_count_prefix(parser):
     node = "tests/test_calc.py::test_eval[a PASSED (b)]"
     assert parser(f"{node} SKIPPED (requires optional dependency) [100%]\n") == {node: "SKIPPED"}
@@ -77,7 +119,11 @@ def test_empty_malformed_and_unrelated_lines(parser, log):
 
 
 @pytest.mark.parametrize("report_flag", ["-ra", "-rA"])
-def test_real_pytest_logs_preserve_oracle_and_standalone_grading(tmp_path: Path, report_flag):
+@pytest.mark.parametrize("output_style", ["progress", "classic", "count", "times"])
+@pytest.mark.parametrize("verbosity", ["-v", "-vv"])
+def test_real_pytest_logs_preserve_oracle_and_standalone_grading(
+    tmp_path: Path, report_flag, output_style, verbosity
+):
     """Discover F2P/P2P from actual logs, then grade using the shipped verifier."""
     parameters = ["1 + 1", "1 + 2", "left - right", "PASSED or FAILED"]
     test_file = tmp_path / "test_calc.py"
@@ -89,6 +135,24 @@ def test_real_pytest_logs_preserve_oracle_and_standalone_grading(tmp_path: Path,
         "@pytest.mark.parametrize('expr', ['keep passing'])\n"
         "def test_keep(expr):\n"
         "    assert True\n"
+        "@pytest.mark.parametrize('expr', ['not available'])\n"
+        "def test_skip(expr):\n"
+        "    pytest.skip('optional dependency')\n"
+    )
+    # Record pytest's own outcomes independently of its terminal formatting.
+    (tmp_path / "conftest.py").write_text(
+        "import json\n"
+        "from pathlib import Path\n"
+        "outcomes = {}\n"
+        "def pytest_runtest_logreport(report):\n"
+        "    if report.when == 'call' or report.failed or report.skipped:\n"
+        "        status = report.outcome.upper()\n"
+        "        if report.failed and report.when != 'call':\n"
+        "            status = 'ERROR'\n"
+        "        outcomes[report.nodeid] = status\n"
+        "def pytest_sessionfinish(session, exitstatus):\n"
+        "    Path('outcomes.json').write_text(json.dumps(outcomes))\n",
+        encoding="utf-8",
     )
     env = dict(os.environ, PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", PYTEST_ADDOPTS="", COLUMNS="200")
     logs = []
@@ -99,8 +163,10 @@ def test_real_pytest_logs_preserve_oracle_and_standalone_grading(tmp_path: Path,
                 sys.executable,
                 "-m",
                 "pytest",
-                "-v",
+                verbosity,
                 report_flag,
+                "-o",
+                f"console_output_style={output_style}",
                 "--color=no",
                 "-p",
                 "no:cacheprovider",
@@ -113,6 +179,11 @@ def test_real_pytest_logs_preserve_oracle_and_standalone_grading(tmp_path: Path,
             timeout=30,
         )
         assert result.returncode == expected_exit, result.stdout + result.stderr
+        outcomes = json.loads((tmp_path / "outcomes.json").read_text())
+        assert len(outcomes) == len(parameters) + 2
+        for parser in (parse_pytest, verifier.parse_pytest):
+            parsed = parser(result.stdout)
+            assert {node: parsed.get(node) for node in outcomes} == outcomes
         logs.append(result.stdout)
 
     pre, post = map(parse_pytest, logs)

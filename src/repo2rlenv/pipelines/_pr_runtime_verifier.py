@@ -73,9 +73,13 @@ ERROR = "ERROR"
 _PYTEST_STATUSES = (PASSED, FAILED, SKIPPED, ERROR)
 # Keep these patterns in sync with log_parsers/pytest_parser.py. This module
 # also runs standalone inside task containers, without a repo2rlenv install.
+_PYTEST_PROGRESS = (
+    r"\[\s*\d+%\]|\[\s*\d+\s*/\s*\d+\s*\]"
+    r"|\d+(?:\.\d+)?(?:us|ms|s)|\d+m \d+s|\d+h \d+m"
+)
 _PYTEST_VERBOSE_RE = re.compile(
     r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
-    r"(?:\s+\(.*\))?(?:\s+\[\s*\d+%\])?$"
+    rf"(?:\s+\(.*\))?(?:\s+(?:{_PYTEST_PROGRESS}))?$"
 )
 _PYTEST_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
 
@@ -107,6 +111,10 @@ def parse_pytest(log: str) -> dict[str, str]:
                 out[m.group("name")] = leading
             continue
         # Verbose progress (NAME first, STATUS after)
+        # Filter non-test output before attempting the backtracking regex.
+        head = line.split(None, 1)[0]
+        if "::" not in head and not head.endswith(".py"):
+            continue
         m = _PYTEST_VERBOSE_RE.match(line)
         if m:
             name = m.group("name")
