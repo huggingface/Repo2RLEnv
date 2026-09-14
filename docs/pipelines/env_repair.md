@@ -51,11 +51,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`cli_gym/models.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/models.py)
-- [`cli_gym/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py)
-- [`cli_gym/worker.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/worker.py)
-- [`cli_gym/export.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/export.py)
-- [`cli_gym/grade.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/grade.py)
+- [`cli_gym/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/cli_gym/models.py)
+- [`cli_gym/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py)
+- [`cli_gym/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/cli_gym/worker.py)
+- [`cli_gym/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/cli_gym/export.py)
+- [`cli_gym/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/cli_gym/grade.py)
 
 ## Run and supported profile
 
@@ -86,8 +86,10 @@ inverse remains a private reference. Full adversarial review of the root runtime
 is deferred to the later quality campaign.
 
 Options include `target`, `max_candidates`, `max_rounds`, `seed`, `directions`
-and the common Python build/test profile. The first target is **20 generated
-tasks**, using the [shared Modal/Daytona and progress interface](owned_recipes.md).
+and the common Python build/test profile. The target remains at least **20 tasks**
+at the user's request; all **25 generated tasks** are retained in the published
+release. See the [release inventory](releases.md) and
+[shared Modal/Daytona and progress interface](owned_recipes.md).
 
 Credit: [CLI-Gym](https://github.com/LiberCoders/CLI-Gym), MIT, commit
 `48bb920b728a25a55a5b442303e901919654599e`. See

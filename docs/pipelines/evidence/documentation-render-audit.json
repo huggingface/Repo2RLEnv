@@ -1,0 +1,114 @@
+{
+  "at": "2026-09-14T19:33:00.146Z",
+  "page_count": 21,
+  "diagram_count": 24,
+  "passed": true,
+  "scope": "Headless Chromium loaded the built documentation site. Every Mermaid container on these pages produced a nonempty visible SVG without a Mermaid error marker. The test observed closed shadow roots without changing their mode.",
+  "pages": [
+    {
+      "path": "pipelines/repo_mutate/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/r2e/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/pr_to_env/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/swe_next/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/r2e_gym/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/scaler/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/endless_terminals/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/env_repair/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/repo_reconstruct/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/terminal_synth/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/task_evolve/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/tmax/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/terminalworld/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/dataarc/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/tasksmith/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/owned_recipes/",
+      "diagrams": 3,
+      "passed": true
+    },
+    {
+      "path": "pipelines/prompt_reference/",
+      "diagrams": 2,
+      "passed": true
+    },
+    {
+      "path": "pipelines/quality_loop/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "pipelines/dataset_release/",
+      "diagrams": 1,
+      "passed": true
+    },
+    {
+      "path": "rfcs/0030-campaign-expansion-and-release/",
+      "diagrams": 1,
+      "passed": true
+    }
+  ]
+}

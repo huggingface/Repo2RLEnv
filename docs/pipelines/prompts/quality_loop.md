@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](../../../src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `5a4976a48f879cb804cd6d53d810782ee790b799315becb01dbc84464d2eb40e`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `5a4976a48f879cb804cd6d53d810782ee790b799315becb01dbc84464d2eb40e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -238,7 +238,7 @@ of the code the learner must implement before accepting its coverage.
 
 ### repair.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](../../../src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `933ec6c62024b009ae6d83795c6a2a70f9418ddf6158bd0da75b05dcc7d5f594`
+[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `933ec6c62024b009ae6d83795c6a2a70f9418ddf6158bd0da75b05dcc7d5f594`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -322,7 +322,7 @@ Do not solve the requested task in the learner starting source. Preserve the int
 
 ### models.py
 
-[Source: `src/repo2rlenv/quality/loop/models.py`](../../../src/repo2rlenv/quality/loop/models.py) · SHA-256 `6c17fb14c45b20a1d91f93720b003e887981900f2d85df94fb3518c39a520841`
+[Source: `src/repo2rlenv/quality/loop/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/models.py) · SHA-256 `6c17fb14c45b20a1d91f93720b003e887981900f2d85df94fb3518c39a520841`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -546,7 +546,7 @@ class LoopResult(Record):
 
 ### context.py
 
-[Source: `src/repo2rlenv/quality/loop/context.py`](../../../src/repo2rlenv/quality/loop/context.py) · SHA-256 `d06d1a2a7c1e87691c89e966d8e667d64885def24007acf96ba58eed6741b485`
+[Source: `src/repo2rlenv/quality/loop/context.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/context.py) · SHA-256 `d06d1a2a7c1e87691c89e966d8e667d64885def24007acf96ba58eed6741b485`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1072,7 +1072,7 @@ class EvidenceContext:
 
 ### probe_recovery.py
 
-[Source: `src/repo2rlenv/quality/loop/probe_recovery.py`](../../../src/repo2rlenv/quality/loop/probe_recovery.py) · SHA-256 `f066ac9fba089b0b378aec896fb0c63b0768cf1d4c8349edf6f6f1e862480549`
+[Source: `src/repo2rlenv/quality/loop/probe_recovery.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/probe_recovery.py) · SHA-256 `f066ac9fba089b0b378aec896fb0c63b0768cf1d4c8349edf6f6f1e862480549`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1289,7 +1289,7 @@ def replacement_evidence(
 
 ### probe_behavior.py
 
-[Source: `src/repo2rlenv/quality/loop/probe_behavior.py`](../../../src/repo2rlenv/quality/loop/probe_behavior.py) · SHA-256 `edceed6f08e97b79ad9939937a635af52aca2b0bb7e1cd781334e4bf76523ca3`
+[Source: `src/repo2rlenv/quality/loop/probe_behavior.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/probe_behavior.py) · SHA-256 `edceed6f08e97b79ad9939937a635af52aca2b0bb7e1cd781334e4bf76523ca3`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1421,7 +1421,7 @@ def behavioral_failure(trial: TrialRecord, success: float = 1.0) -> str | None:
 
 ### runner.py
 
-[Source: `src/repo2rlenv/quality/loop/runner.py`](../../../src/repo2rlenv/quality/loop/runner.py) · SHA-256 `c05c5ee789e647f8d20cc3969bbed1cb6992a4ae63778e5e2cda8cf068f19a0f`
+[Source: `src/repo2rlenv/quality/loop/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/runner.py) · SHA-256 `c05c5ee789e647f8d20cc3969bbed1cb6992a4ae63778e5e2cda8cf068f19a0f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

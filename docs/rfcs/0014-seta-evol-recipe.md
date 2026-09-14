@@ -1,6 +1,6 @@
 # RFC 0014: `seta_evol` recipe for `task_evolve`
 
-**Status:** implementation in progress; remote generation campaign pending
+**Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -54,7 +54,7 @@ Repository-owned recipe code, existing source/auth/LLM/bootstrap helpers, remote
 
 A wrapper around upstream commands would preserve an uncontrolled runtime dependency. One generic generator for every method would lose method-specific behavior. Use owned stages with common execution and quality contracts instead; explicitly version deviations from the upstream baseline.
 
-## Rollout plan
+## Original pilot rollout plan
 
 Implement the owned algorithm, verify fixture behavior, run remote 1/5/20 waves, complete quality evaluation and publish immutable artifact evidence. Integrate supporting stages where needed. Add the user guide, example configuration, acknowledgments and packaged notices before marking implementation complete.
 
@@ -78,3 +78,7 @@ Owned evolution stages and six source-mapped strategy prompts live under
 execution-feedback loop. The [guide](../pipelines/task_evolve.md) documents the
 supported parent format, options and deliberate upstream adaptations. Remote
 campaign evidence remains pending; generated is separate from quality-accepted.
+
+## Current release evidence
+
+[100 published Harbor tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol). The [pipeline walkthrough](../pipelines/task_evolve.md) documents the implemented profile, actual model calls, bounded repairs and limitations. The [release inventory](../pipelines/releases.md) records source diversity, scoped economics, artifact revisions and evaluation labels. Generation checks, independent review and blind solver success are separate claims.

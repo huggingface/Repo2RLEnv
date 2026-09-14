@@ -12,7 +12,9 @@ flowchart TD
   P1 --> P2["P2 · Initial-state tests"]
   P2 --> P3["P3 · Final-state tests; sees initial tests"]
   P3 --> P4["P4 · Starting fixtures and reference solution"]
-  P4 --> I["Remote initial-state tests must pass"]
+  P4 --> Q["Q1 · Optional draft consistency review"]
+  Q --> I["Remote initial-state tests must pass"]
+  Q -->|"Blocking issue"| F
   I --> R["Fresh final-state nop + oracle"]
   I -->|"Fixture failure"| F["Bounded builder feedback"]
   R -->|"Wrong reward or error"| F
@@ -29,6 +31,11 @@ flowchart TD
 **Build and test both states.** The builder creates the starting fixtures and reference; initial-state execution happens before final-state baseline/oracle trials. The common builder can repair an inconsistent expectation using execution feedback.
 
 ## Every prompt and its data
+
+The four native authoring stages below can be followed by
+[Q1 consistency review](prompt_reference.md#optional-review-before-execution)
+when `review_drafts: true`. Q1 runs on each complete draft before initial-state
+tests and returns blocking defects to P4 within its existing repair limit.
 
 Four calls on the first successful attempt: template, initial tests, final tests, environment/reference builder.
 
@@ -53,12 +60,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`tmax/sampler.py`](../../src/repo2rlenv/pipelines/recipes/tmax/sampler.py)
-- [`tmax/recipe.py`](../../src/repo2rlenv/pipelines/recipes/tmax/recipe.py)
-- [`terminal/templates.py`](../../src/repo2rlenv/pipelines/recipes/terminal/templates.py)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/preflight.py`](../../src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
-- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`tmax/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/tmax/sampler.py)
+- [`tmax/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/tmax/recipe.py)
+- [`terminal/templates.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/templates.py)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/preflight.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
+- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 ## Run and supported profile
 

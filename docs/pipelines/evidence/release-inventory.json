@@ -1,12 +1,12 @@
 {
-  "as_of": "2026-09-14T19:07:17.725416+00:00",
+  "as_of": "2026-09-14T19:39:28.505769+00:00",
   "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
   "expected_final_inventory": 1330,
-  "generated": 1328,
-  "generation_targets_reached": 13,
+  "generated": 1329,
+  "generation_targets_reached": 14,
   "minimum_target": 1325,
-  "published_datasets": 13,
-  "published_tasks": 1130,
+  "published_datasets": 15,
+  "published_tasks": 1329,
   "recipes": [
     {
       "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
@@ -43,6 +43,7 @@
       "pipeline": "repo_mutate",
       "publication_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -88,6 +89,7 @@
       "pipeline": "equivalence_tests",
       "publication_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -131,6 +133,7 @@
       "pipeline": "pr_to_env",
       "publication_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -174,6 +177,7 @@
       "pipeline": "pr_runtime",
       "publication_commit": "917f48135e7368c42b962860c2475975d0b87b12",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -219,6 +223,7 @@
       "pipeline": "commit_runtime",
       "publication_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -263,6 +268,7 @@
       "pipeline": "reasoning_synth",
       "publication_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -400,6 +406,7 @@
       "pipeline": "terminal_synth",
       "publication_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -449,6 +456,7 @@
       "pipeline": "env_repair",
       "publication_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
       "publication_state": "completed",
+      "published_tasks": 25,
       "quality_counts": {
         "unverified": 25
       },
@@ -475,6 +483,7 @@
       "pipeline": "repo_reconstruct",
       "publication_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "needs_repair": 2,
         "unverified": 98
@@ -484,18 +493,31 @@
       "target": 100
     },
     {
-      "artifact_commit": null,
+      "artifact_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
       "economics": {
-        "scope": "Expansion in progress; see the current ledger snapshot."
+        "accounted_usd": "54.637122",
+        "estimated_cloud_build_usd": "12.896534",
+        "limit_usd": "100.000000",
+        "model_calls": 617,
+        "model_usd": "41.740588",
+        "new_exports": 77,
+        "reserved_usd": "0.000000",
+        "retained_exports": 23,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "unresolved_model_operations": 0,
+        "usd_per_new_export": "0.7095730129870129870129870130"
       },
-      "generated": 99,
+      "generated": 100,
       "guide": "terminal_synth.md",
       "pipeline": "terminal_synth",
-      "publication_commit": null,
-      "publication_state": "not_started",
-      "quality_counts": null,
+      "publication_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
+      "publication_state": "completed",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
       "recipe": "seta-seed2synth",
-      "repo_id": null,
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
       "target": 100
     },
     {
@@ -518,6 +540,7 @@
       "pipeline": "task_evolve",
       "publication_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -545,6 +568,7 @@
       "pipeline": "terminal_synth",
       "publication_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
       "publication_state": "completed",
+      "published_tasks": 55,
       "quality_counts": {
         "unverified": 55
       },
@@ -553,18 +577,32 @@
       "target": 55
     },
     {
-      "artifact_commit": null,
+      "artifact_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
       "economics": {
-        "scope": "Expansion in progress; see the current ledger snapshot."
+        "accounted_usd": "99.444046",
+        "estimated_cloud_build_usd": "45.120538",
+        "limit_usd": "100.000000",
+        "model_calls": 2380,
+        "model_usd": "54.323508",
+        "new_exports": 79,
+        "reserved_usd": "0.000000",
+        "retained_exports": 20,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "unresolved_model_operations": 0,
+        "usd_per_new_export": "1.258785392405063291139240506"
       },
       "generated": 99,
       "guide": "terminalworld.md",
       "pipeline": "terminal_reconstruct",
-      "publication_commit": null,
-      "publication_state": "not_started",
-      "quality_counts": null,
+      "publication_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
+      "publication_state": "completed",
+      "published_tasks": 99,
+      "quality_counts": {
+        "needs_repair": 2,
+        "unverified": 97
+      },
       "recipe": "terminalworld",
-      "repo_id": null,
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
       "target": 100
     },
     {
@@ -586,6 +624,7 @@
       "pipeline": "terminal_synth",
       "publication_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
       "publication_state": "completed",
+      "published_tasks": 100,
       "quality_counts": {
         "unverified": 100
       },
@@ -656,6 +695,7 @@
       "pipeline": "tasksmith",
       "publication_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
       "publication_state": "completed",
+      "published_tasks": 50,
       "quality_counts": {
         "verified": 50
       },

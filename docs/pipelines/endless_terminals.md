@@ -13,7 +13,9 @@ flowchart TD
   P1 --> P2["P2 · Initial-state tests"]
   P2 --> P3["P3 · Final-state tests"]
   P3 --> P4["P4 · Environment fixtures and reference"]
-  P4 --> I["Initial tests on unsolved environment"]
+  P4 --> Q["Q1 · Optional draft consistency review"]
+  Q --> I["Initial tests on unsolved environment"]
+  Q -->|"Blocking issue"| F
   I --> R["Final tests: fresh nop + oracle"]
   I -->|"Fixture failure"| F["Bounded builder repair"]
   R -->|"Wrong reward or error"| F
@@ -30,6 +32,11 @@ flowchart TD
 **Construct a runnable environment.** The fourth call writes starting text fixtures and a reference solution. The same remote preflight and bounded builder-repair machinery as TMax executes the result.
 
 ## Every prompt and its data
+
+With `review_drafts: true`, the shared runner adds
+[Q1 consistency review](prompt_reference.md#optional-review-before-execution)
+after P4 and before the initial-state check. Each repaired draft gets a new
+review. The default is false; existing run configurations record whether it ran.
 
 Four calls on the first successful attempt; the environment builder is the stage repeated during repair.
 
@@ -54,11 +61,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`endless_terminals/sampler.py`](../../src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py)
-- [`endless_terminals/recipe.py`](../../src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py)
-- [`terminal/templates.py`](../../src/repo2rlenv/pipelines/recipes/terminal/templates.py)
-- [`terminal/preflight.py`](../../src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`endless_terminals/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py)
+- [`endless_terminals/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py)
+- [`terminal/templates.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/templates.py)
+- [`terminal/preflight.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
 
 ## Run and supported profile
 

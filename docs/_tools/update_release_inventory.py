@@ -31,7 +31,6 @@ GUIDES = {
     "dataarc": "dataarc.md",
     "tasksmith": "tasksmith.md",
 }
-WAVE1 = {"swe-smith", "r2e", "swe-gen", "swe-next", "r2e-gym", "scaler"}
 
 
 def load(path: Path) -> dict:
@@ -42,7 +41,15 @@ def inventory(releases: Path, expansion: Path) -> dict:
     rows = []
     targets = {"cli-gym": 20, "tasksmith": 50, "tmax": 55}
     for name, guide in GUIDES.items():
-        versions = ["v5", "v4", "v3", "v2"]
+        versions = sorted(
+            {
+                path.name.removeprefix("datasets-")
+                for path in releases.glob("datasets-v*")
+                if path.is_dir() and path.name.removeprefix("datasets-v").isdecimal()
+            },
+            key=lambda version: int(version[1:]),
+            reverse=True,
+        )
         completed = [
             version
             for version in versions
@@ -71,6 +78,14 @@ def inventory(releases: Path, expansion: Path) -> dict:
             economics = {"scope": "Expansion in progress; see the current ledger snapshot."}
         if publication.get("state") == "completed" and publication["task_count"] != count:
             raise ValueError(f"Publication receipt disagrees with selected tasks: {name}")
+        published_count = count if publication.get("state") == "completed" else 0
+        campaign = expansion / "campaigns" / name
+        if (campaign / "inputs/retained.json").exists():
+            retained = load(campaign / "inputs/retained.json")["tasks"]
+            current_count = len(retained) + len(
+                list((campaign / "generated" / name).glob("*/task.toml"))
+            )
+            count = max(count, current_count)
         recipe = get_recipe(name.replace("-", "_")) if name != "tasksmith" else None
         rows.append(
             {
@@ -79,6 +94,7 @@ def inventory(releases: Path, expansion: Path) -> dict:
                 "pipeline": recipe.pipeline if recipe else "tasksmith",
                 "target": targets.get(name, 100),
                 "generated": count,
+                "published_tasks": published_count,
                 "publication_state": publication.get("state", "not_started"),
                 "repo_id": manifest["repo_id"] if manifest else None,
                 "artifact_commit": publication.get(
@@ -97,9 +113,7 @@ def inventory(releases: Path, expansion: Path) -> dict:
         "expected_final_inventory": 1330,
         "generation_targets_reached": sum(row["generated"] >= row["target"] for row in rows),
         "published_datasets": sum(row["publication_state"] == "completed" for row in rows),
-        "published_tasks": sum(
-            row["generated"] for row in rows if row["publication_state"] == "completed"
-        ),
+        "published_tasks": sum(row["published_tasks"] for row in rows),
         "collection": load(releases / "collection.json")["slug"],
         "recipes": rows,
     }
@@ -149,6 +163,8 @@ def render(report: dict) -> str:
                 else "Pending"
             )
         )
+        if state == "completed" and row["published_tasks"] < row["generated"]:
+            publication += f" ({row['published_tasks']} tasks; newer exports pending)"
         lines.append(
             f"| [{name}]({row['guide']}) | `{route}` | {row['generated']} / {row['target']} | {publication} |"
         )
@@ -161,6 +177,13 @@ def render(report: dict) -> str:
         "The [release workflow](dataset_release.md) records exact bundle identities, "
         "per-file publication audits and commit-pinned registries; the generic tabular "
         "Hub viewer is disabled in favor of Harbor Visualiser.",
+        "",
+        "The [public registry and collection audit](evidence/harbor-registry-collection-audit.json) "
+        "checks membership and artifact revision pins for every published dataset in its snapshot. "
+        "The [release-file audit](evidence/harbor-release-label-audit.json) checks the uniform-label "
+        "revisions and subsequent releases against Hub file identities. "
+        "The [package audit](evidence/owned-package-resources.json) checks that the built wheel "
+        "includes recipe prompts, data, provenance, license notices and Tasksmith runtime assets.",
         "",
         "Generation controls and quality acceptance are separate. New expansion exports "
         "have their recipe's native checks and recorded baseline/reference contrast. "

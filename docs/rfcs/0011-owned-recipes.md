@@ -1,12 +1,12 @@
 # RFC 0011: repository-owned generation recipes
 
-**Status:** accepted design; implementation in progress
+**Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); campaign evidence is published separately
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
 ## Summary
 
-Integrate fifteen research-inspired generation methods as repository-owned recipes
+Integrate fourteen research-inspired generation methods as repository-owned recipes
 behind the existing pipeline interface. Share remote bootstrap, Harbor emission,
 quality evaluation, spending controls and the Rich CLI; preserve each method's
 algorithm, provenance and separate results.
@@ -88,19 +88,30 @@ During this phase require a valid Harbor bundle, actual remote execution and a
 working reference, with baseline contrast where the method supplies it. Defer
 exhaustive verifier attacks and blind Sonnet/Opus trace reviews until the collection
 exists. Generated and execution-verified counts remain separate from quality
-acceptance. The earlier expansion-to-100 policy is deferred.
+acceptance. This was the initial milestone; the user later authorized expansion
+and publication before exhaustive quality validation.
+
+The current delivery target is **100 tasks for twelve recipes, 55 TMax tasks and
+25 retained CLI-Gym tasks**, plus Tasksmith's separately audited 50-task cohort.
+The [release inventory](../pipelines/releases.md) records live publication
+snapshots and cost scopes. [RFC 0030](0030-campaign-expansion-and-release.md)
+defines bounded expansion, retained failures, uniform labels and immutable releases.
 
 SEC-bench was subsequently excluded from this integration campaign at the user's
 request. The active milestone covers **14 recipes**, including SCALER's reasoning
 instances. RFC 0025 remains a deferred design; it does not represent an implemented
 or required generator for this campaign.
 
-Hard acceptance gates require a fresh build, intended baseline failure, two clean
+The original quality-acceptance proposal called for a fresh build, intended baseline failure, two clean
 oracle successes, expected nonempty test identities, required regression success,
 isolation and shortcut/partial-solution checks. Preserve each reward scale;
 an empty test report or infrastructure error never yields success. Independent
 Sonnet and Opus rollouts measure difficulty and expose task/verifier defects.
-Do not require every solver to succeed. Unknown criteria are not passes.
+Do not require every solver to succeed. Unknown criteria are not passes. These
+are quality checks, not a claim about every generation export. Actual reviewed
+bundles retain their policy, checks and evidence; the
+[quality-loop guide](../pipelines/quality_loop.md) describes the implemented
+component and its bounds.
 
 Test source/config compatibility, recipe registries, package assets, CLI/Rich/plain
 output, interruption/resume, reservation reconciliation, verifier integrity and
@@ -126,18 +137,20 @@ not a replacement for all the method-specific algorithms.
 
 ## Yield and suitability
 
-Implement sequentially in RFC order 0012–0026. Start 1 → 5 → 20 accepted tasks per
-recipe. SWE-smith and released-family SCALER are provisional 100-task candidates;
-SWE-Flow and R2E may expand after measurement. All others start with 20. SCALER is
-a reasoning track, not repository coding or new-family synthesis.
+The implementation began in RFC order with 1 → 5 → 20 task pilots. The current
+generation expansion covers all fourteen implemented recipes under their recorded
+campaign limits; source filtering and failed candidates remain visible. SCALER
+expands reasoning families and does not claim repository coding or new-family
+synthesis.
 
-The recorded campaign balance is $477.57 of the existing $500 allowance; it must
-be reconciled before new dispatch. Prefer covering the first 20 of every method
-before expansions. Expansion requires observed all-in cost ≤ $0.50 per accepted
-task, median warm service time ≤ 10 minutes, and the incremental 80-task forecast
-plus 25% contingency fitting after outstanding first-pass reservations. These
-are policy defaults, not established performance. Budget exhaustion preserves
-evidence and reports the shortfall; it never lowers quality standards.
+The original integration plan recorded $477.57 remaining from its $500 allowance
+and proposed a $0.50-per-accepted-task expansion threshold. Those figures describe
+that initial plan. Later, explicitly authorized campaigns have separate ledgers
+and generation targets; current costs and reservations are recorded in the
+[economics reports](../pipelines/releases.md#measured-economics). Do not infer a
+current balance from the initial plan, sum parent allocations with their child
+charges, or present generation cost as the cost of independent acceptance.
+Budget exhaustion preserves evidence and reports the shortfall.
 
 ## Dependencies
 

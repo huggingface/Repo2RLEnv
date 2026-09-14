@@ -18,8 +18,11 @@ flowchart TD
   S["Existing Harbor seed tasks"] --> L["Bounded seed excerpts + full environment context"]
   L --> ST["Enumerate strategy, direction and sample index"]
   ST --> P1["P1 · Complete artifact variant"]
-  P1 --> D["Validate TerminalDraft and emit temporary bundle"]
-  D --> R["Remote fresh nop + oracle"]
+  P1 --> D["Validate TerminalDraft"]
+  D --> Q["Q1 · Optional draft consistency review"]
+  Q --> E["Emit temporary Harbor bundle"]
+  E --> R["Remote fresh nop + oracle"]
+  Q -->|"Blocking issue within max_repairs"| P1
   D -->|"Schema feedback"| P1
   R -->|"Bounded execution feedback"| P1
   R -->|"0 / 1"| H["Export child with strategy and parent lineage"]
@@ -34,6 +37,11 @@ flowchart TD
 **Generate complete artifacts.** The deterministic design function wraps the seed. The first and only authoring stage creates a complete TerminalDraft. Retries use the same strategy and seed with real execution feedback.
 
 ## Every prompt and its data
+
+The artifact author can be followed by
+[Q1 consistency review](prompt_reference.md#optional-review-before-execution)
+when `review_drafts: true`. This adds a model call on each complete draft before
+execution. Its blocking findings return to the same bounded artifact-author loop.
 
 One artifact-author call on the first attempt. There is no separate design LLM call.
 
@@ -55,11 +63,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`dataarc/recipe.py`](../../src/repo2rlenv/pipelines/recipes/dataarc/recipe.py)
-- [`dataarc/strategies.json`](../../src/repo2rlenv/pipelines/recipes/dataarc/strategies.json)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/draft.py`](../../src/repo2rlenv/pipelines/recipes/terminal/draft.py)
-- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`dataarc/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/dataarc/recipe.py)
+- [`dataarc/strategies.json`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/dataarc/strategies.json)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/draft.py)
+- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 ## Run and supported profile
 

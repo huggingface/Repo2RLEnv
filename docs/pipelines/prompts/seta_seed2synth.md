@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### builder_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/builder_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/seta_seed2synth/builder_prompt.md) · SHA-256 `41f288ebff219ebe3509c110b9d0dd90914a1640b2bb8af64c8992e60c9e023c`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/builder_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_seed2synth/builder_prompt.md) · SHA-256 `41f288ebff219ebe3509c110b9d0dd90914a1640b2bb8af64c8992e60c9e023c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -422,7 +422,7 @@ Overall verdict is **PASS** only if ALL 6 criteria pass. If any criterion fails,
 
 ### idea_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/idea_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/seta_seed2synth/idea_prompt.md) · SHA-256 `b32ea095806b7ca435e11087d8a9175e674d228f0431e7ef1d1475eea8fe8bbf`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/idea_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_seed2synth/idea_prompt.md) · SHA-256 `b32ea095806b7ca435e11087d8a9175e674d228f0431e7ef1d1475eea8fe8bbf`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -660,7 +660,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py) · SHA-256 `eaaac4c731ff6d369c81c59a51b0a05a33816d22d52edd379344907319035035`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py) · SHA-256 `eaaac4c731ff6d369c81c59a51b0a05a33816d22d52edd379344907319035035`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

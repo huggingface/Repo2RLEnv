@@ -1,6 +1,6 @@
 # RFC 0019: `terminalworld` recipe for `terminal_reconstruct`
 
-**Status:** implemented single-container recording profile; generation campaign in progress
+**Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -67,7 +67,7 @@ Repository-owned recipe code, existing source/auth/LLM/bootstrap helpers, remote
 
 A wrapper around upstream commands would preserve an uncontrolled runtime dependency. One generic generator for every method would lose method-specific behavior. Use owned stages with common execution and quality contracts instead; explicitly version deviations from the upstream baseline.
 
-## Rollout plan
+## Original pilot rollout plan
 
 Implement the owned algorithm, verify fixture behavior, run remote 1/5/20 waves, complete quality evaluation and publish immutable artifact evidence. Integrate supporting stages where needed. Add the user guide, example configuration, acknowledgments and packaged notices before marking implementation complete.
 
@@ -95,3 +95,7 @@ generation. [The guide](../pipelines/terminalworld.md) and example configuration
 describe the supported runtime and recorded adaptations. Unit contracts cover
 screening boundaries, metadata extraction and filesystem changes. The campaign
 targets twenty generated tasks before detailed native partial and quality trials.
+
+## Current release evidence
+
+[99 published Harbor tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) in an interim release; the generation target remains 100. The [pipeline walkthrough](../pipelines/terminalworld.md) documents the implemented profile, actual model calls, bounded repairs and limitations. The [release inventory](../pipelines/releases.md) records source diversity, scoped economics, artifact revisions and evaluation labels. Generation checks, independent review and blind solver success are separate claims.

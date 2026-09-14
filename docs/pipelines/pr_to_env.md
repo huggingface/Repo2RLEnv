@@ -49,11 +49,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`swe_gen/source.py`](../../src/repo2rlenv/pipelines/recipes/swe_gen/source.py)
-- [`swe_gen/worker.py`](../../src/repo2rlenv/pipelines/recipes/swe_gen/worker.py)
-- [`swe_gen/instruction.py`](../../src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py)
-- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
-- [`swe_smith/grade.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
+- [`swe_gen/source.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_gen/source.py)
+- [`swe_gen/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_gen/worker.py)
+- [`swe_gen/instruction.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py)
+- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`swe_smith/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
 
 ## Run and supported profile
 

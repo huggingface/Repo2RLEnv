@@ -16,8 +16,8 @@ reviews, Sonnet rollouts, verifier defects and measured cost estimates. See
 
 Current local campaigns: [Wave 1: six completed 100-task collections](wave1_scale100.md) and
 [Wave 2: Endless Terminals expansion and completed CLI-Gym target](wave2_pilot.md).
-The [SWE-flow, SETA and Wave 4 expansion](waves34_scale100.md) records six additional
-100-task objectives, each with its own $100 cap and initial Daytona pilot.
+The [SWE-flow, SETA and Wave 4 expansion](waves34_scale100.md) records five
+100-task objectives and the revised TMax target of 55, with separate campaign caps.
 The [release inventory](releases.md) brings together all fifteen delivery targets,
 published Harbor datasets, current generation counts and scoped per-task economics.
 
@@ -26,17 +26,25 @@ existing task/rollout or run bounded remote validation and repairs from the CLI.
 
 ## Common shape
 
-Every pipeline follows the same skeleton — only the box labelled "synthesize" varies.
+The routes share Harbor delivery while keeping their generation and quality
+checks explicit. Tasksmith uses an agent to construct a PR task and runs its
+review/repair workflow. The research recipes use their own authoring stages and
+generation checks; independent quality review can follow in a separate campaign.
 
 ```mermaid
-flowchart LR
-    A[Source repo<br/>+ config] --> B[Discover<br/>candidates]
-    B --> C[Synthesize<br/>per pipeline]
-    C --> D[QA gate]
-    D -- pass --> E[Harbor task dir]
-    D -- fail --> F[Skip + log reason]
-    E --> G[Local dataset]
-    E --> H[HF Hub<br/>+ registry.json]
+flowchart TD
+    A["Repository, PR, question, recording, task or sampler"] --> B["Select native pipeline or owned recipe"]
+    A --> T["Tasksmith: PR investigation, design and agent construction"]
+    B --> C["Recipe-specific authoring and execution checks"]
+    C -->|"Generation controls pass"| E["Harbor task bundle"]
+    C -->|"Attempt fails"| F["Retain diagnostics and cost receipts"]
+    T --> Q["Tasksmith review, bounded repair and controls"]
+    Q --> E
+    E --> L["Uniform labels bound to the artifact revision"]
+    L --> S["Explicit release selection and file audit"]
+    S --> H["Hub task trees, archive, registry and collection"]
+    E -.-> R["Independent review, attacks and blind rollouts"]
+    R --> L
 ```
 
 ## Pipelines

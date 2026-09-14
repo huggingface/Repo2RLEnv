@@ -17,7 +17,9 @@ flowchart TD
   P4 --> P5["P5 · Reconstruct environment and reference"]
   P5 --> E["Remote reference replay; record filesystem changes"]
   E --> P6["P6 · Write tests from observed changes"]
-  P6 --> R["Fresh Harbor nop + oracle"]
+  P6 --> Q["Q1 · Optional draft consistency review"]
+  Q --> R["Fresh Harbor nop + oracle"]
+  Q -->|"Blocking issue"| FB
   E -->|"Replay failure"| FB["Bounded materializer feedback"]
   R -->|"Wrong reward or error"| FB
   FB --> P5
@@ -34,7 +36,11 @@ flowchart TD
 
 ## Every prompt and its data
 
-Six calls on a successful first attempt: score, extract, refine, instruction, environment, tests. Filtered inputs use zero or one call.
+Six authoring calls on a successful first attempt: score, extract, refine,
+instruction, environment, tests. Filtered inputs use zero or one call. With
+`review_drafts: true`, the shared runner adds
+[Q1 consistency review](prompt_reference.md#optional-review-before-execution)
+after P6. Blocking issues return to the materializer's existing bounded loop.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -59,12 +65,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`terminalworld/source.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/source.py)
-- [`terminalworld/privacy.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/privacy.py)
-- [`terminalworld/recipe.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py)
-- [`terminalworld/materialize.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py)
-- [`terminalworld/worker.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/worker.py)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminalworld/source.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/source.py)
+- [`terminalworld/privacy.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/privacy.py)
+- [`terminalworld/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py)
+- [`terminalworld/materialize.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py)
+- [`terminalworld/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/worker.py)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
 
 ## Run and supported profile
 
@@ -133,6 +139,26 @@ evidence before the fresh baseline/reference trials.
 
 The initial 20-task milestone is complete; the current campaign targets
 **100 generated tasks**, with counts in the [release inventory](releases.md).
+The [interim Hub release](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld)
+contains **99 tasks**, including 20 retained tasks and 79 new exports with matching
+baseline reward 0 and reference reward 1 evidence. The last task is pending its
+budget-bounded recovery; this release does not reduce the generation target.
+
+The expansion accounts for **$99.44**: $54.32 in model usage across 2,380 calls
+and $45.12 in estimated worker/build costs, or **$1.26 per new export**. These
+figures include filtered inputs, failed attempts and repairs, and exclude the
+20 retained tasks and future independent quality evaluation. All workers are
+stopped. The [generation evidence](evidence/terminalworld-generation-99.json)
+records the incomplete target, costs and two known verifier findings. The
+[source audit](evidence/terminalworld-source-diversity.json) separates source-URL
+coverage from claims about workflow diversity or task difficulty.
+
+Two released tasks are labeled `needs_repair`: their instructions require working
+scripts, but their verifiers check source strings and saved output without running
+those scripts. The other 97 tasks are labeled `unverified` for independent quality
+acceptance. The compact review is useful feedback, but its presence alone does
+not prove that these semantic gaps are absent.
+
 Partial-solution probes, independent
 leakage/shortcut checks and blind solver rollouts follow the generation campaign.
 An export does not claim the upstream three-trial acceptance result. Cloud

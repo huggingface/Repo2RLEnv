@@ -1,0 +1,9 @@
+{
+  "at": "2026-09-14T19:19:07.825935+00:00",
+  "dataset": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+  "evaluation_status": "unverified",
+  "sample_task": "seta-seed2synth-00be95d70abfdc3d",
+  "schema_version": "1.3",
+  "scope": "Read-only Harbor Visualiser listing and one rendered task detail with canonical evaluation metadata.",
+  "task_count": 100
+}

@@ -46,11 +46,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`scaler/families.py`](../../src/repo2rlenv/pipelines/recipes/scaler/families.py)
-- [`scaler/worker.py`](../../src/repo2rlenv/pipelines/recipes/scaler/worker.py)
-- [`scaler/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/scaler/pipeline.py)
-- [`scaler/export.py`](../../src/repo2rlenv/pipelines/recipes/scaler/export.py)
-- [`scaler/grade.py`](../../src/repo2rlenv/pipelines/recipes/scaler/grade.py)
+- [`scaler/families.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/scaler/families.py)
+- [`scaler/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/scaler/worker.py)
+- [`scaler/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/scaler/pipeline.py)
+- [`scaler/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/scaler/export.py)
+- [`scaler/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/scaler/grade.py)
 
 ## Run and supported profile
 
@@ -62,8 +62,9 @@ on Modal or Daytona. The controller only reads JSON and packages artifacts.
 `difficulties`, `samples_per_difficulty`, `seed`, `target`, `max_candidates` and
 execution bounds control the batch. Input hashes, actual random seeds, scaled
 parameters and reference-code hashes are recorded. Duplicate concrete instances
-are rejected. The first target is **20 distinct reasoning tasks**; this is not a
-claim of twenty new families or twenty repository coding tasks.
+are rejected. The released collection contains **100 distinct reasoning tasks**
+from the recorded family bank; it does not claim 100 new families or repository
+coding tasks. See the [release inventory](releases.md).
 
 The learner writes its boxed answer to `/workspace/answer.txt`. A separate
 verifier applies the active upstream math-verify metric and preserves its native

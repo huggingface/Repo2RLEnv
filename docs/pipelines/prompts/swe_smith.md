@@ -8,7 +8,7 @@ The configured `llm` is used at each model call; roles do not imply different mo
 
 ### issue_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/swe_smith/issue_prompt.md) · SHA-256 `1b178634c9b2fd99727396ff7b26aa0d3f61fa3323980a1a177e27b86af02352`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_smith/issue_prompt.md) · SHA-256 `1b178634c9b2fd99727396ff7b26aa0d3f61fa3323980a1a177e27b86af02352`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -46,7 +46,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### issue.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue.py`](../../../src/repo2rlenv/pipelines/recipes/swe_smith/issue.py) · SHA-256 `a3a3d5233b184b7ee2c795bafc566eace2356cc257ea002ac3b4d5699bcc20ae`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_smith/issue.py) · SHA-256 `a3a3d5233b184b7ee2c795bafc566eace2356cc257ea002ac3b4d5699bcc20ae`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

@@ -1,0 +1,130 @@
+{
+  "at": "2026-09-14T19:40:49.849478+00:00",
+  "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
+  "collection_items": 21,
+  "datasets": [
+    {
+      "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
+      "collection_member": true,
+      "recipe": "swe-smith",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
+      "collection_member": true,
+      "recipe": "r2e",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
+      "collection_member": true,
+      "recipe": "swe-gen",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "917f48135e7368c42b962860c2475975d0b87b12",
+      "collection_member": true,
+      "recipe": "swe-next",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
+      "collection_member": true,
+      "recipe": "r2e-gym",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
+      "collection_member": true,
+      "recipe": "scaler",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
+      "collection_member": true,
+      "recipe": "endless-terminals",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
+      "collection_member": true,
+      "recipe": "cli-gym",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
+      "task_count": 25
+    },
+    {
+      "artifact_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
+      "collection_member": true,
+      "recipe": "swe-flow",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
+      "collection_member": true,
+      "recipe": "seta-seed2synth",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
+      "collection_member": true,
+      "recipe": "seta-evol",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
+      "collection_member": true,
+      "recipe": "tmax",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-tmax",
+      "task_count": 55
+    },
+    {
+      "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
+      "collection_member": true,
+      "recipe": "dataarc",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "collection_member": true,
+      "recipe": "tasksmith",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "task_count": 50
+    },
+    {
+      "artifact_commit": "09ef1e7805e33143554f31cc5286698f8195c103",
+      "collection_member": true,
+      "recipe": "terminalworld",
+      "registry_passed": true,
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "task_count": 99
+    }
+  ],
+  "published_datasets": 15,
+  "published_tasks": 1329,
+  "scope": "Public collection membership and Harbor registry task names, paths, repository URLs and artifact revision pins. No task execution or semantic validation."
+}

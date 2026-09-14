@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### environment_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/environment_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/environment_prompt.md) · SHA-256 `b5401478c0a228c99808f99d8c629bb53b2be7fbf9bf020b1e4d98bc16e94438`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/environment_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/environment_prompt.md) · SHA-256 `b5401478c0a228c99808f99d8c629bb53b2be7fbf9bf020b1e4d98bc16e94438`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -138,7 +138,7 @@ If `"has_errors": true` or the Compose validation fails, fix the issues and re-l
 
 ### extract_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/extract_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/extract_prompt.md) · SHA-256 `ebd55c94a84ecc00a8572c90ac968e42fb2a09b81d94d6777a8d88e7430e16a6`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/extract_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/extract_prompt.md) · SHA-256 `ebd55c94a84ecc00a8572c90ac968e42fb2a09b81d94d6777a8d88e7430e16a6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -174,7 +174,7 @@ Output ONLY a Markdown bash code block. No conversational filler.
 
 ### instruction_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/instruction_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/instruction_prompt.md) · SHA-256 `b72ba9a159657caeacc30d1df5c0d4f207b0da2d5ea8d499313b334a7ba00b8f`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/instruction_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/instruction_prompt.md) · SHA-256 `b72ba9a159657caeacc30d1df5c0d4f207b0da2d5ea8d499313b334a7ba00b8f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -309,7 +309,7 @@ Why it's good: specifies the interface (file path, function name, return type) b
 
 ### refine_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/refine_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/refine_prompt.md) · SHA-256 `e7d92074ae42e2e84bd1a96b6580e4ab4482392a7ff492a3269545a4cb20c02c`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/refine_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/refine_prompt.md) · SHA-256 `e7d92074ae42e2e84bd1a96b6580e4ab4482392a7ff492a3269545a4cb20c02c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -381,7 +381,7 @@ Output ONLY a Markdown bash code block. No conversational filler.
 
 ### score_long_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/score_long_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/score_long_prompt.md) · SHA-256 `a47993e76d1c6edcac333519ec74c8646f4bfdedaec0effd63138171c757775d`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/score_long_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/score_long_prompt.md) · SHA-256 `a47993e76d1c6edcac333519ec74c8646f4bfdedaec0effd63138171c757775d`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -502,7 +502,7 @@ RESPONSE FORMAT (JSON only, no other text)
 
 ### score_short_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/score_short_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/score_short_prompt.md) · SHA-256 `2f14c72dfba375df4b36f493311de793311e42293a1b3a015c920d54edf424fa`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/score_short_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/score_short_prompt.md) · SHA-256 `2f14c72dfba375df4b36f493311de793311e42293a1b3a015c920d54edf424fa`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -533,7 +533,7 @@ Respond with JSON only:
 
 ### tests_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/tests_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/tests_prompt.md) · SHA-256 `25cf530f3877f56c9b0e455f142e29ff48d0701e84ceae2ce4f22427123caa47`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/tests_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/tests_prompt.md) · SHA-256 `25cf530f3877f56c9b0e455f142e29ff48d0701e84ceae2ce4f22427123caa47`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -681,7 +681,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py) · SHA-256 `01b9d774efe2142c971490ffc38f198a98c8d9655cfecaa79dc8c40041ef5733`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py) · SHA-256 `01b9d774efe2142c971490ffc38f198a98c8d9655cfecaa79dc8c40041ef5733`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -849,7 +849,7 @@ def design(seed, *, model, ledger, receipt, operation_id, resume, min_score=4):
 
 ### materialize.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py`](../../../src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py) · SHA-256 `1fd5fd44750ca9cb507f821a3963d19b62baea01409478961c255258fc602316`
+[Source: `src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py) · SHA-256 `1fd5fd44750ca9cb507f821a3963d19b62baea01409478961c255258fc602316`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

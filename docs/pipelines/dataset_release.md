@@ -1,8 +1,9 @@
 # Releasing Harbor task collections
 
 Use an explicit selection to publish a recipe's retained and newly generated tasks
-as one dataset. This workflow does not change the task artifacts or their quality
-labels. See [RFC 0029](../rfcs/0029-campaign-expansion-and-release.md) for the contracts.
+as one dataset. The default preserves task files and existing labels. An explicit
+normalization option adds missing evaluation metadata to release copies, as
+described below. See [RFC 0030](../rfcs/0030-campaign-expansion-and-release.md) for the contracts.
 Release summaries prefer the uniform `metadata.repo2env.evaluation.status` when
 present, validate its revision binding, and preserve the legacy `quality_status`
 as `generation_status`. An old `exported`
@@ -127,6 +128,16 @@ The [Tasksmith and SETA Evol publication audit](evidence/harbor-hub-publication-
 checks another **150 tasks and 106,715 files**, including the full 50-task Tasksmith
 release. Both datasets load in Harbor Visualiser. Each audit names the exact
 published revision; subsequent annotation releases require their own file audit.
+
+The [current recipe release audit](evidence/harbor-release-label-audit.json) covers
+**1,279 tasks across all fourteen owned recipe datasets**, including uniform-label
+revisions, TMax's 55 tasks, Seed2Synth's 100 and TerminalWorld's interim 99.
+These overlap the earlier recipe cohorts; do not add their counts together.
+Tasksmith's 50-task release is checked separately. The
+[registry and collection audit](evidence/harbor-registry-collection-audit.json)
+covers all **1,329 published tasks in fifteen datasets** and their artifact pins.
+The [release inventory](releases.md) preserves the remaining 100-task TerminalWorld
+target separately from its published count.
 
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside

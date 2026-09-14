@@ -10,7 +10,7 @@ The call site takes the **first two** demonstrations for each stage; full retain
 
 ### docstring_demonstrations.json
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/docstring_demonstrations.json`](../../../src/repo2rlenv/pipelines/recipes/swe_flow/docstring_demonstrations.json) · SHA-256 `a8e4e2f009c6572c44e4115ae615decc4bc5d0decd409cfb88746b3d226912c0`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/docstring_demonstrations.json`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_flow/docstring_demonstrations.json) · SHA-256 `a8e4e2f009c6572c44e4115ae615decc4bc5d0decd409cfb88746b3d226912c0`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -42,7 +42,7 @@ Source hash covers the original file; trailing whitespace is omitted below.
 
 ### docstring_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/docstring_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/swe_flow/docstring_prompt.md) · SHA-256 `81f8c7d0e78ce0ad5e833b56f2f91edebf50eb588bb59bd65cf4d59ddae43248`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/docstring_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_flow/docstring_prompt.md) · SHA-256 `81f8c7d0e78ce0ad5e833b56f2f91edebf50eb588bb59bd65cf4d59ddae43248`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -113,7 +113,7 @@ Returns:
 
 ### specification_demonstrations.json
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/specification_demonstrations.json`](../../../src/repo2rlenv/pipelines/recipes/swe_flow/specification_demonstrations.json) · SHA-256 `7a406323a0d4f343b02678e318ec464dd9f589c3013f81cd89a064069e29edac`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/specification_demonstrations.json`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_flow/specification_demonstrations.json) · SHA-256 `7a406323a0d4f343b02678e318ec464dd9f589c3013f81cd89a064069e29edac`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -145,7 +145,7 @@ Source hash covers the original file; trailing whitespace is omitted below.
 
 ### specification_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/specification_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/swe_flow/specification_prompt.md) · SHA-256 `cd2a85fb7b7668000d6d4cc8704a35d31125f75922da42e3d27d9d53d76bf294`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/specification_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_flow/specification_prompt.md) · SHA-256 `cd2a85fb7b7668000d6d4cc8704a35d31125f75922da42e3d27d9d53d76bf294`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -252,7 +252,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### author.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/author.py`](../../../src/repo2rlenv/pipelines/recipes/swe_flow/author.py) · SHA-256 `e918ff242a2f084f2041d348ffe19cc2b71ff47572f39afc622ec6d8ce1a252c`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_flow/author.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_flow/author.py) · SHA-256 `e918ff242a2f084f2041d348ffe19cc2b71ff47572f39afc622ec6d8ce1a252c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

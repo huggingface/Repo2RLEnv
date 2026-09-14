@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### builder_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/builder_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/builder_prompt.md) · SHA-256 `6099949889958def48cf8c767e99bef726724d75c6fc2a7f9a9faefc35253fb6`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/builder_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/builder_prompt.md) · SHA-256 `6099949889958def48cf8c767e99bef726724d75c6fc2a7f9a9faefc35253fb6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -351,7 +351,7 @@ Overall verdict is **PASS** only if ALL criteria pass (File Completeness, Cohere
 
 ### evolution_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/evolution_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/evolution_prompt.md) · SHA-256 `ea7f37b891090d17f1602dfa75562febc2f9e2415ada2ab43febdb165ad14c1c`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/evolution_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/evolution_prompt.md) · SHA-256 `ea7f37b891090d17f1602dfa75562febc2f9e2415ada2ab43febdb165ad14c1c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -488,7 +488,7 @@ FILTERED: <reason why this variant is too simple / not worth building>
 
 ### change_context_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/change_context_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/change_context_adapter.md) · SHA-256 `e2fd41694104eff672b204f1595d209a3c90b02ef595d158c6e7ed89117c212f`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/change_context_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/change_context_adapter.md) · SHA-256 `e2fd41694104eff672b204f1595d209a3c90b02ef595d158c6e7ed89117c212f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -535,7 +535,7 @@ Use WebSearch/WebFetch to look up the target technology's documentation. Include
 
 ### decrease_difficulty_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/decrease_difficulty_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/decrease_difficulty_adapter.md) · SHA-256 `5b2043659fb5b28590dcf61304597c3fa86cf113165eb1c04bac9cf9a39efc2f`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/decrease_difficulty_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/decrease_difficulty_adapter.md) · SHA-256 `5b2043659fb5b28590dcf61304597c3fa86cf113165eb1c04bac9cf9a39efc2f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -584,7 +584,7 @@ If you have multiple variant slots, simplify in different dimensions (e.g., one 
 
 ### increase_difficulty_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_adapter.md) · SHA-256 `da96499fa4bc36642a017eb48004f8a7e3a658fec8b67b4d028f7c3657353436`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_adapter.md) · SHA-256 `da96499fa4bc36642a017eb48004f8a7e3a658fec8b67b4d028f7c3657353436`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -625,7 +625,7 @@ If you have multiple variant slots, make each one harder in a different dimensio
 
 ### increase_difficulty_and_change_context_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_and_change_context_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_and_change_context_adapter.md) · SHA-256 `b6123babccb9d331687646eec01341468f8b8ee29da55c1651bec3eef1f28d3e`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_and_change_context_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/increase_difficulty_and_change_context_adapter.md) · SHA-256 `b6123babccb9d331687646eec01341468f8b8ee29da55c1651bec3eef1f28d3e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -682,7 +682,7 @@ Use WebSearch/WebFetch to look up the target technology's documentation. Include
 
 ### slight_decrease_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_decrease_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_decrease_adapter.md) · SHA-256 `974bd979008967bb3f199e2f7da2982497767c7a3864e7dcd7ad45551a5ef4e7`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_decrease_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_decrease_adapter.md) · SHA-256 `974bd979008967bb3f199e2f7da2982497767c7a3864e7dcd7ad45551a5ef4e7`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -731,7 +731,7 @@ SLIGHT_DECREASE variants are **exempt** from the ≥5 step requirement. However,
 
 ### slight_increase_adapter.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_increase_adapter.md`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_increase_adapter.md) · SHA-256 `57dda30938955243058fa51f65b4702192ec8818b3f8489271480a94d461fb39`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_increase_adapter.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/strategies/slight_increase_adapter.md) · SHA-256 `57dda30938955243058fa51f65b4702192ec8818b3f8489271480a94d461fb39`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -782,7 +782,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py) · SHA-256 `8edc5c84878023b0e83539abf562d6ab86f19daf17dd4ef98022c66a0447ae91`
+[Source: `src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py) · SHA-256 `8edc5c84878023b0e83539abf562d6ab86f19daf17dd4ef98022c66a0447ae91`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

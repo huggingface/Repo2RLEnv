@@ -32,3 +32,7 @@ Modal VM Sandboxes support Docker and include its state in filesystem snapshots,
 Filesystem snapshots have a default 30-day TTL; record their identity and retention and check actual restoration. They are account-scoped caches, not portable public registry images. [Modal snapshots](https://modal.com/docs/guide/sandbox-snapshots).
 
 Daytona supports GPU sandboxes through explicit resources and GPU types. Its availability/quota must be checked before choosing it for live GPU execution. Existing CPU generation supports both providers. [Daytona sandbox documentation](https://www.daytona.io/docs/sandboxes).
+
+## Subsequent dataset release
+
+The completed HF campaign is published as [HuggingEnvs/HF_ML_Tasksmith](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith): **50 verified Harbor tasks**, including 19 full Sonnet solves. This was an assisted campaign with recorded repairs; it does not claim unattended acceptance. The [retrospective](../pipelines/tasksmith_campaign_retrospective.md) separates generation, intervention, validation and cost scopes. The earlier pilot results above retain their original denominator and budget.

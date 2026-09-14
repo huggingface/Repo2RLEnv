@@ -46,12 +46,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`history/selection.py`](../../src/repo2rlenv/pipelines/recipes/history/selection.py)
-- [`history/test_suite.py`](../../src/repo2rlenv/pipelines/recipes/history/test_suite.py)
-- [`history/worker.py`](../../src/repo2rlenv/pipelines/recipes/history/worker.py)
-- [`history/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/history/pipeline.py)
-- [`r2e_gym/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/r2e_gym/pipeline.py)
-- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`history/selection.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/selection.py)
+- [`history/test_suite.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/test_suite.py)
+- [`history/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/worker.py)
+- [`history/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/pipeline.py)
+- [`r2e_gym/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/r2e_gym/pipeline.py)
+- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/repository/export.py)
 
 ## Run and supported profile
 
@@ -66,7 +66,8 @@ The strict test identity comparison is retained. The owned packaging adaptation 
 `require_bug_edit` and `require_test_match` expose the native filter switches.
 `pytest_args` records explicit runner options identically in generation and the
 exported verifier; use it to separate runtime testing from optional CI reporting.
-The first target is **20 generated tasks**. The runtime records source exclusions,
+The released collection contains **100 generated tasks**, listed in the
+[release inventory](releases.md). The runtime records source exclusions,
 bootstrap failures and execution results. A reference success is a generation
 check; detailed quality acceptance follows the full campaign.
 

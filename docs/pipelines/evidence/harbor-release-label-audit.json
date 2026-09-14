@@ -1,6 +1,6 @@
 {
   "all_passed": true,
-  "at": "2026-09-14T19:06:35.881684+00:00",
+  "at": "2026-09-14T19:40:47.686664+00:00",
   "datasets": [
     {
       "at": "2026-09-14T19:05:16.851160+00:00",
@@ -169,8 +169,36 @@
       },
       "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
       "task_count": 55
+    },
+    {
+      "at": "2026-09-14T19:14:31.280718+00:00",
+      "errors": [],
+      "expected_files": 1430,
+      "passed": true,
+      "remote_files": 1431,
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+      "revision": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T19:38:25.151034+00:00",
+      "errors": [],
+      "expected_files": 1148,
+      "passed": true,
+      "remote_files": 1149,
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "revision": "09ef1e7805e33143554f31cc5286698f8195c103",
+      "schema_counts": {
+        "1.3": 99
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 99
     }
   ],
-  "scope": "Uniform evaluation labels and Harbor packaging in 12 published recipe datasets. Tasksmith already carried evaluation labels. This audit checks released bytes and task configuration parsing, not semantic task quality.",
-  "task_count": 1080
+  "scope": "Harbor file identities and configuration parsing for all 14 published recipe datasets, including the interim 99-task TerminalWorld release. Tasksmith has a separate 50-task publication audit. This does not establish semantic task quality.",
+  "task_count": 1279
 }

@@ -57,6 +57,42 @@ where a recipe uses the common builder. TerminalWorld shares the output schema
 but has its own environment/replay/test materializer. DataArc has no design-model
 call: its `design()` function wraps input data before artifact generation.
 
+## Optional review before execution
+
+The six terminal recipes also support `review_drafts: true` under
+`pipeline.options`; its default is `false`. This adds a **Q1 consistency-review
+call** after a complete draft and before task emission or initial/final checks.
+Later expansion batches enable it for SETA Seed2Synth, SETA Evol, TMax,
+TerminalWorld and DataArc. Each batch retains its configuration and review
+receipts; this option is not evidence that all earlier exports were reviewed.
+
+```mermaid
+flowchart TD
+  D["Complete instruction, environment, tests and reference"] --> O{"review_drafts?"}
+  O -->|"false"| E["Emit task; run native execution checks"]
+  O -->|"true"| Q["Q1 · Review consistency using the configured model"]
+  Q --> C["Validate exact quotations and issue schema"]
+  C -->|"No blocking issue"| E
+  C -->|"Concrete blocking issue"| F["Return diagnosis to bounded materializer repair"]
+  F --> D
+```
+
+Q1 receives the instruction, tests, reference, setup and bounded fixture contents.
+It checks contradictions, unusable deliverables, missing behavioral verification,
+essential assets and exposed solutions. Its response contains a short summary
+and cited issues. Each quote must match a supplied document. Schema/citation
+correction allows at most two model attempts, each capped at 2,500 output tokens;
+materializer repair remains subject to `max_repairs`. A later materialized draft
+gets its own Q1 call. Minor polish and unmeasured difficulty are not blockers.
+
+The [shared prompt reference](prompts/shared_terminal.md) includes the exact Q1
+prompt, request assembly and correction code. The request is saved under
+`review-<attempt>/model.request.json`, with a possible
+`model-repair-1.request.json` correction. This review uses the
+same configured model as generation, consumes model tokens and does not establish
+independent quality acceptance. The task's reward still comes from its executable
+verifier.
+
 ## Inspect the exact request from your run
 
 Templates show the program. A saved request shows the actual input to one call.

@@ -1,6 +1,6 @@
 # RFC 0024: `r2e_gym` recipe for `commit_runtime`
 
-**Status:** implemented; generation campaign in progress
+**Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k
 **Created:** 2026-09-11
 
@@ -54,7 +54,7 @@ Repository-owned recipe code, existing source/auth/LLM/bootstrap helpers, remote
 
 A wrapper around upstream commands would preserve an uncontrolled runtime dependency. One generic generator for every method would lose method-specific behavior. Use owned stages with common execution and quality contracts instead; explicitly version deviations from the upstream baseline.
 
-## Rollout plan
+## Original pilot rollout plan
 
 Implement the owned algorithm, verify fixture behavior, run remote 1/5/20 waves, complete quality evaluation and publish immutable artifact evidence. Integrate supporting stages where needed. Add the user guide, example configuration, acknowledgments and packaged notices before marking implementation complete.
 
@@ -76,3 +76,7 @@ Owned implementation: `recipes/r2e_gym/`, sharing historical snapshot mechanics 
 `recipes/history/`. Recipe-specific selection and test layouts are explicit.
 See the [guide](../pipelines/r2e_gym.md), example configuration, packaged provenance
 and `tests/test_history_recipes.py`. Quality acceptance follows the generation campaign.
+
+## Current release evidence
+
+[100 published Harbor tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym). The [pipeline walkthrough](../pipelines/r2e_gym.md) documents the implemented profile, actual model calls, bounded repairs and limitations. The [release inventory](../pipelines/releases.md) records source diversity, scoped economics, artifact revisions and evaluation labels. Generation checks, independent review and blind solver success are separate claims.

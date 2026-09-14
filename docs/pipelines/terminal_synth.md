@@ -13,8 +13,11 @@ flowchart TD
   S["JSON / JSONL question and optional answer"] --> D["Deduplicate and order seeds"]
   D --> P1["P1 · Extract capabilities and draft task design"]
   P1 --> P2["P2 · Author tests, fixtures, instruction and reference"]
-  P2 --> V["Validate TerminalDraft; write temporary Harbor bundle"]
-  V --> R["Remote fresh nop + oracle trials"]
+  P2 --> V["Validate TerminalDraft"]
+  V --> Q["Q1 · Optional draft consistency review"]
+  Q --> E["Write temporary Harbor bundle"]
+  E --> R["Remote fresh nop + oracle trials"]
+  Q -->|"Blocking issue"| F
   V -->|"Schema error"| F["Previous draft + concrete failure feedback"]
   R -->|"Wrong reward or execution failure"| F
   F -->|"At most max_repairs"| P2
@@ -31,7 +34,10 @@ flowchart TD
 
 ## Every prompt and its data
 
-Two calls on the first successful attempt: design, then builder. Each repair repeats only the builder.
+Two authoring calls on the first successful attempt: design, then builder.
+With `review_drafts: true`, Q1 adds a consistency review before execution.
+Each repair repeats the builder and, when enabled, Q1. See the
+[shared Q1 walkthrough](prompt_reference.md#optional-review-before-execution).
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -52,10 +58,10 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`seta_seed2synth/recipe.py`](../../src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/draft.py`](../../src/repo2rlenv/pipelines/recipes/terminal/draft.py)
-- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`seta_seed2synth/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/draft.py)
+- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 
 
@@ -107,9 +113,25 @@ preinstalled dependencies and deterministic JUnit parsing. Five to ten weighted
 tests and author self-review remain part of the method; reward is binary. This is
 a documented workflow adaptation, not byte-identical upstream execution.
 
-The current milestone is 20 generated tasks per method. Specification audits,
-adversarial verifier checks and blind solver evaluations follow generation. A
-passing author self-review is not independent quality acceptance.
+The released collection contains **100 tasks**: 23 retained tasks and 77 new
+exports. All 77 new exports have matching baseline reward 0 and reference reward
+1 receipts. The expansion recorded **$54.64**, comprising $41.74 of model usage
+across 617 calls and $12.90 of estimated worker/build costs. That is **$0.71 per
+new export**, including unsuccessful attempts, with no outstanding reservations.
+The retained tasks and later independent validation are outside this cost scope.
+
+The new exports map to **77 distinct source questions**. Common source tags are
+jq (18), bash (15), find (15), awk (13), sed (13) and tar (10); tags overlap.
+Source URLs and question/answer attribution remain attached to the task lineage.
+Eight source records lack a recorded content license; the report preserves that
+gap instead of assigning an inferred license. See the
+[source diversity audit](evidence/seta-seed2synth-source-diversity.json),
+[generation economics](evidence/seta-seed2synth-generation-100.json) and
+[published Harbor dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth).
+
+Specification audits, adversarial verifier checks and blind solver evaluations
+follow generation. A passing author self-review is not independent quality
+acceptance. The [release inventory](releases.md) records labels across methods.
 
 See [RFC 0013](../rfcs/0013-seta-seed2synth-recipe.md) and the packaged
 `pipelines/recipes/seta_seed2synth/provenance.md` for source mapping and notices.

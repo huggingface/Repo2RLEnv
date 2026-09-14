@@ -45,7 +45,7 @@ repo2rlenv generate \
 
     Every pipeline ships with a published HF dataset that you can pull, benchmark against, or use as-is for training.
 
-    [:octicons-arrow-right-24: Open the collection](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990)
+    [:octicons-arrow-right-24: Open the collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
 
 - :material-file-document-multiple-outline:{ .lg .middle } **RFCs**
 
@@ -101,5 +101,5 @@ harbor run --path ./workspace/pr-runtime --agent claude-code \
 
 - **GitHub** — [huggingface/Repo2RLEnv](https://github.com/huggingface/Repo2RLEnv)
 - **PyPI** — [`repo2rlenv`](https://pypi.org/project/repo2rlenv/)
-- **HF collection** — [Repo2RLEnv — Verifiable RL Environments](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990)
+- **HF collection** — [Repo2RLEnv — Verifiable RL Environments](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
 - **License** — Apache-2.0

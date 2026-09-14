@@ -46,11 +46,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`history/source.py`](../../src/repo2rlenv/pipelines/recipes/history/source.py)
-- [`history/selection.py`](../../src/repo2rlenv/pipelines/recipes/history/selection.py)
-- [`history/worker.py`](../../src/repo2rlenv/pipelines/recipes/history/worker.py)
-- [`history/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/history/pipeline.py)
-- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`history/source.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/source.py)
+- [`history/selection.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/selection.py)
+- [`history/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/worker.py)
+- [`history/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/history/pipeline.py)
+- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/repository/export.py)
 
 ## Run and supported profile
 
@@ -63,7 +63,8 @@ The default original-path test layout is retained. Quarterly LLM environment pro
 
 `target`, `max_candidates`, `history_limit` and change-size bounds control the run.
 `max_prs` bounds API discovery; optional `pr_numbers` selects explicit merged PRs.
-The first target is **20 generated tasks**. The runtime records source exclusions,
+The released collection contains **100 generated tasks**, listed in the
+[release inventory](releases.md). The runtime records source exclusions,
 bootstrap failures and execution results. A reference success is a generation
 check; detailed quality acceptance follows the full campaign.
 

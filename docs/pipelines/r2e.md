@@ -49,11 +49,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`r2e/extract.py`](../../src/repo2rlenv/pipelines/recipes/r2e/extract.py)
-- [`r2e/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/r2e/pipeline.py)
-- [`r2e/worker.py`](../../src/repo2rlenv/pipelines/recipes/r2e/worker.py)
-- [`r2e/reference.py`](../../src/repo2rlenv/pipelines/recipes/r2e/reference.py)
-- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`r2e/extract.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/r2e/extract.py)
+- [`r2e/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/r2e/pipeline.py)
+- [`r2e/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/r2e/worker.py)
+- [`r2e/reference.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/r2e/reference.py)
+- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/repository/export.py)
 
 ## Run and supported profile
 

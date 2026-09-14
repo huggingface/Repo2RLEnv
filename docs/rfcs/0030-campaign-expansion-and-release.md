@@ -1,6 +1,6 @@
-# RFC 0029: Bounded expansion and immutable Harbor releases
+# RFC 0030: Bounded expansion and immutable Harbor releases
 
-Status: implemented; generation and publication evidence are recorded per release.
+Status: implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); generation and publication evidence are recorded per release.
 
 ## Problem and outcome
 

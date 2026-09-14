@@ -134,7 +134,7 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/repo2rlenv/
     - icon: material/database
-      link: https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990
+      link: https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d
       name: Reference datasets on Hugging Face
   version:
     provider: mike
@@ -146,8 +146,18 @@ nav:
   - Quickstart: quickstart.md
   - Pipelines:
       - Overview: pipelines/README.md
+      - Published datasets and economics: pipelines/releases.md
       - Dataset releases: pipelines/dataset_release.md
-      - Wave 1 economics: pipelines/economics/wave1/README.md
+      - Wave 1 campaign: pipelines/wave1_scale100.md
+      - Wave 1 economics:
+          - Campaign totals: pipelines/economics/wave1/README.md
+          - SWE-smith: pipelines/economics/wave1/swe-smith.md
+          - R2E: pipelines/economics/wave1/r2e.md
+          - SWE-gen: pipelines/economics/wave1/swe-gen.md
+          - SWE-Next: pipelines/economics/wave1/swe-next.md
+          - R2E-Gym: pipelines/economics/wave1/r2e-gym.md
+          - SCALER: pipelines/economics/wave1/scaler.md
+      - Wave 2 campaign: pipelines/wave2_pilot.md
       - Six-recipe expansion: pipelines/waves34_scale100.md
       - Expansion economics: pipelines/economics/waves34/README.md
       - "pr_diff (stable)": pipelines/pr_diff.md
@@ -163,6 +173,7 @@ nav:
       - Task evaluation labels: pipelines/task_evaluation_labels.md
       - Parallel Tasksmith campaigns: pipelines/tasksmith_parallel_campaigns.md
       - Tasksmith expansion to 50: pipelines/tasksmith_scale50.md
+      - Tasksmith 50-task retrospective: pipelines/tasksmith_campaign_retrospective.md
       - Quality pilot results: pipelines/quality_pilot.md
       - Tasksmith PR harness: pipelines/tasksmith.md
       - Tasksmith five-PR results: pipelines/tasksmith_cpu_hf_pilot.md
@@ -234,7 +245,8 @@ nav:
       - "0026 — scaler recipe": rfcs/0026-scaler-recipe.md
       - "0027 — Harbor review and repair": rfcs/0027-harbor-quality-loop.md
       - "0028 — Tasksmith PR harness": rfcs/0028-tasksmith-pr-pilot.md
-      - "0029 — Campaign expansion and releases": rfcs/0029-campaign-expansion-and-release.md
+      - "0029 — HF bootstrap and Tasksmith scale": rfcs/0029-tasksmith-hf-scale.md
+      - "0030 — Campaign expansion and releases": rfcs/0030-campaign-expansion-and-release.md
       - Template: rfcs/TEMPLATE.md
   - Reference:
       - API: reference/API.md

@@ -1,0 +1,16 @@
+{
+  "at": "2026-09-14T19:19:46.549739+00:00",
+  "passed": true,
+  "recipe_count": 14,
+  "recipe_resources_checked": 71,
+  "scope": "Built wheel contains byte-identical prompts, schemas, taxonomy/example data, provenance and upstream license notices for every implemented recipe, plus Tasksmith runtime assets and quality prompts.",
+  "sha256": "df789a8ea5efd4cb9005d058c6e16bd2ea90a6f32958479a9711fee84312b2eb",
+  "tasksmith_runtime_files": [
+    "repo2rlenv/tasksmith/author/runtimes/package-lock.json",
+    "repo2rlenv/tasksmith/author/runtimes/local_http.mjs",
+    "repo2rlenv/tasksmith/author/runtimes/pi.mjs",
+    "repo2rlenv/tasksmith/author/runtimes/package.json",
+    "repo2rlenv/tasksmith/author/runtimes/opencode.mjs"
+  ],
+  "wheel": "repo2rlenv-0.8.8-py3-none-any.whl"
+}

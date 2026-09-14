@@ -15,7 +15,9 @@ flowchart TD
   ST --> P1["P1 · Design a coherent child task"]
   P1 -->|"filtered_reason"| X["Retain reason; skip variant"]
   P1 --> P2["P2 · Build child fixtures, tests and reference"]
-  P2 --> R["Fresh remote baseline + reference"]
+  P2 --> Q["Q1 · Optional draft consistency review"]
+  Q --> R["Fresh remote baseline + reference"]
+  Q -->|"Blocking issue within max_repairs"| P2
   R -->|"Failure feedback within max_repairs"| P2
   R -->|"0 / 1"| H["Export child with parent hash and strategy"]
 ```
@@ -30,7 +32,10 @@ flowchart TD
 
 ## Every prompt and its data
 
-Two calls on the first successful attempt: evolution design, then builder. Strategy selection is deterministic.
+Two authoring calls on the first successful attempt: evolution design, then
+builder. Strategy selection is deterministic. When `review_drafts: true`,
+[Q1](prompt_reference.md#optional-review-before-execution) reviews each complete
+draft before execution; a blocking issue returns to the bounded builder loop.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -51,10 +56,10 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`seta_evol/recipe.py`](../../src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py)
-- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/draft.py`](../../src/repo2rlenv/pipelines/recipes/terminal/draft.py)
-- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`seta_evol/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/seta_evol/recipe.py)
+- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/draft.py)
+- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 ## Run and supported profile
 
