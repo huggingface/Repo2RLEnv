@@ -3,8 +3,9 @@
 The September 13 expansion starts with **24 verified PR tasks** and targets **50**
 from the original 114-PR list. A frozen panel contains 26 primary candidates and
 11 reserves. V7 increases concurrency to eight independent PR controllers,
-with at most two GPU controllers. The September 14 audit currently leaves
-**41 accepted tasks and 50 unique PRs with generated Harbor tasks**.
+with at most two GPU controllers. The September 14 audit initially left
+41 accepted tasks. The first three V14 recoveries bring this to
+**44 accepted tasks and 50 unique PRs with generated Harbor tasks**.
 Earlier counts included historical approvals that the final semantic review has
 since superseded. Those original tasks and approvals remain available as evidence.
 The panel includes small CPU workloads and real GPU execution. Acceptance requires
@@ -21,16 +22,15 @@ implementation and submitted no edits. That incomplete attempt is retained.
 
 The final historical audit found seven revisions needing correction. Six have
 verifier or runtime defects, and PEFT #3083 also exposes an internal guard and exact
-tensor expression in its instruction. HiDream and Z-Image have generated tasks but
-still need successful fresh validation. The earlier 47-task count was provisional.
+tensor expression in its instruction. At that checkpoint, HiDream and Z-Image also
+needed fresh validation; HiDream has since passed. The earlier 47-task count was
+provisional.
 
 ```mermaid
 flowchart LR
-    G[50 unique PRs with Harbor tasks] --> A[41 currently accepted]
-    G --> H[7 historical revisions held]
-    G --> N[2 unfinished new validations]
-    H --> R[Separate repaired copies]
-    N --> R
+    G[50 unique PRs with Harbor tasks] --> A[44 accepted after three V14 recoveries]
+    G --> H[6 awaiting complete validation]
+    H --> R[Prepared repairs or missing-evidence continuation]
     R --> C[Fresh baseline, reference and semantic probes]
     C --> S[Blind Sonnet rollout and independent review]
     S --> A
@@ -53,6 +53,21 @@ controllers and at most one GPU controller. Z-Image and the extra PEFT instructi
 repair follow separately. The batch has a shared $24 ceiling inside the existing
 $1,000 campaign budget. Prepared copies are unverified until their fresh evidence
 passes review; they do not increase the accepted count.
+
+The first independently accepted V14 results are Accelerate #3075 (10 tests),
+HiDream #11281 (11 tests), and TRL #6150 (8 tests). Their reference and valid
+alternative pass, and the wrong implementations fail for the intended behavior.
+Sonnet solves #3075 and #6150; its HiDream attempt reads source without submitting
+an implementation. Together these three recovery passes account for $6.56,
+excluding earlier attempts and using recorded model usage and estimated compute.
+
+Accelerate #3142 has six successful control/probe executions but cannot reserve
+both its model and GPU sandbox under the local quality ceiling. Accelerate #4015
+has a captured timed-out learner submission; its later verifier allocation is
+also denied, while Harbor retains the earlier timeout as the headline exception.
+These are missing execution evidence, not new task defects. Dedicated continuations
+retain the validated checks and captured source, and run only the missing phases.
+An uncertain model reservation remains held until accounting evidence resolves it.
 
 Current `needs_repair` labels are written to separate copies under
 `workspace/tasksmith-scale50/audit-retained/`. The status reader applies exact-hash
