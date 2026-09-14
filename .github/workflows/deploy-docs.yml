@@ -30,9 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          # git-revision-date-localized needs the full history
-          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
