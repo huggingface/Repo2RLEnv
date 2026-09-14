@@ -53,6 +53,7 @@ def main() -> None:
             "-I",
             "/tests/test_driver.py",
             *contract["test_paths"],
+            *contract.get("pytest_args", []),
             "-q",
             "--tb=short",
             "-p",

@@ -156,6 +156,8 @@ def shared() -> str:
             result += block(path, ast.get_source_segment(source, node), label=node.name)
     for relative in ("terminal/templates.py", "terminal/draft.py"):
         result += block(RECIPES / relative)
+    result += block(ROOT / "src/repo2rlenv/quality/draft_review.py")
+    result += block(ROOT / "src/repo2rlenv/campaigns/structured.py")
     return result.rstrip() + "\n"
 
 

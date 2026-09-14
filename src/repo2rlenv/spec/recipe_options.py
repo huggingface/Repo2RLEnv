@@ -11,12 +11,17 @@ class PythonRepositoryProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_paths: list[str] = Field(min_length=1)
     test_paths: list[str] = Field(min_length=1)
+    private_test_paths: list[str] = Field(default_factory=list)
+    pytest_args: list[str] = Field(default_factory=list)
     base_image: str = "python:3.12-slim"
     dependencies: list[str] = Field(default_factory=lambda: ["pytest==9.0.3"])
     install_command: str = "python -m pip install --no-cache-dir -e ."
+    task_install_command: str | None = None
+    freeze_git_version: bool = False
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
+    exclude_candidate_ids: list[str] = Field(default_factory=list)
 
-    @field_validator("source_paths", "test_paths")
+    @field_validator("source_paths", "test_paths", "private_test_paths")
     @classmethod
     def safe_paths(cls, values: list[str]) -> list[str]:
         from repo2rlenv.emitter.bundle import relative_asset_path
@@ -27,9 +32,13 @@ class PythonRepositoryProfile(BaseModel):
                 raise ValueError("Repository paths cannot be command options")
         return values
 
-    @field_validator("base_image", "install_command", "dependencies")
+    @field_validator(
+        "base_image", "install_command", "task_install_command", "dependencies", "pytest_args"
+    )
     @classmethod
     def no_directive_injection(cls, value):
+        if value is None:
+            return value
         items = value if isinstance(value, list) else [value]
         if any(not item.strip() or "\n" in item or "\r" in item for item in items):
             raise ValueError("Build options must be nonempty single-line values")
@@ -123,6 +132,8 @@ class TerminalSynthesisOptions(BaseModel):
     seed: int = 24
     max_tokens: int = Field(default=10000, ge=2048, le=16000)
     test_timeout_sec: int = Field(default=120, ge=10, le=600)
+    review_drafts: bool = False
+    exclude_seed_sha256: list[str] = Field(default_factory=list)
 
 
 class RecordingReconstructionOptions(TerminalSynthesisOptions):
@@ -148,6 +159,7 @@ class ScalerOptions(BaseModel):
     samples_per_difficulty: int = Field(default=1, ge=1, le=100)
     execution_timeout_sec: int = Field(default=20, ge=1, le=120)
     max_generator_attempts: int = Field(default=3, ge=1, le=5)
+    exclude_instance_hashes: list[str] = Field(default_factory=list)
 
     @field_validator("difficulties")
     @classmethod

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
+from repo2rlenv.execution.artifacts import runtime_python
+from repo2rlenv.execution.base import connect_worker
+from repo2rlenv.execution.harbor import run_trial
 from repo2rlenv.pipelines.recipes.repository.runner import RepositoryGenerationPipeline
 from repo2rlenv.pipelines.recipes.swe_smith.export import export_candidate
 from repo2rlenv.pipelines.recipes.swe_smith.issue import write_issue
@@ -24,6 +30,38 @@ class RepoMutatePipeline(RepositoryGenerationPipeline):
             operation_id=f"issue:{execution.run_id}:{candidate['id']}",
             resume=execution.resume,
         )
+        directory = run / "tasks" / candidate["id"]
+        task = export_candidate(
+            generation,
+            candidate,
+            self.options,
+            issue.issue,
+            directory / "draft",
+            org=self.input.output.org,
+            resume=execution.resume,
+        )
+        receipt = json.loads(execution.worker_receipt.read_text())
+        worker = connect_worker(receipt["spec"]["provider"], receipt["worker_id"])
+        python = runtime_python(hashlib.sha256(execution.runtime_wheel.read_bytes()).hexdigest())
+        prefix = hashlib.sha256(f"{execution.run_id}:{candidate['id']}".encode()).hexdigest()[:20]
+        self.event("harbor", "started", "Fresh standalone baseline and reference execution")
+        trials = [
+            run_trial(
+                worker,
+                task,
+                directory / agent,
+                trial_id=f"smith-{prefix}-{agent}",
+                agent=agent,
+                python=python,
+                resume=execution.resume,
+            )
+            for agent in ("nop", "oracle")
+        ]
+        if not all(trial.completed for trial in trials) or [trial.reward for trial in trials] != [
+            0,
+            1,
+        ]:
+            raise ValueError("SWE-smith task did not pass Harbor baseline/reference checks")
         return export_candidate(
             generation,
             candidate,

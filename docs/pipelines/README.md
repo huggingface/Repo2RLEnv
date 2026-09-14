@@ -14,6 +14,11 @@ The [quality pilot and scaling report](quality_pilot.md) records sampled task
 reviews, Sonnet rollouts, verifier defects and measured cost estimates. See
 [Tasksmith lessons](tasksmith_pilot_learnings.md) for recommended harness changes.
 
+Current local campaigns: [Wave 1: six completed 100-task collections](wave1_scale100.md) and
+[Wave 2: Endless Terminals expansion and completed CLI-Gym target](wave2_pilot.md).
+The [SWE-flow, SETA and Wave 4 expansion](waves34_scale100.md) records six additional
+100-task objectives, each with its own $100 cap and initial Daytona pilot.
+
 Use the shared [Harbor review and repair loop](quality_loop.md) to review an
 existing task/rollout or run bounded remote validation and repairs from the CLI.
 
@@ -237,3 +242,6 @@ class Pipeline(Protocol):
 ```
 
 `tests/test_pipeline_contract.py` verifies every registered pipeline conforms to the Protocol — adding a new one without finishing the registration steps will fail there.
+
+Dataset publication: [immutable Harbor releases](dataset_release.md), including
+quality labels, evidence manifests, cost accounting and executable-mode archives.

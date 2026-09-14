@@ -146,6 +146,7 @@ class RemoteGenerationPipeline:
                     timeout_sec=timeout,
                     python=runtime_python(wheel_hash),
                 )
+            self.event("generation", "started", "Generate candidates in the remote worker")
             status = observe_job(
                 worker,
                 remote,

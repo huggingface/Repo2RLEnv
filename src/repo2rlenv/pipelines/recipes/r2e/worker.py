@@ -14,6 +14,7 @@ from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.execution.python_repository import (
     TestInstrumentation,
     bootstrap_snapshot,
+    repository_source_files,
     test_image,
 )
 from repo2rlenv.pipelines.recipes.r2e.extract import dependency_slice, stub
@@ -31,11 +32,11 @@ def prepare(repo: RepoSpec, options: R2EOptions, destination: Path) -> dict:
     if healthy.returncode or not healthy.passed:
         raise ValueError("Healthy repository must pass before R2E test generation")
     candidates, rejected = [], []
-    paths = set()
-    for relative in options.source_paths:
-        path = base / relative
-        paths.update([path] if path.is_file() else path.rglob("*.py"))
-    for path in sorted(paths):
+    test_root = base / options.test_paths[0]
+    if not test_root.is_dir():
+        test_root = test_root.parent
+    generated_test_path = (test_root / "test_r2e_generated.py").relative_to(base).as_posix()
+    for path in repository_source_files(base, options):
         source = path.read_text()
         relative = path.relative_to(base).as_posix()
         for node in ast.parse(source).body:
@@ -56,11 +57,17 @@ def prepare(repo: RepoSpec, options: R2EOptions, destination: Path) -> dict:
                 "function_name": node.name,
             }
             key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
+            if key in options.exclude_candidate_ids:
+                continue
+            module_path = relative
+            if relative.startswith("src/") and not (base / "src/__init__.py").exists():
+                module_path = relative.removeprefix("src/")
             candidates.append(
                 {
                     **identity,
                     "id": key,
-                    "module": relative.removesuffix(".py").replace("/", "."),
+                    "module": module_path.removesuffix(".py").replace("/", "."),
+                    "generated_test_path": generated_test_path,
                     "line": node.lineno,
                     "end_line": node.end_lineno,
                     "source": code,
@@ -117,7 +124,11 @@ def evaluate(config: dict, options: R2EOptions, destination: Path) -> dict:
         replacements=replacements,
         instrumentation=TestInstrumentation(
             driver=Path(str(files(__package__).joinpath("coverage_driver.py"))),
-            arguments=(candidate["path"],),
+            arguments=(
+                candidate["path"],
+                "--generated-test-path",
+                candidate.get("generated_test_path", "tests/test_r2e_generated.py"),
+            ),
             outputs=("coverage.json", "observations.json"),
         ),
     )

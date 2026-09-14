@@ -51,6 +51,7 @@ def test_image(
         "-m",
         "pytest",
         *options.test_paths,
+        *options.pytest_args,
         "-q",
         "--tb=short",
         "--junitxml=/tmp/results.xml",
@@ -111,6 +112,16 @@ def test_image(
         return parsed
     finally:
         _run(["docker", "rm", "-f", name], timeout=30, check=False)
+
+
+def repository_source_files(base: Path, options: PythonRepositoryProfile) -> list[Path]:
+    """Select Python sources without treating nested verifier tests as task targets."""
+    tests = [base / relative for relative in [*options.test_paths, *options.private_test_paths]]
+    paths = set()
+    for relative in options.source_paths:
+        root = base / relative
+        paths.update([root] if root.is_file() else root.rglob("*.py"))
+    return sorted(path for path in paths if not any(path.is_relative_to(test) for test in tests))
 
 
 def bootstrap_snapshot(repo: RepoSpec, options: PythonRepositoryProfile, destination: Path):

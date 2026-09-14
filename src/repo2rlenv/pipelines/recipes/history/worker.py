@@ -17,6 +17,7 @@ from pathlib import Path
 from repo2rlenv.execution.lifecycle import save_record
 from repo2rlenv.execution.python_repository import bootstrap_snapshot, test_image
 from repo2rlenv.pipelines.recipes.history.selection import check_entities, within
+from repo2rlenv.pipelines.recipes.history.test_suite import stage_tests
 from repo2rlenv.quality.python_evidence import test_excerpts
 from repo2rlenv.quality.test_results import execution_contrast
 from repo2rlenv.spec.input import RepoSpec
@@ -155,6 +156,8 @@ def prepare(config: dict, destination: Path) -> dict:
             break
         try:
             value = candidate_for(root, item["head"], repo, options, item)
+            if value["id"] in options.exclude_candidate_ids:
+                continue
             if any(row["head"] == value["head"] for row in candidates):
                 continue
             candidates.append(value)
@@ -191,15 +194,11 @@ def evaluate(config: dict, destination: Path) -> dict:
     test_paths = []
     replacements = {}
     if config["recipe"] == "r2e_gym":
-        suite = base / "r2e_tests"
-        if suite.exists():
-            raise ValueError("Input repository already owns reserved r2e_tests directory")
-        suite.mkdir()
-        (suite / "__init__.py").write_text("")
-        for index, path in enumerate(candidate["test_files"]):
-            shutil.copyfile(head / path, suite / f"test_{index + 1}.py")
-        replacements["r2e_tests"] = suite
-        test_paths = ["r2e_tests"]
+        test_paths = stage_tests(head, base, candidate["test_files"], profile.test_paths)
+        replacements["r2e_tests"] = base / "r2e_tests"
+        profile = profile.model_copy(
+            update={"private_test_paths": [*profile.private_test_paths, "r2e_tests"]}
+        )
     else:
         for path in candidate["test_files"]:
             target = base / path

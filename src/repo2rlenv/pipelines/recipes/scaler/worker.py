@@ -18,6 +18,7 @@ from repo2rlenv.pipelines.recipes.scaler.compatibility import (
     import_needed_module_for_python,
 )
 from repo2rlenv.pipelines.recipes.scaler.families import (
+    answer_contract,
     instruction_for,
     parse_testcase,
     scale_parameters,
@@ -133,7 +134,7 @@ def generate(config: dict, destination: Path) -> dict:
         for sample in range(options.samples_per_difficulty)
     ]
     random.Random(options.seed).shuffle(choices)
-    candidates, rejected, seen = [], [], set()
+    candidates, rejected, seen = [], [], set(options.exclude_instance_hashes)
     for index, (name, difficulty, sample) in enumerate(choices[: options.max_candidates]):
         if len(candidates) >= options.target:
             break
@@ -213,7 +214,13 @@ def generate(config: dict, destination: Path) -> dict:
             if family.get("output_type") == "string":
                 answer = answer.split()[0]
             elif family.get("output_type") == "array":
-                answer = str([float(value) for value in answer.split()])
+                # Keep large integer/decimal answers exact rather than passing through float.
+                values = answer.split()
+                from decimal import Decimal
+
+                if not all(Decimal(value).is_finite() for value in values):
+                    raise ValueError("Reference array contains a nonfinite value")
+                answer = "[" + ", ".join(values) + "]"
             record = {
                 **identity,
                 "id": key,
@@ -222,6 +229,7 @@ def generate(config: dict, destination: Path) -> dict:
                 "instance_sha256": instance_hash,
                 "instruction": instruction_for(family, detail),
                 "reference_answer": "\\boxed{" + answer + "}",
+                "answer_contract": answer_contract(family),
                 "reference_code_sha256": solution["code_sha256"],
                 "runtime_image": image,
             }

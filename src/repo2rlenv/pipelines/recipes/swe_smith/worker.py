@@ -16,7 +16,11 @@ from pathlib import Path
 
 from repo2rlenv.campaigns.events import EventJournal, ProgressEvent
 from repo2rlenv.execution.lifecycle import save_record
-from repo2rlenv.execution.python_repository import bootstrap_snapshot, test_image
+from repo2rlenv.execution.python_repository import (
+    bootstrap_snapshot,
+    repository_source_files,
+    test_image,
+)
 from repo2rlenv.pipelines.recipes.swe_smith.mutations import generate_mutations
 from repo2rlenv.pipelines.recipes.swe_smith.options import SWESmithOptions
 from repo2rlenv.quality.test_results import execution_contrast
@@ -51,11 +55,7 @@ def generate(repo: RepoSpec, options: SWESmithOptions, destination: Path) -> dic
         healthy_tests=len(healthy.passed),
     )
 
-    paths = []
-    for relative in options.source_paths:
-        path = base / relative
-        paths.extend([path] if path.is_file() else sorted(path.rglob("*.py")))
-    paths = sorted(set(paths))
+    paths = repository_source_files(base, options)
     random.Random(options.seed).shuffle(paths)
     records, rejected, entity_counts = [], [], {}
     attempted = 0
@@ -66,6 +66,8 @@ def generate(repo: RepoSpec, options: SWESmithOptions, destination: Path) -> dic
             original, relative, seed=options.seed, limit=options.max_candidates
         )
         for candidate in candidates:
+            if candidate.id in options.exclude_candidate_ids:
+                continue
             key = (relative, candidate.entity)
             if entity_counts.get(key, 0) >= options.max_per_entity:
                 continue

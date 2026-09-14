@@ -8,7 +8,7 @@ R2E-Gym / SWEGEN turns real historical code changes into repository repair tasks
 flowchart TD
   S["Pinned public Python repo"] --> D["Enumerate first-parent commits"]
   D --> F["Bound bug edits and matching test changes"]
-  F --> T["Extract post-change test files to r2e_tests"]
+  F --> T["Preserve selected test packages and fixtures under r2e_tests"]
   T --> E["Run those tests on old and new source"]
   E -->|"Exact identities; failures fixed; no regressions"| P1["P1 · Historical issue from execution evidence"]
   P1 --> H["Old repo, private tests and new-source oracle"]
@@ -20,7 +20,7 @@ flowchart TD
 
 **Mine commits.** Traverse first-parent history rather than PR metadata. The default native-inspired filters require bug-like edits and test matches within bounded changes.
 
-**Materialize comparison tests.** Selected post-change tests are extracted and renamed under r2e_tests. Both old and new implementations run that same test set.
+**Materialize comparison tests.** Selected post-change test modules retain their names and package layout under `r2e_tests/`, alongside their package fixtures and helper files. Both old and new implementations execute the same selected modules. Companion files remain private; copying them does not add their unrelated tests to the execution list.
 
 **Package a repair.** The shared history author uses R2E-Gym’s own issue prompt and examples. The output restores selected new-source files in an otherwise old repository context.
 
@@ -30,7 +30,7 @@ One issue-author call after remote contrast succeeds; commit discovery and filte
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
-| P1 · Historical issue | instruction_prompt.md + issue_examples.json + shared history adaptation | Evaluated candidate with commit context, private source diff and observed tests. | HistoricalIssue: analysis, instruction | Same call machinery as SWE-Next; different source and test layout. |
+| P1 · Historical issue | instruction_prompt.md + issue_examples.json + shared history adaptation | Bounded authoring view of the evaluated candidate: commit context, private source diff and observed tests. Complete test identities remain in the private verifier contract. | HistoricalIssue: analysis, instruction | Same call machinery as SWE-Next; different source and test layout. |
 
 Read the [complete r2e_gym prompt reference](prompts/r2e_gym.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
@@ -46,11 +46,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`history/selection.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/selection.py)
-- [`history/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/worker.py)
-- [`history/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/pipeline.py)
-- [`r2e_gym/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e_gym/pipeline.py)
-- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`history/selection.py`](../../src/repo2rlenv/pipelines/recipes/history/selection.py)
+- [`history/test_suite.py`](../../src/repo2rlenv/pipelines/recipes/history/test_suite.py)
+- [`history/worker.py`](../../src/repo2rlenv/pipelines/recipes/history/worker.py)
+- [`history/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/history/pipeline.py)
+- [`r2e_gym/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/r2e_gym/pipeline.py)
+- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
 
 ## Run and supported profile
 
@@ -59,10 +60,12 @@ The first profile supports public GitHub Python repositories and ordinary pytest
 files. Source paths, dependency installation and test roots are explicit. All
 repository execution and image builds run on the configured Modal or Daytona worker.
 
-The native strict test identity comparison is retained. Test files are renamed under r2e_tests. Repository-specific Pillow, NumPy, Datalad and Tornado import/runner heuristics are not supported in the initial ordinary-pytest profile. The native optional bug-edit/test-match switches default on, as in the published generation guide.
+The strict test identity comparison is retained. The owned packaging adaptation preserves test package imports under `r2e_tests/`, while `private_test_paths` keeps all companion fixtures out of the learner image. Repository-specific Pillow, NumPy, Datalad and Tornado import/runner heuristics are not supported in the initial ordinary-pytest profile. The native optional bug-edit/test-match switches default on, as in the published generation guide.
 
 `target`, `max_candidates`, `history_limit` and change-size bounds control the run.
 `require_bug_edit` and `require_test_match` expose the native filter switches.
+`pytest_args` records explicit runner options identically in generation and the
+exported verifier; use it to separate runtime testing from optional CI reporting.
 The first target is **20 generated tasks**. The runtime records source exclusions,
 bootstrap failures and execution results. A reference success is a generation
 check; detailed quality acceptance follows the full campaign.

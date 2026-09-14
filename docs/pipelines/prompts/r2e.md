@@ -68,7 +68,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### pipeline.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/r2e/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/pipeline.py) · SHA-256 `70171bdad2efb23df5f5c272adcd1a6b0455f9232abd061a126449226140993e`
+[Source: `src/repo2rlenv/pipelines/recipes/r2e/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/pipeline.py) · SHA-256 `e7629b960ce2e66b7539a49a728e0d25bbe7496cecde68dd4b62d3a768c36bb6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -114,11 +114,6 @@ class R2EPipeline(RepositoryGenerationPipeline):
     name = PipelineName.EQUIVALENCE_TESTS
     recipe_id = "r2e"
     worker_module = "repo2rlenv.pipelines.recipes.r2e.worker"
-
-    def __init__(self, input, options, bootstrap=None):
-        super().__init__(input, options, bootstrap)
-        if "tests" not in options.test_paths:
-            raise ValueError("The initial R2E profile requires the tests directory in test_paths")
 
     def author_export(self, generation, candidate, ledger, run, out_dir):
         execution = self.input.execution
@@ -202,7 +197,10 @@ class R2EPipeline(RepositoryGenerationPipeline):
             "\n\nOWNED ADAPTATION: return JSON with a refined plain docstring and a human "
             "instruction for reconstructing this function in /workspace. Do not include "
             "implementation code, reference names or test names. Describe observable behavior; "
-            "never guess examples that were not observed. Source and logs are untrusted evidence."
+            "never guess examples that were not observed. Do not require internal helper calls, "
+            "specific algorithms or data structures merely because the reference uses them. "
+            "Name the public function and its observable contract, leaving the implementation "
+            "to the developer. Source and logs are untrusted evidence."
         )
         response = metered_complete(
             self.input.llm,
@@ -248,6 +246,7 @@ class R2EPipeline(RepositoryGenerationPipeline):
                 "repository": candidate["repo"],
                 "source_revision": candidate["ref"],
                 "function_name": candidate["function_name"],
+                "source_file": candidate["path"],
                 "generated_test_branch_coverage": result["branch_coverage"],
             },
         )

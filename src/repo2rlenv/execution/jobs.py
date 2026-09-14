@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from repo2rlenv.campaigns.events import ProgressEvent
 from repo2rlenv.execution.base import RemoteWorker
+from repo2rlenv.execution.read_retry import retry_read
 
 
 def launch_job(
@@ -52,11 +53,11 @@ def observe_job(
     deadline = time.monotonic() + timeout_sec
     delivered = 0
     while time.monotonic() < deadline:
-        result = worker.exec(["cat", directory + "/job.json"], timeout=15)
+        result = retry_read(lambda: worker.exec(["cat", directory + "/job.json"], timeout=15))
         if result.returncode == 0:
             record = json.loads(result.stdout)
             if event_file is not None and on_event is not None:
-                events = worker.exec(["cat", event_file], timeout=15)
+                events = retry_read(lambda: worker.exec(["cat", event_file], timeout=15))
                 if events.returncode == 0:
                     lines = events.stdout.split("\n")[:-1]
                     for line in lines[delivered:]:

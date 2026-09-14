@@ -34,7 +34,16 @@ def test_excerpts(root: Path, identities: list[str]) -> dict[str, str]:
             if any(identity.split("[", 1)[0] == prefix for identity in relevant):
                 nodes.append(node)
         excerpts[path.relative_to(root).as_posix()] = "\n\n".join(
-            ast.get_source_segment(source, node) or "" for node in nodes
+            "\n".join(
+                source.splitlines()[
+                    min(
+                        [node.lineno]
+                        + [item.lineno for item in getattr(node, "decorator_list", [])]
+                    )
+                    - 1 : node.end_lineno
+                ]
+            )
+            for node in nodes
         )
     if not excerpts:
         raise ValueError("Could not resolve failing test evidence")

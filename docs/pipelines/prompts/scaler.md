@@ -6,7 +6,7 @@ This recipe makes **zero LLM calls**. Its generator and reference are supplied p
 
 ### families.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/scaler/families.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/families.py) · SHA-256 `820455c84be64c6479f553bf3b7ce8c38f36c65ff8484d9fff6a26d3ff16d82e`
+[Source: `src/repo2rlenv/pipelines/recipes/scaler/families.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/families.py) · SHA-256 `0b36f4d19d6103cc30d8454743a3ebe8da7f4a2b49f2f6bc96a223416512d93b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -22,6 +22,7 @@ import ast
 import hashlib
 import json
 import math
+from decimal import Decimal
 from pathlib import Path
 
 
@@ -50,7 +51,29 @@ def load_families(path: Path) -> tuple[dict, str]:
             lang in {2, 3} for lang in solutions["language"]
         ):
             raise ValueError("Family requires aligned Python/C++ reference programs")
+        answer_contract(family)
     return data, hashlib.sha256(payload).hexdigest()
+
+
+def answer_contract(family: dict) -> dict:
+    """Keep answer semantics explicit; do not guess tolerances from prose."""
+    kind = family.get("output_type")
+    if kind is None:
+        return {}  # Older family fixtures use the original math-verify route.
+    if kind not in {"number", "string", "array"}:
+        raise ValueError("Unsupported family output_type")
+    contract = {"output_type": kind}
+    tolerance = family.get("answer_tolerance", {})
+    if not isinstance(tolerance, dict) or set(tolerance) - {"absolute", "relative"}:
+        raise ValueError("Answer tolerance requires absolute/relative values")
+    if tolerance and kind == "string":
+        raise ValueError("String outputs cannot have numeric tolerances")
+    for key, value in tolerance.items():
+        number = Decimal(str(value))
+        if not number.is_finite() or not 0 <= number < 1:
+            raise ValueError("Answer tolerance must be finite, nonnegative and below one")
+        contract[key + "_tolerance"] = str(number)
+    return contract
 
 
 def scale_parameters(family: dict, difficulty: int) -> dict[str, int]:
@@ -96,6 +119,17 @@ def instruction_for(family: dict, detail: dict) -> str:
         text += (
             r"Output all required numerical answers in \boxed{[]} as a one-dimensional array."
             + "\n"
+        )
+    contract = answer_contract(family)
+    if family.get("output_type") == "string":
+        text += "Preserve the complete output string, including any leading zeros.\n"
+    if family.get("output_type") in {"number", "array"}:
+        text += "Use decimal numbers (scientific notation is allowed).\n"
+    if family.get("answer_tolerance"):
+        text += (
+            "A numeric answer is accepted when its absolute error is at most "
+            f"{contract.get('absolute_tolerance', '0')} or its relative error is at most "
+            f"{contract.get('relative_tolerance', '0')}.\n"
         )
     return (
         text + r"Write your final answer to `/workspace/answer.txt`, using \boxed{answer}." + "\n"

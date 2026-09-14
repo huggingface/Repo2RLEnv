@@ -8,6 +8,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from repo2rlenv.campaigns.llm import metered_complete
+from repo2rlenv.campaigns.structured import validated_complete
 
 
 class TaskTemplate(BaseModel):
@@ -82,7 +83,8 @@ def design(
     template = TaskTemplate.model_validate_json(response.content)
     programs = {}
     for stage in ("initial", "final"):
-        response = metered_complete(
+        program = validated_complete(
+            TestProgram,
             model,
             ledger=ledger,
             receipt=receipt.with_name(stage + "-model.json"),
@@ -92,11 +94,12 @@ def design(
             resume=resume,
             system=({"initial": initial_prompt, "final": final_prompt}[stage])
             + adaptation
-            + "\nWrite five to ten top-level test_ functions, no test class.",
-            user=json.dumps({**template.model_dump(), "initial_tests": programs.get("initial")}),
-            response_schema=TestProgram.model_json_schema(),
+            + "\nWrite five to seven concise, complete top-level test_ functions, no test class. "
+            "Return syntactically valid Python with correctly indented blocks, not a partial file. "
+            "Use compact fixtures and assertions so the complete program fits the response limit.",
+            payload={**template.model_dump(), "initial_tests": programs.get("initial")},
         )
-        programs[stage] = TestProgram.model_validate_json(response.content).code
+        programs[stage] = program.code
     return TemplateDesign(
         core_capabilities=capabilities,
         draft_spec=template.description,

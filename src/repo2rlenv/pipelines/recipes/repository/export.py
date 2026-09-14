@@ -35,9 +35,19 @@ def export_repository_task(
     if not defective or defective.keys() != reference.keys():
         raise ValueError("Defective and reference snapshots must replace the same source files")
     assets: dict[str, TaskFile] = {}
+    overrides = {}
+    version_evidence = {}
+    if options.freeze_git_version:
+        from repo2rlenv.pipelines.recipes.repository.version import freeze_version
+
+        overrides, version_evidence = freeze_version(
+            base, test_paths=[*options.test_paths, *options.private_test_paths]
+        )
     collected = []
     source_roots = [PurePosixPath(path) for path in options.source_paths]
-    hidden_roots = [PurePosixPath(path) for path in options.test_paths]
+    hidden_roots = [
+        PurePosixPath(path) for path in [*options.test_paths, *options.private_test_paths]
+    ]
     for path in sorted(base.rglob("*")):
         if path.is_symlink():
             raise ValueError("Task snapshots cannot contain symlinks")
@@ -51,7 +61,7 @@ def export_repository_task(
             or path.suffix == ".pyc"
         ):
             raise ValueError(f"Snapshot contains a forbidden cache/history asset: {relative}")
-        content = defective.get(str(relative), path.read_bytes())
+        content = defective.get(str(relative), overrides.get(str(relative), path.read_bytes()))
         asset = TaskFile(content, bool(path.stat().st_mode & 0o111))
         assets[f"tests/source/{relative}"] = asset
         private_test = any(relative == root or root in relative.parents for root in hidden_roots)
@@ -80,7 +90,7 @@ def export_repository_task(
             else ""
         )
         + "COPY source /workspace\n"
-        f"RUN {options.install_command}\n"
+        f"RUN {options.task_install_command or options.install_command}\n"
         "ENV PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\n"
     )
     assets["environment/Dockerfile"] = TaskFile.text(
@@ -110,6 +120,7 @@ def export_repository_task(
             {
                 "submitted_files": collected,
                 "test_paths": options.test_paths,
+                "pytest_args": options.pytest_args,
                 "expected_passes": contrast["FAIL_TO_PASS"] + contrast["PASS_TO_PASS"],
                 "timeout_sec": options.test_timeout_sec,
             },
@@ -140,6 +151,7 @@ def export_repository_task(
             "quality_status": "exported",
             "fail_to_pass_count": len(contrast["FAIL_TO_PASS"]),
             "pass_to_pass_count": len(contrast["PASS_TO_PASS"]),
+            **({"frozen_package_version": version_evidence} if version_evidence else {}),
         },
         agent={"user": "learner", "network_mode": "no-network"},
         verifier={

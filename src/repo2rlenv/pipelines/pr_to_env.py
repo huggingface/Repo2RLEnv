@@ -61,7 +61,13 @@ class PRToEnvPipeline:
                 raise ValueError("Run exists; resume with the identical configuration and runtime")
         else:
             run.mkdir(parents=True, exist_ok=True)
-            record = {"state": "running", "fingerprint": fingerprint, "tasks": {}, "skipped": {}}
+            record = {
+                "state": "running",
+                "fingerprint": fingerprint,
+                "configuration": settings,
+                "tasks": {},
+                "skipped": {},
+            }
             save_record(receipt, record)
 
         def result():

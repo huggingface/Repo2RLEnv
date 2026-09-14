@@ -47,6 +47,7 @@ def test_separate_authors_receive_prior_stage_evidence(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(templates, "metered_complete", complete)
+    monkeypatch.setattr("repo2rlenv.campaigns.structured.metered_complete", complete)
     design = recipe.design(
         {"category": "text processing", "request": "Prepare the described report."},
         model=None,

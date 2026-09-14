@@ -7,7 +7,7 @@ from pathlib import Path
 from repo2rlenv.pipelines.recipes.repository.export import export_repository_task
 from repo2rlenv.pipelines.recipes.swe_smith.options import SWESmithOptions
 
-RECIPE_VERSION = "1"
+RECIPE_VERSION = "2"
 UPSTREAM_REVISION = "9b74ac08118a85c39c356802f7961893af73e07f"
 
 
@@ -47,6 +47,8 @@ def export_candidate(
             "repository": candidate["repo"],
             "source_revision": candidate["ref"],
             "mutation_id": candidate["id"],
+            "source_file": candidate["source_file"],
+            **{key: candidate[key] for key in ("entity", "operator") if key in candidate},
         },
         single_reference=True,
         resume=resume,

@@ -81,3 +81,5 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 - [`plans/candidate_pipelines.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/candidate_pipelines.md) — the backlog. Ranking + inspirations. RFCs are drawn from here (or a fresh proposal).
 - [`docs/contributing/ADDING_A_PIPELINE.md`](../contributing/ADDING_A_PIPELINE.md) — the implementation cookbook. RFC covers the *why*; the cookbook covers the *how*.
 - [`docs/reference/RELATED_WORK.md`](../reference/RELATED_WORK.md) — provenance table for shipped pipelines. Add an entry here when an RFC ships.
+
+- [0028: Bounded expansion and immutable Harbor releases](0028-campaign-expansion-and-release.md)

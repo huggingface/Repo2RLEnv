@@ -20,7 +20,7 @@ def export_task(candidate, destination, org, *, resume=False):
                 "FROM python:3.12-slim\nRUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*\nWORKDIR /workspace\nRUN useradd -m -u 1000 learner && touch answer.txt && chown -R learner:learner /workspace\n"
             ),
             "tests/Dockerfile": TaskFile.text(
-                "FROM python:3.12-slim\nRUN python -m pip install --no-cache-dir math-verify==0.8.0\nWORKDIR /workspace\nRUN touch answer.txt\nCOPY grade.py reference.json test.sh /tests/\nRUN chmod 755 /tests/test.sh\n"
+                "FROM python:3.12-slim\nRUN python -m pip install --no-cache-dir math-verify==0.8.0\nWORKDIR /workspace\nRUN touch answer.txt\nCOPY grade.py reference.json answer-contract.json test.sh /tests/\nRUN chmod 755 /tests/test.sh\n"
             ),
             "tests/test.sh": TaskFile.text(
                 "#!/bin/sh\nset -eu\nexec /usr/local/bin/python -I /tests/grade.py\n",
@@ -28,6 +28,9 @@ def export_task(candidate, destination, org, *, resume=False):
             ),
             "tests/grade.py": TaskFile(files(__package__).joinpath("grade.py").read_bytes()),
             "tests/reference.json": TaskFile.text(json.dumps(candidate["reference_answer"])),
+            "tests/answer-contract.json": TaskFile.text(
+                json.dumps(candidate.get("answer_contract", {}), sort_keys=True)
+            ),
             "tests/UPSTREAM_LICENSE": TaskFile(
                 files(__package__).joinpath("UPSTREAM_LICENSE").read_bytes()
             ),
@@ -39,7 +42,8 @@ def export_task(candidate, destination, org, *, resume=False):
         },
         metadata={
             "recipe": "scaler",
-            "recipe_version": "1",
+            "recipe_version": "2",
+            "answer_contract": candidate.get("answer_contract", {}),
             "pipeline": recipe.pipeline,
             "upstream_revision": recipe.upstream["commit"],
             "reward_kinds": ["answer_equivalence"],

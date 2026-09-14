@@ -46,7 +46,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### issue.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/issue.py) · SHA-256 `18da9989b8a88e9d7a7d3ef4d4aa6f2e811c87bd7b61886e4f27431a0e803b45`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_smith/issue.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/issue.py) · SHA-256 `a3a3d5233b184b7ee2c795bafc566eace2356cc257ea002ac3b4d5699bcc20ae`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -68,6 +68,7 @@ from pydantic import BaseModel, ConfigDict
 
 from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.campaigns.llm import metered_complete
+from repo2rlenv.quality.authoring_context import bounded_context
 from repo2rlenv.quality.python_evidence import test_excerpts
 from repo2rlenv.spec.input import LLMSpec
 
@@ -135,12 +136,19 @@ def issue_violations(report: IssueReport, candidate: dict) -> list[str]:
 def issue_context(generation: Path, candidate: dict) -> str:
     """Select failing test methods and imports without executing repository code."""
     base = generation / "base"
-    excerpts = test_excerpts(base, candidate["contrast"]["FAIL_TO_PASS"])
+    identities = candidate["contrast"]["FAIL_TO_PASS"]
+    methods = list(dict.fromkeys(identity.split("[", 1)[0] for identity in identities))
+    excerpts = test_excerpts(base, methods[:24])
     log = (generation / "candidates" / candidate["id"] / "defective" / "stdout.txt").read_text()
-    context = json.dumps({"test_source": excerpts, "test_execution": log}, ensure_ascii=False)
-    if len(context) > 100_000:
-        raise ValueError("Issue evidence exceeds the bounded context; select a narrower profile")
-    return context
+    return bounded_context(
+        {
+            "test_source": excerpts,
+            "test_execution": log,
+            "failing_instances": len(identities),
+            "failing_methods": len(methods),
+            "sampled_methods": min(24, len(methods)),
+        }
+    )
 
 
 def write_issue(
@@ -171,7 +179,16 @@ def write_issue(
             receipt=receipt
             if attempt == 1
             else receipt.with_stem(f"{receipt.stem}-attempt-{attempt}"),
-            system=files(__package__).joinpath("issue_prompt.md").read_text(),
+            system=files(__package__).joinpath("issue_prompt.md").read_text()
+            + (
+                "\nEXPANSION QUALITY CONTRACT: Prefer a short developer bug report about "
+                "observable behavior. Do not invent a standalone reproducer by substituting "
+                "values into a stateful test: earlier operations may have changed that state. "
+                "Only give concrete input/output pairs when the supplied evidence establishes "
+                "that exact pair. Otherwise describe the invariant, such as matching Python "
+                "list indexing, without guessed numbers or comments claiming an observed result. "
+                "Do not prescribe the implementation, helper calls or exact patch."
+            ),
             user=context + feedback,
             max_tokens=4096,
             response_schema=IssueReport.model_json_schema(),

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import shlex
+import tempfile
 from pathlib import Path
 
 from repo2rlenv.execution.base import CommandResult, WorkerSpec
+from repo2rlenv.execution.read_retry import retry_read
 
 
 class DaytonaWorker:
@@ -47,7 +49,7 @@ class DaytonaWorker:
         from daytona import Daytona
 
         client = Daytona()
-        return cls(client, client.get(worker_id))
+        return cls(client, retry_read(lambda: client.get(worker_id)))
 
     def exec(
         self, argv: list[str], *, timeout: int = 600, env: dict[str, str] | None = None
@@ -64,7 +66,10 @@ class DaytonaWorker:
 
     def download(self, remote: str, local: Path) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
-        self.sandbox.fs.download_file(remote, str(local))
+        with tempfile.TemporaryDirectory(dir=local.parent) as temporary:
+            partial = Path(temporary) / "download"
+            retry_read(lambda: self.sandbox.fs.download_file(remote, str(partial)))
+            partial.replace(local)
 
     def terminate(self) -> None:
         self.client.delete(self.sandbox, timeout=180)

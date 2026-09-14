@@ -74,12 +74,17 @@ def generate(repo: RepoSpec, options: ReconstructionOptions, destination: Path) 
     )
     records, rejected = [], []
     attempted = 0
-    for schedule in schedules[: options.max_candidates]:
+    excluded = set(options.exclude_candidate_ids)
+    for schedule in schedules:
         if len(records) >= options.target:
             break
-        attempted += 1
+        if attempted >= options.max_candidates:
+            break
         identity = {"repo": repo.url, "ref": boot.ref, "schedule": schedule}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
+        if key in excluded:
+            continue
+        attempted += 1
         candidate = destination / "candidates" / key
         candidate.mkdir(parents=True)
         source_files = sorted({catalog[key]["path"] for key in schedule["nodes_to_develop"]})

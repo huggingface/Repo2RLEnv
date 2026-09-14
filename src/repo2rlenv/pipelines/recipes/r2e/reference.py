@@ -58,5 +58,5 @@ def reference_{name}(*args, **kwargs):
     return {
         "fut_module.py": shim.encode(),
         ".r2e_reference.py": source,
-        "tests/test_r2e_generated.py": test.encode(),
+        candidate.get("generated_test_path", "tests/test_r2e_generated.py"): test.encode(),
     }
