@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -670,13 +674,64 @@ def test_repository_probe_audits_the_collected_submission(task, tmp_path):
     refresh_identity(task)
     revised = probe_variant(task, probes()[0], tmp_path / "probe" / task.name)
     wrapper = (revised / "solution/solve.sh").read_text()
-    assert wrapper.index("before\n") < wrapper.index(probes()[0].script)
+    assert wrapper.index("before\n") < wrapper.index(shlex.quote(probes()[0].script))
     assert wrapper.index("after\n") < wrapper.index("__QUALITY_PROBE_COMPLETED__")
     assert (revised / "solution/quality-probe-audit.py").is_file()
     boundary = json.loads((revised / "solution/quality-probe-contract.json").read_text())
     assert boundary["submitted_files"] == ["answer.txt"]
     assert "expected_passes" not in boundary
     assert (revised / "tests/contract.json").read_bytes() == contract.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "ending,change,success",
+    [
+        ("exit 0", True, True),
+        ("exit 7", True, False),
+        ("false", True, False),
+        ("exit 0", False, False),
+    ],
+)
+def test_probe_shell_exit_cannot_bypass_the_change_audit(task, tmp_path, ending, change, success):
+    # Execute only this owned wrapper and audit against a tiny text fixture.
+    # Target repositories and their tests are never imported locally.
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    contract = task / "tests/contract.json"
+    contract.write_text(json.dumps({"submitted_files": ["answer.txt"]}))
+    refresh_identity(task)
+    script = (probes()[0].script + "\n" if change else "") + ending
+    probe = probes()[0].model_copy(update={"script": script})
+    revised = probe_variant(task, probe, tmp_path / "probe" / task.name)
+    substitutions = {
+        "/solution/": str(revised / "solution") + "/",
+        "/workspace": str(workspace),
+        "/tmp/quality-probe-before.json": str(tmp_path / "before.json"),
+    }
+    for name in ["solve.sh", "quality-original-solve.sh", "quality-probe-audit.py"]:
+        path = revised / "solution" / name
+        text = path.read_text()
+        for old, new in substitutions.items():
+            text = text.replace(old, new)
+        path.write_text(text)
+    result = subprocess.run(
+        ["bash", str(revised / "solution/solve.sh")],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env={
+            **os.environ,
+            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+        },
+    )
+    assert (workspace / "answer.txt").read_text() == ("7" if change else "4")
+    assert (result.returncode == 0) is success
+    assert ("__QUALITY_PROBE_COMPLETED__" in result.stdout) is success
+    assert ("__QUALITY_PROBE_CHANGED_FILES__" in result.stdout) is success
+    if success:
+        changes = json.loads(result.stdout.splitlines()[0].split(" ", 1)[1])
+        assert set(changes) == {"answer.txt"}
+        assert changes["answer.txt"]["before"] != changes["answer.txt"]["after"]
 
 
 def test_fabricated_citation_is_rejected(task):

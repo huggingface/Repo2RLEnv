@@ -7,6 +7,9 @@ It is used by the trusted controller; target code only runs on Modal.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +22,11 @@ from harbor.models.task.config import NetworkMode
 
 from repo2rlenv.execution.lifecycle import now, save_record
 from repo2rlenv.quality.loop.client import RunBudget
+from repo2rlenv.tasksmith.build_logs import build_excerpt, redact_build_text, save_build_logs
+
+_IMAGE_LOG_TIMEOUT_SEC = 10
+_IMAGE_LOG_MAX_BYTES = 4 * 1024 * 1024
+_IMAGE_LOG_MAX_ENTRIES = 10_000
 
 
 @dataclass
@@ -170,9 +178,26 @@ class MeteredModalEnvironment(ModalEnvironment):
             )
             save_record(self.receipt, record)
             return sandbox
-        except modal.exception.ImageBuildError:
-            record.update(state="build_failed", stopped_at=now(), no_sandbox_dispatched=True)
+        except modal.exception.ImageBuildError as error:
+            record.update(
+                state="build_failed",
+                stopped_at=now(),
+                no_sandbox_dispatched=True,
+                image_id=error.image_id,
+            )
             self._settle()
+            # Diagnostics are read-only and follow confirmed failure settlement.
+            # A logging failure must never turn this into an uncertain allocation.
+            message = redact_build_text(str(error))
+            try:
+                diagnostics = await self._image_build_diagnostics(error.image_id)
+            except Exception as diagnostic_error:
+                diagnostics = (
+                    "Image build diagnostics unavailable ("
+                    + type(diagnostic_error).__name__
+                    + "); the failed build remains settled."
+                )
+            error.args = (build_excerpt(message + "\n" + diagnostics),)
             raise
         except BaseException:
             record["state"] = "creation_uncertain"
@@ -181,6 +206,64 @@ class MeteredModalEnvironment(ModalEnvironment):
                 operation, f"Inspect native allocation by provider name; {self.receipt}"
             )
             raise
+
+    async def _image_build_diagnostics(self, image_id: str) -> str:
+        import modal
+
+        streams: dict[str, list[str]] = {"stdout": [], "stderr": []}
+        fetch = {
+            "image_id": image_id,
+            "layers": None,
+            "status": "complete",
+            "entries": 0,
+            "bytes_collected": 0,
+            "timeout_sec": _IMAGE_LOG_TIMEOUT_SEC,
+            "max_bytes": _IMAGE_LOG_MAX_BYTES,
+            "max_entries": _IMAGE_LOG_MAX_ENTRIES,
+        }
+        try:
+            async with asyncio.timeout(_IMAGE_LOG_TIMEOUT_SEC):
+                # Harbor's App.lookup uses this cached environment client too.
+                # from_id plus logs.fetch does not hydrate or rebuild the image.
+                client = await modal.Client.from_env.aio()
+                image = modal.Image.from_id(image_id, client=client)
+                async with aclosing(image.logs.fetch.aio(layers=None)) as entries:
+                    async for entry in entries:
+                        raw = entry.message.encode()
+                        remaining = _IMAGE_LOG_MAX_BYTES - fetch["bytes_collected"]
+                        stream = "stdout" if entry.source == "stdout" else "stderr"
+                        streams[stream].append(raw[:remaining].decode(errors="ignore"))
+                        fetch["entries"] += 1
+                        fetch["bytes_collected"] += min(len(raw), remaining)
+                        if len(raw) > remaining or fetch["entries"] >= _IMAGE_LOG_MAX_ENTRIES:
+                            fetch["status"] = "truncated"
+                            break
+        except Exception as error:
+            fetch["status"] = "timeout" if isinstance(error, TimeoutError) else "failed"
+            fetch["error_type"] = type(error).__name__
+
+        text = {name: "".join(chunks) for name, chunks in streams.items()}
+        if fetch["status"] != "complete":
+            # A truncated credential can span entries. Discard unfinished lines
+            # before the shared redactor sees the joined streams.
+            text = {name: value[: value.rfind("\n") + 1] for name, value in text.items()}
+        directory = self.receipt.with_suffix(".image-build")
+        directory.mkdir(parents=True, exist_ok=True)
+        prefix = directory / "build"
+        excerpt = save_build_logs(prefix, text["stdout"], text["stderr"])
+        log_receipt = prefix.with_suffix(".logs.json")
+        fetch["logs_receipt"] = str(log_receipt.resolve())
+        fetch["logs_receipt_sha256"] = hashlib.sha256(log_receipt.read_bytes()).hexdigest()
+        fetch_receipt = directory / "fetch.json"
+        save_record(fetch_receipt, fetch)
+        self.record["build_logs"] = {
+            "path": str(fetch_receipt.resolve()),
+            "sha256": hashlib.sha256(fetch_receipt.read_bytes()).hexdigest(),
+        }
+        save_record(self.receipt, self.record)
+        return f"Modal image build logs ({fetch['status']}; receipt {fetch_receipt}):\n" + (
+            excerpt or "No complete log lines were available."
+        )
 
     def _settle(self):
         cost = compute_estimate(self.record)

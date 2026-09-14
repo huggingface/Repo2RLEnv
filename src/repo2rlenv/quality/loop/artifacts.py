@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import shutil
 import tempfile
 import tomllib
@@ -212,7 +213,11 @@ def probe_variant(task: Path, probe: SemanticProbe, destination: Path) -> Path:
     wrapper.write_text(
         "#!/bin/bash\nset -eu\nbash /solution/quality-original-solve.sh\n"
         + before
-        + probe.script
+        # A successful exit in the supplied script must not skip the trusted
+        # change audit or completion receipt. Nonzero exits still stop setup.
+        + "bash -eu -c "
+        + shlex.quote(probe.script)
+        + "\n"
         + after
         + "\nprintf '__QUALITY_PROBE_COMPLETED__\\n'\n"
     )

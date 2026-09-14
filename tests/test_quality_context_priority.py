@@ -87,6 +87,7 @@ def test_selected_assertions_precede_long_reference_patch_and_grading_driver(
     assert sum(map(len, context.documents.values())) <= context.limit
     payload = json.loads(context.payload())
     assert private_key in payload["documents"]
+    assert payload["selected_verifier_files"] == [private_key]
     inventory = {item["path"] for item in context.inventory}
     assert {private_key, "solution/reference.patch", "tests/grade.py"} <= inventory
 
@@ -96,7 +97,46 @@ def test_selected_assertions_precede_long_reference_patch_and_grading_driver(
     context.read_more([ReadRequest(path="tests/grade.py", query=None, start_line=1, end_line=2)])
     assert context.documents["tests/grade.py:L1-L2"] == "# generic grading driver\n" * 2
     assert all(context.documents[key] == text for key, text in before.items())
-    with pytest.raises(ValueError, match="not in evidence inventory"):
+    with pytest.raises(ValueError, match="not in evidence inventory") as error:
         context.read_more(
             [ReadRequest(path="tests/tasksmith_behavior.py", query=None, start_line=1, end_line=2)]
         )
+    assert f"Exact basename matches: {private_key}." in str(error.value)
+
+
+def test_primary_verifier_paths_survive_a_large_inventory_and_suggest_exact_reads(tmp_path):
+    task = tmp_path / "task"
+    task.mkdir()
+    (task / "instruction.md").write_text("Restore the public numerical behavior.\n")
+    private = task / "tests/source/tests/tasksmith_behavior.py"
+    private.parent.mkdir(parents=True)
+    private.write_text("def test_value():\n    assert actual() == 3\n")
+    (task / "tests/contract.json").write_text(
+        json.dumps({"test_paths": ["tests/tasksmith_behavior.py"]})
+    )
+    context = EvidenceContext(task, [], limit=16000)
+    # Metadata models thousands of unrelated source files without creating or
+    # hashing target trees. The actual selected test remains directly readable.
+    for index in range(1600):
+        context.inventory.append(
+            {"path": f"environment/source/package/submodule_{index:04}/file.py", "bytes": 10}
+        )
+    payload = json.loads(context.payload())
+    assert payload["inventory_directories_omitted"] > 0
+    assert payload["selected_verifier_files"] == ["tests/source/tests/tasksmith_behavior.py"]
+    with pytest.raises(ValueError, match="Exact basename matches") as error:
+        context.read_more(
+            [ReadRequest(path="tests/tasksmith_behavior.py", query=None, start_line=1, end_line=2)]
+        )
+    assert "tests/source/tests/tasksmith_behavior.py" in str(error.value)
+    context.read_more(
+        [
+            ReadRequest(
+                path=payload["selected_verifier_files"][0], query=None, start_line=1, end_line=2
+            )
+        ]
+    )
+    assert (
+        "assert actual() == 3"
+        in context.documents["tests/source/tests/tasksmith_behavior.py:L1-L2"]
+    )

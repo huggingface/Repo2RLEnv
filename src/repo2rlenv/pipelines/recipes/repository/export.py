@@ -254,7 +254,11 @@ def export_repository_task(
             "user": "root",
             "network_mode": "no-network",
             "environment_mode": "separate",
-            "environment": {"network_mode": "no-network", "cpus": 1, "memory_mb": 2048},
+            "environment": {
+                "network_mode": "no-network",
+                "cpus": options.test_cpus,
+                "memory_mb": options.test_memory_mb,
+            },
         },
         artifacts=[
             {

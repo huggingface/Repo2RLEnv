@@ -115,6 +115,16 @@ Pass a full existing
 bound task metadata, checks its controls, probes, raw trial evidence and judged
 rollout through the shared quality label validator, and skips duplicate PRs.
 
+Campaign controllers can pass `expected_prior_verified` to `run_batch` with the
+proof inventory bound during preparation. The runner validates the underlying
+evidence once, compares the fresh result with that inventory, and rejects any
+change before allocating work. Preparation can therefore check receipt identities
+without repeatedly scanning every historical task tree. This option does not
+replace fresh validation or introduce an evidence cache.
+For coordinated campaigns, `preallocation_check` can recheck shared capacity and
+budget after evidence validation finishes. An exception prevents dispatch; the
+callback runs before the batch creates its allocation scope.
+
 ## Budget and ownership
 
 Each paid operation carries a deterministic batch prefix and child prefix.

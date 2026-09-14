@@ -25,6 +25,9 @@ Trace each central requirement to actual grading assertions, including promised
 minimality, thresholds and per-input variation. Test names and pass counts alone
 do not establish that coverage. Read missing private test bodies using their exact
 inventory/document paths; a rejected read is not permission to assume their contents.
+Use selected_verifier_files for the exact private assertion paths, even when the
+large inventory is represented by a catalogue. An unknown-path response may list
+exact basename matches; read those paths instead of repeating the rejected path.
 If those assertions remain unavailable, leave verifier adequacy unresolved.
 
 Cite exact nonempty excerpts using keys in documents. Do not fabricate citations.

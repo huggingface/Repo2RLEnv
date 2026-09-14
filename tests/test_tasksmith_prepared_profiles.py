@@ -216,6 +216,31 @@ def test_imported_task_and_prepared_profile_are_not_combined(monkeypatch, runner
     assert calls == []
 
 
+@pytest.mark.parametrize("field", ["test_cpus", "test_memory_mb"])
+def test_prepared_resource_overflow_stops_before_remote_work(
+    monkeypatch, runner, source, profile, field
+):
+    setattr(profile.options, field, {"test_cpus": 3, "test_memory_mb": 8192}[field])
+    calls = install_stages(monkeypatch, runner, profile)
+    with pytest.raises(ValueError, match=f"options.{field}.*exceeds worker allocation"):
+        execute(runner, source)
+    assert calls == []
+
+
+def test_investigator_resource_overflow_cannot_build(monkeypatch, runner, source, profile):
+    runner.options.prepared_profiles = {}
+    runner.options.bootstrap_hints = {}
+    profile.options.test_memory_mb = 8192
+    calls = install_stages(monkeypatch, runner, profile)
+    result = execute(runner, source)
+    assert "exceeds worker allocation" in result["candidates"][0]["error"]
+    assert [(kind, stage) for kind, stage, _ in calls] == [
+        ("remote", "inspect"),
+        ("author", "investigate-0"),
+    ]
+    assert calls[1][2]["requested_resources"]["worker_memory_mb"] == 4096
+
+
 def test_document_links_are_still_validated_before_build(monkeypatch, runner, source, profile):
     calls = install_stages(monkeypatch, runner, profile, links=[{"path": "CONTRIBUTING.md"}])
     result = execute(runner, source)

@@ -173,6 +173,8 @@ success exploits the verifier: those diagnoses still require the reviewer.
 A wrong-solution probe whose mutation never finished can be corrected within the
 same repair limit. The controller independently checks its exact variant, completed
 execution receipt, result checksum, nonzero agent exit and absent completion marker.
+Probe scripts run in a child shell so a successful `exit` cannot skip the trusted
+change audit and completion marker. A nonzero exit still fails probe installation.
 The reviewer must diagnose that specific attempt as a probe defect using its logs
 or trial summary. Missing or mismatched evidence does not authorize replacement.
 An append-only `probe-attempts/` journal preserves every attempt and log hash across
@@ -190,6 +192,15 @@ The initial evidence pack places selected private assertions before large refere
 patches and generic grading helpers. Reviews must assess those assertions, rather
 than inferring coverage from test names or pass counts. All omitted files remain
 addressable through exact inventory paths.
+The compact context also lists exact selected verifier paths, even when the full
+inventory is truncated. An unknown file read suggests matching basenames and those
+selected paths; the reviewer must request the actual file before citing it.
+
+For native Modal image failures, the controller settles the confirmed failed build
+before fetching its existing logs. A bounded, redacted excerpt of the actual
+build failure reaches the reviewer through the original exception, with private
+log receipts retained for diagnosis. A failed or timed-out log fetch cannot reopen
+the allocation or obscure its settled state.
 
 Literal searches merge overlapping excerpts and keep complete matching windows
 within the remaining context budget. Omitted windows are identified explicitly.

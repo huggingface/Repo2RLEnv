@@ -85,6 +85,88 @@ def test_target_counts_unique_prs_and_never_overdispatches(local_batch, monkeypa
     assert any("2 isolated PR workers" in event for event in events)
 
 
+@pytest.mark.parametrize("changed", [False, True])
+def test_approved_prior_inventory_is_checked_once_before_allocation(
+    local_batch, monkeypatch, changed
+):
+    directory, campaign, wheel = local_batch
+    expected = success(candidate(1).url)["verified"]
+    fresh = dict(expected, bundle_hash="sha256:changed") if changed else expected
+    checked, dispatched = [], []
+
+    def verify(path):
+        checked.append(path)
+        return fresh
+
+    def run(config, item):
+        dispatched.append(item["url"])
+        return success(item["url"])
+
+    monkeypatch.setattr(batch, "verified_result", verify)
+    monkeypatch.setattr(batch, "_supervise_candidate", run)
+    plan = batch.BatchPlan(
+        name="approved",
+        candidates=[candidate(2)],
+        target_verified=2,
+        prior_verified=[directory.parent / "prior.json"],
+    )
+    if changed:
+        with pytest.raises(ValueError, match="differs from the approved inventory"):
+            batch.run_batch(plan, directory, campaign, wheel, expected_prior_verified=[expected])
+        assert not (directory / "configuration.json").exists()
+        assert not (directory / "runtime").exists()
+        assert dispatched == []
+    else:
+        result = batch.run_batch(
+            plan,
+            directory,
+            campaign,
+            wheel,
+            expected_prior_verified=[expected],
+            on_event=lambda _: None,
+        )
+        assert result["verified"] == 2
+        assert dispatched == [candidate(2).url]
+    assert checked == plan.prior_verified
+
+
+@pytest.mark.parametrize("denied", [False, True])
+def test_campaign_admission_recheck_follows_prior_proofs_and_precedes_dispatch(
+    local_batch, monkeypatch, denied
+):
+    events = []
+    prior = success(candidate(1).url)["verified"]
+
+    def verify(path):
+        events.append("prior")
+        return prior
+
+    def recheck():
+        events.append("recheck")
+        if denied:
+            raise ValueError("Peer capacity changed")
+
+    def supervise(config, item):
+        events.append("dispatch")
+        return success(item["url"])
+
+    monkeypatch.setattr(batch, "verified_result", verify)
+    monkeypatch.setattr(batch, "_supervise_candidate", supervise)
+    plan = batch.BatchPlan(
+        name="peer",
+        candidates=[candidate(2)],
+        target_verified=2,
+        prior_verified=[local_batch[0].parent / "prior.json"],
+    )
+    if denied:
+        with pytest.raises(ValueError, match="Peer capacity changed"):
+            batch.run_batch(plan, *local_batch, preallocation_check=recheck)
+        assert events == ["prior", "recheck"]
+    else:
+        batch.run_batch(plan, *local_batch, preallocation_check=recheck, on_event=lambda _: None)
+        assert events == ["prior", "recheck", "dispatch"]
+
+
 def test_gpu_cap_allows_cpu_work_without_overlapping_more_gpu_jobs(local_batch, monkeypatch):
     items = [candidate(i) for i in range(1, 7)]
     for item in items[:3]:

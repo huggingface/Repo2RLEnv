@@ -156,6 +156,15 @@ Pytest later validates node names and executes the actual readiness tests.
 CPU preflight uses a temporary snapshot that is removed before the build rather
 than publishing a second repository copy.
 
+CPU profiles can set `options.test_cpus` and `options.test_memory_mb` for offline
+readiness, construction checks and the exported private Harbor verifier. Defaults
+remain 1 CPU and 2048 MiB. Tasksmith rejects values exceeding the worker's
+allocation before dependency work; increasing worker memory alone does not change
+the test container. A confirmed out-of-memory termination retains its Docker state
+and reports the memory limit separately from incomplete execution. Changing these
+options requires a new run and fresh checks; dependency image layers stay reusable.
+Native GPU stages retain their existing 4 CPU / 16384 MiB plus GPU contract.
+
 To preserve an exact PR's successful build recipe, pass `prepared_profiles` through the existing `--options-json` file (or a batch candidate's options). Key each entry by its frozen source ID and include `url`, `head`, `base`, `source_diff_sha256`, `workspace_strategy`, and the complete `profile` object. Tasksmith validates this binding, CPU/GPU selection and source coverage before remote work, then skips the first investigation and runs a fresh bootstrap. It still checks document links, readiness, construction and quality; no earlier execution evidence is imported. A new bootstrap failure can enter the existing bounded profile-repair loop. A prepared profile also avoids unrelated repository-hint dependency preparation. The full profile participates in the frozen run configuration, so changing it requires a new output directory.
 
 To reuse a complete request and verifier design, add `prepared_designs` to the
