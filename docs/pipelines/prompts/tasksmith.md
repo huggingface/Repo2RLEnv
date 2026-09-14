@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `a4ef1f58bd0897a83426eb451c05734a1fd581e21627b6476f4808bc5d338f44`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `76a22009b0be3a0988bc80408f3e2428ef28a44c7ac8aac8086ff3111db95408`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -21,6 +21,8 @@ Submit a Profile. Identify all source roots changed by this PR, private test dir
 Keep full test directory roots private even when selecting a few node IDs. Exclude release notes/changelogs, PR-specific docs, CI and Git metadata from the public workspace with public_exclude; retain files required to install the package. Source files cannot be excluded. List the actual dependency manifest paths as dependency_inputs. Explain why the selected tests are offline and sufficient for an initial readiness check. Set test_timeout_sec to a bounded value appropriate to the selection.
 
 A previous failure, if supplied, is evidence for correcting only the profile. Do not weaken the task or remove a failing behavior to make the build pass. Submit the artifact as soon as the profile is supported by the inspected files.
+
+CPU readiness and construction tests run in a separate offline container with options.test_cpus (default 1) and options.test_memory_mb (default 2048 MiB). These limits also become the exported private verifier's resources. Choose bounded values within requested_resources.worker_cpus and worker_memory_mb; the worker's larger allocation does not automatically increase the test container. A recorded OOMKilled=true is a memory failure, not a timeout: retain the dependency recipe and meaningful test selection, and adjust test_memory_mb within that allocation. Native GPU tests use their existing fixed GPU resource contract instead.
 
 Packaging matters: never exclude a README, license or other file referenced by pyproject/setup metadata merely because it is prose. The bootstrap builds the public workspace separately and will reject missing installation inputs. Use pinned dependencies (for example pytest==9.0.3 and a compatible pinned build backend); query versions if uncertain. Do not repeat dependency installation inside install_command. Prefer `python -m pip install --no-cache-dir --no-deps --no-build-isolation -e .` when the backend supports it.
 
@@ -330,7 +332,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `b2048ecb9a34e5e03bfaaa034911ccbec04517d8be2f57ba98c5e76b3d80b76d`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `8c86781e3ce5590a6ee5b7e409d3697da8221fab86134fff11d1ae13dcaec0b8`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -734,6 +736,20 @@ class Tasksmith:
             "label_export": json.loads(publication.read_text()) if publication.is_file() else None,
         }
 
+    def _validate_profile_resources(self, profile: Profile) -> None:
+        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
+            raise ValueError("Profile resource must match the campaign's explicit GPU requirement")
+        if profile.resource == "cpu":
+            for field, capacity in (
+                ("test_cpus", self.options.worker_cpus),
+                ("test_memory_mb", self.options.worker_memory_mb),
+            ):
+                requested = getattr(profile.options, field)
+                if requested > capacity:
+                    raise ValueError(
+                        f"Profile options.{field}={requested} exceeds worker allocation {capacity}"
+                    )
+
     def _prepared_profile(self, source: dict) -> Profile | None:
         prepared = self.options.prepared_profiles.get(source["id"])
         if prepared is None:
@@ -746,8 +762,7 @@ class Tasksmith:
         if any(getattr(prepared, key) != value for key, value in binding.items()):
             raise ValueError("Prepared profile differs from the frozen PR source")
         profile = Profile.model_validate(prepared.profile.model_dump())
-        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
-            raise ValueError("Prepared profile resource differs from the campaign GPU requirement")
+        self._validate_profile_resources(profile)
         _validate_profile_source_coverage(profile, source["source_files"])
         return profile
 
@@ -823,10 +838,7 @@ class Tasksmith:
             )
 
             async def validate(profile):
-                if profile.resource != ("gpu" if self.options.gpus else "cpu"):
-                    raise ValueError(
-                        "Profile resource must match the campaign's explicit GPU requirement"
-                    )
+                self._validate_profile_resources(profile)
                 previous = state.get("profile", {}).get("options", {})
                 retained_links = set(previous.get("materialize_document_links", []))
                 retained_links.update(
@@ -861,6 +873,8 @@ class Tasksmith:
                         "requested_resources": {
                             "gpus": self.options.gpus,
                             "gpu_type": "L4" if self.options.gpus else None,
+                            "worker_cpus": self.options.worker_cpus,
+                            "worker_memory_mb": self.options.worker_memory_mb,
                         },
                     },
                     checkout,

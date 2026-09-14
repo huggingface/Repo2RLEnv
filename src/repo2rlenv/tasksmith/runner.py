@@ -394,6 +394,20 @@ class Tasksmith:
             "label_export": json.loads(publication.read_text()) if publication.is_file() else None,
         }
 
+    def _validate_profile_resources(self, profile: Profile) -> None:
+        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
+            raise ValueError("Profile resource must match the campaign's explicit GPU requirement")
+        if profile.resource == "cpu":
+            for field, capacity in (
+                ("test_cpus", self.options.worker_cpus),
+                ("test_memory_mb", self.options.worker_memory_mb),
+            ):
+                requested = getattr(profile.options, field)
+                if requested > capacity:
+                    raise ValueError(
+                        f"Profile options.{field}={requested} exceeds worker allocation {capacity}"
+                    )
+
     def _prepared_profile(self, source: dict) -> Profile | None:
         prepared = self.options.prepared_profiles.get(source["id"])
         if prepared is None:
@@ -406,8 +420,7 @@ class Tasksmith:
         if any(getattr(prepared, key) != value for key, value in binding.items()):
             raise ValueError("Prepared profile differs from the frozen PR source")
         profile = Profile.model_validate(prepared.profile.model_dump())
-        if profile.resource != ("gpu" if self.options.gpus else "cpu"):
-            raise ValueError("Prepared profile resource differs from the campaign GPU requirement")
+        self._validate_profile_resources(profile)
         _validate_profile_source_coverage(profile, source["source_files"])
         return profile
 
@@ -483,10 +496,7 @@ class Tasksmith:
             )
 
             async def validate(profile):
-                if profile.resource != ("gpu" if self.options.gpus else "cpu"):
-                    raise ValueError(
-                        "Profile resource must match the campaign's explicit GPU requirement"
-                    )
+                self._validate_profile_resources(profile)
                 previous = state.get("profile", {}).get("options", {})
                 retained_links = set(previous.get("materialize_document_links", []))
                 retained_links.update(
@@ -521,6 +531,8 @@ class Tasksmith:
                         "requested_resources": {
                             "gpus": self.options.gpus,
                             "gpu_type": "L4" if self.options.gpus else None,
+                            "worker_cpus": self.options.worker_cpus,
+                            "worker_memory_mb": self.options.worker_memory_mb,
                         },
                     },
                     checkout,

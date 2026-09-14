@@ -88,9 +88,9 @@ def test_image(
             "--network",
             "none",
             "--cpus",
-            "1",
+            str(options.test_cpus),
             "--memory",
-            "2g",
+            f"{options.test_memory_mb}m",
             "--pids-limit",
             "256",
             "--workdir",
@@ -117,8 +117,14 @@ def test_image(
         (output / "stderr.txt").write_text(result.stderr)
         state = json.loads(_run(["docker", "inspect", name]).stdout)[0]["State"]
         save_record(output / "state.json", state)
-        if state.get("OOMKilled") or state.get("Running"):
-            raise ValueError("Test container did not complete within its resource contract")
+        if state.get("OOMKilled"):
+            raise ValueError(
+                f"Test container exhausted its {options.test_memory_mb} MiB memory limit "
+                "(OOMKilled=true); preserve the selected behavior and adjust test_memory_mb "
+                "within the worker allocation"
+            )
+        if state.get("Running"):
+            raise ValueError("Test container is still running; readiness did not complete")
         _run(["docker", "cp", f"{name}:/tmp/results.xml", str(output / "results.xml")])
         if instrumentation is not None:
             for filename in instrumentation.outputs:

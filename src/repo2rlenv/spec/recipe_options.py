@@ -77,6 +77,8 @@ class PythonRepositoryProfile(BaseModel):
     hub_assets: list[HubAsset] = Field(default_factory=list, max_length=8)
     install_command: str = "python -m pip install --no-cache-dir -e ."
     test_timeout_sec: int = Field(default=90, ge=5, le=600)
+    test_cpus: int = Field(default=1, ge=1, le=16, strict=True)
+    test_memory_mb: int = Field(default=2048, ge=128, le=65536, strict=True)
 
     @model_validator(mode="after")
     def pinned_asset_dependencies(self):
