@@ -81,6 +81,14 @@ uploads a campaign directory. `manifest.json` preserves per-task quality labels,
 source provenance, supplied execution evidence, diagnostics and economic scope.
 No inferred acceptance or solver success is added during publication.
 
+`ReleasePlan.normalize_evaluation_labels` explicitly opts into annotating missing
+historical evaluation blocks in the copied release. Such tasks become `unverified`
+for independent quality acceptance, while retaining their generation labels.
+Existing evaluation labels are preserved. Annotation-independent bundle identities
+must still match the selected sources; physical configuration and archive hashes
+are recorded anew. The original configuration hash and path remain in the label,
+and no historical source directory or release is rewritten.
+
 An executable-mode-preserving `tasks.tar.gz` accompanies browsable `tasks/`, a
 JSONL index and per-file hashes. This matters because a Hub file download need not
 preserve local executable bits, which are part of an owned bundle's identity.

@@ -8,7 +8,7 @@ The configured `llm` is used at each model call; roles do not imply different mo
 
 ### specification_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/r2e/specification_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/specification_prompt.md) · SHA-256 `7604af976e79ce5c10c26b930522df55a3b6c76b7ca4ce73174498dc1fbdcf5c`
+[Source: `src/repo2rlenv/pipelines/recipes/r2e/specification_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/r2e/specification_prompt.md) · SHA-256 `7604af976e79ce5c10c26b930522df55a3b6c76b7ca4ce73174498dc1fbdcf5c`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -32,7 +32,7 @@ Do NOT have repeated content in the docstring and ONLY describe the high level f
 
 ### test_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/r2e/test_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/test_prompt.md) · SHA-256 `2a5907ce6231a0dcaa3ec3f49d428383b5e8bbb28b80013f20970da1fa393c9d`
+[Source: `src/repo2rlenv/pipelines/recipes/r2e/test_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/r2e/test_prompt.md) · SHA-256 `2a5907ce6231a0dcaa3ec3f49d428383b5e8bbb28b80013f20970da1fa393c9d`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -68,7 +68,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### pipeline.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/r2e/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/r2e/pipeline.py) · SHA-256 `e7629b960ce2e66b7539a49a728e0d25bbe7496cecde68dd4b62d3a768c36bb6`
+[Source: `src/repo2rlenv/pipelines/recipes/r2e/pipeline.py`](../../../src/repo2rlenv/pipelines/recipes/r2e/pipeline.py) · SHA-256 `e7629b960ce2e66b7539a49a728e0d25bbe7496cecde68dd4b62d3a768c36bb6`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

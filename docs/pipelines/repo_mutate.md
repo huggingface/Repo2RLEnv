@@ -62,11 +62,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`swe_smith/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/worker.py)
-- [`swe_smith/mutations.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/mutations.py)
-- [`swe_smith/issue.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/issue.py)
-- [`swe_smith/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/export.py)
-- [`swe_smith/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
+- [`swe_smith/worker.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/worker.py)
+- [`swe_smith/mutations.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/mutations.py)
+- [`swe_smith/issue.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/issue.py)
+- [`swe_smith/export.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/export.py)
+- [`swe_smith/grade.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
 
 
 

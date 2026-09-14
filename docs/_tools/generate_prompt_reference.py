@@ -13,7 +13,7 @@ from repo2rlenv.ui import console
 ROOT = Path(__file__).resolve().parents[2]
 RECIPES = ROOT / "src/repo2rlenv/pipelines/recipes"
 OUTPUT = ROOT / "docs/pipelines/prompts"
-SOURCE_URL = "https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/"
+SOURCE_URL = "../../../"
 
 # Full call-site code includes dynamic additions, user-message construction and schemas.
 ASSEMBLY = {

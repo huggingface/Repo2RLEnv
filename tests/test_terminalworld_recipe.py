@@ -9,6 +9,22 @@ from repo2rlenv.pipelines.recipes.terminalworld.capture import changes, filesyst
 from repo2rlenv.pipelines.recipes.terminalworld.source import MetadataParser, load_recordings
 
 
+def test_recording_environment_can_start_without_extra_fixture_files():
+    from repo2rlenv.pipelines.recipes.terminalworld.materialize import EnvironmentBuild
+
+    environment = EnvironmentBuild(
+        environment_setup="RUN mkdir -p /workspace/project",
+        environment_files=[],
+        solution_shell="#!/bin/bash\nset -eu\necho result > /workspace/project/output.txt\n",
+        self_review="This workflow creates its deliverables from an empty workspace.",
+    )
+    assert environment.environment_files == []
+    with pytest.raises(ValueError, match="cannot replace"):
+        environment.model_validate(
+            {**environment.model_dump(), "environment_setup": "USER root"}
+        )
+
+
 def test_recording_screen_excludes_flagged_text_from_author_input(tmp_path):
     first = tmp_path / "123"
     first.mkdir()

@@ -51,11 +51,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`cli_gym/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/models.py)
-- [`cli_gym/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py)
-- [`cli_gym/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/worker.py)
-- [`cli_gym/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/export.py)
-- [`cli_gym/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/grade.py)
+- [`cli_gym/models.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/models.py)
+- [`cli_gym/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py)
+- [`cli_gym/worker.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/worker.py)
+- [`cli_gym/export.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/export.py)
+- [`cli_gym/grade.py`](../../src/repo2rlenv/pipelines/recipes/cli_gym/grade.py)
 
 ## Run and supported profile
 

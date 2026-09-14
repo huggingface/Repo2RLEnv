@@ -59,6 +59,45 @@ def test_release_archive_roundtrip_preserves_modes_identity_and_labels(selection
     assert inspect_bundle(selection.tasks[0].path)["integrity_passed"]
 
 
+@pytest.mark.parametrize("normalize", [False, True])
+def test_legacy_label_normalization_preserves_original_and_executable_identity(
+    selection, tmp_path, normalize
+):
+    import tomllib
+
+    import tomli_w
+
+    source = selection.tasks[0].path
+    config_path = source / "task.toml"
+    config = tomllib.loads(config_path.read_text())
+    del config["metadata"]["repo2env"]["evaluation"]
+    config_path.write_text(tomli_w.dumps(config))
+    original = {p.relative_to(source): p.read_bytes() for p in source.rglob("*") if p.is_file()}
+    stage = tmp_path / "stage"
+    report = stage_release(
+        selection.model_copy(update={"normalize_evaluation_labels": normalize}), stage
+    )
+    task = stage / "tasks/example"
+    assert inspect_bundle(task) == inspect_bundle(source)
+    assert report["quality_counts"] == {"unverified" if normalize else "exported": 1}
+    assert report["tasks"][0]["evaluation_label_normalized"] is normalize
+    metadata = tomllib.loads((task / "task.toml").read_text())["metadata"]["repo2env"]
+    assert metadata["quality_status"] == "exported"
+    if normalize:
+        label = metadata["evaluation"]
+        assert label["status"] == "unverified"
+        assert label["subject_bundle_hash"] == selection.tasks[0].bundle_hash
+        assert "checked_at" not in label
+        assert label["evidence"] == []
+    else:
+        assert "evaluation" not in metadata
+    for relative, content in original.items():
+        assert (source / relative).read_bytes() == content
+        if relative.as_posix() != "task.toml" or not normalize:
+            assert (task / relative).read_bytes() == content
+    verify_release(stage)
+
+
 def test_no_publication_for_changed_staging(selection, tmp_path):
     stage = tmp_path / "stage"
     stage_release(selection, stage)
@@ -67,6 +106,27 @@ def test_no_publication_for_changed_staging(selection, tmp_path):
     with pytest.raises(ValueError, match="Staged release changed"):
         publish_release(stage, api=api, receipt=tmp_path / "receipt.json")
     assert not api.mock_calls
+
+
+def test_normalization_preserves_existing_diagnosis(selection, tmp_path):
+    import tomllib
+
+    import tomli_w
+
+    source = selection.tasks[0].path / "task.toml"
+    config = tomllib.loads(source.read_text())
+    config["metadata"]["repo2env"]["evaluation"].update(
+        status="needs_repair", stage="review", reason_codes=["verifier_behavior_gap"]
+    )
+    source.write_text(tomli_w.dumps(config))
+    original = source.read_bytes()
+    stage = tmp_path / "stage"
+    report = stage_release(
+        selection.model_copy(update={"normalize_evaluation_labels": True}), stage
+    )
+    assert report["quality_counts"] == {"needs_repair": 1}
+    assert not report["tasks"][0]["evaluation_label_normalized"]
+    assert (stage / "tasks/example/task.toml").read_bytes() == original
 
 
 def test_nested_delivery_task_keeps_package_identity_when_released(selection, tmp_path):

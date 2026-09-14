@@ -55,11 +55,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`dataarc/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/dataarc/recipe.py)
-- [`dataarc/strategies.json`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/dataarc/strategies.json)
-- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/draft.py)
-- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`dataarc/recipe.py`](../../src/repo2rlenv/pipelines/recipes/dataarc/recipe.py)
+- [`dataarc/strategies.json`](../../src/repo2rlenv/pipelines/recipes/dataarc/strategies.json)
+- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/draft.py`](../../src/repo2rlenv/pipelines/recipes/terminal/draft.py)
+- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 ## Run and supported profile
 

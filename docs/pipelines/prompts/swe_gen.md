@@ -8,7 +8,7 @@ The configured `llm` is used at each model call; roles do not imply different mo
 
 ### instruction_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_gen/instruction_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_gen/instruction_prompt.md) · SHA-256 `604f3e569068ec5cfef39c114df9e647ba900383988f96e7af0378a0428cb25e`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_gen/instruction_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/swe_gen/instruction_prompt.md) · SHA-256 `604f3e569068ec5cfef39c114df9e647ba900383988f96e7af0378a0428cb25e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -170,7 +170,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### instruction.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py) · SHA-256 `eec614059e3372c6b9eb046b849d86d40266f902736d25ab66125557701d9527`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py`](../../../src/repo2rlenv/pipelines/recipes/swe_gen/instruction.py) · SHA-256 `eec614059e3372c6b9eb046b849d86d40266f902736d25ab66125557701d9527`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

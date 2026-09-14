@@ -53,12 +53,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`tmax/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/sampler.py)
-- [`tmax/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/recipe.py)
-- [`terminal/templates.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/templates.py)
-- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/preflight.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
-- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`tmax/sampler.py`](../../src/repo2rlenv/pipelines/recipes/tmax/sampler.py)
+- [`tmax/recipe.py`](../../src/repo2rlenv/pipelines/recipes/tmax/recipe.py)
+- [`terminal/templates.py`](../../src/repo2rlenv/pipelines/recipes/terminal/templates.py)
+- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/preflight.py`](../../src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
+- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 ## Run and supported profile
 
@@ -81,8 +81,9 @@ All dependency installation happens during image build. The solver runs as
 Initial-state tests, final-state tests and the reference stay outside the
 learner image. The builder receives execution errors for bounded repairs.
 
-The initial 20-task milestone is complete; the current campaign targets
-**100 generated tasks**, with counts in the [release inventory](releases.md).
+The campaign is capped at **55 generated tasks** at the user's request, including
+20 retained tasks and 35 new exports. The [release inventory](releases.md) records
+publication and final economics.
 It runs the native initial-state
 check and a fresh Harbor baseline/reference pair. Detailed reward-hack review,
 blind solver trials and acceptance follow after all recipes reach their

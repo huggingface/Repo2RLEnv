@@ -46,6 +46,7 @@ class ReleasePlan(BaseModel):
     methodology: str
     code_revision: str
     tasks: list[ReleaseTask] = Field(min_length=1)
+    normalize_evaluation_labels: bool = False
     economics: dict = Field(default_factory=dict)
     citations: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
@@ -97,7 +98,28 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
             if selected.task_id and task.config.task.name.split("/")[-1] != selected.task_id:
                 raise ValueError("Explicit task ID must match the Harbor package name")
             target = temporary / "tasks" / name
-            shutil.copytree(selected.path, target)
+            source_metadata = tomllib.loads((selected.path / "task.toml").read_text())["metadata"][
+                "repo2env"
+            ]
+            normalized = plan.normalize_evaluation_labels and "evaluation" not in source_metadata
+            if normalized:
+                from repo2rlenv.emitter.evaluation import EvaluationLabel
+                from repo2rlenv.quality.labels import write_labeled_copy
+
+                write_labeled_copy(
+                    selected.path,
+                    target,
+                    EvaluationLabel(
+                        subject_bundle_hash=identity["bundle_hash"],
+                        reason_codes=["independent_validation_incomplete"],
+                        detail=(
+                            "Generation export; independent quality acceptance has not been "
+                            "established. See release evidence for the recorded native checks."
+                        ),
+                    ),
+                )
+            else:
+                shutil.copytree(selected.path, target)
             copied = inspect_bundle(target)
             if copied != identity:
                 raise ValueError("Task changed during release staging")
@@ -119,6 +141,7 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
                     "bundle_hash": identity["bundle_hash"],
                     "quality_status": status,
                     "generation_status": metadata.get("quality_status", "unknown"),
+                    "evaluation_label_normalized": normalized,
                     "metadata": metadata,
                     "evidence": selected.evidence,
                     "diagnostics": selected.diagnostics,

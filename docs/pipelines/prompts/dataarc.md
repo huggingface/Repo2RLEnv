@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### artifact_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/dataarc/artifact_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/dataarc/artifact_prompt.md) · SHA-256 `09400119355a83700d3b5a128b683749e85d747e5848ee656317659eb7107306`
+[Source: `src/repo2rlenv/pipelines/recipes/dataarc/artifact_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/dataarc/artifact_prompt.md) · SHA-256 `09400119355a83700d3b5a128b683749e85d747e5848ee656317659eb7107306`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -62,7 +62,7 @@ Seed files for style and structure:
 
 ### strategies.json
 
-[Source: `src/repo2rlenv/pipelines/recipes/dataarc/strategies.json`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/dataarc/strategies.json) · SHA-256 `066e347032976a35719ac3fc3ff1d68508306ada6c4b4d8ed2b62df900cc0774`
+[Source: `src/repo2rlenv/pipelines/recipes/dataarc/strategies.json`](../../../src/repo2rlenv/pipelines/recipes/dataarc/strategies.json) · SHA-256 `066e347032976a35719ac3fc3ff1d68508306ada6c4b4d8ed2b62df900cc0774`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -86,7 +86,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/dataarc/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/dataarc/recipe.py) · SHA-256 `68f762bd5ff38bf6b8d95f56d00d98d242a86d990ad52fff157016045946d5e5`
+[Source: `src/repo2rlenv/pipelines/recipes/dataarc/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/dataarc/recipe.py) · SHA-256 `68f762bd5ff38bf6b8d95f56d00d98d242a86d990ad52fff157016045946d5e5`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

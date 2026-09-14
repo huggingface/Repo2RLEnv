@@ -31,7 +31,7 @@ class TestWeight(BaseModel):
 class EnvironmentDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
     environment_setup: str = Field(max_length=16000)
-    environment_files: list[EnvironmentFile] = Field(min_length=1, max_length=100)
+    environment_files: list[EnvironmentFile] = Field(max_length=100)
 
     @model_validator(mode="after")
     def valid_environment(self):

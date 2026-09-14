@@ -8,7 +8,7 @@ The configured `llm` is used at each model call; roles do not imply different mo
 
 ### instruction_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_next/instruction_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_next/instruction_prompt.md) · SHA-256 `22328c91a905aadc91fcdc4b92dad4363d11b4391d61221498649ecae9771975`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_next/instruction_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/swe_next/instruction_prompt.md) · SHA-256 `22328c91a905aadc91fcdc4b92dad4363d11b4391d61221498649ecae9771975`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -56,7 +56,7 @@ IMPORTANT: Strictly follow the above guidelines and use the provided test execut
 
 ### issue_examples.json
 
-[Source: `src/repo2rlenv/pipelines/recipes/swe_next/issue_examples.json`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_next/issue_examples.json) · SHA-256 `490d1c558574ae673691c7302cb79fbfa7a8ce771441e7ccc783061acb3543c2`
+[Source: `src/repo2rlenv/pipelines/recipes/swe_next/issue_examples.json`](../../../src/repo2rlenv/pipelines/recipes/swe_next/issue_examples.json) · SHA-256 `490d1c558574ae673691c7302cb79fbfa7a8ce771441e7ccc783061acb3543c2`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -83,7 +83,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### pipeline.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/history/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/pipeline.py) · SHA-256 `2a002585afba3da6b0d46d4110514d99769f8e2c9113f1c9f1ff8364b6c48e00`
+[Source: `src/repo2rlenv/pipelines/recipes/history/pipeline.py`](../../../src/repo2rlenv/pipelines/recipes/history/pipeline.py) · SHA-256 `2a002585afba3da6b0d46d4110514d99769f8e2c9113f1c9f1ff8364b6c48e00`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

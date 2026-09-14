@@ -8,7 +8,7 @@ The configured `llm` is used at each model call; roles do not imply different mo
 
 ### instruction_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/instruction_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/instruction_prompt.md) · SHA-256 `4cf24db16f1aa7f9c53682364dc6658937f462dcc4d16fb60160a0827aa361fe`
+[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/instruction_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/cli_gym/instruction_prompt.md) · SHA-256 `4cf24db16f1aa7f9c53682364dc6658937f462dcc4d16fb60160a0827aa361fe`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -46,7 +46,7 @@ Hint:
 
 ### inversion_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/inversion_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/inversion_prompt.md) · SHA-256 `8a0a96e0b29a4f47826ffaad2959e312fb393d9859dc0e467e23bbf0f1df040e`
+[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/inversion_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/cli_gym/inversion_prompt.md) · SHA-256 `8a0a96e0b29a4f47826ffaad2959e312fb393d9859dc0e467e23bbf0f1df040e`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -100,7 +100,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### models.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/models.py) · SHA-256 `ceecdf9f701b46ef2c4c2f105bc27de81cf55313d53ae851c13936dcebcaf008`
+[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/models.py`](../../../src/repo2rlenv/pipelines/recipes/cli_gym/models.py) · SHA-256 `ceecdf9f701b46ef2c4c2f105bc27de81cf55313d53ae851c13936dcebcaf008`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -150,7 +150,7 @@ class RepairInstruction(BaseModel):
 
 ### pipeline.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py) · SHA-256 `e80f34610cfc4ff1593d6cf399ae7cbf852161286d5f99773f0984bb6ef87314`
+[Source: `src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py`](../../../src/repo2rlenv/pipelines/recipes/cli_gym/pipeline.py) · SHA-256 `e80f34610cfc4ff1593d6cf399ae7cbf852161286d5f99773f0984bb6ef87314`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

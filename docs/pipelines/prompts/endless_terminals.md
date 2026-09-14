@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### environment_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/environment_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/environment_prompt.md) · SHA-256 `8ff97082def266bae234be61fda123378951fd6cea3ebfceb2d1d69685f9c750`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/environment_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/environment_prompt.md) · SHA-256 `8ff97082def266bae234be61fda123378951fd6cea3ebfceb2d1d69685f9c750`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -35,7 +35,7 @@ From: ./ubuntu_22.04.sif
 
 ### final_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/final_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/final_prompt.md) · SHA-256 `5740eb80e8f1081501e7e5416ee8957a62be86a4687906b0ad708e547a3371ae`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/final_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/final_prompt.md) · SHA-256 `5740eb80e8f1081501e7e5416ee8957a62be86a4687906b0ad708e547a3371ae`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -61,7 +61,7 @@ Rules:
 
 ### initial_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/initial_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/initial_prompt.md) · SHA-256 `401cdd63cfc8a794235755e08d0038e9bf54fab23d797755d91f38498ef4feb4`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/initial_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/initial_prompt.md) · SHA-256 `401cdd63cfc8a794235755e08d0038e9bf54fab23d797755d91f38498ef4feb4`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -90,7 +90,7 @@ Rules:
 
 ### template_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/template_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/template_prompt.md) · SHA-256 `86c9d8f4d7f5ecbc302fbf79fefaf7839d7a84969b98c19661567e84d8b3e18b`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/template_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/template_prompt.md) · SHA-256 `86c9d8f4d7f5ecbc302fbf79fefaf7839d7a84969b98c19661567e84d8b3e18b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -149,7 +149,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py) · SHA-256 `30bc9bce602e5d4aa16d6fbe0ef38e7d1f21b5df74b1ebd7a26b1e5fb4ce4d30`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py) · SHA-256 `30bc9bce602e5d4aa16d6fbe0ef38e7d1f21b5df74b1ebd7a26b1e5fb4ce4d30`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -188,7 +188,7 @@ def builder_prompt() -> str:
 
 ### sampler.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py) · SHA-256 `b3c324a90eb52ddbbbff09d653a3dd39e8146f6b6c677e0df8068812dc847016`
+[Source: `src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py`](../../../src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py) · SHA-256 `b3c324a90eb52ddbbbff09d653a3dd39e8146f6b6c677e0df8068812dc847016`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

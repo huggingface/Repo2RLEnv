@@ -40,9 +40,21 @@ def load(path: Path) -> dict:
 
 def inventory(releases: Path, expansion: Path) -> dict:
     rows = []
-    targets = {"cli-gym": 20, "tasksmith": 50}
+    targets = {"cli-gym": 20, "tasksmith": 50, "tmax": 55}
     for name, guide in GUIDES.items():
-        version = "v3" if name in WAVE1 else "v4"
+        versions = ["v5", "v4", "v3", "v2"]
+        completed = [
+            version
+            for version in versions
+            if (releases / ("receipts-" + version) / (name + ".json")).is_file()
+            and load(releases / ("receipts-" + version) / (name + ".json"))["state"] == "completed"
+        ]
+        staged = [
+            version
+            for version in versions
+            if (releases / ("datasets-" + version) / name / "manifest.json").is_file()
+        ]
+        version = next(iter(completed or staged), "v4")
         stage = releases / ("datasets-" + version) / name
         receipt = releases / ("receipts-" + version) / (name + ".json")
         manifest = load(stage / "manifest.json") if stage.exists() else None
@@ -82,7 +94,7 @@ def inventory(releases: Path, expansion: Path) -> dict:
         "scope": "Generated counts and saved publication receipts; not live worker status or independent quality acceptance.",
         "generated": sum(row["generated"] for row in rows),
         "minimum_target": sum(row["target"] for row in rows),
-        "expected_final_inventory": 1375,
+        "expected_final_inventory": 1330,
         "generation_targets_reached": sum(row["generated"] >= row["target"] for row in rows),
         "published_datasets": sum(row["publication_state"] == "completed" for row in rows),
         "published_tasks": sum(
@@ -106,9 +118,10 @@ def render(report: dict) -> str:
         f"**{report['generated']} generated tasks; {report['generation_targets_reached']}/15 generation targets reached; "
         f"{report['published_datasets']} datasets published ({report['published_tasks']} tasks).**",
         "",
-        "The target is 100 tasks for thirteen owned recipes, 50 verified Tasksmith tasks, "
+        "The target is 100 tasks for twelve owned recipes, 55 TMax tasks, 50 verified Tasksmith tasks, "
         "and at least 20 CLI-Gym tasks. CLI-Gym already produced 25; all are retained, "
-        "so the final inventory is expected to contain **1,375 tasks**. SEC-bench remains excluded.",
+        "so the final inventory is expected to contain **1,330 tasks**. TMax was capped at 55 "
+        "at the user's request. SEC-bench remains excluded.",
         "",
         f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{report['collection']}). "
         "It also links the six earlier native-pipeline datasets under their existing owners. "

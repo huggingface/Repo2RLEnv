@@ -59,12 +59,12 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`terminalworld/source.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminalworld/source.py)
-- [`terminalworld/privacy.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminalworld/privacy.py)
-- [`terminalworld/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py)
-- [`terminalworld/materialize.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py)
-- [`terminalworld/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminalworld/worker.py)
-- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminalworld/source.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/source.py)
+- [`terminalworld/privacy.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/privacy.py)
+- [`terminalworld/recipe.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/recipe.py)
+- [`terminalworld/materialize.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/materialize.py)
+- [`terminalworld/worker.py`](../../src/repo2rlenv/pipelines/recipes/terminalworld/worker.py)
+- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
 
 ## Run and supported profile
 
@@ -119,6 +119,12 @@ when the recorded workflow provides enough evidence, as permitted by the native
 builder. It excludes opaque TUI, GPU, privileged networking, multi-service and
 external-account workflows. The value score is an upstream input-selection
 stage, separate from the later task-quality audit.
+
+An empty `environment_files` list is valid when the learner creates the requested
+deliverables from scratch. The owned Dockerfile and dependencies still define the
+environment. Requiring a placeholder fixture caused a recorded compilation task
+to exhaust a repair reservation despite a valid starting state; the schema now
+accepts that shape without changing reference or verifier requirements.
 
 Options include the shared terminal generation bounds and `min_score` (default
 four out of twelve, the native bronze threshold). The snapshot records file

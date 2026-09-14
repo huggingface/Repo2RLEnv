@@ -177,15 +177,19 @@ Always terminate workers explicitly after use; there is no local Docker fallback
 
 ## Output and acceptance
 
-The current integration milestone is **20 generated tasks per method**, with
-remote execution and reference checks. Detailed attack and blind-rollout audits
-follow that generation milestone; they do not block implementing the next recipe.
+The current release target is **100 generated tasks for each of twelve methods**,
+plus the approved smaller TMax collection of 55 and CLI-Gym collection of 25.
+The first 20-task milestones
+preceded this expansion. Tasksmith has its separate verified 50-task cohort. See
+the [release inventory](releases.md) for completed datasets and remaining counts.
+Detailed attack and blind-rollout audits follow generation; they do not block
+implementing the next recipe.
 This sequencing does not change what a later quality-accepted label means.
 
 ```mermaid
 flowchart LR
   G["Recipe generation and execution checks"] --> H["Exported Harbor bundles"]
-  H --> M["20 generated tasks per active recipe"]
+  H --> M["100 per recipe; TMax 55 and CLI-Gym 25"]
   M -.-> Q["Later: reference, specification and attack audits"]
   Q --> R["Blind Sonnet and Opus traces"]
   R --> A["Artifact-bound acceptance report"]

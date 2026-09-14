@@ -6,7 +6,7 @@ This recipe makes **zero LLM calls**. Its generator and reference are supplied p
 
 ### families.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/scaler/families.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/families.py) · SHA-256 `0b36f4d19d6103cc30d8454743a3ebe8da7f4a2b49f2f6bc96a223416512d93b`
+[Source: `src/repo2rlenv/pipelines/recipes/scaler/families.py`](../../../src/repo2rlenv/pipelines/recipes/scaler/families.py) · SHA-256 `0b36f4d19d6103cc30d8454743a3ebe8da7f4a2b49f2f6bc96a223416512d93b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

@@ -52,10 +52,10 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`seta_seed2synth/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py)
-- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
-- [`terminal/draft.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/draft.py)
-- [`terminal/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/grade.py)
+- [`seta_seed2synth/recipe.py`](../../src/repo2rlenv/pipelines/recipes/seta_seed2synth/recipe.py)
+- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`terminal/draft.py`](../../src/repo2rlenv/pipelines/recipes/terminal/draft.py)
+- [`terminal/grade.py`](../../src/repo2rlenv/pipelines/recipes/terminal/grade.py)
 
 
 

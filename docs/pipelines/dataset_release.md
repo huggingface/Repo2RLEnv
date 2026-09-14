@@ -5,8 +5,16 @@ as one dataset. This workflow does not change the task artifacts or their qualit
 labels. See [RFC 0029](../rfcs/0029-campaign-expansion-and-release.md) for the contracts.
 Release summaries prefer the uniform `metadata.repo2env.evaluation.status` when
 present, validate its revision binding, and preserve the legacy `quality_status`
-as `generation_status`. Task files retain both original fields. An old `exported`
+as `generation_status`. An old `exported`
 generation label must not hide a later `verified` or `needs_repair` assessment.
+
+Set `normalize_evaluation_labels: true` in the release plan to add the common
+evaluation block to historical tasks that lack it. Only release copies change:
+they receive `status = "unverified"`, their unchanged executable bundle identity,
+and the original configuration's hash and path. Existing evaluation blocks and
+legacy generation labels remain intact. This adds no review, control, rollout
+or acceptance claim. The changed configuration bytes and archive are recorded as
+a new release; old staging directories and published commits remain available.
 
 ```mermaid
 flowchart LR
@@ -33,6 +41,7 @@ name by default.
   "description": "Coding tasks produced by owned procedural mutation.",
   "methodology": "Mutate real repository functions, verify test contrast, then write an issue.",
   "code_revision": "COMMIT_SHA",
+  "normalize_evaluation_labels": true,
   "tasks": [{
     "path": "workspace/campaign/generated/swe-smith/TASK_ID",
     "bundle_hash": "sha256:EXPECTED_HASH",
@@ -113,6 +122,11 @@ DataArc and SWE-Flow. Every staged file matches its published artifact revision.
 Harbor Visualiser lists the expected counts and loads each sampled instruction,
 configuration, environment, verifier and reference. SWE-Flow's two diagnosed
 instruction issues remain explicitly labeled `needs_repair` in its task files.
+
+The [Tasksmith and SETA Evol publication audit](evidence/harbor-hub-publication-tasksmith-evol-20260914.json)
+checks another **150 tasks and 106,715 files**, including the full 50-task Tasksmith
+release. Both datasets load in Harbor Visualiser. Each audit names the exact
+published revision; subsequent annotation releases require their own file audit.
 
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside

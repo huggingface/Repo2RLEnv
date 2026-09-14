@@ -46,11 +46,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`history/source.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/source.py)
-- [`history/selection.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/selection.py)
-- [`history/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/worker.py)
-- [`history/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/history/pipeline.py)
-- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`history/source.py`](../../src/repo2rlenv/pipelines/recipes/history/source.py)
+- [`history/selection.py`](../../src/repo2rlenv/pipelines/recipes/history/selection.py)
+- [`history/worker.py`](../../src/repo2rlenv/pipelines/recipes/history/worker.py)
+- [`history/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/history/pipeline.py)
+- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
 
 ## Run and supported profile
 

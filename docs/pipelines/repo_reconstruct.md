@@ -61,11 +61,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`swe_flow/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_flow/worker.py)
-- [`swe_flow/schedule.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_flow/schedule.py)
-- [`swe_flow/author.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_flow/author.py)
-- [`repository/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/repository/export.py)
-- [`swe_smith/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
+- [`swe_flow/worker.py`](../../src/repo2rlenv/pipelines/recipes/swe_flow/worker.py)
+- [`swe_flow/schedule.py`](../../src/repo2rlenv/pipelines/recipes/swe_flow/schedule.py)
+- [`swe_flow/author.py`](../../src/repo2rlenv/pipelines/recipes/swe_flow/author.py)
+- [`repository/export.py`](../../src/repo2rlenv/pipelines/recipes/repository/export.py)
+- [`swe_smith/grade.py`](../../src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
 
 ## Run and supported profile
 

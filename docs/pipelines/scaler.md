@@ -46,11 +46,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`scaler/families.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/families.py)
-- [`scaler/worker.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/worker.py)
-- [`scaler/pipeline.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/pipeline.py)
-- [`scaler/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/export.py)
-- [`scaler/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/scaler/grade.py)
+- [`scaler/families.py`](../../src/repo2rlenv/pipelines/recipes/scaler/families.py)
+- [`scaler/worker.py`](../../src/repo2rlenv/pipelines/recipes/scaler/worker.py)
+- [`scaler/pipeline.py`](../../src/repo2rlenv/pipelines/recipes/scaler/pipeline.py)
+- [`scaler/export.py`](../../src/repo2rlenv/pipelines/recipes/scaler/export.py)
+- [`scaler/grade.py`](../../src/repo2rlenv/pipelines/recipes/scaler/grade.py)
 
 ## Run and supported profile
 

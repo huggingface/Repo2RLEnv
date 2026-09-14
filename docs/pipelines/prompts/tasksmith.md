@@ -4,7 +4,7 @@ Read the [pipeline walkthrough](../tasksmith.md) for the stage diagram, contract
 
 ### investigate.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `76a22009b0be3a0988bc80408f3e2428ef28a44c7ac8aac8086ff3111db95408`
+[Source: `src/repo2rlenv/tasksmith/prompts/investigate.md`](../../../src/repo2rlenv/tasksmith/prompts/investigate.md) · SHA-256 `76a22009b0be3a0988bc80408f3e2428ef28a44c7ac8aac8086ff3111db95408`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -71,7 +71,7 @@ failure is only a cache-name mismatch.
 
 ### design.md
 
-[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `cc6242a81b0c64677f58f27283a03bf48eafc175690ffe75d621dc9469ddad82`
+[Source: `src/repo2rlenv/tasksmith/prompts/design.md`](../../../src/repo2rlenv/tasksmith/prompts/design.md) · SHA-256 `cc6242a81b0c64677f58f27283a03bf48eafc175690ffe75d621dc9469ddad82`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -142,7 +142,7 @@ whose relevant behavior can be exercised using a real tiny local model.
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `f3e423c1ed44007cf1a0ce49b6e17496828c6b2e96a1722708e77bca9c2544ef`
+[Source: `src/repo2rlenv/tasksmith/models.py`](../../../src/repo2rlenv/tasksmith/models.py) · SHA-256 `f3e423c1ed44007cf1a0ce49b6e17496828c6b2e96a1722708e77bca9c2544ef`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -332,7 +332,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `8c86781e3ce5590a6ee5b7e409d3697da8221fab86134fff11d1ae13dcaec0b8`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](../../../src/repo2rlenv/tasksmith/runner.py) · SHA-256 `8c86781e3ce5590a6ee5b7e409d3697da8221fab86134fff11d1ae13dcaec0b8`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -1246,7 +1246,7 @@ class Tasksmith:
 
 ### artifact.py
 
-[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `8118442cc18d0e95652b3cae19627a7943c1a7b956516ecc0dbf8c759d9eb0fe`
+[Source: `src/repo2rlenv/tasksmith/author/artifact.py`](../../../src/repo2rlenv/tasksmith/author/artifact.py) · SHA-256 `8118442cc18d0e95652b3cae19627a7943c1a7b956516ecc0dbf8c759d9eb0fe`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 

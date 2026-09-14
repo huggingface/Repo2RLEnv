@@ -54,11 +54,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Implementation map
 
-- [`endless_terminals/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py)
-- [`endless_terminals/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py)
-- [`terminal/templates.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/templates.py)
-- [`terminal/preflight.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
-- [`terminal/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/terminal/runner.py)
+- [`endless_terminals/sampler.py`](../../src/repo2rlenv/pipelines/recipes/endless_terminals/sampler.py)
+- [`endless_terminals/recipe.py`](../../src/repo2rlenv/pipelines/recipes/endless_terminals/recipe.py)
+- [`terminal/templates.py`](../../src/repo2rlenv/pipelines/recipes/terminal/templates.py)
+- [`terminal/preflight.py`](../../src/repo2rlenv/pipelines/recipes/terminal/preflight.py)
+- [`terminal/runner.py`](../../src/repo2rlenv/pipelines/recipes/terminal/runner.py)
 
 ## Run and supported profile
 

@@ -10,7 +10,7 @@ Also read the [shared terminal additions and schemas](shared_terminal.md). They 
 
 ### environment_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/environment_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/environment_prompt.md) · SHA-256 `1ba83f0ea6d063304b358a37faadf7000beb94bee341e49a52f3eebc7d870396`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/environment_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/tmax/environment_prompt.md) · SHA-256 `1ba83f0ea6d063304b358a37faadf7000beb94bee341e49a52f3eebc7d870396`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -50,7 +50,7 @@ IMPORTANT RULES:
 
 ### final_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/final_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/final_prompt.md) · SHA-256 `56fdcf342d3b7aecc0818f57cd1127e1ba6ad2b04df485298e3f5743f89b4c7b`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/final_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/tmax/final_prompt.md) · SHA-256 `56fdcf342d3b7aecc0818f57cd1127e1ba6ad2b04df485298e3f5743f89b4c7b`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -86,7 +86,7 @@ Ground-truth alignment (principled tests):
 
 ### initial_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/initial_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/initial_prompt.md) · SHA-256 `35666295b20ec04cb46005da85be205b7019562739971ff57a42daa6254c5e08`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/initial_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/tmax/initial_prompt.md) · SHA-256 `35666295b20ec04cb46005da85be205b7019562739971ff57a42daa6254c5e08`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -115,7 +115,7 @@ Rules:
 
 ### template_prompt.md
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/template_prompt.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/template_prompt.md) · SHA-256 `f9f1cca0c4d111331bc44554aceada17713fba908c5965665991e6cb1098fc5f`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/template_prompt.md`](../../../src/repo2rlenv/pipelines/recipes/tmax/template_prompt.md) · SHA-256 `f9f1cca0c4d111331bc44554aceada17713fba908c5965665991e6cb1098fc5f`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -196,7 +196,7 @@ Critical Rules:
 
 ### DOMAIN_MODULES substitutions
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/taxonomy.json`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/taxonomy.json) · SHA-256 `fb63e54c2c15e4547030bc7507e234ac19907dd4f2ab772a8256076669a7cc06`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/taxonomy.json`](../../../src/repo2rlenv/pipelines/recipes/tmax/taxonomy.json) · SHA-256 `fb63e54c2c15e4547030bc7507e234ac19907dd4f2ab772a8256076669a7cc06`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -225,7 +225,7 @@ The source excerpts below are read-only documentation. Model calls return struct
 
 ### recipe.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/recipe.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/recipe.py) · SHA-256 `db8d6df0d95ddb7cf2e1c7322e36925a63ff5da6a8c3f9827ba35e3b5d00b168`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/recipe.py`](../../../src/repo2rlenv/pipelines/recipes/tmax/recipe.py) · SHA-256 `db8d6df0d95ddb7cf2e1c7322e36925a63ff5da6a8c3f9827ba35e3b5d00b168`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -265,7 +265,7 @@ def builder_prompt() -> str:
 
 ### sampler.py
 
-[Source: `src/repo2rlenv/pipelines/recipes/tmax/sampler.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/pipelines/recipes/tmax/sampler.py) · SHA-256 `189db87715ee48285a774bfd2cac758a40def88af90318cb03f49108cb37f1b2`
+[Source: `src/repo2rlenv/pipelines/recipes/tmax/sampler.py`](../../../src/repo2rlenv/pipelines/recipes/tmax/sampler.py) · SHA-256 `189db87715ee48285a774bfd2cac758a40def88af90318cb03f49108cb37f1b2`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
