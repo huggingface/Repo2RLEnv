@@ -35,7 +35,8 @@ def build_excerpt(text: str, limit: int = 6000) -> str:
     )
 
 
-def _private_text(value: str | bytes | None) -> str:
+def redact_build_text(value: str | bytes | None) -> str:
+    """Remove known credentials before retaining or surfacing build diagnostics."""
     text = value.decode(errors="replace") if isinstance(value, bytes) else (value or "")
     # Workers receive no model credentials. Still avoid retaining credentials
     # accidentally printed by a tool; never serialize the environment or argv.
@@ -55,7 +56,7 @@ def save_build_logs(prefix: Path, stdout: str | bytes | None, stderr: str | byte
     records = {}
     summaries = []
     for name, raw in (("stdout", stdout), ("stderr", stderr)):
-        text = _private_text(raw)
+        text = redact_build_text(raw)
         data = text.encode()
         summary = build_excerpt(text)
         retained = data
