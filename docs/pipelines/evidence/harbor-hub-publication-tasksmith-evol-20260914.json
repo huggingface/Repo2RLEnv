@@ -1,0 +1,56 @@
+{
+  "checked_at": "2026-09-14T18:23:56.440137+00:00",
+  "task_count": 150,
+  "expected_files": 106715,
+  "scope": "Complete staged release file contents compared with the published Git/LFS identities at exact commits; Harbor parsing for all staged configurations and one Visualiser sample per dataset. This is publication validation, not new task execution or independent quality acceptance.",
+  "audits": [
+    {
+      "at": "2026-09-14T18:23:04.088960+00:00",
+      "errors": [],
+      "expected_files": 105427,
+      "passed": true,
+      "remote_files": 105428,
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "revision": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "schema_counts": {
+        "1.3": 50
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 50
+    },
+    {
+      "at": "2026-09-14T18:19:39.409134+00:00",
+      "errors": [],
+      "expected_files": 1288,
+      "passed": true,
+      "remote_files": 1289,
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "revision": "716111f7d6dff5ee8fc1a0b5378450d7ce11a849",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    }
+  ],
+  "visualiser": [
+    {
+      "checked_at": "2026-09-14T18:21:02.994021+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "task_count": 100,
+      "sample_task": "seta-evol-005fa7006ce9f9ac",
+      "required_paths_present": true,
+      "configuration_loaded": true,
+      "passed": true
+    },
+    {
+      "checked_at": "2026-09-14T18:22:01.543626+00:00",
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "task_count": 50,
+      "sample_task": "tasksmith-03a6a091b12f",
+      "required_paths_present": true,
+      "configuration_loaded": true,
+      "passed": true
+    }
+  ]
+}

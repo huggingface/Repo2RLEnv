@@ -1,0 +1,656 @@
+{
+  "as_of": "2026-09-14T18:23:30.912449+00:00",
+  "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
+  "expected_final_inventory": 1375,
+  "generated": 1312,
+  "generation_targets_reached": 12,
+  "minimum_target": 1370,
+  "published_datasets": 12,
+  "published_tasks": 1075,
+  "recipes": [
+    {
+      "artifact_commit": "95fea218297d1cf455593130d8ac0b4532049cb3",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 15.881671708333332,
+          "model_held_usd": 0,
+          "model_usd_per_new_export_including_failed_attempts": 0.031677618421052635,
+          "new_exports": 76,
+          "new_model_booked_usd": 2.407499,
+          "recipe": "swe-smith",
+          "retained_exports": 24,
+          "source_distribution": {
+            "https://github.com/Suor/funcy": 23,
+            "https://github.com/mahmoud/boltons": 19,
+            "https://github.com/more-itertools/more-itertools": 24,
+            "https://github.com/pallets/itsdangerous": 3,
+            "https://github.com/pypa/packaging": 15,
+            "https://github.com/pytoolz/toolz": 16
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "repo_mutate.md",
+      "pipeline": "repo_mutate",
+      "publication_commit": "ab4a6d0ce41fe4fefebc9eee76c1352f34a0827e",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "swe-smith",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "target": 100
+    },
+    {
+      "artifact_commit": "c1fe34577f1671c55965f193ca2a5a071bb7aa57",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 18.6449185,
+          "model_held_usd": 1.5,
+          "model_usd_per_new_export_including_failed_attempts": 0.2215678,
+          "new_exports": 80,
+          "new_model_booked_usd": 17.725424,
+          "recipe": "r2e",
+          "retained_exports": 20,
+          "source_distribution": {
+            "https://github.com/Suor/funcy": 16,
+            "https://github.com/andialbrecht/sqlparse": 11,
+            "https://github.com/dgilland/pydash": 8,
+            "https://github.com/grantjenks/python-sortedcontainers": 1,
+            "https://github.com/mahmoud/boltons": 25,
+            "https://github.com/more-itertools/more-itertools": 20,
+            "https://github.com/pallets/itsdangerous": 3,
+            "https://github.com/pypa/packaging": 7,
+            "https://github.com/tkem/cachetools": 9
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "r2e.md",
+      "pipeline": "equivalence_tests",
+      "publication_commit": "6527eab926348107c6089c94d93f079f740ba62f",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "r2e",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "target": 100
+    },
+    {
+      "artifact_commit": "325d9a6880d39f16bf35a052188c211d451c2f78",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 17.078973383333334,
+          "model_held_usd": 0,
+          "model_usd_per_new_export_including_failed_attempts": 0.020433037499999997,
+          "new_exports": 80,
+          "new_model_booked_usd": 1.6346429999999998,
+          "recipe": "swe-gen",
+          "retained_exports": 20,
+          "source_distribution": {
+            "https://github.com/Suor/funcy": 9,
+            "https://github.com/andialbrecht/sqlparse": 15,
+            "https://github.com/dbader/schedule": 11,
+            "https://github.com/mahmoud/boltons": 25,
+            "https://github.com/more-itertools/more-itertools": 20,
+            "https://github.com/pypa/packaging": 16,
+            "https://github.com/tkem/cachetools": 4
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "pr_to_env.md",
+      "pipeline": "pr_to_env",
+      "publication_commit": "30aa7cc51743d4bf29ec56e9fb0d65d1bf2d1c06",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "swe-gen",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "target": 100
+    },
+    {
+      "artifact_commit": "d40299beeb2e59be3216b0b285c5542e9554338f",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 10.819085425,
+          "model_held_usd": 0,
+          "model_usd_per_new_export_including_failed_attempts": 0.093930225,
+          "new_exports": 80,
+          "new_model_booked_usd": 7.514418,
+          "recipe": "swe-next",
+          "retained_exports": 20,
+          "source_distribution": {
+            "https://github.com/Suor/funcy": 9,
+            "https://github.com/andialbrecht/sqlparse": 8,
+            "https://github.com/dbader/schedule": 8,
+            "https://github.com/mahmoud/boltons": 25,
+            "https://github.com/more-itertools/more-itertools": 20,
+            "https://github.com/pallets/itsdangerous": 6,
+            "https://github.com/pypa/packaging": 24
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "swe_next.md",
+      "pipeline": "pr_runtime",
+      "publication_commit": "bd888b60c4793b35f48cb56824d55bf278c96b2d",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "swe-next",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "target": 100
+    },
+    {
+      "artifact_commit": "d19e8c118aad282f61e0d1666510e60b0648789a",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 6.912505333333333,
+          "model_held_usd": 0.75,
+          "model_usd_per_new_export_including_failed_attempts": 0.044044275,
+          "new_exports": 80,
+          "new_model_booked_usd": 3.523542,
+          "recipe": "r2e-gym",
+          "retained_exports": 20,
+          "source_distribution": {
+            "https://github.com/Suor/funcy": 12,
+            "https://github.com/andialbrecht/sqlparse": 8,
+            "https://github.com/dbader/schedule": 6,
+            "https://github.com/dgilland/pydash": 12,
+            "https://github.com/mahmoud/boltons": 25,
+            "https://github.com/more-itertools/more-itertools": 24,
+            "https://github.com/pypa/packaging": 2,
+            "https://github.com/pytoolz/toolz": 4,
+            "https://github.com/tkem/cachetools": 7
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "r2e_gym.md",
+      "pipeline": "commit_runtime",
+      "publication_commit": "4bb0ddf7b27c8c85f7546dc25b72ede92dcb4ce6",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "r2e-gym",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "target": 100
+    },
+    {
+      "artifact_commit": "59ccbee2b67dc32ed597435b8432491af5ef1c5a",
+      "economics": {
+        "recipe": {
+          "median_completed_batch_minutes": 10.784617241666666,
+          "model_held_usd": 0,
+          "model_usd_per_new_export_including_failed_attempts": 0.0,
+          "new_exports": 80,
+          "new_model_booked_usd": 0,
+          "recipe": "scaler",
+          "retained_exports": 20,
+          "source_distribution": {
+            "1003_F. Abbreviation": 16,
+            "1195_B. Sport Mafia": 9,
+            "1200_A. Hotelier": 14,
+            "158_D. Ice Sculptures": 9,
+            "285_C. Building Permutation": 11,
+            "632_A. Grandma Laura and Apples": 14,
+            "883_C. Downloading B++": 11,
+            "p02158 Rings": 16
+          },
+          "target": 100,
+          "total_exports": 100
+        },
+        "shared_campaign": {
+          "basis": "Model receipts plus conservative reconciled worker estimates; same shared campaign appears in six datasets, do not sum it six times. Retained costs and interactive assistant usage excluded.",
+          "generation_accounted_usd": "75.899214",
+          "new_exports": 476,
+          "retained_exports": 124,
+          "uncertain_generation_reserved_usd": "2.250000"
+        }
+      },
+      "generated": 100,
+      "guide": "scaler.md",
+      "pipeline": "reasoning_synth",
+      "publication_commit": "a541dfefbc0edcd40d61fe0b1e1e0b6ee96101b7",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "scaler",
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "target": 100
+    },
+    {
+      "artifact_commit": "0463608e376b4feb3b0d90be6376db583c57f871",
+      "economics": {
+        "accounted_usd": "41.514544",
+        "batches": [
+          {
+            "accounted_usd": "3.053531",
+            "campaign": "owned-wave2-pilot",
+            "estimated_cloud_build_usd": "1.144022",
+            "model_calls": 23,
+            "model_usd": "1.909509",
+            "new_exports": 5,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-daytona-pilot-01"
+          },
+          {
+            "accounted_usd": "3.486399",
+            "campaign": "owned-wave2-expand01",
+            "estimated_cloud_build_usd": "1.160563",
+            "model_calls": 35,
+            "model_usd": "2.325836",
+            "new_exports": 5,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-expand01-01"
+          },
+          {
+            "accounted_usd": "2.933759",
+            "campaign": "owned-wave2-expand01",
+            "estimated_cloud_build_usd": "1.128892",
+            "model_calls": 25,
+            "model_usd": "1.804867",
+            "new_exports": 5,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-expand01-02"
+          },
+          {
+            "accounted_usd": "3.274766",
+            "campaign": "owned-wave2-expand01",
+            "estimated_cloud_build_usd": "1.141965",
+            "model_calls": 33,
+            "model_usd": "2.132801",
+            "new_exports": 5,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-expand01-03"
+          },
+          {
+            "accounted_usd": "3.673088",
+            "campaign": "owned-wave2-expand02",
+            "estimated_cloud_build_usd": "1.174619",
+            "model_calls": 40,
+            "model_usd": "2.498469",
+            "new_exports": 7,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-expand02-01"
+          },
+          {
+            "accounted_usd": "3.803549",
+            "campaign": "owned-wave2-expand02",
+            "estimated_cloud_build_usd": "1.184029",
+            "model_calls": 38,
+            "model_usd": "2.61952",
+            "new_exports": 7,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-expand02-02"
+          },
+          {
+            "accounted_usd": "6.937022",
+            "campaign": "owned-wave2-finish100",
+            "estimated_cloud_build_usd": "1.367875",
+            "model_calls": 84,
+            "model_usd": "5.569147",
+            "new_exports": 12,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-finish100-01"
+          },
+          {
+            "accounted_usd": "5.365952",
+            "campaign": "owned-wave2-finish100",
+            "estimated_cloud_build_usd": "1.281117",
+            "model_calls": 62,
+            "model_usd": "4.084835",
+            "new_exports": 12,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-finish100-02"
+          },
+          {
+            "accounted_usd": "4.650588",
+            "campaign": "owned-wave2-finish100",
+            "estimated_cloud_build_usd": "1.247854",
+            "model_calls": 58,
+            "model_usd": "3.402734",
+            "new_exports": 11,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-finish100-03"
+          },
+          {
+            "accounted_usd": "4.33589",
+            "campaign": "owned-wave2-finish100",
+            "estimated_cloud_build_usd": "1.215417",
+            "model_calls": 53,
+            "model_usd": "3.120473",
+            "new_exports": 11,
+            "recipe": "endless-terminals",
+            "reserved_usd": "0",
+            "run_id": "endless-terminals-finish100-04"
+          }
+        ],
+        "estimated_cloud_build_usd": "12.046353",
+        "model_calls": 451,
+        "model_usd": "29.468191",
+        "new_exports": 80,
+        "reserved_usd": "0",
+        "retained_exports": 20,
+        "scope": "New Wave 2 generation including failed candidates and estimated worker lifetimes; excludes original 20 retained tasks, interactive assistant usage and independent quality validation. No parent/child double counting.",
+        "usd_per_new_export": "0.5189318"
+      },
+      "generated": 100,
+      "guide": "endless_terminals.md",
+      "pipeline": "terminal_synth",
+      "publication_commit": "0463608e376b4feb3b0d90be6376db583c57f871",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "endless-terminals",
+      "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
+      "target": 100
+    },
+    {
+      "artifact_commit": "336a7620de053cc711c79f966ae72bb461ad1ca3",
+      "economics": {
+        "accounted_usd": "5.712143",
+        "batches": [
+          {
+            "accounted_usd": "4.316891",
+            "campaign": "owned-wave2-pilot",
+            "estimated_cloud_build_usd": "1.140093",
+            "model_calls": 41,
+            "model_usd": "3.176798",
+            "new_exports": 4,
+            "recipe": "cli-gym",
+            "reserved_usd": "0",
+            "run_id": "cli-gym-daytona-pilot-01"
+          },
+          {
+            "accounted_usd": "1.395252",
+            "campaign": "owned-wave2-expand01",
+            "estimated_cloud_build_usd": "1.028436",
+            "model_calls": 7,
+            "model_usd": "0.366816",
+            "new_exports": 1,
+            "recipe": "cli-gym",
+            "reserved_usd": "0",
+            "run_id": "cli-gym-expand01-04"
+          }
+        ],
+        "estimated_cloud_build_usd": "2.168529",
+        "model_calls": 48,
+        "model_usd": "3.543614",
+        "new_exports": 5,
+        "reserved_usd": "0",
+        "retained_exports": 20,
+        "scope": "New Wave 2 generation including failed candidates and estimated worker lifetimes; excludes original 20 retained tasks, interactive assistant usage and independent quality validation. No parent/child double counting.",
+        "usd_per_new_export": "1.1424286"
+      },
+      "generated": 25,
+      "guide": "env_repair.md",
+      "pipeline": "env_repair",
+      "publication_commit": "336a7620de053cc711c79f966ae72bb461ad1ca3",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 25
+      },
+      "recipe": "cli-gym",
+      "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
+      "target": 20
+    },
+    {
+      "artifact_commit": "80a2219f73b5af5655005fda39da32809d9f9726",
+      "economics": {
+        "accounted_usd": "22.906998",
+        "estimated_cloud_build_usd": "18.857685",
+        "limit_usd": "100.000000",
+        "model_calls": 152,
+        "model_usd": "4.049313",
+        "new_exports": 76,
+        "reserved_usd": "0.000000",
+        "retained_exports": 24,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "usd_per_new_export": "0.3014078684210526315789473684"
+      },
+      "generated": 100,
+      "guide": "repo_reconstruct.md",
+      "pipeline": "repo_reconstruct",
+      "publication_commit": "80a2219f73b5af5655005fda39da32809d9f9726",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 98,
+        "needs_repair": 2
+      },
+      "recipe": "swe-flow",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
+      "target": 100
+    },
+    {
+      "artifact_commit": null,
+      "economics": {
+        "scope": "Expansion in progress; see the current ledger snapshot."
+      },
+      "generated": 92,
+      "guide": "terminal_synth.md",
+      "pipeline": "terminal_synth",
+      "publication_commit": null,
+      "publication_state": "not_started",
+      "quality_counts": null,
+      "recipe": "seta-seed2synth",
+      "repo_id": null,
+      "target": 100
+    },
+    {
+      "artifact_commit": "716111f7d6dff5ee8fc1a0b5378450d7ce11a849",
+      "economics": {
+        "accounted_usd": "44.720351",
+        "estimated_cloud_build_usd": "13.969454",
+        "limit_usd": "100.000000",
+        "model_calls": 392,
+        "model_usd": "30.750897",
+        "new_exports": 80,
+        "reserved_usd": "1.250000",
+        "retained_exports": 20,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "unresolved_model_operations": 1,
+        "usd_per_new_export": "0.5590043875"
+      },
+      "generated": 100,
+      "guide": "task_evolve.md",
+      "pipeline": "task_evolve",
+      "publication_commit": "716111f7d6dff5ee8fc1a0b5378450d7ce11a849",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "seta-evol",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "target": 100
+    },
+    {
+      "artifact_commit": null,
+      "economics": {
+        "scope": "Expansion in progress; see the current ledger snapshot."
+      },
+      "generated": 52,
+      "guide": "tmax.md",
+      "pipeline": "terminal_synth",
+      "publication_commit": null,
+      "publication_state": "not_started",
+      "quality_counts": null,
+      "recipe": "tmax",
+      "repo_id": null,
+      "target": 100
+    },
+    {
+      "artifact_commit": null,
+      "economics": {
+        "scope": "Expansion in progress; see the current ledger snapshot."
+      },
+      "generated": 93,
+      "guide": "terminalworld.md",
+      "pipeline": "terminal_reconstruct",
+      "publication_commit": null,
+      "publication_state": "not_started",
+      "quality_counts": null,
+      "recipe": "terminalworld",
+      "repo_id": null,
+      "target": 100
+    },
+    {
+      "artifact_commit": "16e72391a3830bdba85df1c9f97b2c9b7e911924",
+      "economics": {
+        "accounted_usd": "26.567285",
+        "estimated_cloud_build_usd": "12.036370",
+        "limit_usd": "100.000000",
+        "model_calls": 224,
+        "model_usd": "14.530915",
+        "new_exports": 80,
+        "reserved_usd": "0.000000",
+        "retained_exports": 20,
+        "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+        "usd_per_new_export": "0.3320910625"
+      },
+      "generated": 100,
+      "guide": "dataarc.md",
+      "pipeline": "terminal_synth",
+      "publication_commit": "16e72391a3830bdba85df1c9f97b2c9b7e911924",
+      "publication_state": "completed",
+      "quality_counts": {
+        "exported": 100
+      },
+      "recipe": "dataarc",
+      "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
+      "target": 100
+    },
+    {
+      "artifact_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "economics": {
+        "averages": {
+          "expansion_booked_per_current_accepted_new_pr_usd": "15.07714184615384615384615385",
+          "expansion_booked_per_net_current_acceptance_gain_usd": "15.07714184615384615384615385",
+          "explanation": "Includes failed/repeated candidates and repair/revalidation of original-cohort tasks. These are campaign averages, not marginal environment-generation quotes; never divide full reproduction ledger by the new-task denominator."
+        },
+        "expansion": {
+          "booked_plus_held_usd": "396.988106",
+          "booked_usd": "392.005688",
+          "cap_usd": "405",
+          "held_usd": "4.982418",
+          "operations": 1920,
+          "remaining_after_actual_holds_usd": "8.011894",
+          "reserved_usd": "0.982418",
+          "uncertain_usd": "4"
+        },
+        "expansion_phases": {
+          "authoring_and_investigation": {
+            "booked_plus_held_usd": "64.894491",
+            "booked_usd": "63.912073",
+            "held_usd": "0.982418",
+            "operations": 1137,
+            "reserved_usd": "0.982418",
+            "uncertain_usd": "0"
+          },
+          "blind_solver_model": {
+            "booked_plus_held_usd": "25.197755",
+            "booked_usd": "21.197755",
+            "held_usd": "4",
+            "operations": 57,
+            "reserved_usd": "0",
+            "uncertain_usd": "4"
+          },
+          "compute_estimates": {
+            "booked_plus_held_usd": "220.83248",
+            "booked_usd": "220.83248",
+            "held_usd": "0",
+            "operations": 308,
+            "reserved_usd": "0",
+            "uncertain_usd": "0"
+          },
+          "quality_review_and_repair": {
+            "booked_plus_held_usd": "86.06338",
+            "booked_usd": "86.06338",
+            "held_usd": "0",
+            "operations": 418,
+            "reserved_usd": "0",
+            "uncertain_usd": "0"
+          }
+        },
+        "limitations": [
+          "Booked model costs use recorded usage and pricing; booked compute is reconciled elapsed-resource estimates, not final provider invoices.",
+          "Reserved and uncertain rows remain fully counted. Allocation envelopes and the20 admission margin are additional prospective safeguards, not actual costs or ledger holds."
+        ],
+        "scope": "Historical scale-50 expansion; includes unsuccessful attempts and repairs of retained tasks. The expansion added 26 accepted PR tasks; it is not the full cost of all fifty tasks or a marginal-generation quote. Earlier reproduction campaigns are excluded here."
+      },
+      "generated": 50,
+      "guide": "tasksmith.md",
+      "pipeline": "tasksmith",
+      "publication_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "publication_state": "completed",
+      "quality_counts": {
+        "verified": 50
+      },
+      "recipe": "tasksmith",
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "target": 50
+    }
+  ],
+  "scope": "Generated counts and saved publication receipts; not live worker status or independent quality acceptance."
+}

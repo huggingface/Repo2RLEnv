@@ -58,6 +58,10 @@ harbor run -p ./datasets/<dataset-name> -a oracle --env docker
 
 → Explore and visualize any Harbor dataset pushed to the Hub: [**Harbor Visualizer**](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser)
 
+The [owned recipe and Tasksmith release inventory](docs/pipelines/releases.md)
+links the HuggingEnvs datasets, pipeline guides, generation evidence and measured
+costs. Generated exports and independently reviewed tasks retain distinct labels.
+
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
 ## How it works

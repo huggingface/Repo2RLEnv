@@ -84,6 +84,20 @@ with Apache-2.0 notices. Typed responses, offline execution and owned Harbor/JUn
 materialization replace the upstream agent filesystem interface and legacy task
 templates. This is a workflow adaptation, not byte-identical reproduction.
 
-The generation milestone is 20 children with baseline/reference evidence. It does
-not imply difficulty calibration or independent quality acceptance. See
+The released collection contains **100 children**: 20 retained tasks and 80 new
+exports. All 80 new exports have matching fresh baseline reward 0 and reference
+reward 1 evidence. The six strategy counts are 13 increase, 21 decrease, 15 context
+change, 20 combined increase/context change, 14 slight increase and 17 slight
+decrease. These describe requested transformations, not measured difficulty.
+
+The expansion recorded **$44.72**: $30.75 in model estimates across 392 calls and
+$13.97 in estimated worker/build costs, or **$0.56 per new export** including
+unsuccessful attempts. One timed-out model request retains a separate **$1.25
+uncertain reservation**; it is not silently reported as either billed or free.
+All expansion workers are terminated. These costs exclude the 20 retained tasks
+and subsequent independent quality evaluation. See the
+[generation evidence](evidence/seta-evol-generation-100.json) and
+[published Harbor dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol).
+
+Generation does not imply difficulty calibration or independent quality acceptance. See
 [RFC 0014](../rfcs/0014-seta-evol-recipe.md) and the packaged recipe's `provenance.md`.

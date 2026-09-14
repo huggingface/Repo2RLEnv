@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+
+import pytest
 
 from repo2rlenv.pipelines.recipes.terminalworld.capture import changes, filesystem_state
 from repo2rlenv.pipelines.recipes.terminalworld.source import MetadataParser, load_recordings
@@ -24,6 +27,39 @@ def test_metadata_reads_description_and_ignores_unrelated_secrets():
     )
     assert parser.metadata == {"title": "Task title"}
     assert "".join(parser.description) == "Workflow details follow."
+
+
+def test_acquisition_marks_partial_inputs_and_binds_completion_to_cache(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines.recipes.terminalworld import source
+
+    def interrupted(client, url, limit):
+        assert json.loads((tmp_path / "acquisition.json").read_text())["state"] == "running"
+        raise RuntimeError("Disconnected before the input shard finished")
+
+    monkeypatch.setattr(source, "_download", interrupted)
+    with pytest.raises(RuntimeError, match="Disconnected"):
+        source.fetch_recordings(["123"], tmp_path)
+    assert json.loads((tmp_path / "acquisition.json").read_text())["state"] == "interrupted"
+
+    def download(client, url, limit):
+        assert json.loads((tmp_path / "acquisition.json").read_text())["state"] == "running"
+        if url.endswith("robots.txt"):
+            return "User-agent: *\nAllow: /\n"
+        return (
+            "echo fixture\n" * 20
+            if url.endswith(".txt")
+            else '<meta property="og:title" content="Fixture">'
+        )
+
+    monkeypatch.setattr(source, "_download", download)
+    monkeypatch.setattr(source.time, "sleep", lambda _: None)
+    assert source.fetch_recordings(["123"], tmp_path)["123"]["downloaded"]
+    done = json.loads((tmp_path / "acquisition.json").read_text())
+    assert done["state"] == "completed"
+    assert (
+        done["retrieval_sha256"]
+        == hashlib.sha256((tmp_path / "retrieval.json").read_bytes()).hexdigest()
+    )
 
 
 def test_snapshot_detects_new_modified_and_deleted_files(tmp_path):

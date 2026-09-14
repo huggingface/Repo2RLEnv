@@ -43,3 +43,28 @@ def test_discovery_obeys_robots_and_records_the_block(tmp_path, monkeypatch):
     assert record["error_type"] == "ValueError"
     with pytest.raises(ValueError, match="one to 50"):
         discovery.discover_recordings(tmp_path, feeds=["public"], pages_per_feed=51)
+
+
+def test_explicit_profiles_stay_on_asciinema_and_respect_the_page_bound(tmp_path, monkeypatch):
+    urls = []
+
+    def download(client, url, limit):
+        urls.append(url)
+        return (
+            "User-agent: *\nAllow: /\n"
+            if url.endswith("robots.txt")
+            else '<a href="/a/42">Record</a>'
+        )
+
+    monkeypatch.setattr(discovery, "_download", download)
+    monkeypatch.setattr(discovery.time, "sleep", lambda _: None)
+    assert discovery.discover_recordings(
+        tmp_path, feeds=[], profiles=["/~fixture-user"], pages_per_feed=1
+    ) == ["42"]
+    assert urls[-1] == "https://asciinema.org/~fixture-user?page=1"
+    with pytest.raises(ValueError, match="explicit public"):
+        discovery.discover_recordings(tmp_path, feeds=[], profiles=["https://other.example/~user"])
+    with pytest.raises(ValueError, match="at most 200"):
+        discovery.discover_recordings(
+            tmp_path, feeds=[], profiles=[f"/~user{i}" for i in range(5)], pages_per_feed=50
+        )

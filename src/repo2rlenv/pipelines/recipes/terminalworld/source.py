@@ -7,13 +7,14 @@ import hashlib
 import json
 import re
 import time
+from contextlib import contextmanager
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.robotparser import RobotFileParser
 
 import httpx
 
-from repo2rlenv.execution.lifecycle import save_record
+from repo2rlenv.execution.lifecycle import now, save_record
 from repo2rlenv.pipelines.recipes.terminalworld.privacy import screen
 from repo2rlenv.ui import console
 
@@ -62,6 +63,36 @@ def _download(client, url: str, limit: int) -> str:
     return b"".join(chunks).decode("utf-8", errors="replace")
 
 
+@contextmanager
+def _acquisition(destination: Path, ids: list[str]):
+    """Distinguish a complete input shard from a cache still being filled."""
+    path = destination / "acquisition.json"
+    record = {
+        "state": "running",
+        "started_at": now(),
+        "requested_ids_sha256": hashlib.sha256(json.dumps(ids).encode()).hexdigest(),
+        "requested_count": len(set(ids)),
+    }
+    save_record(path, record)
+    try:
+        yield
+    except BaseException as exc:
+        save_record(path, {**record, "state": "interrupted", "exception_type": type(exc).__name__})
+        raise
+    else:
+        save_record(
+            path,
+            {
+                **record,
+                "state": "completed",
+                "finished_at": now(),
+                "retrieval_sha256": hashlib.sha256(
+                    (destination / "retrieval.json").read_bytes()
+                ).hexdigest(),
+            },
+        )
+
+
 def fetch_recordings(ids: list[str], destination: Path) -> dict:
     """Fetch metadata and .txt only; retain per-input outcomes for restart."""
     if (
@@ -73,9 +104,12 @@ def fetch_recordings(ids: list[str], destination: Path) -> dict:
     destination.mkdir(parents=True, exist_ok=True)
     receipt = destination / "retrieval.json"
     results = json.loads(receipt.read_text()) if receipt.exists() else {}
-    with httpx.Client(
-        timeout=30, follow_redirects=True, headers={"User-Agent": _USER_AGENT}
-    ) as client:
+    with (
+        _acquisition(destination, ids),
+        httpx.Client(
+            timeout=30, follow_redirects=True, headers={"User-Agent": _USER_AGENT}
+        ) as client,
+    ):
         rules = _download(client, "https://asciinema.org/robots.txt", 64000)
         (destination / "robots.txt").write_text(rules)
         robots = RobotFileParser()

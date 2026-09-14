@@ -24,6 +24,13 @@ robots.txt, reuses cached pages, and stops on empty/repeated pages. Text acquisi
 and privacy/feasibility filtering remain separate stages. This follows the native
 source discovery approach without consuming an upstream dataset's task answers.
 
+An owned extension accepts explicit public Asciinema profile paths under the same
+bounded discovery contract, with at most 200 pages across feeds and profiles.
+Profile selection must be recorded as source curation, not described as random
+sampling. Acquisition records its running/interrupted/completed state and binds
+completion to the retrieval receipt hash, so batch scheduling can distinguish
+partially downloaded sources from a completed final shard.
+
 Select `pipeline.name: terminal_reconstruct` and `pipeline.recipe: terminalworld` in a typed configuration. Source data, resolved revisions, resource limits, model roles, random seeds and recipe options are recorded before spending. Strict options reject unknown keys. Existing native pipeline defaults remain compatible.
 
 ### Algorithm

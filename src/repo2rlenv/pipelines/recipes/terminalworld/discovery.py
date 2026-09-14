@@ -45,13 +45,27 @@ class RecordingLinks(HTMLParser):
 
 
 def discover_recordings(
-    destination: Path, *, feeds: list[str], pages_per_feed: int = 5
+    destination: Path,
+    *,
+    feeds: list[str],
+    pages_per_feed: int = 5,
+    profiles: list[str] | None = None,
 ) -> list[str]:
     """Cache bounded, robots-permitted index pages; never fetch task solutions."""
-    if not feeds or any(feed not in FEEDS for feed in feeds):
+    profiles = list(dict.fromkeys(profiles or []))
+    if (not feeds and not profiles) or any(feed not in FEEDS for feed in feeds):
         raise ValueError("Choose one or more supported public recording feeds")
+    if any(re.fullmatch(r"/~[a-zA-Z0-9_.-]{1,80}", profile) is None for profile in profiles):
+        raise ValueError("Profiles must be explicit public asciinema /~name paths")
     if not 1 <= pages_per_feed <= 50:
         raise ValueError("Discovery requires one to 50 pages per feed")
+    sources = [(feed, FEEDS[feed]) for feed in dict.fromkeys(feeds)]
+    sources.extend(
+        ("profile-" + hashlib.sha256(profile.encode()).hexdigest()[:16], profile)
+        for profile in profiles
+    )
+    if len(sources) * pages_per_feed > 200:
+        raise ValueError("A discovery run may request at most 200 pages")
     destination.mkdir(parents=True, exist_ok=True)
     selected: list[str] = []
     with httpx.Client(
@@ -61,10 +75,10 @@ def discover_recordings(
         (destination / "robots.txt").write_text(rules)
         robots = RobotFileParser()
         robots.parse(rules.splitlines())
-        for feed in dict.fromkeys(feeds):
+        for feed, path in sources:
             prior_pages: set[str] = set()
             for page in range(1, pages_per_feed + 1):
-                url = _ORIGIN + FEEDS[feed] + f"?page={page}"
+                url = _ORIGIN + path + f"?page={page}"
                 receipt = destination / "pages" / f"{feed}-{page:03d}.json"
                 if receipt.exists():
                     record = json.loads(receipt.read_text())
@@ -107,10 +121,19 @@ def discover_recordings(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--feeds", nargs="+", choices=sorted(FEEDS), default=list(FEEDS))
+    parser.add_argument("--feeds", nargs="+", choices=sorted(FEEDS))
+    parser.add_argument("--profiles-json", type=Path, help="Explicit public /~name paths")
     parser.add_argument("--pages-per-feed", type=int, default=5)
     args = parser.parse_args()
-    ids = discover_recordings(args.out, feeds=args.feeds, pages_per_feed=args.pages_per_feed)
+    profiles = json.loads(args.profiles_json.read_text()) if args.profiles_json else None
+    if profiles is not None and (
+        not isinstance(profiles, list) or any(not isinstance(item, str) for item in profiles)
+    ):
+        parser.error("--profiles-json must contain a list of public profile paths")
+    feeds = args.feeds if args.feeds is not None else ([] if profiles else list(FEEDS))
+    ids = discover_recordings(
+        args.out, feeds=feeds, pages_per_feed=args.pages_per_feed, profiles=profiles
+    )
     console.kv({"recording_ids": len(ids), "path": args.out / "ids.json"}, title="Discovery")
 
 

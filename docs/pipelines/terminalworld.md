@@ -99,6 +99,20 @@ pages. Completed pages are reused on restart. New inputs still pass the same
 privacy and feasibility filters; finding a recording does not accept a task.
 Use one acquisition process per recording directory to preserve its receipt.
 
+You can also provide a JSON list of explicit public profile paths, such as
+`["/~example"]`, through `--profiles-json workspace/profiles.json`. Profile paths
+are restricted to Asciinema; the combined discovery run permits at most 200
+pages. This is an owned source-curation extension to the native explore feeds.
+The scale campaign selected public profiles linked from earlier usable source
+recordings after the explore feeds began repeating. It therefore samples related
+workflows; it does not establish a random or representative terminal benchmark.
+
+Acquisition writes `acquisition.json` with a running, interrupted or completed
+state. Completion is bound to the current `retrieval.json` hash. A controller can
+wait for a useful batch of new recordings, then consume a smaller final batch
+only after acquisition completes. A download failure remains in the retrieval
+receipt and is not a successful input.
+
 The first runtime profile supports a single offline CPU Linux container. It
 installs real dependencies during build and can synthesize missing input files
 when the recorded workflow provides enough evidence, as permitted by the native
@@ -111,7 +125,9 @@ four out of twelve, the native bronze threshold). The snapshot records file
 changes and bounded content prefixes. The test author consumes that execution
 evidence before the fresh baseline/reference trials.
 
-The target is **20 generated tasks**. Partial-solution probes, independent
+The initial 20-task milestone is complete; the current campaign targets
+**100 generated tasks**, with counts in the [release inventory](releases.md).
+Partial-solution probes, independent
 leakage/shortcut checks and blind solver rollouts follow the generation campaign.
 An export does not claim the upstream three-trial acceptance result. Cloud
 workers, metering and Rich/JSON progress use the [shared interface](owned_recipes.md).

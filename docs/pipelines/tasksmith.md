@@ -2,9 +2,20 @@
 
 Tasksmith inspects a merged PR, builds its real repository on Modal or Daytona, designs a human-facing request and deterministic verifier, and runs the shared quality loop. The coding agent is Pi or OpenCode; LangGraph routes the stages. All pipeline and adapter code lives in Repo2RLEnv.
 
-Tasksmith accepts added and modified Python source files. Deleted/renamed source and other languages remain explicit unsupported cases. CPU trials run on Modal or Daytona workers; the thirty-task campaign is testing native Modal execution on one or two L4 GPUs. The first development pilot covered five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. Its yield is not evidence of universal PR conversion.
+Tasksmith accepts added and modified Python source files. Deleted/renamed source and other languages remain explicit unsupported cases. CPU trials run on Modal or Daytona workers; the historical GPU cohort used native Modal execution on one or two L4 GPUs. The first development pilot covered five small PRs: two from `more-itertools`, one from `huggingface_hub`, one from `smolagents`, and one from Click. Its yield is not evidence of universal PR conversion.
 
-The [completed pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated and 5/5 usable**, with baseline/reference controls, semantic probes, Sonnet rollouts, repairs, costs and remaining coverage gaps.
+The published [HF_ML_Tasksmith dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith)
+contains **50 verified Harbor tasks from 50 distinct PRs**: Accelerate 13,
+Diffusers 9, PEFT 10, Transformers 5 and TRL 13. Thirty-nine tasks request CPU,
+six request one GPU and five request two GPUs. Sonnet fully solved 19 of the 50;
+a legitimate unsuccessful rollout can still support task acceptance. This is an
+audited, assisted campaign, not an unattended 100% conversion claim. The
+[campaign retrospective](tasksmith_campaign_retrospective.md) documents interventions,
+failed candidates and the separate cost scopes. The
+[release audit](evidence/harbor-hub-publication-tasksmith-evol-20260914.json) checks the
+published files; it does not rerun the historical solver trials.
+
+The earlier [five-task pilot report](tasksmith_cpu_hf_pilot.md) records **5/5 generated and 5/5 usable**, with baseline/reference controls, semantic probes, Sonnet rollouts, repairs, costs and remaining coverage gaps.
 
 ```mermaid
 flowchart TD

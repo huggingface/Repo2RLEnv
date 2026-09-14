@@ -18,6 +18,8 @@ Current local campaigns: [Wave 1: six completed 100-task collections](wave1_scal
 [Wave 2: Endless Terminals expansion and completed CLI-Gym target](wave2_pilot.md).
 The [SWE-flow, SETA and Wave 4 expansion](waves34_scale100.md) records six additional
 100-task objectives, each with its own $100 cap and initial Daytona pilot.
+The [release inventory](releases.md) brings together all fifteen delivery targets,
+published Harbor datasets, current generation counts and scoped per-task economics.
 
 Use the shared [Harbor review and repair loop](quality_loop.md) to review an
 existing task/rollout or run bounded remote validation and repairs from the CLI.

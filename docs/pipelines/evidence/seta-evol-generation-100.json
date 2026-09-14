@@ -1,0 +1,35 @@
+{
+  "all_workers_terminated": true,
+  "as_of": "2026-09-14T18:07:06.677493+00:00",
+  "diversity": {
+    "change_context": 15,
+    "decrease_difficulty": 21,
+    "increase_difficulty": 13,
+    "increase_difficulty_and_change_context": 20,
+    "slight_decrease": 17,
+    "slight_increase": 14
+  },
+  "economics": {
+    "accounted_usd": "44.720351",
+    "estimated_cloud_build_usd": "13.969454",
+    "limit_usd": "100.000000",
+    "model_calls": 392,
+    "model_usd": "30.750897",
+    "new_exports": 80,
+    "reserved_usd": "1.250000",
+    "retained_exports": 20,
+    "scope": "New generation including unsuccessful attempts and estimated worker/build costs; excludes retained tasks, interactive assistant usage and independent quality validation. Parent and child costs are the same funds.",
+    "unresolved_model_operations": 1,
+    "usd_per_new_export": "0.5590043875"
+  },
+  "known_findings": [],
+  "recipe": "seta-evol",
+  "source_audit_sha256": "f333dd58523f8c2e399609c47850724d96bb9d5c3dca766af9b001ae52b289f2",
+  "summary": {
+    "integrity_or_parse_errors": 0,
+    "new_exports": 80,
+    "new_matched_baseline_reference": 80,
+    "retained_exports": 20,
+    "total_exports": 100
+  }
+}

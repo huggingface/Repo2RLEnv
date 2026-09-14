@@ -36,7 +36,7 @@ flowchart TD
 
 **Choose a development step.** A task introduces only not-yet-developed functions. Entry points keep signatures; new helpers are removed. The full configured suite checks healthy and skeleton states.
 
-**Write two views of the requirement.** P1 consumes scheduled function source. P2 consumes test evidence. The generated docstrings are checked for exactly one entry per scheduled node_id before insertion.
+**Write two views of the requirement.** P1 consumes scheduled function source. P2 receives those generated public docstrings, the complete scheduled functions and test evidence, including parametrization decorators. It reconciles public behavior and limits requirements to the missing functions. The generated docstrings are checked for exactly one entry per scheduled node_id before insertion.
 
 ## Every prompt and its data
 
@@ -45,7 +45,7 @@ Two author calls per candidate: docstrings and specification. Tracing and depend
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
 | P1 · Docstrings | docstring_prompt.md + first two docstring demonstrations + adaptation | candidate.functions, indexed by node_id. | Docstrings: functions[{node_id, docstring}] | Names must match scheduled nodes exactly once. |
-| P2 · Specification | specification_prompt.md + first two specification demonstrations + adaptation | candidate.test_evidence. | Specification: markdown | A separate call; its user payload does not include the P1 response. |
+| P2 · Specification | specification_prompt.md + first two specification demonstrations + adaptation | candidate.test_evidence, P1 public docstrings, complete scheduled functions and scope constraints. | Specification: markdown | A separate call; bounded correction rejects private fixture/test references. |
 
 Read the [complete swe_flow prompt reference](prompts/swe_flow.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 

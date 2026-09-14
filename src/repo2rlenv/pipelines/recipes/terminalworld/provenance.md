@@ -30,6 +30,13 @@ it does not reproduce the upstream unlimited crawl or download released task
 instructions and solutions. Only discovered original recording IDs enter the
 existing text acquisition and privacy-screening path.
 
+Explicit public profile discovery is an owned extension beyond those native
+explore feeds. It accepts only Asciinema `/~name` paths and shares a 200-page
+combined limit. Selecting profiles linked from earlier usable recordings is
+adaptive source curation; it does not reproduce random input sampling. The
+acquisition completion marker and retrieval-receipt hash are owned scheduling
+metadata, used to avoid dispatching workers for incomplete tiny input shards.
+
 The native three value dimensions and thresholds are retained, with a default
 minimum combined score of four (bronze). Runtime feasibility and command count
 are elicited in that call rather than importing the separate upstream signal
