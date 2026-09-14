@@ -196,6 +196,12 @@ The compact context also lists exact selected verifier paths, even when the full
 inventory is truncated. An unknown file read suggests matching basenames and those
 selected paths; the reviewer must request the actual file before citing it.
 
+For native Modal image failures, the controller settles the confirmed failed build
+before fetching its existing logs. A bounded, redacted excerpt of the actual
+build failure reaches the reviewer through the original exception, with private
+log receipts retained for diagnosis. A failed or timed-out log fetch cannot reopen
+the allocation or obscure its settled state.
+
 Literal searches merge overlapping excerpts and keep complete matching windows
 within the remaining context budget. Omitted windows are identified explicitly.
 Already supplied evidence remains unchanged, and an oversized explicit line range
