@@ -411,6 +411,24 @@ class Tasksmith:
         _validate_profile_source_coverage(profile, source["source_files"])
         return profile
 
+    def _prepared_design(self, source: dict) -> Design | None:
+        prepared = self.options.prepared_designs.get(source["id"])
+        if prepared is None:
+            return None
+        validate_source_records([source], [source["url"]])
+        binding = {
+            **{key: source[key] for key in ("url", "head", "base", "workspace_strategy")},
+            "source_diff_sha256": hashlib.sha256(source["source_diff"].encode()).hexdigest(),
+        }
+        if any(getattr(prepared, key) != value for key, value in binding.items()):
+            raise ValueError("Prepared design differs from the frozen PR source")
+        profile = self._prepared_profile(source)
+        if profile is None:
+            raise ValueError("A prepared design requires its exact prepared profile")
+        if canonical_digest(profile.model_dump(mode="json")) != prepared.profile_sha256:
+            raise ValueError("Prepared design differs from the prepared profile digest")
+        return Design.model_validate(prepared.design.model_dump())
+
     def candidate(self, source: dict):
         from langgraph.checkpoint.sqlite import SqliteSaver
         from langgraph.graph import END, START, StateGraph
@@ -444,6 +462,7 @@ class Tasksmith:
             save_record(result_path, report)
             return report
         prepared_profile = self._prepared_profile(source)
+        prepared_design = self._prepared_design(source)
         self.event("intake", source["url"])
         inspected = self.remote(root, "inspect", {"stage": "inspect", "source": source})
         if inspected["status"] != "completed":
@@ -547,28 +566,53 @@ class Tasksmith:
             self.event(
                 "design", f"{source['id']} request and verification design, attempt {attempt + 1}"
             )
-            value = self.author(
-                root,
-                f"design-{attempt}",
-                Design,
-                {
-                    "source": source_context,
-                    "profile": state["profile"],
-                    "readiness": state["ready"]["readiness"],
-                    "previous_design": state.get("design"),
-                    "previous_failure": state.get("failure"),
-                    **(
-                        {"required_probe_focus": self.options.required_probe_focus}
-                        if self.options.required_probe_focus
-                        else {}
-                    ),
-                    "requested_resources": {
-                        "gpus": self.options.gpus,
-                        "gpu_type": "L4" if self.options.gpus else None,
+            reusable = False
+            if attempt == 0 and prepared_design is not None:
+                seed = self.options.prepared_designs[source["id"]]
+                actual_profile = canonical_digest(
+                    Profile.model_validate(state["profile"]).model_dump(mode="json")
+                )
+                reusable = actual_profile == seed.profile_sha256
+                receipt = {
+                    "source_id": source["id"],
+                    "prepared_design_sha256": canonical_digest(seed.model_dump(mode="json")),
+                    "profile_sha256": actual_profile,
+                    "readiness_sha256": canonical_digest(state["ready"]),
+                    "bootstrap_attempt": state["profile_attempt"],
+                    "status": "reused" if reusable else "profile_changed",
+                }
+                save_record(root / "prepared-design" / f"{canonical_digest(receipt)}.json", receipt)
+                self.event(
+                    "reuse",
+                    f"Use prepared design for {source['id']} after fresh bootstrap"
+                    if reusable
+                    else f"Prepared design profile changed for {source['id']}; author a new design",
+                )
+            if reusable:
+                value = prepared_design
+            else:
+                value = self.author(
+                    root,
+                    f"design-{attempt}",
+                    Design,
+                    {
+                        "source": source_context,
+                        "profile": state["profile"],
+                        "readiness": state["ready"]["readiness"],
+                        "previous_design": state.get("design"),
+                        "previous_failure": state.get("failure"),
+                        **(
+                            {"required_probe_focus": self.options.required_probe_focus}
+                            if self.options.required_probe_focus
+                            else {}
+                        ),
+                        "requested_resources": {
+                            "gpus": self.options.gpus,
+                            "gpu_type": "L4" if self.options.gpus else None,
+                        },
                     },
-                },
-                checkout,
-            )
+                    checkout,
+                )
             return {"design": value.model_dump(), "design_attempt": attempt + 1, "failure": None}
 
         def construct(state):
@@ -679,6 +723,8 @@ class Tasksmith:
                 raise ValueError("Choose frozen source records or generation reuse, not both")
             validate_source_records(source_records, panel.prs)
         if prepared_task is not None:
+            if self.options.prepared_designs:
+                raise ValueError("Choose a prepared design or generated task for each PR")
             if generation_run is not None or source_records is None or len(source_records) != 1:
                 raise ValueError("Prepared task recovery requires exactly one frozen source record")
             source = source_records[0]
@@ -767,6 +813,14 @@ class Tasksmith:
             # allocate a worker. The checkout inspection still precedes its build.
             for source in sources[:limit]:
                 self._prepared_profile(source)
+        if self.options.prepared_designs:
+            selected = {source["id"] for source in sources[:limit]}
+            if self.options.prepared_designs.keys() - selected:
+                raise ValueError("Prepared designs include a PR outside the selected sources")
+            if self.options.prepared_designs.keys() & self.imported.keys():
+                raise ValueError("Choose a prepared design or generated task for each PR")
+            for source in sources[:limit]:
+                self._prepared_design(source)
         reports = []
         try:
             pending = [

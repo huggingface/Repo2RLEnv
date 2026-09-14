@@ -99,15 +99,27 @@ class BootstrapHint(Record):
         return self
 
 
-class PreparedProfile(Record):
-    """An exact PR build recipe; prior execution results are never imported."""
+class PreparedSource(Record):
+    """Immutable PR identity required by reusable preparation inputs."""
 
     url: str = Field(pattern=r"^https://github.com/[\w.-]+/[\w.-]+/pull/[1-9][0-9]*$")
     head: str = Field(pattern=r"^[0-9a-f]{40}$")
     base: str = Field(pattern=r"^[0-9a-f]{40}$")
     source_diff_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     workspace_strategy: Literal["head_minus_source_patch"] = "head_minus_source_patch"
+
+
+class PreparedProfile(PreparedSource):
+    """An exact PR build recipe; prior execution results are never imported."""
+
     profile: Profile
+
+
+class PreparedDesign(PreparedSource):
+    """A complete design bound to the exact source and canonical Profile JSON."""
+
+    profile_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    design: Design
 
 
 class Options(Record):
@@ -125,6 +137,7 @@ class Options(Record):
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     prepared_profiles: dict[str, PreparedProfile] = Field(default_factory=dict)
+    prepared_designs: dict[str, PreparedDesign] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
@@ -142,6 +155,8 @@ class Options(Record):
     def limits(self):
         if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_profiles):
             raise ValueError("Prepared profiles must be keyed by the exact PR source ID")
+        if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_designs):
+            raise ValueError("Prepared designs must be keyed by the exact PR source ID")
         if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
             raise ValueError("Required probe focus entries must be unique")
         self.required_probe_focus = sorted(self.required_probe_focus)
