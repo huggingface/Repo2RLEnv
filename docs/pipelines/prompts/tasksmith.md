@@ -140,7 +140,7 @@ whose relevant behavior can be exercised using a real tiny local model.
 
 ### models.py
 
-[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `caa70fbb46e284e076d8e5a469b1067e203feca713c118f865f495c624266225`
+[Source: `src/repo2rlenv/tasksmith/models.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/models.py) · SHA-256 `f3e423c1ed44007cf1a0ce49b6e17496828c6b2e96a1722708e77bca9c2544ef`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -249,15 +249,27 @@ class BootstrapHint(Record):
         return self
 
 
-class PreparedProfile(Record):
-    """An exact PR build recipe; prior execution results are never imported."""
+class PreparedSource(Record):
+    """Immutable PR identity required by reusable preparation inputs."""
 
     url: str = Field(pattern=r"^https://github.com/[\w.-]+/[\w.-]+/pull/[1-9][0-9]*$")
     head: str = Field(pattern=r"^[0-9a-f]{40}$")
     base: str = Field(pattern=r"^[0-9a-f]{40}$")
     source_diff_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     workspace_strategy: Literal["head_minus_source_patch"] = "head_minus_source_patch"
+
+
+class PreparedProfile(PreparedSource):
+    """An exact PR build recipe; prior execution results are never imported."""
+
     profile: Profile
+
+
+class PreparedDesign(PreparedSource):
+    """A complete design bound to the exact source and canonical Profile JSON."""
+
+    profile_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    design: Design
 
 
 class Options(Record):
@@ -275,6 +287,7 @@ class Options(Record):
     worker_snapshot: str | None = Field(default=None, pattern=r"^im-[A-Za-z0-9]+$")
     bootstrap_hints: dict[str, BootstrapHint] = Field(default_factory=dict)
     prepared_profiles: dict[str, PreparedProfile] = Field(default_factory=dict)
+    prepared_designs: dict[str, PreparedDesign] = Field(default_factory=dict)
     max_stage_attempts: int = Field(default=3, ge=1, le=5)
     required_probe_focus: list[ProbeFocus] = Field(default_factory=list, max_length=4)
     quality: LoopOptions = Field(
@@ -292,6 +305,8 @@ class Options(Record):
     def limits(self):
         if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_profiles):
             raise ValueError("Prepared profiles must be keyed by the exact PR source ID")
+        if any(not re.fullmatch(r"[0-9a-f]{12}", key) for key in self.prepared_designs):
+            raise ValueError("Prepared designs must be keyed by the exact PR source ID")
         if len(set(self.required_probe_focus)) != len(self.required_probe_focus):
             raise ValueError("Required probe focus entries must be unique")
         self.required_probe_focus = sorted(self.required_probe_focus)
@@ -315,7 +330,7 @@ class Options(Record):
 
 ### runner.py
 
-[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `9989d46b7d7daee919b6fcfab2eb13d0f9a9f874937b0b9831b8f909483db90a`
+[Source: `src/repo2rlenv/tasksmith/runner.py`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/tasksmith/runner.py) · SHA-256 `b2048ecb9a34e5e03bfaaa034911ccbec04517d8be2f57ba98c5e76b3d80b76d`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -736,6 +751,24 @@ class Tasksmith:
         _validate_profile_source_coverage(profile, source["source_files"])
         return profile
 
+    def _prepared_design(self, source: dict) -> Design | None:
+        prepared = self.options.prepared_designs.get(source["id"])
+        if prepared is None:
+            return None
+        validate_source_records([source], [source["url"]])
+        binding = {
+            **{key: source[key] for key in ("url", "head", "base", "workspace_strategy")},
+            "source_diff_sha256": hashlib.sha256(source["source_diff"].encode()).hexdigest(),
+        }
+        if any(getattr(prepared, key) != value for key, value in binding.items()):
+            raise ValueError("Prepared design differs from the frozen PR source")
+        profile = self._prepared_profile(source)
+        if profile is None:
+            raise ValueError("A prepared design requires its exact prepared profile")
+        if canonical_digest(profile.model_dump(mode="json")) != prepared.profile_sha256:
+            raise ValueError("Prepared design differs from the prepared profile digest")
+        return Design.model_validate(prepared.design.model_dump())
+
     def candidate(self, source: dict):
         from langgraph.checkpoint.sqlite import SqliteSaver
         from langgraph.graph import END, START, StateGraph
@@ -769,6 +802,7 @@ class Tasksmith:
             save_record(result_path, report)
             return report
         prepared_profile = self._prepared_profile(source)
+        prepared_design = self._prepared_design(source)
         self.event("intake", source["url"])
         inspected = self.remote(root, "inspect", {"stage": "inspect", "source": source})
         if inspected["status"] != "completed":
@@ -872,28 +906,53 @@ class Tasksmith:
             self.event(
                 "design", f"{source['id']} request and verification design, attempt {attempt + 1}"
             )
-            value = self.author(
-                root,
-                f"design-{attempt}",
-                Design,
-                {
-                    "source": source_context,
-                    "profile": state["profile"],
-                    "readiness": state["ready"]["readiness"],
-                    "previous_design": state.get("design"),
-                    "previous_failure": state.get("failure"),
-                    **(
-                        {"required_probe_focus": self.options.required_probe_focus}
-                        if self.options.required_probe_focus
-                        else {}
-                    ),
-                    "requested_resources": {
-                        "gpus": self.options.gpus,
-                        "gpu_type": "L4" if self.options.gpus else None,
+            reusable = False
+            if attempt == 0 and prepared_design is not None:
+                seed = self.options.prepared_designs[source["id"]]
+                actual_profile = canonical_digest(
+                    Profile.model_validate(state["profile"]).model_dump(mode="json")
+                )
+                reusable = actual_profile == seed.profile_sha256
+                receipt = {
+                    "source_id": source["id"],
+                    "prepared_design_sha256": canonical_digest(seed.model_dump(mode="json")),
+                    "profile_sha256": actual_profile,
+                    "readiness_sha256": canonical_digest(state["ready"]),
+                    "bootstrap_attempt": state["profile_attempt"],
+                    "status": "reused" if reusable else "profile_changed",
+                }
+                save_record(root / "prepared-design" / f"{canonical_digest(receipt)}.json", receipt)
+                self.event(
+                    "reuse",
+                    f"Use prepared design for {source['id']} after fresh bootstrap"
+                    if reusable
+                    else f"Prepared design profile changed for {source['id']}; author a new design",
+                )
+            if reusable:
+                value = prepared_design
+            else:
+                value = self.author(
+                    root,
+                    f"design-{attempt}",
+                    Design,
+                    {
+                        "source": source_context,
+                        "profile": state["profile"],
+                        "readiness": state["ready"]["readiness"],
+                        "previous_design": state.get("design"),
+                        "previous_failure": state.get("failure"),
+                        **(
+                            {"required_probe_focus": self.options.required_probe_focus}
+                            if self.options.required_probe_focus
+                            else {}
+                        ),
+                        "requested_resources": {
+                            "gpus": self.options.gpus,
+                            "gpu_type": "L4" if self.options.gpus else None,
+                        },
                     },
-                },
-                checkout,
-            )
+                    checkout,
+                )
             return {"design": value.model_dump(), "design_attempt": attempt + 1, "failure": None}
 
         def construct(state):
@@ -1004,6 +1063,8 @@ class Tasksmith:
                 raise ValueError("Choose frozen source records or generation reuse, not both")
             validate_source_records(source_records, panel.prs)
         if prepared_task is not None:
+            if self.options.prepared_designs:
+                raise ValueError("Choose a prepared design or generated task for each PR")
             if generation_run is not None or source_records is None or len(source_records) != 1:
                 raise ValueError("Prepared task recovery requires exactly one frozen source record")
             source = source_records[0]
@@ -1092,6 +1153,14 @@ class Tasksmith:
             # allocate a worker. The checkout inspection still precedes its build.
             for source in sources[:limit]:
                 self._prepared_profile(source)
+        if self.options.prepared_designs:
+            selected = {source["id"] for source in sources[:limit]}
+            if self.options.prepared_designs.keys() - selected:
+                raise ValueError("Prepared designs include a PR outside the selected sources")
+            if self.options.prepared_designs.keys() & self.imported.keys():
+                raise ValueError("Choose a prepared design or generated task for each PR")
+            for source in sources[:limit]:
+                self._prepared_design(source)
         reports = []
         try:
             pending = [

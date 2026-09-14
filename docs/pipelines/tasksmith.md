@@ -158,6 +158,22 @@ than publishing a second repository copy.
 
 To preserve an exact PR's successful build recipe, pass `prepared_profiles` through the existing `--options-json` file (or a batch candidate's options). Key each entry by its frozen source ID and include `url`, `head`, `base`, `source_diff_sha256`, `workspace_strategy`, and the complete `profile` object. Tasksmith validates this binding, CPU/GPU selection and source coverage before remote work, then skips the first investigation and runs a fresh bootstrap. It still checks document links, readiness, construction and quality; no earlier execution evidence is imported. A new bootstrap failure can enter the existing bounded profile-repair loop. A prepared profile also avoids unrelated repository-hint dependency preparation. The full profile participates in the frozen run configuration, so changing it requires a new output directory.
 
+To reuse a complete request and verifier design, add `prepared_designs` to the
+same options JSON. Each source ID must also have a matching `prepared_profiles`
+entry. The design entry contains the same five source-binding fields plus
+`profile_sha256` and the complete `design` object. Calculate the digest with
+`canonical_digest(Profile.model_validate(profile).model_dump(mode="json"))`,
+using `canonical_digest` from `repo2rlenv.tasksmith.author.artifact`. Source or
+profile mismatches fail before remote preparation. The first design attempt
+reuses this input only after a fresh bootstrap succeeds with that exact profile.
+If bootstrap repair changes the profile, ordinary design authoring resumes;
+later construction failures still enter bounded author repair with the previous
+design and actual failure. A record under `candidates/<source-id>/prepared-design/`
+binds the decision to the full seed, profile and fresh readiness result. The
+complete seed is frozen in the run configuration. This path does not import
+readiness or rewards and cannot be combined with generated-task reuse for the
+same PR.
+
 A batch candidate with a `prepared_task` can also provide `prepared_probes`: an
 inline `ProbeManifest` containing that task's `bundle_hash` and semantic probe
 definitions. This preserves useful incorrect implementations and valid
