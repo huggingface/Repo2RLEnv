@@ -188,6 +188,10 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+If the same submitted public API call works with a real model but fails because a
+test double omits that method, repair the double. The reference's different access
+path does not make its internal representation a task requirement. Separate this
+fixture defect from other genuine solver errors in the same rollout.
 Check concrete equivalences before rejecting an implementation: an omitted keyword
 and explicit None may request the same library default, and a class declaration
 string may be one way to implement a public loader rather than its contract. Model

@@ -2,8 +2,9 @@
 
 The September 14 checkpoint has **49 independently accepted PR tasks** and
 **50 unique PRs with generated Harbor tasks** from the supplied 114-PR inventory.
-TRL #5349 is the last task in validation. Its corrected reference passes all
-15 required cases; fresh probes and a blind Sonnet rollout are still running.
+TRL #5349 is the last task in validation. Its completed rollout exposed a fake
+model that omits the public `get_decoder()` method. A three-line fixture correction
+preserves all 15 required cases and is prepared for fresh GPU validation.
 
 Acceptance binds the exact task revision to its baseline, reference, installed
 wrong-solution and valid-alternative controls, plus an independently reviewed
@@ -25,9 +26,9 @@ count includes reviewed corrections and newly completed execution evidence.
 ```mermaid
 flowchart LR
     G[50 unique PRs with Harbor tasks] --> A[49 independently accepted]
-    G --> H[TRL 5349 in validation]
-    H --> R[Reuse exact completed evidence]
-    R --> C[Run only missing control stages]
+    G --> H[TRL 5349 fixture correction]
+    H --> R[New revision with unchanged public task]
+    R --> C[Fresh baseline, reference and four semantic controls]
     C --> S[Blind Sonnet rollout and independent review]
     S --> A
     A --> D[Portable tasks, labels and original evidence]
@@ -40,7 +41,7 @@ flowchart LR
 | Accelerate #3142 | Make simulated version lookups consistent with package metadata | Accepted; reference 19/19, new Sonnet attempt 17/19 |
 | Accelerate #4015 | Accept equivalent default root policies while retaining distributed checks | Accepted; reference 16/16, captured timeout submission freshly graded 10/16 |
 | Transformers #39826 | Test generic processor behavior without requiring a private class declaration | Accepted; reference 11/11, new Sonnet attempt 4/11 |
-| TRL #5349 | Use a real model-output container and the correct learner interpreter | Reference 15/15; remaining validation in progress |
+| TRL #5349 | Use a real model-output container, correct interpreter and faithful public decoder API | Previous reference 15/15; new fixture awaiting fresh validation |
 | TRL #6150 | Compare actual per-batch margins with independent values; install a real alternative | Accepted; reference 8/8 |
 | PEFT #3083 | Describe layout and loading behavior without the internal remedy | Accepted; reference 10/10 |
 | Diffusers #11281 | Supply the explicit local LoRA artifact filename | Accepted; reference 11/11 |
@@ -57,6 +58,16 @@ phases. Accelerate #4015 uses a new verifier run against its preserved timed-out
 submission; the original timeout and uncertain model charge remain recorded.
 The other completed continuations have fresh normal Sonnet attempts. No reward
 from an older task revision is rebound to changed task content.
+
+The latest TRL rollout used `get_decoder()` successfully with the real tiny Llama
+model, but four synthetic-model checks rejected that public access path because
+the fake lacked the method. Seven separate failures were genuine missing-default
+errors in the submission. Independent review keeps these causes separate, even
+though the automated review called the whole attempt legitimate. The prepared
+fixture repair includes a valid public-decoder control in addition to the original
+three probes. A $13.50 fresh-validation allowance fits the existing campaign cap.
+The shared review prompt now explicitly distinguishes this fixture defect from
+other solver errors in the same attempt.
 
 The activated overall cap is **$1,025**, including the historical external $22.43;
 the expansion allowance is $405. Admission retains uncertain costs, unused live
