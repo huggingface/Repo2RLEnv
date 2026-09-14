@@ -353,7 +353,15 @@ def _report(configuration: dict, entries: dict, budget: RunBudget) -> dict:
     return result
 
 
-def run_batch(plan: BatchPlan, directory: Path, campaign: Path, wheel: Path, *, on_event=print):
+def run_batch(
+    plan: BatchPlan,
+    directory: Path,
+    campaign: Path,
+    wheel: Path,
+    *,
+    on_event=print,
+    expected_prior_verified: list[dict] | None = None,
+):
     """Resume undispatched PRs; uncertain child/provider work is never redispatched."""
     directory, campaign, wheel = directory.resolve(), campaign.resolve(), wheel.resolve()
     directory.mkdir(parents=True, exist_ok=True)
@@ -362,6 +370,10 @@ def run_batch(plan: BatchPlan, directory: Path, campaign: Path, wheel: Path, *, 
         prior = [verified_result(path) for path in plan.prior_verified]
         if len({item["url"] for item in prior}) != len(prior):
             raise ValueError("Prior verified results contain duplicate PRs")
+        # Campaign preparation can bind its approved inventory without repeating
+        # expensive evidence scans. This fresh check remains before allocation.
+        if expected_prior_verified is not None and prior != expected_prior_verified:
+            raise ValueError("Fresh prior evidence differs from the approved inventory")
         frozen_wheel = directory / "runtime" / wheel.name
         controller_root = directory / "runtime" / "controller"
         configuration = {
