@@ -146,6 +146,13 @@ nav:
   - Quickstart: quickstart.md
   - Pipelines:
       - Overview: pipelines/README.md
+      - Native pipelines:
+          - PR diff: pipelines/pr_diff.md
+          - PR runtime: pipelines/pr_runtime.md
+          - Commit runtime: pipelines/commit_runtime.md
+          - Code instruct: pipelines/code_instruct.md
+          - Equivalence tests: pipelines/equivalence_tests.md
+          - CVE patches: pipelines/cve_patches.md
       - Tasksmith: pipelines/tasksmith.md
       - Research recipes:
           - Choose a recipe: pipelines/owned_recipes.md
@@ -163,13 +170,6 @@ nav:
           - tmax: pipelines/tmax.md
           - terminalworld: pipelines/terminalworld.md
           - dataarc: pipelines/dataarc.md
-      - Native pipelines:
-          - PR diff: pipelines/pr_diff.md
-          - PR runtime: pipelines/pr_runtime.md
-          - Commit runtime: pipelines/commit_runtime.md
-          - Code instruct: pipelines/code_instruct.md
-          - Equivalence tests: pipelines/equivalence_tests.md
-          - CVE patches: pipelines/cve_patches.md
   - Guides:
       - Execution and providers: pipelines/owned_recipes.md
       - Review and repair: pipelines/quality_loop.md
