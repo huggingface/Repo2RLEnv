@@ -18,6 +18,12 @@ Bring the released method into Repo2RLEnv as owned, maintainable code, with stan
 
 Native input: Asciinema recordings and associated metadata accepted by the upstream filters.
 
+Optional owned discovery reads bounded public/recent/featured/popular explore
+pages, retaining numeric recording IDs and hashed page receipts. It checks
+robots.txt, reuses cached pages, and stops on empty/repeated pages. Text acquisition
+and privacy/feasibility filtering remain separate stages. This follows the native
+source discovery approach without consuming an upstream dataset's task answers.
+
 Select `pipeline.name: terminal_reconstruct` and `pipeline.recipe: terminalworld` in a typed configuration. Source data, resolved revisions, resource limits, model roles, random seeds and recipe options are recorded before spending. Strict options reject unknown keys. Existing native pipeline defaults remain compatible.
 
 ### Algorithm

@@ -82,6 +82,23 @@ The ID file is a JSON list such as `["100135"]`. Acquisition fetches text and
 metadata only, checks robots.txt and records download failures. Existing inputs
 are reused. Export the generated task bundles rather than the raw recordings.
 
+To discover fresh sources without using an upstream task dataset, index bounded
+public explore pages first:
+
+```bash
+python -m repo2rlenv.pipelines.recipes.terminalworld.discovery \
+  --feeds recent featured popular --pages-per-feed 5 --out workspace/recording-index
+python -m repo2rlenv.pipelines.recipes.terminalworld.source \
+  --ids-json workspace/recording-index/ids.json --out workspace/recordings
+```
+
+Discovery uses the native public/recent/featured/popular feed URLs. It keeps only
+numeric recording IDs and page receipts, bounds pages and response sizes,
+checks robots.txt, waits between requests and stops a feed on empty or repeated
+pages. Completed pages are reused on restart. New inputs still pass the same
+privacy and feasibility filters; finding a recording does not accept a task.
+Use one acquisition process per recording directory to preserve its receipt.
+
 The first runtime profile supports a single offline CPU Linux container. It
 installs real dependencies during build and can synthesize missing input files
 when the recorded workflow provides enough evidence, as permitted by the native

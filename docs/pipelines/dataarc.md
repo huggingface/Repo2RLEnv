@@ -3,6 +3,14 @@
 DataArc augments complete Harbor tasks using its released terminal synthesis
 workflow. It preserves four distinct transformations:
 
+The September expansion completed **100 Harbor tasks** (20 retained, 80 new),
+published as [HuggingEnvs/repo2rlenv-dataarc](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc).
+All 80 new exports have hash-matched baseline reward 0 and reference reward 1.
+The expansion accounted for **$26.57**, approximately **$0.33 per new export**,
+including unsuccessful model attempts and estimated worker/build costs. The
+[completion evidence](evidence/dataarc-generation-100.json) separates those
+controls from independent quality acceptance, which remains unestablished.
+
 ## Pipeline, step by step
 
 ```mermaid
@@ -67,7 +75,7 @@ model. The seed's domain and tools must survive any execution-informed repairs.
 Parent hashes and strategy names remain in the generated lineage.
 
 Shared options control `target`, `max_candidates`, `max_repairs`, token limits
-and test timeouts. The initial target is **20 generated tasks**. Baseline failure
+and test timeouts. The initial 20-task target has expanded to **100 generated tasks**. Baseline failure
 and reference success are generation checks; detailed quality validation follows
 the full generation campaign. See the [remote execution and CLI guide](owned_recipes.md).
 

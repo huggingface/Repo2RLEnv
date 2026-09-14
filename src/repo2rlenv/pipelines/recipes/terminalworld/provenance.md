@@ -22,6 +22,14 @@ to redistribute with the resulting Harbor task. The exported lineage retains
 the source URL and transcript hash. Flagged transcript text is removed before
 model input while its screening categories and hash are retained.
 
+`discovery.py` follows the public/recent/featured/popular explore feed URLs in
+upstream `data_retrieval/config.py` and the shared ID deduplication approach in
+`data_retrieval/scrape_pages.py`. This owned reader uses a finite page bound,
+robots checks and cached page identities. It stops on repeated/empty pages;
+it does not reproduce the upstream unlimited crawl or download released task
+instructions and solutions. Only discovered original recording IDs enter the
+existing text acquisition and privacy-screening path.
+
 The native three value dimensions and thresholds are retained, with a default
 minimum combined score of four (bronze). Runtime feasibility and command count
 are elicited in that call rather than importing the separate upstream signal

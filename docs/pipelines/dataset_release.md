@@ -107,6 +107,13 @@ archives and quality labels were preserved. The report records artifact commits
 separately from the later card corrections. This is publication integrity evidence,
 not an additional rollout or quality acceptance result.
 
+The [subsequent publication audit](evidence/harbor-hub-publication-additions-20260914.json)
+checks another **325 tasks and 22,028 files** across Endless Terminals, CLI-Gym,
+DataArc and SWE-Flow. Every staged file matches its published artifact revision.
+Harbor Visualiser lists the expected counts and loads each sampled instruction,
+configuration, environment, verifier and reference. SWE-Flow's two diagnosed
+instruction issues remain explicitly labeled `needs_repair` in its task files.
+
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside
 the release selection. An unsolved/reference pair, a consistency review and a

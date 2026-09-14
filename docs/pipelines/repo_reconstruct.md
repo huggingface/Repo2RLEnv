@@ -3,6 +3,18 @@
 SWE-Flow creates reconstruction tasks from a working repository's execution
 dependencies. It does not need PR history.
 
+The September expansion completed **100 Harbor tasks** across seven Python
+repositories (24 retained, 76 new). All 76 new exports have hash-matched baseline
+reward 0 and reference reward 1. Expansion cost was **$22.91**, approximately
+**$0.30 per new export**, including failed attempts and estimated worker/build
+costs. Two pilot instructions retain known specification issues: published copies
+carry `evaluation.status = "needs_repair"`, with the original exports preserved.
+The [completion evidence](evidence/swe-flow-generation-100.json) records source
+diversity, costs and both findings. These generation checks do not establish
+independent quality acceptance for the collection.
+The complete bundles are published as
+[HuggingEnvs/repo2rlenv-swe-flow](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow).
+
 ## Pipeline, step by step
 
 ```mermaid
@@ -76,7 +88,7 @@ restores the original source. The remaining repository supplies realistic contex
 
 Two separate model stages generate function docstrings and test-grounded task
 requirements using the upstream prompts. Fresh Harbor checks establish an
-unsolved baseline and working reference. The target is **20 generated tasks**;
+unsolved baseline and working reference. The initial 20-task target has expanded to **100 generated tasks**;
 independent quality review, attack checks and model rollouts come later.
 
 Options extend the Python build/source/test profile with `target`,
