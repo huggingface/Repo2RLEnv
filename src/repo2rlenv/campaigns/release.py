@@ -177,19 +177,20 @@ def _card(plan: ReleasePlan, manifest: dict) -> str:
             "language": ["en"],
             "tags": ["reinforcement-learning", "coding", "harbor", "repo2rlenv", plan.recipe],
             "size_categories": ["n<1K"],
-            "configs": [
-                {
-                    "config_name": "default",
-                    "data_files": [{"split": "train", "path": "data/tasks.jsonl"}],
-                }
-            ],
+            "viewer": False,
         },
         sort_keys=False,
     )
     limitations = "\n".join("- " + value for value in plan.limitations)
     references = "\n".join("- " + value for value in plan.citations)
+    viewer = f"https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser?dataset={plan.repo_id}"
+    task_tree = f"https://huggingface.co/datasets/{plan.repo_id}/tree/main/tasks"
+    example = manifest["tasks"][0]["path"]
+    example_file = f"https://huggingface.co/datasets/{plan.repo_id}/blob/main/{example}"
     return f"""---
 {front}---
+
+[![View tasks in Harbor Visualiser](https://img.shields.io/badge/Harbor_Visualiser-View_tasks-FFD21F?style=for-the-badge)]({viewer})
 
 # {plan.title}
 
@@ -197,8 +198,29 @@ def _card(plan: ReleasePlan, manifest: dict) -> str:
 
 Contains **{manifest["task_count"]} Harbor tasks** generated with the owned
 `{plan.recipe}` recipe in [Repo2RLEnv](https://github.com/huggingface/Repo2RLEnv).
-The task bundle is under `tasks/<task_id>/`; `data/tasks.jsonl` is a browsing index.
-`manifest.json` records source identity, evidence, diagnostics and measured costs.
+Browse the complete task bundles in [Harbor Visualiser]({viewer}) or
+[open the task folders]({task_tree}). Each folder is a runnable Harbor task:
+
+```text
+tasks/<task_id>/
+├── task.toml                 # Harbor configuration and provenance
+├── instruction.md            # Task shown to the coding agent
+├── environment/Dockerfile    # Learner sandbox and its build context
+├── solution/solve.sh         # Reference solution entry point
+└── tests/
+    ├── test.sh               # Verifier entry point; writes the reward
+    └── Dockerfile            # Separate verifier sandbox, when configured
+```
+
+Example: [task.toml]({example_file}/task.toml) ·
+[instruction]({example_file}/instruction.md) ·
+[verifier]({example_file}/tests/test.sh) ·
+[oracle]({example_file}/solution/solve.sh).
+
+`data/tasks.jsonl` is an auxiliary metadata index. Download the task folders or
+archive below to run the environments. `manifest.json` records source identity,
+evidence, diagnostics and measured costs. The generic tabular Hub viewer is
+disabled so it does not present the index as the task dataset.
 
 ## Generation
 
@@ -301,6 +323,15 @@ def _finish_publish(directory: Path, *, api, receipt: Path, record: dict) -> dic
     repo_id = record["repo_id"]
     commit_sha = record["commit_sha"]
     collection_slug = record.get("collection_slug")
+    remote_paths = set(api.list_repo_files(repo_id, repo_type="dataset", revision=commit_sha))
+    release_files = json.loads((directory / "release-files.json").read_text())
+    required = set(release_files["files"]) | {"release-files.json"}
+    missing = required - remote_paths
+    if missing:
+        raise RuntimeError(
+            f"Published revision is missing {len(missing)} release files: "
+            + ", ".join(sorted(missing)[:5])
+        )
     registry = _build_registry_json(
         repo_id,
         commit_sha,
@@ -315,14 +346,6 @@ def _finish_publish(directory: Path, *, api, receipt: Path, record: dict) -> dic
         path_or_fileobj=json.dumps(registry, indent=2).encode(),
         commit_message="Pin Harbor registry to the release commit",
     )
-    remote_paths = set(api.list_repo_files(repo_id, repo_type="dataset", revision=commit_sha))
-    required = {row["path"] + "/task.toml" for row in manifest["tasks"]} | {
-        "manifest.json",
-        "tasks.tar.gz",
-        "data/tasks.jsonl",
-    }
-    if not required <= remote_paths:
-        raise RuntimeError("Published revision is missing release files")
     if collection_slug:
         api.add_collection_item(
             collection_slug,

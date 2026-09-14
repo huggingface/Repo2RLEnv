@@ -1,0 +1,221 @@
+{
+  "as_of": "2026-09-14T17:04:21.810518+00:00",
+  "card_corrections": [
+    {
+      "artifact_commit": "d19e8c118aad282f61e0d1666510e60b0648789a",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "4bb0ddf7b27c8c85f7546dc25b72ede92dcb4ce6",
+      "finished_at": "2026-09-14T17:04:39.476951+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "c1fe34577f1671c55965f193ca2a5a071bb7aa57",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "6527eab926348107c6089c94d93f079f740ba62f",
+      "finished_at": "2026-09-14T17:04:52.625081+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "59ccbee2b67dc32ed597435b8432491af5ef1c5a",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "a541dfefbc0edcd40d61fe0b1e1e0b6ee96101b7",
+      "finished_at": "2026-09-14T17:04:25.738768+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "325d9a6880d39f16bf35a052188c211d451c2f78",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "30aa7cc51743d4bf29ec56e9fb0d65d1bf2d1c06",
+      "finished_at": "2026-09-14T17:05:06.748644+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "d40299beeb2e59be3216b0b285c5542e9554338f",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "bd888b60c4793b35f48cb56824d55bf278c96b2d",
+      "finished_at": "2026-09-14T17:05:51.965549+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "task_count": 100
+    },
+    {
+      "artifact_commit": "95fea218297d1cf455593130d8ac0b4532049cb3",
+      "changed_paths": [
+        "README.md",
+        "release-files.json"
+      ],
+      "commit_sha": "ab4a6d0ce41fe4fefebc9eee76c1352f34a0827e",
+      "finished_at": "2026-09-14T17:05:21.346647+00:00",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "task_count": 100
+    }
+  ],
+  "comparison_datasets": [
+    "AdithyaSK/repo2rlenv-pr-runtime",
+    "AdithyaSK/repo2rlenv-commit-runtime"
+  ],
+  "completed_at": "2026-09-14T17:06:32.711273+00:00",
+  "datasets": [
+    {
+      "at": "2026-09-14T17:03:01.011917+00:00",
+      "errors": [],
+      "expected_files": 15641,
+      "passed": true,
+      "remote_files": 15643,
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "revision": "53a9e8f133d824cc8efbb0c6a66f5a36478daaea",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T17:02:58.153685+00:00",
+      "errors": [],
+      "expected_files": 15840,
+      "passed": true,
+      "remote_files": 15842,
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "revision": "877f1ff75f5661a210e60030eba2901f645d2428",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T17:02:48.709114+00:00",
+      "errors": [],
+      "expected_files": 1087,
+      "passed": true,
+      "remote_files": 1089,
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "revision": "94125abced4a51d4b2cbc6f6d081fc9dd411a20e",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T17:03:02.113416+00:00",
+      "errors": [],
+      "expected_files": 15383,
+      "passed": true,
+      "remote_files": 15385,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "revision": "1609a1d4cbab1b159024195f4500f560d6778ce2",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T17:03:14.609293+00:00",
+      "errors": [],
+      "expected_files": 18410,
+      "passed": true,
+      "remote_files": 18411,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "revision": "d40299beeb2e59be3216b0b285c5542e9554338f",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    },
+    {
+      "at": "2026-09-14T17:03:14.066585+00:00",
+      "errors": [],
+      "expected_files": 15766,
+      "passed": true,
+      "remote_files": 15768,
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "revision": "1d346f0964047fff055544422d645d2b220f780e",
+      "schema_counts": {
+        "1.3": 100
+      },
+      "scope": "All released file bytes compared with Hub Git/LFS object identities; all local staged task configs parsed by Harbor. No task code executed.",
+      "task_count": 100
+    }
+  ],
+  "files_compared": 82127,
+  "findings": [
+    "Every staged Harbor task file matched its published Hub Git or LFS content identity.",
+    "All 600 staged task configurations parsed with the installed upstream Harbor schema.",
+    "Corrected all six dataset cards to disable the auxiliary JSONL table and link complete task folders, concrete component files and Harbor Visualiser.",
+    "SWE-next upload response was lost, but its complete artifact commit was verified and its registry and collection entry were reconciled without uploading the tasks again."
+  ],
+  "scope": "Publication integrity audit, not a new execution or semantic quality assessment",
+  "tasks": 600,
+  "visualiser_checks": [
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "scaler-094cbdeeec35be0c3c6e",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "scaler"
+    },
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "r2e-014aba0a9f876d9ce503",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "r2e"
+    },
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "r2e-gym-024cf838c4a141f54112",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "r2e-gym"
+    },
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "swe-gen-067b1596dfa920a92da1",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "swe-gen"
+    },
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "swe-next-001cfe3eecfafbd157e8",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "swe-next"
+    },
+    {
+      "count": 100,
+      "endpoint": "https://huggingfaceh4-harbor-visualiser.hf.space",
+      "example": "swe-smith-0542949d039815569763",
+      "example_components_present": true,
+      "missing": [],
+      "recipe": "swe-smith"
+    }
+  ]
+}

@@ -95,12 +95,7 @@ def test_publication_pins_registry_and_records_collection(selection, tmp_path):
     stage_release(selection, stage)
     api = Mock()
     api.upload_folder.return_value = SimpleNamespace(oid="abc123")
-    api.list_repo_files.return_value = [
-        "tasks/example/task.toml",
-        "manifest.json",
-        "tasks.tar.gz",
-        "data/tasks.jsonl",
-    ]
+    api.list_repo_files.return_value = [*verify_release(stage)["files"], "release-files.json"]
     receipt = tmp_path / "receipt.json"
     first = publish_release(stage, api=api, receipt=receipt, collection_slug="org/collection")
     assert first["state"] == "completed"
@@ -111,16 +106,40 @@ def test_publication_pins_registry_and_records_collection(selection, tmp_path):
     assert api.upload_folder.call_count == 1
 
 
-def test_dataset_card_uses_an_absolute_license_url(selection, tmp_path):
+def test_dataset_card_links_to_complete_harbor_bundles(selection, tmp_path):
     import yaml
 
     stage = tmp_path / "stage"
     stage_release(selection, stage)
-    metadata = yaml.safe_load((stage / "README.md").read_text().split("---")[1])
+    card = (stage / "README.md").read_text()
+    metadata = yaml.safe_load(card.split("---")[1])
     assert (
         metadata["license_link"]
         == "https://huggingface.co/datasets/org/example/blob/main/LICENSES.md"
     )
+    assert metadata["viewer"] is False
+    assert "configs" not in metadata
+    assert "harbor-visualiser?dataset=org/example" in card
+    assert "https://huggingface.co/datasets/org/example/tree/main/tasks" in card
+    for name in ("task.toml", "instruction.md", "tests/test.sh", "solution/solve.sh"):
+        assert f"https://huggingface.co/datasets/org/example/blob/main/tasks/example/{name}" in card
+
+
+def test_incomplete_task_cannot_be_advertised_in_registry_or_collection(selection, tmp_path):
+    stage = tmp_path / "stage"
+    stage_release(selection, stage)
+    api = Mock()
+    api.upload_folder.return_value = SimpleNamespace(oid="incomplete")
+    api.list_repo_files.return_value = sorted(
+        (set(verify_release(stage)["files"]) | {"release-files.json"})
+        - {"tasks/example/tests/test.sh"}
+    )
+    with pytest.raises(RuntimeError, match="missing 1 release files"):
+        publish_release(
+            stage, api=api, receipt=tmp_path / "receipt.json", collection_slug="org/collection"
+        )
+    api.upload_file.assert_not_called()
+    api.add_collection_item.assert_not_called()
 
 
 def test_empty_upload_recovery_refuses_existing_remote_artifacts(selection, tmp_path):
@@ -154,7 +173,7 @@ def test_empty_upload_recovery_pins_each_parent_and_finishes_registry(selection,
     api.list_repo_files.side_effect = lambda *a, **k: (
         [".gitattributes"]
         if k["revision"] == "empty"
-        else ["tasks/example/task.toml", "manifest.json", "tasks.tar.gz", "data/tasks.jsonl"]
+        else [*verify_release(stage)["files"], "release-files.json"]
     )
     commits = []
 

@@ -57,12 +57,40 @@ Each dataset contains:
 |---|---|
 | `tasks/<task_id>/` | Original Harbor instruction, environment, verifier and reference |
 | `tasks.tar.gz` | Same tasks with executable file modes preserved |
-| `data/tasks.jsonl` | Searchable task instruction and evidence index |
+| `data/tasks.jsonl` | Auxiliary task instruction and evidence index; not the executable task |
 | `manifest.json` | Provenance, quality labels, diagnostics, economics and citations |
 | `bundle-files.json` | Original task file hashes and modes |
 | `release-files.json` | Staged release identity |
 | `registry.json` | Harbor task paths pinned to the artifact upload commit |
 | `README.md`, `LICENSES.md` | Method, limitations, usage and source licensing |
+
+The dataset card links to **Harbor Visualiser**, the full `tasks/` tree and a
+concrete task's configuration, instruction, verifier and oracle. The generic
+tabular Hub viewer is disabled with `viewer: false`; it cannot display the
+executable environment represented by these folders. This follows the browsing
+pattern used by the earlier PR-runtime and commit-runtime datasets.
+
+The current bundles use Harbor's `schema_version = "1.3"`, including separate
+verifier environments and declared agent artifacts. Older datasets use the legacy
+top-level `version = "1.0"` spelling. Both are Harbor configurations; changing
+the field spelling alone is not a compatibility or execution test. See the
+[Harbor task format](https://www.harborframework.com/docs/tasks) and
+[Hub viewer setting](https://huggingface.co/docs/hub/datasets-viewer-configure).
+
+Publication checks that **every staged file** exists at the uploaded revision
+before adding registry or collection entries, including build contexts, verifier
+helpers and oracle files. Finding only `task.toml` does not establish a complete
+upload. Parsing and publication completeness remain distinct from running the
+task's baseline, oracle and blind solver controls remotely.
+
+The [2026-09-14 publication audit](evidence/harbor-hub-publication-20260914.json)
+compared all 82,127 released files across six datasets (600 tasks) against Hub
+Git/LFS content identities, with no missing or changed files. The live Harbor
+Visualiser listed all 100 tasks in each dataset and loaded a complete example
+from each. Dataset cards were corrected to use this viewer; original task files,
+archives and quality labels were preserved. The report records artifact commits
+separately from the later card corrections. This is publication integrity evidence,
+not an additional rollout or quality acceptance result.
 
 A corrected task replaces its predecessor in the selected collection; it does not
 increase the task count. Preserve the original bundle and repair evidence outside
