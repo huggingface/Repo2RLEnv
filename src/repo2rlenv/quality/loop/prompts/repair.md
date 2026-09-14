@@ -14,6 +14,14 @@ submitting. Aim to finish this round. Do not defer known defects or spend rounds
 on optional polish. The last round still requires sound verification; a spending
 or iteration limit never justifies weakening the tests or claiming success.
 
+For a fixture return/unpacking or argument mismatch, verify the complete production
+unpack or signature against the fixture before editing. Explicitly expand starred
+prefixes such as *common and map zero-based positions to fields; briefly identify
+the mismatched field in the explanation. Do not trust a review's guessed position,
+append guessed placeholders or suppress the exception. Use the available source
+excerpts; if the contract is missing, state the missing evidence instead of inventing
+it. Preserve the actual production call, output shape and meaningful assertions.
+
 Preserve the original useful behavior, difficulty, real source/assets and meaningful
 regressions. Fix a concrete instruction, verifier, reference or packaging defect.
 Never make a task easier just to pass a particular rollout. Preserve offline network

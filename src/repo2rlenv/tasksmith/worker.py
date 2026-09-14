@@ -28,6 +28,7 @@ from repo2rlenv.spec.input import RepoSpec
 from repo2rlenv.tasksmith.build_logs import build_excerpt, save_build_logs
 from repo2rlenv.tasksmith.models import BootstrapHint, Design, Profile
 from repo2rlenv.tasksmith.readiness import validate_readiness_paths
+from repo2rlenv.tasksmith.source_patch import reverse_crlf_patch
 
 
 def run(argv, *, cwd=None, timeout=120, build_log: Path | None = None):
@@ -204,7 +205,11 @@ def reverse_source(source: dict, base: Path, output: Path) -> tuple[Path, tuple[
         shutil.copyfile(base / relative, path)
     patch = output / "source.diff"
     patch.write_text(source["source_diff"])
-    run(["git", "apply", "--reverse", str(patch)], cwd=defective)
+    try:
+        run(["git", "apply", "--reverse", str(patch)], cwd=defective)
+    except ValueError:
+        if not reverse_crlf_patch(defective, patch):
+            raise
     removed = tuple(
         relative for relative in source["source_files"] if not (defective / relative).exists()
     )

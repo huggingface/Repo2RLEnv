@@ -4,7 +4,7 @@ Read the [component walkthrough](../quality_loop.md) for execution, evidence and
 
 ### review.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `f5992ad5b1118707e6b3ccf847073598b5a306134b92e409a344dcbc1b4afa2b`
+[Source: `src/repo2rlenv/quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/review.md) · SHA-256 `ce015565d31b2eff69248cac10aa057e820f42388c84b1765cc13694ae30ed50`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -199,6 +199,13 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+For a fixture return/unpacking or argument mismatch, inspect the complete production
+unpack or signature and the fixture's construction, requesting the missing excerpt
+within the existing read budget. Explicitly expand starred prefixes such as *common
+and enumerate the zero-based positions and corresponding fields before diagnosing
+the repair. Cite that contract, not only the line that later fails. Do not guess a
+field's position or add placeholders to make an exception disappear. Keep the actual
+production execution and assertions intact; incomplete context is missing evidence.
 
 Check execution coverage against the requested resources. A CUDA allocation smoke
 test at bootstrap does not show that the final verifier exercises the feature on
@@ -213,7 +220,7 @@ of the code the learner must implement before accepting its coverage.
 
 ### repair.md
 
-[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `8208b323827a89750ff1b484a903623b5c0540bd3925a4d19518b5e3c185cb3a`
+[Source: `src/repo2rlenv/quality/loop/prompts/repair.md`](https://github.com/huggingface/Repo2RLEnv/blob/codex/owned-generation-pipelines/src/repo2rlenv/quality/loop/prompts/repair.md) · SHA-256 `933ec6c62024b009ae6d83795c6a2a70f9418ddf6158bd0da75b05dcc7d5f594`
 
 Source hash covers the original file; trailing whitespace is omitted below.
 
@@ -236,6 +243,14 @@ path, fixture validity, independent expectations and retained probes before
 submitting. Aim to finish this round. Do not defer known defects or spend rounds
 on optional polish. The last round still requires sound verification; a spending
 or iteration limit never justifies weakening the tests or claiming success.
+
+For a fixture return/unpacking or argument mismatch, verify the complete production
+unpack or signature against the fixture before editing. Explicitly expand starred
+prefixes such as *common and map zero-based positions to fields; briefly identify
+the mismatched field in the explanation. Do not trust a review's guessed position,
+append guessed placeholders or suppress the exception. Use the available source
+excerpts; if the contract is missing, state the missing evidence instead of inventing
+it. Preserve the actual production call, output shape and meaningful assertions.
 
 Preserve the original useful behavior, difficulty, real source/assets and meaningful
 regressions. Fix a concrete instruction, verifier, reference or packaging defect.

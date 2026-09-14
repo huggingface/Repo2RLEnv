@@ -107,6 +107,7 @@ jobs:
           tests/test_hub_asset_aliases.py tests/test_quality_requirements.py
           tests/test_tasksmith_worker_release.py tests/test_tasksmith_quality_input.py
           tests/test_tasksmith_source_coverage.py
+          tests/test_tasksmith_source_patch.py
           tests/test_quality_citation_paths.py tests/test_quality_review_corrections.py
           tests/test_tasksmith_artifact_seed.py tests/test_tasksmith_prepared_profiles.py
           tests/test_quality_context_budget.py tests/test_quality_repair_protocol.py

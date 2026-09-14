@@ -185,6 +185,13 @@ inconsistent protocol can falsely reject valid solutions. When a rollout fails
 such a mock, compare it with the real object or a faithful small fixture before
 calling it a solver mistake. Repair an invalid fixture while preserving the
 public behavior being checked; keep independent expected values and counterexamples.
+For a fixture return/unpacking or argument mismatch, inspect the complete production
+unpack or signature and the fixture's construction, requesting the missing excerpt
+within the existing read budget. Explicitly expand starred prefixes such as *common
+and enumerate the zero-based positions and corresponding fields before diagnosing
+the repair. Cite that contract, not only the line that later fails. Do not guess a
+field's position or add placeholders to make an exception disappear. Keep the actual
+production execution and assertions intact; incomplete context is missing evidence.
 
 Check execution coverage against the requested resources. A CUDA allocation smoke
 test at bootstrap does not show that the final verifier exercises the feature on
