@@ -1,6 +1,6 @@
 ---
 title: Repo2RLEnv
-description: Turn any GitHub repository into a verifiable RL training and evaluation environment.
+description: Generate Harbor RL environments from repositories, PRs, task seeds and reasoning families.
 hide:
   - navigation
   - toc
@@ -8,7 +8,7 @@ hide:
 
 # Repo2RLEnv
 
-**Turn any GitHub repository into a verifiable RL training and evaluation dataset.** End-to-end synthesis → standardize → train + eval, in the [Harbor](https://github.com/harbor-framework/harbor) task format.
+**Generate executable RL environments from repositories, PRs, task seeds and reasoning families.** Each task uses the [Harbor](https://github.com/harbor-framework/harbor) format: an instruction, environment, private verifier and reference solution.
 
 ```bash
 pip install repo2rlenv
@@ -35,7 +35,7 @@ repo2rlenv generate \
 
     ---
 
-    Six synthesis pipelines out of the box — from PR mining to LLM-authored coding tasks — each with a graded, verifiable reward.
+    Six native pipelines, 14 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
 
     [:octicons-arrow-right-24: Browse the pipelines](pipelines/README.md)
 
@@ -43,7 +43,7 @@ repo2rlenv generate \
 
     ---
 
-    Every pipeline ships with a published HF dataset that you can pull, benchmark against, or use as-is for training.
+    Browse published Harbor bundles, their generation evidence and evaluation labels. Publication alone does not establish training readiness.
 
     [:octicons-arrow-right-24: Open the collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
 
@@ -59,17 +59,24 @@ repo2rlenv generate \
 
 ## What's inside
 
-Three layers — the first is ours, the other two we delegate to Harbor:
+Repo2RLEnv authors and checks tasks; Harbor defines their runtime contract and executes them:
 
 | Layer | Repo2RLEnv ships | We rely on |
 |---|---|---|
-| **Generation** | `src/repo2rlenv/pipelines/` — six pipelines, gate helpers, quality audits | — |
-| **Spec** | The `[metadata.repo2env]` extension to `task.toml` — provenance so a dataset can be regenerated exactly | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
-| **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's full runtime](https://github.com/harbor-framework/harbor) — 5 sandbox backends × 22 agent harnesses |
+| **Generation** | Native pipelines, 14 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
+| **Spec** | The `[metadata.repo2env]` extension to `task.toml` — source lineage, artifact identities and evaluation labels | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
+| **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's runtime](https://github.com/harbor-framework/harbor) — sandbox providers and coding-agent integrations |
 
-Repo2RLEnv is **synthesis-only** — we generate the datasets and let Harbor run them. No parallel sandbox runtime; no bespoke evaluation harness.
+Tasksmith and the recipes use shared remote execution and budget accounting. The [review and repair loop](pipelines/quality_loop.md) can inspect an existing task, run Harbor controls and learner rollouts, and repair diagnosed issues.
 
 ## Pipelines at a glance
+
+Choose a native pipeline, a research-inspired recipe, or Tasksmith's adaptive PR
+workflow. **Status describes implementation maturity, not the quality of every
+generated task.** The [route guide](pipelines/owned_recipes.md) maps each recipe
+to its CLI pipeline family; every linked walkthrough explains its stages and prompts.
+
+### Native pipelines
 
 | Pipeline | Task shape | Reward | Status | Reference dataset |
 |---|---|---|:-:|---|
@@ -80,7 +87,54 @@ Repo2RLEnv is **synthesis-only** — we generate the datasets and let Harbor run
 | [**equivalence_tests**](pipelines/equivalence_tests.md) | R2E-style: agent implements a function equivalent to a frozen reference | binary `test_execution` | experimental | [`repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) |
 | [**cve_patches**](pipelines/cve_patches.md) | OSV-driven CVE → fix-commit as a task | graded F2P × P2P | experimental | [`repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) |
 
-Four more pipelines in the RFC queue: [`pr_to_env`](rfcs/0007-pr-to-env.md) · [`env_setup`](rfcs/0008-env-setup.md) · [`test_synthesis`](rfcs/0009-test-synthesis.md) · [`issue_runtime`](rfcs/0010-issue-runtime.md).
+### Tasksmith — experimental
+
+| Workflow | Task shape | Reward | Reference dataset |
+|---|---|---|---|
+| [**Tasksmith**](pipelines/tasksmith.md) | Investigate a merged PR, build its environment, design the task, then review and repair it | Private behavioral tests, 0/1 | [HF_ML_Tasksmith · 50 tasks](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
+
+Tasksmith uses LangGraph with Pi or OpenCode. Its published cohort contains
+50 verified tasks from an **assisted campaign**; Sonnet solved 19. These results
+measure that cohort, not unattended success on arbitrary PRs.
+
+### Research-inspired recipes — experimental
+
+All 14 recipes below are implemented. Their stage diagrams, prompts, input
+requirements and upstream credits are in the linked guides.
+
+| Recipe | Task shape | Reward | Reference dataset |
+|---|---|---|---|
+| [**swe_smith**](pipelines/repo_mutate.md) | Repair a deliberately introduced source defect | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
+| [**swe_gen**](pipelines/pr_to_env.md) | Implement the behavior of a supplied merged PR | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
+| [**swe_flow**](pipelines/repo_reconstruct.md) | Reconstruct functions in dependency order | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
+| [**r2e**](pipelines/r2e.md) | Implement a function equivalent to a private reference | Equivalence tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
+| [**swe_next**](pipelines/swe_next.md) | Repair a task mined from PR history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
+| [**r2e_gym**](pipelines/r2e_gym.md) | Repair a task mined from commit history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
+| [**cli_gym**](pipelines/env_repair.md) | Restore a damaged development environment | Restoration tests, 0/1 | [25 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
+| [**seta_seed2synth**](pipelines/terminal_synth.md) | Solve a terminal task synthesized from question/answer seeds | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
+| [**seta_evol**](pipelines/task_evolve.md) | Solve an evolved version of an existing Harbor task | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
+| [**dataarc**](pipelines/dataarc.md) | Solve a related or more demanding variant of a Harbor seed | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
+| [**tmax**](pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
+| [**endless_terminals**](pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
+| [**terminalworld**](pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [**scaler**](pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
+
+SCALER produces reasoning instances rather than repository coding tasks.
+DataArc's published cohort used recipe version 1; the current version 2 uses
+replacement prompts and still needs a fresh generation-quality pilot.
+
+The [release inventory](pipelines/releases.md) records **1,330 tasks across these
+15 Tasksmith/recipe datasets: 50 verified, 5 needing repair and 1,275 unverified**.
+The six earlier native datasets are outside these counts. Compare
+[yield and cost](pipelines/economics.md), [evaluation labels](pipelines/task_evaluation_labels.md)
+and the [complete prompt reference](pipelines/prompt_reference.md).
+
+### Planned or deferred
+
+SEC-bench is deferred. The original native `pr_to_env`, `env_setup`,
+`test_synthesis` and `issue_runtime` proposals remain in the [RFC index](rfcs/README.md).
+The implemented `pr_to_env / swe_gen` recipe above is a separate, documented route.
+
 
 ## Consuming a dataset
 
@@ -102,4 +156,4 @@ harbor run --path ./workspace/pr-runtime --agent claude-code \
 - **GitHub** — [huggingface/Repo2RLEnv](https://github.com/huggingface/Repo2RLEnv)
 - **PyPI** — [`repo2rlenv`](https://pypi.org/project/repo2rlenv/)
 - **HF collection** — [Repo2RLEnv — Verifiable RL Environments](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
-- **License** — Apache-2.0
+- **License and credits** — original code under Apache-2.0; retained material and its terms are listed in [third-party notices](https://github.com/huggingface/Repo2RLEnv/blob/main/THIRD_PARTY_NOTICES.md)

@@ -96,7 +96,7 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
-A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **three are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
+Repo2RLEnv offers **six native pipelines**, **14 experimental research-inspired recipes**, and **Tasksmith** for adaptive PR conversion. Inputs include repositories, PRs, task seeds and reasoning families. Implementation maturity and generated-task quality are separate labels.
 
 ### Stable
 
@@ -119,7 +119,7 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
 - **[`equivalence_tests`](./docs/pipelines/equivalence_tests.md)** — the agent reimplements a real function; generated tests check it matches the original.
 
-### At a glance
+### Native pipelines at a glance
 
 | Pipeline | Stability | Source | Reward signal | Sandbox | LLM use | Languages |
 |---|:-:|:-:|---|:-:|---|---|
@@ -141,6 +141,41 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 - **Languages** — source languages the pipeline supports.
 
 → **Full reference** — per-pipeline options, reward design, and dataset cards: [**`docs/pipelines/`**](./docs/pipelines/README.md).
+
+### Tasksmith and research-inspired recipes
+
+**[Tasksmith](docs/pipelines/tasksmith.md)** investigates a merged PR, builds its
+environment, designs the instruction and private verifier, then runs bounded
+review and repair. LangGraph orchestrates Pi or OpenCode. Its
+[HF_ML_Tasksmith dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith)
+contains 50 verified tasks from an assisted campaign; Sonnet solved 19.
+
+Tasksmith and all 14 recipes below are **experimental**. Use the
+[route guide](docs/pipelines/owned_recipes.md) for CLI family/recipe names and
+[the prompt guide](docs/pipelines/prompt_reference.md) to follow each model call.
+
+| Recipe | Task shape | Reward | Reference dataset |
+|---|---|---|---|
+| [**swe_smith**](docs/pipelines/repo_mutate.md) | Repair a deliberately introduced source defect | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
+| [**swe_gen**](docs/pipelines/pr_to_env.md) | Implement the behavior of a supplied merged PR | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
+| [**swe_flow**](docs/pipelines/repo_reconstruct.md) | Reconstruct functions in dependency order | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
+| [**r2e**](docs/pipelines/r2e.md) | Implement a function equivalent to a private reference | Equivalence tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
+| [**swe_next**](docs/pipelines/swe_next.md) | Repair a task mined from PR history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
+| [**r2e_gym**](docs/pipelines/r2e_gym.md) | Repair a task mined from commit history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
+| [**cli_gym**](docs/pipelines/env_repair.md) | Restore a damaged development environment | Restoration tests, 0/1 | [25 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
+| [**seta_seed2synth**](docs/pipelines/terminal_synth.md) | Solve a terminal task synthesized from question/answer seeds | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
+| [**seta_evol**](docs/pipelines/task_evolve.md) | Solve an evolved version of an existing Harbor task | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
+| [**dataarc**](docs/pipelines/dataarc.md) | Solve a related or more demanding variant of a Harbor seed | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
+| [**tmax**](docs/pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
+| [**endless_terminals**](docs/pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
+| [**terminalworld**](docs/pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [**scaler**](docs/pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
+
+The [release inventory](docs/pipelines/releases.md) distinguishes 50 verified,
+5 needing repair and 1,275 unverified tasks across these 15 datasets. The earlier
+native datasets are outside those counts. SCALER is a reasoning profile;
+DataArc's published version 1 cohort does not measure the replacement prompts
+in version 2. SEC-bench remains deferred.
 
 ## Bootstrap
 
