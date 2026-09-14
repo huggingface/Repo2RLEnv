@@ -37,7 +37,7 @@ One goal call, then up to max_rounds inversion calls. Instruction writing occurs
 | P2 · Inversion / repair | Inline system prompt in CLIGymPipeline.author_export | Goal, observed healthy environment and feedback. | Inversion: destruction_shell, recovery_shell, explanation | Up to max_rounds, default three. |
 | P3 · Instruction | instruction_prompt.md with task_description and symptoms_UTs + adaptation | Actual baseline and goal.recovery_strategy. | RepairInstruction: instruction | Called after a valid contrast; repeated if a later Harbor failure returns to the loop. |
 
-Read the [complete cli_gym prompt reference](prompts/cli_gym.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete cli_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/cli_gym/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

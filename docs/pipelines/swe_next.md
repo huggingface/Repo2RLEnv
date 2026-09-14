@@ -32,7 +32,7 @@ One issue-author call after a candidate passes remote old/new execution contrast
 |---|---|---|---|---|
 | P1 · Historical issue | instruction_prompt.md + issue_examples.json + shared history adaptation | Evaluated candidate.json: metadata, source changes, profile and observed test contrast. | HistoricalIssue: analysis, instruction | One call; analysis is not copied into instruction.md. |
 
-Read the [complete swe_next prompt reference](prompts/swe_next.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete swe_next prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_next/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

@@ -48,10 +48,10 @@ flowchart TD
 | Repair | Grounded component defects and evidence | Exact edits to an immutable new task revision | Re-run affected controls, probes and rollout under the existing quality policy |
 | Sonnet rollout | Public instruction and learner workspace | A source change and complete attempt trace | Hidden verifier runs in a fresh, separate offline container |
 
-Read the exact author prompts: [investigation](prompts/tasksmith.md#investigatemd) and [design](prompts/tasksmith.md#designmd). Review and repair prompts and their evidence selection are documented in [the shared quality loop](quality_loop.md).
+Read the exact author prompts: [investigation](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tasksmith/#investigatemd) and [design](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tasksmith/#designmd). Review and repair prompts and their evidence selection are documented in [the shared quality loop](quality_loop.md).
 
 Read the [prompt stage map](prompt_reference.md) for the effective requests. The
-built site also provides a [full source-generated reference](prompts/tasksmith.md).
+built site also provides a [full source-generated reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tasksmith/).
 Canonical investigation/design prompts and runtime adapters live in
 [`src/repo2rlenv/tasksmith`](https://github.com/huggingface/Repo2RLEnv/tree/main/src/repo2rlenv/tasksmith).
 

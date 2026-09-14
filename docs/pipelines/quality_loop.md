@@ -241,14 +241,14 @@ context remains searchable and the document allowance does not increase.
 ## What the prompts ask
 
 The full prompts ship with the package and are reproduced in the
-[complete prompt and request-assembly reference](prompts/quality_loop.md):
+[complete prompt and request-assembly reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/quality_loop/):
 
 | Stage | Input | Output | Prompt |
 |---|---|---|---|
-| Initial review | Public instruction, build inputs, private reference/tests, available controls/rollout | Task/verifier/leakage assessments, grounded issues, bounded read requests, semantic probes | [review.md](prompts/quality_loop.md#reviewmd) |
+| Initial review | Public instruction, build inputs, private reference/tests, available controls/rollout | Task/verifier/leakage assessments, grounded issues, bounded read requests, semantic probes | [review.md](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/quality_loop/#reviewmd) |
 | Evidence read / escalation | Same evidence pack plus requested excerpts or protocol correction | Completed grounded review | Same review prompt |
 | Post-execution review | Task plus actual control/probe/solver results, logs and captured artifacts | Legitimate success/failure, task defect, grading shortcut, infrastructure issue or insufficient evidence | Same review prompt |
-| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, appended expected case IDs, eligible probe corrections, and rationale | [repair.md](prompts/quality_loop.md#repairmd) |
+| Repair | Grounded issues, execution failures, exact files and retained probes | Exact text replacements, appended expected case IDs, eligible probe corrections, and rationale | [repair.md](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/quality_loop/#repairmd) |
 
 Every citation must quote text actually supplied to the model. Scores range from
 0–4 and are descriptive; code derives the final disposition from evidence. A

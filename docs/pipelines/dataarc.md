@@ -49,7 +49,7 @@ One artifact-author call on the first attempt. There is no separate design LLM c
 |---|---|---|---|---|
 | P1 · Artifact / repair | artifact_prompt.md with strategy text from strategies.json + common materialization + owned adaptation | Selected seed excerpts are substituted into the system template; user JSON contains environment_context and feedback. | TerminalDraft | Initial call plus max_repairs; default three attempts. |
 
-Read the [complete dataarc prompt reference](prompts/dataarc.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete dataarc prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/dataarc/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

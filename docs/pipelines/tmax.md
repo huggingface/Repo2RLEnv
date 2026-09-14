@@ -46,7 +46,7 @@ Four calls on the first successful attempt: template, initial tests, final tests
 | P3 · Final tests | final_prompt.md + shared adaptation | Description, truth and generated initial_tests. | TestProgram: code | Separate model call. |
 | P4 · Build / repair | environment_prompt.md + templates.builder_prompt additions + common materialization | Complete TemplateDesign and failure feedback. | TerminalDraft | Default initial build plus two repairs. |
 
-Read the [complete tmax prompt reference](prompts/tmax.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete tmax prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tmax/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

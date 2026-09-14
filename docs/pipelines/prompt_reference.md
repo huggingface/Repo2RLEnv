@@ -37,22 +37,22 @@ The complete references below contain:
 
 | Recipe | Prompt sequence on the first successful attempt | Full reference |
 |---|---|---|
-| SWE-smith | Issue from failed-test evidence | [Templates and assembly](prompts/swe_smith.md) |
-| SETA Seed2Synth | Capability/design → complete task builder | [Templates and assembly](prompts/seta_seed2synth.md) |
-| SETA Evol | Strategy-specific child design → child builder | [Templates and assembly](prompts/seta_evol.md) |
-| SWE-gen | Substantiality and instruction in one call | [Templates and assembly](prompts/swe_gen.md) |
-| SWE-Flow | Function docstrings → test-based specification | [Templates and assembly](prompts/swe_flow.md) |
-| R2E | Differential tests → execution/coverage → refined specification | [Templates and assembly](prompts/r2e.md) |
-| TMax | Template → initial tests → final tests → environment/reference | [Templates and assembly](prompts/tmax.md) |
-| Endless Terminals | Template → initial tests → final tests → environment/reference | [Templates and assembly](prompts/endless_terminals.md) |
-| TerminalWorld | Score → extract → refine → instruction → environment → replay → tests | [Templates and assembly](prompts/terminalworld.md) |
-| CLI-Gym | Inversion goal → destruction/recovery scripts → symptoms instruction | [Templates and assembly](prompts/cli_gym.md) |
-| DataArc | Complete artifact variant from a selected seed and strategy | [Templates and assembly](prompts/dataarc.md) |
-| SWE-Next | Issue after historical old/new contrast | [Templates and assembly](prompts/swe_next.md) |
-| R2E-Gym | Issue after historical old/new contrast | [Templates and assembly](prompts/r2e_gym.md) |
-| SCALER | No model call; construct a concrete reasoning instruction | [Instruction construction](prompts/scaler.md) |
+| SWE-smith | Issue from failed-test evidence | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_smith/) |
+| SETA Seed2Synth | Capability/design → complete task builder | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/seta_seed2synth/) |
+| SETA Evol | Strategy-specific child design → child builder | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/seta_evol/) |
+| SWE-gen | Substantiality and instruction in one call | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_gen/) |
+| SWE-Flow | Function docstrings → test-based specification | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_flow/) |
+| R2E | Differential tests → execution/coverage → refined specification | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e/) |
+| TMax | Template → initial tests → final tests → environment/reference | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tmax/) |
+| Endless Terminals | Template → initial tests → final tests → environment/reference | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/endless_terminals/) |
+| TerminalWorld | Score → extract → refine → instruction → environment → replay → tests | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/terminalworld/) |
+| CLI-Gym | Inversion goal → destruction/recovery scripts → symptoms instruction | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/cli_gym/) |
+| DataArc | Complete artifact variant from a selected seed and strategy | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/dataarc/) |
+| SWE-Next | Issue after historical old/new contrast | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_next/) |
+| R2E-Gym | Issue after historical old/new contrast | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e_gym/) |
+| SCALER | No model call; construct a concrete reasoning instruction | [Instruction construction](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/scaler/) |
 
-[Shared terminal instructions and schemas](prompts/shared_terminal.md) are included
+[Shared terminal instructions and schemas](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/shared_terminal/) are included
 where a recipe uses the common builder. TerminalWorld shares the output schema
 but has its own environment/replay/test materializer. DataArc has no design-model
 call: its `design()` function wraps input data before artifact generation.
@@ -85,7 +85,7 @@ correction allows at most two model attempts, each capped at 2,500 output tokens
 materializer repair remains subject to `max_repairs`. A later materialized draft
 gets its own Q1 call. Minor polish and unmeasured difficulty are not blockers.
 
-The [shared prompt reference](prompts/shared_terminal.md) includes the exact Q1
+The [shared prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/shared_terminal/) includes the exact Q1
 prompt, request assembly and correction code. The request is saved under
 `review-<attempt>/model.request.json`, with a possible
 `model-repair-1.request.json` correction. This review uses the

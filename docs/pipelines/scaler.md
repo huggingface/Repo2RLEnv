@@ -32,7 +32,7 @@ Zero LLM calls. All task content comes from released family definitions and dete
 |---|---|---|---|---|
 | No model prompt | instruction_for in scaler/families.py | Family description, concrete input dictionary and optional native instruction. | Learner instruction.md, assembled as text | This is task text, not an API call. |
 
-Read the [complete scaler prompt reference](prompts/scaler.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete scaler prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/scaler/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

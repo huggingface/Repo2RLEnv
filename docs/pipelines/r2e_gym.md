@@ -32,7 +32,7 @@ One issue-author call after remote contrast succeeds; commit discovery and filte
 |---|---|---|---|---|
 | P1 · Historical issue | instruction_prompt.md + issue_examples.json + shared history adaptation | Bounded authoring view of the evaluated candidate: commit context, private source diff and observed tests. Complete test identities remain in the private verifier contract. | HistoricalIssue: analysis, instruction | Same call machinery as SWE-Next; different source and test layout. |
 
-Read the [complete r2e_gym prompt reference](prompts/r2e_gym.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete r2e_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e_gym/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

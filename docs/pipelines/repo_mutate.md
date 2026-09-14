@@ -48,7 +48,7 @@ One issue-writing call on the first successful attempt; up to two attempts in th
 |---|---|---|---|---|
 | P1 · Issue | issue_prompt.md | Selected failing test source and imports, defective stdout, optional review feedback. No mutation patch is passed. | IssueReport: issue, reason | Malformed JSON, private test names, unsupported test-oriented wording and invalid/undefined Python examples produce revision feedback. |
 
-Read the [complete swe_smith prompt reference](prompts/swe_smith.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete swe_smith prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_smith/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

@@ -44,7 +44,7 @@ Each repair repeats the builder and, when enabled, Q1. See the
 | P1 · Design | idea_prompt.md + owned adaptation | Full seed JSON: question, optional answer, source metadata. | TaskDesign: core_capabilities, draft_spec | Invalid schema skips this seed. |
 | P2 · Build / repair | builder_prompt.md + shared materialization instructions | Design and accumulated feedback, including the previous draft after a failure. | TerminalDraft | Initial call plus max_repairs retries; default three builder attempts. |
 
-Read the [complete seta_seed2synth prompt reference](prompts/seta_seed2synth.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete seta_seed2synth prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/seta_seed2synth/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

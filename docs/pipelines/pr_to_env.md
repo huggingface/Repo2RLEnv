@@ -35,7 +35,7 @@ One combined substantiality-and-instruction call after successful execution cont
 |---|---|---|---|---|
 | P1 · Instruction | instruction_prompt.md + /workspace and JSON adaptations | title, body, linked_issue, test_evidence, source_file_count. | TaskInstruction: is_substantial, reason, instruction, three tags | force_generate_instruction changes only the substantiality instruction; it never bypasses execution checks. |
 
-Read the [complete swe_gen prompt reference](prompts/swe_gen.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete swe_gen prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_gen/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

@@ -47,7 +47,7 @@ Four calls on the first successful attempt; the environment builder is the stage
 | P3 · Final tests | final_prompt.md + shared adaptation | Description, truth and initial_tests. | TestProgram: code | One separate call. |
 | P4 · Build / repair | environment_prompt.md + templates.builder_prompt additions + common materialization | TemplateDesign and actual failures. | TerminalDraft | Initial call plus max_repairs. |
 
-Read the [complete endless_terminals prompt reference](prompts/endless_terminals.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete endless_terminals prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/endless_terminals/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

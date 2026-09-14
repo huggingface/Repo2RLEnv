@@ -42,7 +42,7 @@ draft before execution; a blocking issue returns to the bounded builder loop.
 | P1 · Evolution | evolution_prompt.md + selected strategies/*_adapter.md + owned adaptation | Complete parent files, strategy, parent hash and ordinal variant. | EvolutionDesign: core_capabilities, draft_spec, filtered_reason | A reason filters the variant without building it. |
 | P2 · Child builder | builder_prompt.md + shared materialization instructions | Child design and execution/schema feedback. | TerminalDraft | Default initial attempt plus two repairs. |
 
-Read the [complete seta_evol prompt reference](prompts/seta_evol.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete seta_evol prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/seta_evol/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 

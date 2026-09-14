@@ -51,7 +51,7 @@ after P6. Blocking issues return to the materializer's existing bounded loop.
 | P5 · Environment / repair | environment_prompt.md + owned environment adaptation | RecordingDesign, including transcript evidence, and accumulated feedback. | EnvironmentBuild: setup, files, solution_shell, self_review | Reference is executed remotely before P6. |
 | P6 · Tests | tests_prompt.md + observed-state adaptation | Instruction, reference script and execution_snapshot. | TestProgram: code | Repeated when a repaired environment reaches replay successfully. |
 
-Read the [complete terminalworld prompt reference](prompts/terminalworld.md) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+Read the [complete terminalworld prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/terminalworld/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
