@@ -155,6 +155,7 @@ class LoopOptions(Record):
     success_reward: float = Field(default=1.0, allow_inf_nan=False)
     model_reservation_usd: str = "1.00"
     solver_reservation_usd: str = "4.00"
+    shared_reservation_wait_sec: int = Field(default=30, ge=0, le=300, strict=True)
     max_spend_usd: str = "15.00"
 
     @model_validator(mode="after")

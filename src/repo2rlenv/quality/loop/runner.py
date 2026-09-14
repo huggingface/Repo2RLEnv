@@ -889,10 +889,10 @@ class QualityLoop:
                     if same_task
                     else []
                 )
-        except BudgetExceeded:
+        except BudgetExceeded as exc:
             status, reasons = (
                 "budget_exhausted",
-                ["Per-run or campaign allowance exhausted; completed evidence retained"],
+                [str(exc)],
             )
         except (ValueError, FileNotFoundError, ModelRequestError) as exc:
             status, reasons = "needs_evidence", [str(exc)]

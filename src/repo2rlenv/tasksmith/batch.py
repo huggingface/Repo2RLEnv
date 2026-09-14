@@ -287,7 +287,9 @@ def _run_candidate(configuration: dict, item: dict) -> dict:
         raise ValueError("Frozen runtime changed")
     runner = Tasksmith(directory, Path(configuration["campaign"]), candidate.options, wheel)
     runner.prefix = _prefix(root) + "-" + _key(candidate.url)
-    shared = RunBudget(runner.ledger, _prefix(root), configuration["plan"]["max_spend_usd"])
+    shared = RunBudget(
+        runner.ledger, _prefix(root), configuration["plan"]["max_spend_usd"], shared=True
+    )
     runner.budget = RunBudget(shared, runner.prefix, candidate.options.max_spend_usd)
     failure = None
     try:

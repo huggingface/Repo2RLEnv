@@ -339,9 +339,14 @@ def test_post_probe_review_can_unlock_one_rollout_on_same_revision(task, tmp_pat
     assert remote.closed
 
 
-def test_post_probe_rollout_budget_denial_skips_further_model_calls(task, tmp_path):
+@pytest.mark.parametrize("cpu_denial", [False, True])
+def test_post_probe_rollout_budget_denial_skips_further_model_calls(task, tmp_path, cpu_denial):
+    reason = "Budget scope batch-child-quality: requested $3, remaining $1 (reservation_pressure)"
+
     class DeniedRollout(Trials):
         def run(self, task, role, key):
+            if role == "rollout" and cpu_denial:
+                raise BudgetExceeded(reason)
             trial = super().run(task, role, key)
             if role == "probe" and "probe0" in key:
                 trial.reward = 0.0
@@ -359,6 +364,8 @@ def test_post_probe_rollout_budget_denial_skips_further_model_calls(task, tmp_pa
     model = ClearedAfterProbes()
     result = make_loop(tmp_path, remote=remote, model=model, run_rollout=True).run(task)
     assert result.status == "budget_exhausted"
+    if cpu_denial:
+        assert result.reasons == [reason]
     assert model.calls == ["r0-before-0", "r0-after-0"]
     assert remote.closed
 

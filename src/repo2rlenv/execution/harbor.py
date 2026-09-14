@@ -7,11 +7,12 @@ import json
 import math
 import re
 import tarfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from repo2rlenv.auth import resolve_llm_api_key
-from repo2rlenv.campaigns.budget import BudgetLedger
+from repo2rlenv.campaigns.budget import BudgetExceeded, BudgetLedger
 from repo2rlenv.emitter.bundle import inspect_bundle
 from repo2rlenv.execution.artifacts import unpack_evidence
 from repo2rlenv.execution.base import RemoteWorker
@@ -68,6 +69,7 @@ def run_trial(
     model: LLMSpec | None = None,
     ledger: BudgetLedger | None = None,
     reservation_usd: str = "4.00",
+    reservation_wait_sec: int = 0,
     max_turns: int = 12,
     max_tokens: int = 2048,
     timeout_sec: int = 900,
@@ -90,6 +92,8 @@ def run_trial(
         raise ValueError("Terminus-2 requires a model; nop and oracle do not")
     if not (1 <= max_turns <= 100 and 256 <= max_tokens <= 8192 and 30 <= timeout_sec <= 3600):
         raise ValueError("Trial limits are outside the supported bounded range")
+    if type(reservation_wait_sec) is not int or not 0 <= reservation_wait_sec <= 300:
+        raise ValueError("Reservation wait must be an integer from 0 to 300 seconds")
     identity = inspect_bundle(task)
     if identity["claimed_hash"] is not None and not identity["integrity_passed"]:
         raise ValueError("Task has changed since emission")
@@ -133,7 +137,53 @@ def run_trial(
     record.update(started_at=now(), state="claimed")
     save_record(receipt, record)
     if model is not None:
-        ledger.reserve(operation_id, reservation_usd, f"Blind Harbor trial {trial_id}")
+        started = time.monotonic()
+        wait_count = 0
+
+        def reservation_waiting(exc):
+            nonlocal wait_count
+            wait_count += 1
+            record.update(
+                state="reservation_waiting",
+                trial_dispatched=False,
+                reservation_wait={
+                    "timeout_sec": reservation_wait_sec,
+                    "elapsed_sec": round(time.monotonic() - started, 3),
+                    "polls": wait_count,
+                    "last_denials": [denial.as_dict() for denial in exc.denials],
+                },
+            )
+            save_record(receipt, record)
+
+        try:
+            reserve_with_wait = getattr(ledger, "reserve_with_wait", None)
+            if reserve_with_wait is not None:
+                reserve_with_wait(
+                    operation_id,
+                    reservation_usd,
+                    f"Blind Harbor trial {trial_id}",
+                    timeout_sec=reservation_wait_sec,
+                    on_wait=reservation_waiting,
+                )
+            else:
+                ledger.reserve(operation_id, reservation_usd, f"Blind Harbor trial {trial_id}")
+        except BudgetExceeded as exc:
+            if wait_count:
+                record["reservation_wait"]["elapsed_sec"] = round(time.monotonic() - started, 3)
+            record.update(
+                state="reservation_failed",
+                trial_dispatched=False,
+                finished_at=now(),
+                exception_type="BudgetExceeded",
+                reason=str(exc),
+                reservation_denials=[denial.as_dict() for denial in exc.denials],
+            )
+            save_record(receipt, record)
+            raise
+        if wait_count:
+            record["reservation_wait"]["elapsed_sec"] = round(time.monotonic() - started, 3)
+        record.update(state="claimed", trial_dispatched=False)
+        save_record(receipt, record)
     remote_dir = "/work/trials/" + trial_id
     remote_jobs = "/evidence/trials/" + trial_id
     try:
@@ -186,7 +236,7 @@ def run_trial(
                     "llm_call_kwargs=" + json.dumps(completion_token_limit(model, max_tokens)),
                 ]
             )
-        record.update(state="dispatched", command=command)
+        record.update(state="dispatched", trial_dispatched=True, command=command)
         save_record(receipt, record)
         launch_job(worker, remote_dir, command, timeout_sec=timeout_sec, env=env, python=python)
         status = observe_job(worker, remote_dir, timeout_sec=timeout_sec + 100)

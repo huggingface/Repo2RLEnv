@@ -104,6 +104,9 @@ class RemoteTrials:
             model=self.options.solver_model if role == "rollout" else None,
             ledger=self.budget,
             reservation_usd=self.options.solver_reservation_usd,
+            reservation_wait_sec=self.options.shared_reservation_wait_sec
+            if role == "rollout"
+            else 0,
             max_turns=self.options.max_turns,
             max_tokens=self.options.solver_tokens,
             timeout_sec=self.options.trial_timeout_sec,

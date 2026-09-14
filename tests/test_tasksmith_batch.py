@@ -414,6 +414,8 @@ def test_child_shares_scopes_and_reconciles_only_confirmed_worker(local_batch, m
 
         def run(self, panel, **kwargs):
             seen.update(kwargs)
+            assert self.budget.shared is False
+            assert self.budget.ledger.shared is True
             author = AuthorBudget(self.budget, self.directory / "author", "investigate")
             operation = author.reserve(1, "author")
             author.settle(operation, 0.1)

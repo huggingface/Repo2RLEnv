@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 
@@ -17,6 +18,51 @@ _SCALE = Decimal(1_000_000)
 
 class BudgetExceeded(RuntimeError):
     """The proposed operation would exceed the remaining allowance."""
+
+    def __init__(self, message: str, *, denials: tuple[BudgetDenial, ...] = ()):
+        super().__init__(message)
+        self.denials = denials
+
+
+@dataclass(frozen=True)
+class BudgetDenial:
+    """Capacity evidence from the same transaction that refused reservation."""
+
+    scope: str | None  # None is the global campaign cap.
+    requested_micros: int
+    limit_micros: int
+    accounted_micros: int
+    reserved_micros: int
+    uncertain_micros: int
+
+    @property
+    def remaining_micros(self) -> int:
+        return self.limit_micros - self.accounted_micros - self.reserved_micros
+
+    @property
+    def reason(self) -> str:
+        if self.requested_micros > self.limit_micros:
+            return "request_exceeds_limit"
+        if self.requested_micros + self.accounted_micros > self.limit_micros:
+            return "accounted_exhaustion"
+        if (
+            self.requested_micros + self.accounted_micros + self.uncertain_micros
+            > self.limit_micros
+        ):
+            return "uncertain_reservations"
+        return "reservation_pressure"
+
+    def as_dict(self) -> dict:
+        return {
+            "scope": self.scope,
+            "reason": self.reason,
+            "requested_usd": _usd(self.requested_micros),
+            "limit_usd": _usd(self.limit_micros),
+            "accounted_usd": _usd(self.accounted_micros),
+            "reserved_usd": _usd(self.reserved_micros),
+            "uncertain_usd": _usd(self.uncertain_micros),
+            "remaining_usd": _usd(self.remaining_micros),
+        }
 
 
 class OperationAlreadyRecorded(RuntimeError):
@@ -104,23 +150,32 @@ class BudgetLedger:
         with self._transaction() as db:
             if db.execute("SELECT 1 FROM operations WHERE id=?", (operation_id,)).fetchone():
                 raise OperationAlreadyRecorded(operation_id)
-            limit, spent, reserved = self._totals(db)
-            if spent + reserved + amount > limit:
-                raise BudgetExceeded(
-                    f"{operation_id}: requested ${_usd(amount)}, remaining ${_usd(limit - spent - reserved)}"
-                )
-            for prefix, scoped_limit in limits:
-                used = db.execute(
-                    "SELECT COALESCE(SUM(COALESCE(actual_micros,0) + "
-                    "CASE WHEN status != 'settled' THEN reserved_micros ELSE 0 END),0) "
-                    "FROM operations WHERE instr(id, ?) > 0",
-                    (prefix,),
-                ).fetchone()[0]
-                if used + amount > scoped_limit:
-                    raise BudgetExceeded(
-                        f"Budget scope {prefix}: requested ${_usd(amount)}, "
-                        f"remaining ${_usd(scoped_limit - used)}; completed evidence retained"
+            limit = db.execute("SELECT limit_micros FROM budget WHERE id=1").fetchone()[0]
+            denials = []
+            # Inspect every cap atomically: a shared hold must not mask an exhausted
+            # candidate, quality or global allowance that cannot be waited away.
+            for prefix, scoped_limit in [(None, limit), *limits]:
+                spent, reserved, uncertain = db.execute(
+                    "SELECT COALESCE(SUM(actual_micros),0), "
+                    "COALESCE(SUM(CASE WHEN status != 'settled' THEN reserved_micros ELSE 0 END),0), "
+                    "COALESCE(SUM(CASE WHEN status = 'uncertain' THEN reserved_micros ELSE 0 END),0) "
+                    "FROM operations WHERE ? IS NULL OR instr(id, ?) > 0",
+                    (prefix, prefix),
+                ).fetchone()
+                if spent + reserved + amount > scoped_limit:
+                    denials.append(
+                        BudgetDenial(prefix, amount, scoped_limit, spent, reserved, uncertain)
                     )
+            if denials:
+                messages = [
+                    f"{'Budget scope ' + denial.scope if denial.scope else operation_id}: "
+                    f"requested ${_usd(amount)}, remaining ${_usd(denial.remaining_micros)} "
+                    f"({denial.reason})"
+                    for denial in denials
+                ]
+                raise BudgetExceeded(
+                    "; ".join(messages) + "; completed evidence retained", denials=tuple(denials)
+                )
             db.execute(
                 "INSERT INTO operations(id,description,reserved_micros,status) VALUES (?,?,?,'reserved')",
                 (operation_id, description, amount),
