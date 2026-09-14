@@ -130,6 +130,43 @@ def test_approved_prior_inventory_is_checked_once_before_allocation(
     assert checked == plan.prior_verified
 
 
+@pytest.mark.parametrize("denied", [False, True])
+def test_campaign_admission_recheck_follows_prior_proofs_and_precedes_dispatch(
+    local_batch, monkeypatch, denied
+):
+    events = []
+    prior = success(candidate(1).url)["verified"]
+
+    def verify(path):
+        events.append("prior")
+        return prior
+
+    def recheck():
+        events.append("recheck")
+        if denied:
+            raise ValueError("Peer capacity changed")
+
+    def supervise(config, item):
+        events.append("dispatch")
+        return success(item["url"])
+
+    monkeypatch.setattr(batch, "verified_result", verify)
+    monkeypatch.setattr(batch, "_supervise_candidate", supervise)
+    plan = batch.BatchPlan(
+        name="peer",
+        candidates=[candidate(2)],
+        target_verified=2,
+        prior_verified=[local_batch[0].parent / "prior.json"],
+    )
+    if denied:
+        with pytest.raises(ValueError, match="Peer capacity changed"):
+            batch.run_batch(plan, *local_batch, preallocation_check=recheck)
+        assert events == ["prior", "recheck"]
+    else:
+        batch.run_batch(plan, *local_batch, preallocation_check=recheck, on_event=lambda _: None)
+        assert events == ["prior", "recheck", "dispatch"]
+
+
 def test_gpu_cap_allows_cpu_work_without_overlapping_more_gpu_jobs(local_batch, monkeypatch):
     items = [candidate(i) for i in range(1, 7)]
     for item in items[:3]:

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
@@ -361,6 +362,7 @@ def run_batch(
     *,
     on_event=print,
     expected_prior_verified: list[dict] | None = None,
+    preallocation_check: Callable[[], None] | None = None,
 ):
     """Resume undispatched PRs; uncertain child/provider work is never redispatched."""
     directory, campaign, wheel = directory.resolve(), campaign.resolve(), wheel.resolve()
@@ -398,6 +400,8 @@ def run_batch(
             shutil.copyfile(wheel, frozen_wheel)
             save_record(manifest, configuration)
         _freeze_controller(frozen_wheel, controller_root)
+        if preallocation_check is not None:
+            preallocation_check()
         ledger = BudgetLedger(campaign / "budget.sqlite3")
         budget = RunBudget(ledger, _prefix(directory), plan.max_spend_usd)
         saved = directory / "report.json"
