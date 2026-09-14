@@ -81,11 +81,24 @@ All dependency installation happens during image build. The solver runs as
 Initial-state tests, final-state tests and the reference stay outside the
 learner image. The builder receives execution errors for bounded repairs.
 
-The campaign target is **20 generated tasks**. It runs the native initial-state
+The initial 20-task milestone is complete; the current campaign targets
+**100 generated tasks**, with counts in the [release inventory](releases.md).
+It runs the native initial-state
 check and a fresh Harbor baseline/reference pair. Detailed reward-hack review,
 blind solver trials and acceptance follow after all recipes reach their
 generation targets. TMax v2 multimodal fixtures, metric verifiers and the
 upstream large sampled-solution stage are outside this first profile.
+
+## Author cost experiment
+
+A three-candidate trial with `openai/gpt-5.4-mini` produced **0 exports** after
+the normal initial build and two-repair bound. Its 27 model calls cost an estimated
+$0.30; worker/build estimates added $1.03. The same native stages, draft review
+and initial/final execution controls remained enabled. All failed candidates
+and feedback were retained, and the campaign continued with its existing Sonnet
+author configuration. This small, unpaired sample does not rank the models; it
+shows why per-token price alone is insufficient for choosing a generator.
+See the [experiment evidence](evidence/tmax-author-cost-pilot.json).
 
 Use the [shared worker, budget and progress interface](owned_recipes.md) for
 Modal or Daytona. Credit: [TMax](https://github.com/hamishivi/tmax), Apache-2.0,
