@@ -15,6 +15,70 @@ def unit(row: dict, key: str) -> str:
     return "—" if value is None else f"${Decimal(str(value)) / row['sample_exports']:.2f}"
 
 
+def native_tables(history: dict) -> tuple[list[str], list[str]]:
+    """Keep historical inventory and partial costs outside modern quality totals."""
+    rows = history["pipelines"]
+    if len({row["pipeline"] for row in rows}) != len(rows):
+        raise ValueError("Duplicate native pipeline inventory")
+    releases = [
+        "## Native pipelines",
+        "",
+        f"**{sum(row['tasks'] for row in rows):,} task entries across {len(rows)} earlier datasets.** Recovered from cached Hub manifests and local publication stagings on **{history['reviewed_on']}**. These are historical snapshots, not a fresh Hub recount. Older revisions and duplicate stagings are excluded; cross-pipeline content is not deduplicated.",
+        "",
+        "| Pipeline | Tasks | Recovered validation evidence | Dataset and evidence |",
+        "|---|---:|---|---|",
+    ]
+    economics = [
+        "## Native pipeline measurements",
+        "",
+        "These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. — means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.",
+        "",
+        "| Pipeline | Retained tasks | Measured generation yield | Recorded synthesis / task | Scope |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for row in rows:
+        if row["tasks"] <= 0 or sum(row["repo_distribution"].values()) != row["tasks"]:
+            raise ValueError("Native repository counts disagree with inventory")
+        if any(key not in history["sources"] for key in row["sources"]):
+            raise ValueError("Missing native evidence source")
+        attempted = row["attempted_candidates"]
+        if attempted is not None and attempted < row["tasks"]:
+            raise ValueError("Invalid native generation denominator")
+        yield_text = (
+            f"{row['tasks']}/{attempted} ({100 * row['tasks'] / attempted:.1f}%)"
+            if attempted
+            else "—"
+        )
+        name = f"[{row['pipeline']}]({row['guide']})"
+        evidence = (
+            f"[Manifest]({row['manifest_url']})"
+            if row["manifest_url"]
+            else "[Local evidence](native_results.md#evidence-and-reproduction)"
+        )
+        releases.append(
+            f"| {name} | {row['tasks']} | {row['validation_summary']} | "
+            f"[Dataset](https://huggingface.co/datasets/{row['repo_id']}) · {evidence} |"
+        )
+        value = row["recorded_synthesis_usd"]
+        cost = "—" if value is None else f"${Decimal(value) / row['tasks']:.3f}"
+        if row["pipeline"] == "equivalence_tests" and value is not None:
+            cost = "≥ " + cost
+        economics.append(
+            f"| {name} | {row['tasks']} | {yield_text} | {cost} | {row['cost_scope']} |"
+        )
+    releases += [
+        "",
+        "These tasks have **historical evidence scopes**, not retrospectively assigned `verified` labels. In particular, the earlier 52-task commit-runtime gate does not validate the later 100-task dataset. [Read the native results and solver samples](native_results.md).",
+        "",
+    ]
+    economics += [
+        "",
+        "Code-instruct's complete generation log records 136 candidates, correcting the earlier 132-candidate claim. Equivalence-test logs contain at least 200 candidates, including zero-output runs, but several runs lack a final summary; its overall yield is unavailable. Its $0.025/task figure is only a lower bound from productive-run counters.",
+        "",
+    ]
+    return releases, economics
+
+
 def render(data: dict) -> dict[str, str]:
     rows = data["pipelines"]
     by_name = {row["recipe"]: row for row in rows}
@@ -23,6 +87,7 @@ def render(data: dict) -> dict[str, str]:
     tasksmith = by_name["tasksmith"]
     sample = tasksmith["evaluation_sample"]
     observed = data["tasksmith_observation"]
+    native_releases, native_economics = native_tables(data["native_history"])
     labels_total = {}
     for row in rows:
         if sum(row["quality_counts"].values()) != row["published_tasks"]:
@@ -38,7 +103,7 @@ def render(data: dict) -> dict[str, str]:
         "",
         f"Observed samples measured on **{data['measured_on']}**. Use these as measured examples, not price guarantees. A task is one exported Harbor environment; an export is not independent quality acceptance.",
         "",
-        "## Generation",
+        "## Research recipes and Tasksmith generation",
         "",
         "Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **— means unavailable, not zero.**",
         "",
@@ -48,9 +113,14 @@ def render(data: dict) -> dict[str, str]:
     releases = [
         "# Published Harbor datasets",
         "",
-        f"**{sum(r['published_tasks'] for r in rows):,} tasks across {len(rows)} datasets.** Each dataset contains complete Harbor task directories, archives and a registry pinned to its artifact revision.",
+        "Results cover the six native pipelines, Tasksmith and all 14 research recipes. Historical evidence and the newer publication checks are reported separately below.",
         "",
-        f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{data['collection']}). It also links six earlier native-pipeline datasets under their existing owners; they are outside these counts.",
+        f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{data['collection']}). The native datasets retain their existing owners.",
+        "",
+        *native_releases,
+        "## Tasksmith and research recipes",
+        "",
+        f"**{sum(r['published_tasks'] for r in rows):,} tasks across {len(rows)} datasets.** Each dataset contains complete Harbor task directories, archives and a registry pinned to its artifact revision.",
         "",
         "| Pipeline | Tasks | Evaluation labels | Dataset and pinned manifest |",
         "|---|---:|---|---|",
@@ -111,6 +181,7 @@ def render(data: dict) -> dict[str, str]:
         "",
         f"A further ${Decimal(sample['unresolved_usd']):.2f} remains unresolved for this sample. The final published Tasksmith cohort has {observed['verified']} verified tasks, including {observed['sonnet_solved']} full Sonnet solves. Solver success, generation yield and quality acceptance are separate measures. Comparable independent evaluation costs have not been established for the other full datasets.",
         "",
+        *native_economics,
         "## Measurement source",
         "",
         "The [sanitized summary](../data/pipelines.json) contains sample sizes, cost scopes, candidate-count definitions and pinned dataset manifests. No private campaign folder is needed to rebuild this page. To update both tables after reviewing new measurements:",
@@ -125,9 +196,9 @@ def render(data: dict) -> dict[str, str]:
         "",
         "## What the labels establish",
         "",
-        f"The release contains **{labels_total['verified']:,} verified, {labels_total['needs_repair']:,} needing repair and {labels_total['unverified']:,} unverified** tasks. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.",
+        f"The Tasksmith and research-recipe release contains **{labels_total['verified']:,} verified, {labels_total['needs_repair']:,} needing repair and {labels_total['unverified']:,} unverified** tasks. These totals exclude the historical native inventories above. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.",
         "",
-        "Publication checks compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).",
+        "Publication checks for those 15 datasets compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).",
         "",
     ]
     return {"economics.md": "\n".join(economics), "releases.md": "\n".join(releases)}

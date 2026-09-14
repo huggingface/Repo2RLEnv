@@ -1,8 +1,27 @@
 # Published Harbor datasets
 
-**1,330 tasks across 15 datasets.** Each dataset contains complete Harbor task directories, archives and a registry pinned to its artifact revision.
+Results cover the six native pipelines, Tasksmith and all 14 research recipes. Historical evidence and the newer publication checks are reported separately below.
 
-Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). It also links six earlier native-pipeline datasets under their existing owners; they are outside these counts.
+Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). The native datasets retain their existing owners.
+
+## Native pipelines
+
+**600 task entries across 6 earlier datasets.** Recovered from cached Hub manifests and local publication stagings on **2026-09-15**. These are historical snapshots, not a fresh Hub recount. Older revisions and duplicate stagings are excluded; cross-pipeline content is not deduplicated.
+
+| Pipeline | Tasks | Recovered validation evidence | Dataset and evidence |
+|---|---:|---|---|
+| [pr_diff](pr_diff.md) | 181 | 181 listed; no per-task validation in this snapshot. Earlier 100-task release reported oracle passes. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) · [Manifest](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json) |
+| [pr_runtime](pr_runtime.md) | 100 | 100 oracle/tracked passes; 88 clean commands; 87 with a regression guard. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) · [Manifest](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json) |
+| [commit_runtime](commit_runtime.md) | 100 | 100 generation-time verified stamps. Full 100-task oracle gate not recovered; older 52-task gate is separate. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) · [Manifest](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json) |
+| [code_instruct](code_instruct.md) | 100 | 100 emitted after generation checks; no separate 100-task Harbor gate recovered. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) · [Local evidence](native_results.md#evidence-and-reproduction) |
+| [equivalence_tests](equivalence_tests.md) | 100 | 100 emitted after generation checks; no separate 100-task Harbor gate recovered. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) · [Local evidence](native_results.md#evidence-and-reproduction) |
+| [cve_patches](cve_patches.md) | 19 | 19 listed; validation fields absent. A 19-task oracle or independent quality gate was not recovered. | [Dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) · [Manifest](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json) |
+
+These tasks have **historical evidence scopes**, not retrospectively assigned `verified` labels. In particular, the earlier 52-task commit-runtime gate does not validate the later 100-task dataset. [Read the native results and solver samples](native_results.md).
+
+## Tasksmith and research recipes
+
+**1,330 tasks across 15 datasets.** Each dataset contains complete Harbor task directories, archives and a registry pinned to its artifact revision.
 
 | Pipeline | Tasks | Evaluation labels | Dataset and pinned manifest |
 |---|---:|---|---|
@@ -24,6 +43,6 @@ Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEn
 
 ## What the labels establish
 
-The release contains **50 verified, 5 needing repair and 1,275 unverified** tasks. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.
+The Tasksmith and research-recipe release contains **50 verified, 5 needing repair and 1,275 unverified** tasks. These totals exclude the historical native inventories above. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.
 
-Publication checks compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).
+Publication checks for those 15 datasets compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).

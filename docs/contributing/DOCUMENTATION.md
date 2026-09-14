@@ -43,6 +43,14 @@ keep generation, quality evaluation and solver outcomes distinct. Costs must
 name their sample and include failures; unavailable compute or yield is not zero.
 Keep raw evidence locally or with an appropriate dataset/release artifact.
 
+Historical native-pipeline records live in the same file under `native_history`.
+Preserve their evidence scope: a cached inventory, a generation-time verification
+stamp and a Harbor oracle gate are different observations. Do not carry a gate
+from an older cohort onto a newer dataset. The old synthesis counters are
+run-cumulative; sum one final counter per run, not every exported task's counter.
+Update [native results](../pipelines/native_results.md) when changing those
+measurements, and retain source hashes or pinned public manifests.
+
 ## Review changes
 
 Check the stage diagram against the implementation, validate example configs and

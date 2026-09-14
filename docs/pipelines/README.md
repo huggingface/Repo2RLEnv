@@ -56,11 +56,11 @@ covers the new methods, inputs and reference sources.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|
-| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub · GitLab | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub · GitLab | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 in cached snapshot) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
 | [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | GitHub · GitLab | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks × 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | *pending v0.8.8* | [R2E](https://github.com/r2e-project/r2e) |
+| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | [`repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100) | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
+| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks across 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
+| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | [`repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) (100) | [R2E](https://github.com/r2e-project/r2e) |
 | [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 
 - **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
@@ -83,7 +83,7 @@ yield band below.
 | `pr_diff` | **80–95%** | almost every merged PR qualifies (text-only, no execution gate) | `min_loc_changed`, `max_files_per_pr`, `skip_drafts` |
 | `pr_runtime` | **15–40%** | does a PR ship a *new* test that flips fail→pass, and does the suite run green in the container? | `require_fail_to_pass`, `require_new_test_funcs`, `lite_filter`, `min_problem_statement_words` |
 | `commit_runtime` | **10–35%** | same F2P gate as `pr_runtime`, on commits — **~0% on squash/merge-PR repos** (use `pr_runtime` there) | `skip_merge_commits`, `require_new_test_funcs`, `min_message_words`, `synthesize_with_llm` |
-| `code_instruct` | **60–90%** (v0.8.6 gates + retries; empirically 75.8% across 5 Python libs on the reference dataset) | fraction of seed snippets where the LLM's test passes all quality gates AND fails-without / passes-with the oracle | `max_attempts_per_seed` (default 3), LLM quality, `seed_min/max_loc` |
+| `code_instruct` | **60–90%** (v0.8.6 gates + retries; measured 73.5% across 5 Python libs on the reference dataset) | fraction of seed snippets where the LLM's test passes all quality gates AND fails-without / passes-with the oracle | `max_attempts_per_seed` (default 3), LLM quality, `seed_min/max_loc` |
 | `equivalence_tests` | **~50% of pure candidates** (v0.8.7 gates + retries; the purity filter is the real gate — framework-heavy repos yield 0–2 pure candidates, utility-heavy repos yield 10s) | fraction of extracted pure functions where the LLM writes a test that fails-with-stub / passes-with-oracle | `max_attempts_per_function` (default 3), `min/max_loc`, LLM quality, repo shape (utility vs framework) |
 | `cve_patches` | **5–25%** | does the CVE fix have a verifiable test (shipped *or* agent-synthesized) **and** does the repo's suite collect in a slim container? | `synthesize_poc_test`, `poc_agent`, `require_fail_to_pass`, `min_severity` |
 
@@ -109,13 +109,16 @@ surviving tasks are higher quality. For `pr_diff` the same 100 tasks need only
 at ~15% yield, 100 tasks ≈ 15–20 CVE-rich, test-clean repos (see
 `plans/cve_repo_scout.py`).
 
+Counts and recovered validation evidence for all six native pipelines are in
+[native results](native_results.md). Historical counts are not modern quality labels.
+
 ## Spotlight: `pr_diff` (v0.8.3 reference dataset)
 
 The first pipeline to ship a published 100-env reference dataset. Pull and run it on a fresh machine in two commands:
 
 ```bash
 repo2rlenv pull AdithyaSK/repo2rlenv-pr-diff /tmp/pr-diff
-harbor run -p /tmp/pr-diff -a oracle --env docker   # → 1.000 on every task
+harbor run -p /tmp/pr-diff -a oracle --env docker   # inspect oracle rewards
 ```
 
 ### What each task contains

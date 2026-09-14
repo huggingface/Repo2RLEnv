@@ -101,13 +101,13 @@ Repo2RLEnv offers **six native pipelines**, **14 experimental research-inspired 
 ### Stable
 
 **[`pr_diff`](./docs/pipelines/pr_diff.md)** mines merged pull-request diffs into lightweight, text-only tasks. The agent proposes an edit, and a verifier scores it against the real merged diff — on format, the files it touched, how much it changed, and (via an LLM judge) whether it's semantically right. No per-repo setup: every task ships a thin `python:3.12-slim` image.
-→ Reference dataset: [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100 oracle-verified tasks).
+→ Reference dataset: [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 tasks in the cached reference manifest; [historical validation scope](./docs/pipelines/native_results.md#pr-diff)).
 
-**[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. That makes it the strongest, least-gameable signal of the set.
+**[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. The recorded F2P/P2P outcomes provide a test-based reward.
 → Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified tasks).
 
-**[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a clean, leak-free problem statement so the task isn't gameable.
-→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100 oracle-verified envs; Opus solves the sampled tasks).
+**[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a symptom-focused problem statement.
+→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100 tasks with generation-time verification metadata; [cohort evidence](./docs/pipelines/native_results.md#commit-runtime)).
 
 → All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
 

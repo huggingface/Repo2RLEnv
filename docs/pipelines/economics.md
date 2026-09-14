@@ -2,7 +2,7 @@
 
 Observed samples measured on **2026-09-14**. Use these as measured examples, not price guarantees. A task is one exported Harbor environment; an export is not independent quality acceptance.
 
-## Generation
+## Research recipes and Tasksmith generation
 
 Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **— means unavailable, not zero.**
 
@@ -51,6 +51,21 @@ Tasksmith's measured expansion added **26 accepted PR tasks** and also repaired/
 | Total | $15.08 |
 
 A further $4.98 remains unresolved for this sample. The final published Tasksmith cohort has 50 verified tasks, including 19 full Sonnet solves. Solver success, generation yield and quality acceptance are separate measures. Comparable independent evaluation costs have not been established for the other full datasets.
+
+## Native pipeline measurements
+
+These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. — means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.
+
+| Pipeline | Retained tasks | Measured generation yield | Recorded synthesis / task | Scope |
+|---|---:|---:|---:|---|
+| [pr_diff](pr_diff.md) | 181 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [pr_runtime](pr_runtime.md) | 100 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [commit_runtime](commit_runtime.md) | 100 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [code_instruct](code_instruct.md) | 100 | 100/136 (73.5%) | $0.038 | Run-cumulative synthesis counters: sum one final maximum per repo, not every task. Includes retries through the last export; excludes bootstrap, compute, rollouts and earlier development. |
+| [equivalence_tests](equivalence_tests.md) | 100 | — | ≥ $0.025 | Lower bound from seven productive runs only. Excludes zero-output runs, later failed attempts, bootstrap, compute and rollouts; not an all-in task price. |
+| [cve_patches](cve_patches.md) | 19 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+
+Code-instruct's complete generation log records 136 candidates, correcting the earlier 132-candidate claim. Equivalence-test logs contain at least 200 candidates, including zero-output runs, but several runs lack a final summary; its overall yield is unavailable. Its $0.025/task figure is only a lower bound from productive-run counters.
 
 ## Measurement source
 

@@ -12,7 +12,7 @@ with the original implementation.
 | Sandbox required at gen | Yes |
 | LLM required at gen | Yes (writes the test only; retries with feedback on failure) |
 | Reward kinds emitted | `test_execution` |
-| Reference dataset | *pending v0.8.8 — the 5-repo (click/flask/requests/attrs/starlette) survey yielded only ~8 pure candidates combined; surveying a broader utility-lib set* |
+| Reference dataset | [`AdithyaSK/repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) — 100 tasks across seven utility-oriented repos in the retained publication staging; [generation and solver evidence](native_results.md#equivalence-tests) |
 | Inspiration | [R2E](https://github.com/r2e-project/r2e) (ICML '24) |
 
 ## What's different vs `code_instruct`

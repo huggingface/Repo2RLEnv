@@ -10,7 +10,7 @@ oracle is the upstream security patch.
 | Sandbox required at gen | Yes |
 | LLM required at gen | For bootstrap always; the pipeline also calls the LLM to synthesize a PoC regression test when a CVE ships no test (`synthesize_poc_test`, default on) |
 | Reward kinds emitted | `test_execution`, `diff_similarity` |
-| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19 verified envs) |
+| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) — 19 tasks in the cached manifest; [cohort validation evidence unavailable](native_results.md#cve-patches) |
 | Inspiration | [PatchSeeker](https://github.com/hungkien05/PatchSeeker), CVE-Bench (NAACL '25) |
 
 ## Why this pipeline matters

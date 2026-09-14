@@ -125,10 +125,10 @@ See `CodeInstructOptions` in `src/repo2rlenv/spec/options.py`. Key fields:
 
 ## Yield
 
-**Yield = emitted tasks ÷ seed snippets sampled.** With the v0.8.6 gates + retries,
-expect **~60–90%** on well-behaved Python libs (empirically, generating the 100-env
-reference dataset needed 132 candidates → **75.8% yield** across 5 repos:
-click 27→20, flask 24→20, requests 24→20, attrs 23→20, starlette 34→20).
+**Yield = emitted tasks ÷ seed snippets sampled.** The
+[retained generation log](native_results.md#code-instruct) records 100 exports
+from 136 candidates: **73.5% yield** across five repos. The breakdown is click
+27→20, flask 28→20, requests 24→20, attrs 23→20 and starlette 34→20.
 
 | Knob | Default | Effect on yield |
 |---|:-:|---|
@@ -150,15 +150,16 @@ verifier is self-contained in the emitted task — but the repo still needs to
 
 ## Solve rate on the reference dataset
 
-Sample-validation of the 100-env reference dataset, one task per repo, three agents/backends:
+The retained final-cohort sample contains one task per repo:
 
 | Agent (Harbor) | Model | Solved | Cost |
 |---|---|:-:|---|
 | `claude-code` | Sonnet 4.6 (Anthropic direct) | 4/5 | $0.27 |
-| `codex` | GPT-5.3-Codex (OpenAI direct) | 4/5 (extrapolated — measured 2/5 before v0.8.6 delivery-contract fix) | $0.28 |
-| `openhands-sdk` | Qwen3.6-35B via HF Router | *pending re-run on the fixed dataset* | $0 (Router-hosted) |
 
-Wall clock: ~5 min per trial for `claude-code`, ~4 min for `codex`, ~4 min for `openhands-sdk`.
+The cost is model usage only, excluding compute. Earlier Codex and Qwen runs
+predate the delivery-contract repair; the former 4/5 Codex figure was an
+extrapolation, not a rerun. See [native results](native_results.md#code-instruct)
+for the measured generation cost, sample boundaries and source records.
 
 ## End-to-end smoke
 

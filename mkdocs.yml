@@ -180,6 +180,7 @@ nav:
   - Results:
       - Yield and cost per task: pipelines/economics.md
       - Published datasets: pipelines/releases.md
+      - Native pipeline results: pipelines/native_results.md
   - Reference:
       - Prompt stages: pipelines/prompt_reference.md
       - Full prompts (generated):
