@@ -107,11 +107,31 @@ $993.52 counted against the $1,025 cap. No paid task controllers remain running.
 Uncertain historical charges remain reserved. Compute amounts are elapsed-resource
 estimates, not final provider invoices; interactive Codex assistance is excluded.
 
-Portable delivery is being staged separately from the originals. Each entry
-contains a labeled Harbor task, unchanged trial and audit evidence, and mappings
-for original absolute paths. Required raw task and probe references are copied and
-hash-checked. Final publication requires 50 accepted unique PRs, a credential scan
-and verification of every archived file. Staging alone does not establish delivery.
+Portable delivery is complete: **50 tasks and 866,433 files** in the
+**5.49 GB** archive `tasksmith-50-verified.tar.gz`. It is saved locally under
+`workspace/tasksmith-scale50/delivery/` alongside its verification receipt and
+is kept outside Git. Every archived file was read back and matched to its expected
+checksum, including generated metadata. No configured credentials or unapproved
+provider-token matches were found. Exact copies of documented public upstream CI
+fixtures are preserved under a reviewed file-and-path policy.
+
+Archive SHA256:
+
+```text
+095c7802cd594861d0b2ee63374904d0d67c0e3043817296eb733841587ddd90
+```
+
+The archive's `README.md` and `manifest.json` locate every Harbor task. Each entry
+contains its uniform evaluation label, unchanged trials and independent audit,
+and mappings from original paths to packaged evidence. Required raw task and
+probe references are included; optional campaign-wide context limitations remain
+explicit. Original and superseded revisions are preserved.
+
+The final packager uses an indexed lookup for immutable evidence paths. All
+12,505 sampled resolutions matched the previous implementation; the lookup was
+87 times faster including index construction. This is a lookup benchmark, not
+a claimed speedup for the whole pipeline. The final packaging regression selection
+passes 80 tests; all byte, task, probe and credential checks remain in place.
 
 Current `needs_repair` labels are written to separate copies under
 `workspace/tasksmith-scale50/audit-retained/`. The status reader applies exact-hash

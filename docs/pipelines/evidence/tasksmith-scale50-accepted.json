@@ -19,7 +19,17 @@
   "sonnet_solved": 19,
   "scope": "Assisted practical task and verifier acceptance with exact-revision execution controls and independent blind-rollout review. This is not an unattended conversion yield or an exhaustive behavioral guarantee.",
   "delivery": {
-    "archive_status": "packaging"
+    "archive_status": "verified",
+    "archive_name": "tasksmith-50-verified.tar.gz",
+    "archive_sha256": "095c7802cd594861d0b2ee63374904d0d67c0e3043817296eb733841587ddd90",
+    "bytes": 5486510548,
+    "files": 866433,
+    "receipt_sha256": "3da0b31c0f45def7d58ed6488d59c9f233e0636b0d059035bbd2cab544fbe57e",
+    "location": "Local campaign artifact under workspace/tasksmith-scale50/delivery; outside Git.",
+    "all_archived_bytes_verified": true,
+    "configured_credential_matches": 0,
+    "unapproved_provider_token_matches": 0,
+    "reviewed_exact_public_ci_fixture_copies": 173
   },
   "tasks": [
     {
