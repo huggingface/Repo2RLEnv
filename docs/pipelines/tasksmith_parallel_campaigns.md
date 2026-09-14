@@ -121,6 +121,9 @@ evidence once, compares the fresh result with that inventory, and rejects any
 change before allocating work. Preparation can therefore check receipt identities
 without repeatedly scanning every historical task tree. This option does not
 replace fresh validation or introduce an evidence cache.
+For coordinated campaigns, `preallocation_check` can recheck shared capacity and
+budget after evidence validation finishes. An exception prevents dispatch; the
+callback runs before the batch creates its allocation scope.
 
 ## Budget and ownership
 
