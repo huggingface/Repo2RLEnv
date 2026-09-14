@@ -366,12 +366,17 @@ correct that position; a separate corrected fixture is ready for fresh execution
 These copies remain unverified until their new controls, probes and rollouts pass
 review.
 
-The next draft contains twelve PRs: those three recoveries, PEFT #3079,
+V9 queues twelve PRs: those three recoveries, PEFT #3079,
 TRL #6139 and #6078, PEFT #3098, and Diffusers #12619, #11281, #11812, #14045 and
 #12703. They are all from the original seed list. Prepared designs and corrected
 profiles reduce repeated investigation; their fresh bootstrap and feature
-validation are still required. The proposed shared allowance is **$80** from
-remaining expansion funds, subject to a fresh ledger check before dispatch.
+validation are still required. The frozen plan has a shared **$80** allowance
+from remaining expansion funds. Final admission retained every previous charge
+and hold: $265.65 of the $350 expansion allocation was already used or reserved,
+and $137.82 remained in the overall ledger. Eight controllers, at most two GPU
+controllers, process four prepared tasks, four prepared designs and four fresh
+CPU candidates. Eighteen controller guard tests cover the actual twelve inputs,
+source and resource conflicts, duplicate tasks, cleanup and budget admission.
 
 Two observed failures are now addressed in owned code. A narrow patch fallback
 restores CRLF source only when both pinned Git blob identities match; it preserves
