@@ -329,7 +329,7 @@ def test_build_task_stamps_reward_calibration_and_difficulty():
     ("source_kind", "expected_reference"),
     [
         (SourceKind.GITHUB, "https://github.com/o/r/commit/deadbeef"),
-        (SourceKind.GITLAB, "https://gitlab.com/o/r/commit/deadbeef"),
+        (SourceKind.GITLAB, "https://gitlab.com/o/r/-/commit/deadbeef"),
         (SourceKind.LOCAL, None),
     ],
 )
@@ -337,7 +337,8 @@ def test_build_task_reference_host_matches_source(source_kind, expected_referenc
     """The 'reference' provenance URL must point at the commit's actual host,
     not always github.com: commit_runtime works on any source (docstring in
     sources.py), and a GitLab- or local-sourced task previously got a
-    github.com link that does not resolve."""
+    github.com link that does not resolve. GitLab commit links use the
+    canonical `/-/commit/` path; the old `/commit/` form 301-redirects."""
     pipe = _stub_pipeline_for_build_task(source_kind=source_kind)
     commit = _make_commit(subject="fix: parser crashes on empty input", sha="deadbeef")
     patch = (

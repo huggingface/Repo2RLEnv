@@ -546,9 +546,10 @@ class CommitRuntimePipeline:
         # (analogous to pr_runtime's <owner>__<repo>-<pr_number>)
         task_id = f"{owner}__{name}-{commit.sha[:12]}"
         source_kind = self.input.repo.source_kind
+        commit_path = "-/commit" if source_kind is SourceKind.GITLAB else "commit"
         commit_reference = (
             f"https://{'gitlab.com' if source_kind is SourceKind.GITLAB else 'github.com'}"
-            f"/{owner}/{name}/commit/{commit.sha}"
+            f"/{owner}/{name}/{commit_path}/{commit.sha}"
             if source_kind is not SourceKind.LOCAL
             else None
         )
