@@ -71,7 +71,72 @@ ERROR = "ERROR"
 # ---------------------------------------------------------------------------
 
 _PYTEST_STATUSES = (PASSED, FAILED, SKIPPED, ERROR)
-_PYTEST_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
+_PYTEST_PROGRESS_RE = re.compile(r"^\[\s*(?:\d+%|\d+/\d+)\]$")
+_PYTEST_DURATION_RE = re.compile(
+    r"^(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s)|(?:\d+h(?: \d+m)?|\d+m)(?: \d+(?:\.\d+)?s)?)$"
+)
+_PYTEST_FOLDED_SKIP_RE = re.compile(r"^\[\d+\]\s+(?P<location>\S+)(?:\s+.*)?$")
+_PYTEST_FOLDED_SKIP_COUNT_RE = re.compile(r"^\[\d+\](?:\s|$)")
+
+
+def _valid_pytest_verbose_tail(status: str, tail: str) -> bool:
+    """Return whether text after a verbose pytest status is a known trailer."""
+    tail = tail.strip()
+    if not tail:
+        return True
+
+    if status == SKIPPED and tail.startswith("("):
+        closing = tail.rfind(")")
+        if closing < 0:
+            return False
+        tail = tail[closing + 1 :].strip()
+        if not tail:
+            return True
+
+    return bool(_PYTEST_PROGRESS_RE.fullmatch(tail) or _PYTEST_DURATION_RE.fullmatch(tail))
+
+
+def _parse_pytest_verbose_line(line: str) -> tuple[str, str] | None:
+    """Parse a name-first pytest status line without greedy regex backtracking."""
+    first_token = line.split(maxsplit=1)[0]
+    if "::" not in first_token and not first_token.endswith(".py"):
+        return None
+
+    best: tuple[int, str, str] | None = None
+    for status in _PYTEST_STATUSES:
+        marker = f" {status}"
+        pos = line.rfind(marker)
+        while pos >= 0:
+            if _valid_pytest_verbose_tail(status, line[pos + len(marker) :]):
+                name = line[:pos].rstrip()
+                if "::" in name or name.endswith(".py"):
+                    if best is None or pos > best[0]:
+                        best = (pos, name, status)
+                    break
+            pos = line.rfind(marker, 0, pos)
+
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def _strip_pytest_summary_diagnostic(name: str) -> str:
+    """Strip pytest's ` - diagnostic` suffix while preserving parameter text."""
+    separator = " - "
+    if separator not in name:
+        return name
+
+    search_from = name.find("::") + 2 if "::" in name else 0
+    parameter_start = name.find("[", search_from)
+    if parameter_start >= 0:
+        pos = name.find(separator, parameter_start)
+        while pos >= 0:
+            if pos > 0 and name[pos - 1] == "]":
+                return name[:pos]
+            pos = name.find(separator, pos + len(separator))
+        return name
+
+    return name.split(separator, 1)[0]
 
 
 def parse_pytest(log: str) -> dict[str, str]:
@@ -83,33 +148,35 @@ def parse_pytest(log: str) -> dict[str, str]:
         line = raw.strip()
         if not line:
             continue
-        # Summary lines (STATUS first) — checked before verbose so a
-        # "PASSED tests/foo.py::test_a" line isn't misread as name=PASSED.
+
         leading = None
-        for st in _PYTEST_STATUSES:
-            if line.startswith(st + " ") or line == st:
-                leading = st
+        for status in _PYTEST_STATUSES:
+            if line.startswith(status + " ") or line == status:
+                leading = status
                 break
+
         if leading is not None:
-            work = line
-            if leading == FAILED and " - " in work:
-                work = work.split(" - ", 1)[0]
-            tokens = work.split()
-            if len(tokens) < 2:
+            work = line[len(leading) :].strip()
+            if not work:
                 continue
-            name = tokens[1]
-            if name.startswith("[") and name.endswith("]"):  # SKIPPED [N] file:line
-                if len(tokens) < 3:
+
+            if leading == SKIPPED:
+                folded = _PYTEST_FOLDED_SKIP_RE.match(work)
+                if folded:
+                    out[folded.group("location")] = leading
                     continue
-                name = tokens[2]
-            out[name] = leading
+                if _PYTEST_FOLDED_SKIP_COUNT_RE.match(work):
+                    continue
+
+            name = _strip_pytest_summary_diagnostic(work)
+            if name:
+                out[name] = leading
             continue
-        # Verbose progress (NAME first, STATUS after)
-        m = _PYTEST_VERBOSE_RE.match(line)
-        if m:
-            name = m.group("name")
-            if "::" in name or name.endswith(".py"):
-                out[name] = m.group("status")
+
+        parsed = _parse_pytest_verbose_line(line)
+        if parsed is not None:
+            name, status = parsed
+            out[name] = status
     return out
 
 
