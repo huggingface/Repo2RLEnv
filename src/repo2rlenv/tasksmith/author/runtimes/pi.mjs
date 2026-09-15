@@ -1,5 +1,5 @@
 /**
- * Pi 0.85.0 adapter. Run: node pi.mjs CONFIG_JSON_PATH
+ * Pi 0.85.1 adapter. Run: node pi.mjs CONFIG_JSON_PATH
  *
  * The parent owns credentials, billing, and all cloud effects. Only explicitly
  * supplied bridge tools are available; Pi does not discover local resources.
@@ -142,7 +142,7 @@ export async function runPi(config) {
       ai = await import("@earendil-works/pi-ai");
     } catch (error) {
       throw new Error(
-        `Pi SDK import failed; install @earendil-works/pi-coding-agent@0.85.0 and @earendil-works/pi-server@0.85.0 next to pi.mjs: ${error.message}`,
+        `Pi SDK import failed; install @earendil-works/pi-coding-agent@0.85.1 and @earendil-works/pi-server@0.85.1 next to pi.mjs: ${error.message}`,
         { cause: error },
       );
     }
@@ -222,7 +222,7 @@ export async function runPi(config) {
         onPayload: (payload) => {
           for (const key of ["thinking", "temperature", "top_p", "top_k", "output_config"]) delete payload[key];
           Object.assign(payload, inference, { max_tokens: maxTokens });
-          // Pi 0.85.0's non-strict Anthropic converter retains only type,
+          // Pi's non-strict Anthropic converter retains only type,
           // properties and required. That leaves Pydantic's nested $refs
           // unresolved and hides root constraints from the model, although
           // Pi's local validator still enforces them. Preserve the supplied
