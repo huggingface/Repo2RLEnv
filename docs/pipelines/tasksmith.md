@@ -132,7 +132,7 @@ portable public registry images. See [bootstrap design](../rfcs/0029-tasksmith-h
 Worker/model effects reserve spend before dispatch. Interrupted or ambiguous
 requests retain their receipts and holds for reconciliation. They are not blindly
 replayed. Native GPU builds and trials happen remotely; CPU fallback is rejected
-when GPU execution was requested. The runtime uses Harbor 0.20.0 and schema 1.3.
+when GPU execution was requested. The runtime uses Harbor 0.22.0 and emits schema 1.3 tasks.
 
 ## Observed results and limits
 

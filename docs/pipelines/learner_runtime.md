@@ -2,7 +2,7 @@
 
 Repository tasks with `use_system_site_packages=true` install their dependencies in
 `/opt/tasksmith-venv`. The separate verifier already invokes that interpreter
-explicitly. Harbor 0.20.0's Terminus-2 learner starts a tmux pane with
+explicitly. Harbor's Terminus-2 learner starts a tmux pane with
 `bash --login`, whose startup files can replace the image's `PATH`.
 
 The shared repository emitter adds a final learner-image layer that restores the

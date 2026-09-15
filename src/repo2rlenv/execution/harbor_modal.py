@@ -84,8 +84,8 @@ class MeteredModalEnvironment(ModalEnvironment):
         await upload_directory(self, source_dir, target_dir)
 
     def __init__(self, *args, **kwargs):
-        if version("harbor") != "0.20.0":
-            raise RuntimeError("Native GPU execution requires the tested Harbor 0.20.0 contract")
+        if version("harbor") != "0.22.0":
+            raise RuntimeError("Native GPU execution requires the tested Harbor 0.22.0 contract")
         self.accounting = ACCOUNTING.get()
         if self.accounting is None:
             raise ValueError("Native GPU execution requires a controller budget context")

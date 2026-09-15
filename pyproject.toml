@@ -106,7 +106,8 @@ addopts = "-ra"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["references", "envs", "envs-*", "datasets", "plans"]
+# Markdown includes verbatim research prompts; preserve their original bytes.
+extend-exclude = ["references", "envs", "envs-*", "datasets", "plans", "*.md"]
 
 [tool.ruff.lint]
 # A practical-not-pedantic preset for a research repo:

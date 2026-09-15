@@ -210,7 +210,7 @@ missing checks, failed checks and evidence for an older revision are not passes.
 Solver failure alone does not invalidate a task. The initial owned implementation
 is still collecting these audits; its generated tasks are labelled **exported**.
 
-Harbor 0.20.0 parses the emitted schema 1.3 tasks. Some worker kernels do not
+Harbor 0.22.0 parses the emitted schema 1.3 tasks. Some worker kernels do not
 support Harbor's nftables-based dynamic firewall. The owned
 `repo2rlenv.execution.harbor_offline:OfflineDockerEnvironment` adapter supports
 Linux Dockerfile tasks that remain offline in every phase, using Docker's
@@ -229,7 +229,7 @@ generated outputs.
 
 ## Contract references
 
-- [Harbor tasks](https://www.harborframework.com/docs/tasks), validated against the installed 0.20.0 task models and trial implementation.
+- [Harbor tasks](https://www.harborframework.com/docs/tasks), validated against the installed 0.22.0 task models and trial implementation.
 - [Modal VM sandboxes](https://modal.com/docs/guide/vm-sandboxes).
 - [Daytona sandbox management](https://www.daytona.io/docs/en/sandbox-management/).
 - [LiteLLM structured outputs](https://docs.litellm.ai/docs/completion/json_mode) and [Anthropic mapping](https://docs.litellm.ai/docs/providers/anthropic).

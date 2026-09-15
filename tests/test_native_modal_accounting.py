@@ -23,6 +23,12 @@ from repo2rlenv.quality.loop.native import (
 )
 
 
+def test_untested_harbor_version_is_rejected_before_initialization(monkeypatch):
+    monkeypatch.setattr("repo2rlenv.execution.harbor_modal.version", lambda _: "999.0.0")
+    with pytest.raises(RuntimeError, match="tested Harbor"):
+        MeteredModalEnvironment()
+
+
 def test_model_hold_is_releasable_only_with_proven_pre_dispatch_denial(tmp_path):
     allocations = tmp_path / "allocations"
     allocations.mkdir()

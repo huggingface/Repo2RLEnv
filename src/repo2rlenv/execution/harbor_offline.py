@@ -1,4 +1,4 @@
-"""Harbor 0.20.0 adapter for permanently offline, single-container tasks.
+"""Harbor 0.22.0 adapter for permanently offline, single-container tasks.
 
 Modal's VM kernel lacks nft_fib support required by Harbor's dynamic firewall.
 These recipes need no runtime network transitions: Docker's isolated network
@@ -21,8 +21,8 @@ class OfflineDockerEnvironment(DockerEnvironment):
     def __init__(self, *args, **kwargs):
         if os.environ.get("REPO2RLENV_REMOTE_WORKER") != "1":
             raise RuntimeError("The owned Docker adapter runs inside a remote worker only")
-        if version("harbor") != "0.20.0":
-            raise RuntimeError("Offline adapter requires the tested Harbor 0.20.0 contract")
+        if version("harbor") != "0.22.0":
+            raise RuntimeError("Offline adapter requires the tested Harbor 0.22.0 contract")
         super().__init__(*args, **kwargs)
         if (
             self._is_windows_container

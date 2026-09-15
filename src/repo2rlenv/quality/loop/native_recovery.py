@@ -1,6 +1,6 @@
 """Resume a denied private verifier without repeating a completed learner.
 
-Harbor 0.20's single-step verifier API is isolated here. A seal written at
+Harbor 0.22's single-step verifier API is isolated here. A seal written at
 collection time binds the submission and trace; older unsealed trials require
 explicit reconciliation. Unknown provider outcomes are never automatically retried.
 """
