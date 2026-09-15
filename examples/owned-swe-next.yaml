@@ -23,7 +23,7 @@ execution:
   campaign_dir: workspace/campaign
   run_id: swe-next-first
   worker_receipt: workspace/campaign/workers/worker.json
-  runtime_wheel: dist/repo2rlenv-0.9.0-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.1-py3-none-any.whl
   timeout_sec: 14000
 output:
   destination: workspace/generated/swe_next
