@@ -1,5 +1,5 @@
 /**
- * OpenCode 1.18.28 adapter. Run with: node opencode.mjs CONFIG_JSON_PATH
+ * OpenCode 1.18.29 adapter. Run with: node opencode.mjs CONFIG_JSON_PATH
  *
  * Only the private Anthropic/tool HTTP bridge is exposed to the model. The
  * bridge owns credentials, request limits, tool execution, and actual cost.
@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { describeError, requestJSON, RUNTIME_REQUEST_TIMEOUT_MS } from "./local_http.mjs";
 
 const require = createRequire(import.meta.url);
-const VERSION = "1.18.28";
+const VERSION = "1.18.29";
 const PROVIDER = "repo2rlenv";
 const AGENT = "author";
 
@@ -75,7 +75,7 @@ export function normalizeMessages(entries, system) {
 
 function pluginSource(configPath, eventsPath, turnPath) {
   // This file deliberately imports no third-party code. JSON schemas pass
-  // through the 1.18.28 tool.definition hook without a lossy Zod conversion.
+  // through the tool.definition hook without a lossy Zod conversion.
   return `import { readFileSync, appendFileSync, writeFileSync } from "node:fs";
 import { requestJSON, RUNTIME_REQUEST_TIMEOUT_MS } from ${JSON.stringify(new URL("./local_http.mjs", import.meta.url).href)};
 const config = JSON.parse(readFileSync(${JSON.stringify(configPath)}, "utf8"));
