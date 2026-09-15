@@ -30,6 +30,7 @@ from repo2rlenv.pipelines.equivalence_tests import (
     build_equivalence_dockerfile,
     uses_both_names,
 )
+from repo2rlenv.sources import SourceKind
 from repo2rlenv.spec.options import EquivalenceTestsOptions
 
 
@@ -285,3 +286,76 @@ def test_equivalence_tests_options_defaults():
     assert opts.max_loc == 60
     assert opts.require_test_fails_with_stub is True
     assert opts.require_test_passes_with_oracle is True
+
+
+# ---------------------------------------------------------------------------
+# _build_task: reference URL must follow source_kind, not always github.com
+# ---------------------------------------------------------------------------
+
+
+def _stub_pipeline_for_build_task(source_kind=SourceKind.GITHUB):
+    """A pipeline instance with just enough scaffolding to call `_build_task`."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    pipe = EquivalenceTestsPipeline.__new__(EquivalenceTestsPipeline)
+    pipe._llm_cost_usd = 0.0
+    pipe.bootstrap = SimpleNamespace(
+        image_tag="local/r2e-bootstrap/o__r:abc",
+        image_digest="local/r2e-bootstrap/o__r:abc",
+        pushed_to_registry=False,
+        language=SimpleNamespace(value="python"),
+    )
+    pipe.input = MagicMock()
+    pipe.input.repo.owner_name = ("o", "r")
+    pipe.input.repo.ref = "main"
+    pipe.input.repo.access = "auto"
+    pipe.input.repo.source_kind = source_kind
+    pipe.input.output.org = "default"
+    pipe.input.llm.qualified_name = "test-provider/test-model"
+    pipe._progress_cb = None
+    return pipe
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "expected_reference"),
+    [
+        (SourceKind.GITHUB, "https://github.com/o/r/blob/main/src/calc.py#L1-L2"),
+        (SourceKind.GITLAB, "https://gitlab.com/o/r/-/blob/main/src/calc.py#L1-2"),
+        (SourceKind.LOCAL, None),
+    ],
+)
+def test_build_task_reference_host_matches_source(source_kind, expected_reference):
+    """The 'reference' provenance URL must point at the candidate's actual
+    host, not always github.com: equivalence_tests sets no
+    required_capabilities and runs on any source (sources.py), and a
+    GitLab- or local-sourced task previously got a github.com link that
+    does not resolve."""
+    pipe = _stub_pipeline_for_build_task(source_kind=source_kind)
+    cand = _candidate()
+    task = pipe._build_task(
+        cand, "def test_add():\n    assert add(1, 2) == 3\n", test_filename="test_r2e_deadbeef.py"
+    )
+    if expected_reference is None:
+        # TOML has no null, so a local checkout must drop the key, not null it.
+        assert "reference" not in task.repo2env
+    else:
+        assert task.repo2env["reference"] == expected_reference
+
+
+def test_build_task_local_source_writes_a_loadable_task_toml(tmp_path):
+    """A None reference would crash tomli_w.dumps (TOML has no null) inside
+    write_harbor_task. Drive the real emitter, not just the dict, so a
+    regression here fails loudly instead of only at push time."""
+    import tomllib
+
+    from repo2rlenv.emitter.harbor import write_harbor_task
+
+    pipe = _stub_pipeline_for_build_task(source_kind=SourceKind.LOCAL)
+    cand = _candidate()
+    task = pipe._build_task(
+        cand, "def test_add():\n    assert add(1, 2) == 3\n", test_filename="test_r2e_deadbeef.py"
+    )
+    task_path = write_harbor_task(task, tmp_path)
+    loaded = tomllib.loads((task_path / "task.toml").read_text())
+    assert "reference" not in loaded["metadata"]["repo2env"]

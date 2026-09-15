@@ -68,6 +68,7 @@ from repo2rlenv.pipelines._eval_script import (
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
 from repo2rlenv.pipelines._oss_instruct import check_equivalence_test_strength
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.sources import blob_reference_url
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import EquivalenceTestsOptions
 
@@ -657,15 +658,24 @@ class EquivalenceTestsPipeline:
 
         instruction = _build_instruction(cand)
 
+        reference = blob_reference_url(
+            self.input.repo.source_kind,
+            owner,
+            name,
+            self.input.repo.ref,
+            cand.relative_path,
+            cand.lineno,
+            cand.end_lineno,
+        )
+
         repo2env = {
             "pipeline": "equivalence_tests",
             "pipeline_version": "0.7.1",
             "repo": f"{owner}/{name}",
             "ref": self.input.repo.ref,
-            "reference": (
-                f"https://github.com/{owner}/{name}/blob/{self.input.repo.ref}/"
-                f"{cand.relative_path}#L{cand.lineno}-L{cand.end_lineno}"
-            ),
+            # Omitted, not None, for a local checkout: TOML has no null and
+            # tomli_w rejects it outright.
+            **({"reference": reference} if reference is not None else {}),
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,

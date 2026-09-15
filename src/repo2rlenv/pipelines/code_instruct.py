@@ -72,6 +72,7 @@ from repo2rlenv.pipelines._oss_instruct import (
     task_fingerprints,
 )
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.sources import blob_reference_url
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CodeInstructOptions
 
@@ -492,15 +493,24 @@ class CodeInstructPipeline:
         )
         dockerfile = build_code_instruct_dockerfile(image_ref)
 
+        reference = blob_reference_url(
+            self.input.repo.source_kind,
+            owner,
+            name,
+            self.input.repo.ref,
+            seed.relative_path,
+            seed.start_line,
+            seed.end_line,
+        )
+
         repo2env = {
             "pipeline": "code_instruct",
             "pipeline_version": "0.6.2",
             "repo": f"{owner}/{name}",
             "ref": self.input.repo.ref,
-            "reference": (
-                f"https://github.com/{owner}/{name}/blob/{self.input.repo.ref}/"
-                f"{seed.relative_path}#L{seed.start_line}-L{seed.end_line}"
-            ),
+            # Omitted, not None, for a local checkout: TOML has no null and
+            # tomli_w rejects it outright.
+            **({"reference": reference} if reference is not None else {}),
             "source_access": self.input.repo.access,
             "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,

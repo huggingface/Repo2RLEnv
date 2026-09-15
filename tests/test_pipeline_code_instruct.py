@@ -9,11 +9,13 @@ from __future__ import annotations
 import pytest
 
 from repo2rlenv.pipelines._eval_script import all_tests_passed as _all_tests_passed
+from repo2rlenv.pipelines._oss_instruct import ParsedTask, Seed
 from repo2rlenv.pipelines.code_instruct import (
     CodeInstructPipeline,
     build_code_instruct_dockerfile,
     make_solution_diff,
 )
+from repo2rlenv.sources import SourceKind
 from repo2rlenv.spec.options import CodeInstructOptions
 
 # ---------------------------------------------------------------------------
@@ -123,3 +125,86 @@ def test_code_instruct_options_defaults():
     assert opts.seed_max_loc == 200
     assert opts.require_test_fails_without_oracle is True
     assert opts.require_test_passes_with_oracle is True
+
+
+# ---------------------------------------------------------------------------
+# _build_task: reference URL must follow source_kind, not always github.com
+# ---------------------------------------------------------------------------
+
+
+def _stub_pipeline_for_build_task(source_kind=SourceKind.GITHUB):
+    """A pipeline instance with just enough scaffolding to call `_build_task`."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    pipe = CodeInstructPipeline.__new__(CodeInstructPipeline)
+    pipe._llm_cost_usd = 0.0
+    pipe.bootstrap = SimpleNamespace(
+        image_tag="local/r2e-bootstrap/o__r:abc",
+        image_digest="local/r2e-bootstrap/o__r:abc",
+        pushed_to_registry=False,
+        language=SimpleNamespace(value="python"),
+    )
+    pipe.input = MagicMock()
+    pipe.input.repo.owner_name = ("o", "r")
+    pipe.input.repo.ref = "main"
+    pipe.input.repo.access = "auto"
+    pipe.input.repo.source_kind = source_kind
+    pipe.input.output.org = "default"
+    pipe.input.llm.qualified_name = "test-provider/test-model"
+    pipe._progress_cb = None
+    return pipe
+
+
+def _seed_and_parsed():
+    seed = Seed(
+        relative_path="src/calc.py",
+        start_line=10,
+        end_line=20,
+        text="def add(x, y):\n    return x + y\n",
+    )
+    parsed = ParsedTask(
+        problem="Implement add(x, y).",
+        test_code="def test_add():\n    assert add(1, 2) == 3\n",
+        solution_code="def add(x, y):\n    return x + y\n",
+    )
+    return seed, parsed
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "expected_reference"),
+    [
+        (SourceKind.GITHUB, "https://github.com/o/r/blob/main/src/calc.py#L10-L20"),
+        (SourceKind.GITLAB, "https://gitlab.com/o/r/-/blob/main/src/calc.py#L10-20"),
+        (SourceKind.LOCAL, None),
+    ],
+)
+def test_build_task_reference_host_matches_source(source_kind, expected_reference):
+    """The 'reference' provenance URL must point at the seed's actual host,
+    not always github.com: code_instruct sets no required_capabilities and
+    runs on any source (sources.py), and a GitLab- or local-sourced task
+    previously got a github.com link that does not resolve."""
+    pipe = _stub_pipeline_for_build_task(source_kind=source_kind)
+    seed, parsed = _seed_and_parsed()
+    task = pipe._build_task(seed, parsed, test_filename="test_r2e_deadbeef.py")
+    if expected_reference is None:
+        # TOML has no null, so a local checkout must drop the key, not null it.
+        assert "reference" not in task.repo2env
+    else:
+        assert task.repo2env["reference"] == expected_reference
+
+
+def test_build_task_local_source_writes_a_loadable_task_toml(tmp_path):
+    """A None reference would crash tomli_w.dumps (TOML has no null) inside
+    write_harbor_task. Drive the real emitter, not just the dict, so a
+    regression here fails loudly instead of only at push time."""
+    import tomllib
+
+    from repo2rlenv.emitter.harbor import write_harbor_task
+
+    pipe = _stub_pipeline_for_build_task(source_kind=SourceKind.LOCAL)
+    seed, parsed = _seed_and_parsed()
+    task = pipe._build_task(seed, parsed, test_filename="test_r2e_deadbeef.py")
+    task_path = write_harbor_task(task, tmp_path)
+    loaded = tomllib.loads((task_path / "task.toml").read_text())
+    assert "reference" not in loaded["metadata"]["repo2env"]

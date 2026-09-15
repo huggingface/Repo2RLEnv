@@ -67,3 +67,25 @@ def detect_source_kind(url: str) -> SourceKind:
 
 def capabilities_for(kind: SourceKind) -> frozenset[Capability]:
     return _CAPABILITIES[kind]
+
+
+def blob_reference_url(
+    kind: SourceKind, owner: str, name: str, ref: str, path: str, start_line: int, end_line: int
+) -> str | None:
+    """Browsable link to a line range in ``path`` at ``ref``, or ``None`` for
+    a local checkout (no host to link to, so callers must omit rather than
+    null the field, since TOML has no null).
+
+    GitHub and GitLab differ in both the path segment and the line-range
+    anchor: GitHub is ``/blob/`` with ``#L{start}-L{end}``; GitLab's
+    canonical form is ``/-/blob/`` with ``#L{start}-{end}`` (no second
+    ``L``).
+    """
+    if kind is SourceKind.LOCAL:
+        return None
+    host = "gitlab.com" if kind is SourceKind.GITLAB else "github.com"
+    blob_path = "-/blob" if kind is SourceKind.GITLAB else "blob"
+    anchor = (
+        f"L{start_line}-{end_line}" if kind is SourceKind.GITLAB else f"L{start_line}-L{end_line}"
+    )
+    return f"https://{host}/{owner}/{name}/{blob_path}/{ref}/{path}#{anchor}"
