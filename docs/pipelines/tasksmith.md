@@ -71,7 +71,7 @@ uv run repo2rlenv tasksmith run examples/tasksmith-pr.json \
   --options examples/tasksmith-options.json \
   --campaign workspace/tasksmith \
   --output workspace/tasksmith/run \
-  --runtime-wheel dist/repo2rlenv-0.9.0-py3-none-any.whl \
+  --runtime-wheel dist/repo2rlenv-0.9.1-py3-none-any.whl \
   --env-file .env
 uv run repo2rlenv tasksmith show workspace/tasksmith/run --json
 ```

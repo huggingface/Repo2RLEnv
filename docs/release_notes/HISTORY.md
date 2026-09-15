@@ -6,6 +6,31 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## v0.9.1 — Windows CLI startup and release checks
+
+Released September 15, 2026.
+
+Fixes the Windows CLI crash introduced in 0.9.0: even `--version` and `--help`
+previously failed while importing the POSIX-only `fcntl` module. A shared
+standard-library lock now uses `flock` on POSIX and byte-range locking on
+Windows, preserving exclusive controller ownership and the blocking history
+checkout lock. Thanks to KNambiarDJsc for the report and initial fix
+([#128](https://github.com/huggingface/Repo2RLEnv/issues/128),
+[#129](https://github.com/huggingface/Repo2RLEnv/pull/129)).
+
+CI and publication now require fresh Windows wheel checks on Python 3.12–3.14:
+CLI startup, recipe discovery, native UTF-8 task emission/static validation and
+real process-lock contention. Full native Windows Tasksmith, research-recipe
+and quality-controller execution remains unsupported; use Linux, macOS or WSL.
+The remaining artifact-permission and process-cleanup work is tracked in
+[#130](https://github.com/huggingface/Repo2RLEnv/issues/130).
+
+This release also includes the Python, documentation/build-tool and Pi/OpenCode
+runtime dependency updates merged after 0.9.0. Upgrade with
+`pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.1`, including any
+extras your pipeline needs. The Windows CLI/locking fix does not require changes
+to existing generated datasets. Versioned examples use the 0.9.1 runtime wheel.
+
 ## v0.9.0 — Tasksmith and owned generation recipes
 
 Released September 15, 2026.
