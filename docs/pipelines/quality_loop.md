@@ -89,7 +89,7 @@ repo2rlenv quality run ./tasks/example \
   --campaign ./workspace/my-campaign \
   --out ./workspace/reviews/example-repaired \
   --repair --provider modal \
-  --runtime-wheel ./dist/repo2rlenv-0.8.8-py3-none-any.whl \
+  --runtime-wheel ./dist/repo2rlenv-0.9.0-py3-none-any.whl \
   --review-model anthropic/claude-sonnet-4-6 \
   --repair-model anthropic/claude-opus-4-6 \
   --solver-model anthropic/claude-sonnet-4-6 \

@@ -1,12 +1,36 @@
 # Version history
 
-Narrative changelog, oldest first. `CLAUDE.md` carries only the compressed
-summary; the detail lives here.
+Current release highlights followed by historical notes. `CLAUDE.md` carries
+only the compressed summary; the detail lives here.
 
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
-## Unreleased — portability, validation and custom LLM endpoints
+## v0.9.0 — Tasksmith and owned generation recipes
+
+Released September 15, 2026.
+
+Tasksmith and 14 research-inspired generation recipes now ship alongside the
+six native pipelines. Tasksmith uses LangGraph with Pi or OpenCode to investigate
+a merged PR, bootstrap its repository, design a task and private verifier, and
+run bounded review and repair. CPU execution supports Daytona and Modal; the
+implemented GPU route uses Modal L4 GPUs. Tasksmith and the recipes remain
+experimental; their current scope is documented in the [pipeline guide](../pipelines/README.md).
+
+The owned recipes cover repository mutation, PR and commit mining, function
+reconstruction, terminal synthesis, task evolution, environment repair and
+reasoning instances. CLI discovery exposes each method's options and source
+provenance. Campaigns record budgets, resumable work and execution evidence;
+the shared quality loop reviews Harbor bundles and learner traces and writes
+explicit evaluation labels. Generation alone does not establish task quality.
+
+The README now provides a shorter quickstart and complete route table. Detailed
+guides document stage diagrams, exact prompts, dataset validation scope and
+measured yield and costs. Versioned examples point to the 0.9.0 runtime wheel.
+
+Python 3.12–3.14 remain supported. To upgrade an existing environment, use
+`pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.0`, adding any
+extras your pipeline needs.
 
 Dependency maintenance updates the locked HTTP clients and LiteLLM to patched
 versions, with security minimums for direct dependencies and transitive lock

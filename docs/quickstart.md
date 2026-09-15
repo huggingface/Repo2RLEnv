@@ -1,6 +1,6 @@
 # Quickstart
 
-Turn a GitHub repo into a Harbor-shaped dataset, in about ten minutes.
+Generate a small dataset, inspect its Harbor task files, then run and publish it.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ gh auth login
 export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY / HF_TOKEN / ...
 
 # (Optional) HF Hub login if you plan to push the dataset
-huggingface-cli login
+hf auth login
 ```
 
 ## Install
@@ -29,7 +29,11 @@ uv tool install repo2rlenv
 
 ## Generate a dataset
 
-The shipped pipeline is `pr_diff` — SWE-RL-style PR mining, no Docker required.
+Start with `pr_diff` for PR-diff tasks; generation does not require Docker.
+For test-based tasks, choose `pr_runtime`,
+[Tasksmith](./pipelines/tasksmith.md), or a
+[research recipe](./pipelines/owned_recipes.md). Each route has its own setup,
+inputs and validation stages.
 
 ```bash
 repo2rlenv generate \
