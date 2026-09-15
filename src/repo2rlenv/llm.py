@@ -83,6 +83,15 @@ def _resolve_api_key(spec: LLMSpec) -> str | None:
             )
         return key
     if spec.endpoint:
+        if provider in LLM_KEY_ENV_DEFAULTS and resolve_llm_api_key(provider):
+            key_env = LLM_KEY_ENV_DEFAULTS[provider]
+            logger.warning(
+                "$%s is set but is not sent to the custom LLM endpoint. "
+                "Use --llm-key-env %s (or llm.api_key_env in config) "
+                "if this endpoint should receive that key.",
+                key_env,
+                key_env,
+            )
         return _PLACEHOLDER_API_KEY if provider in LLM_KEY_ENV_DEFAULTS else None
     key = resolve_llm_api_key(provider)
     if key is None and provider in LLM_KEY_ENV_DEFAULTS:

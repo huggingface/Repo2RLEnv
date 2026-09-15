@@ -82,6 +82,25 @@ def test_default_key_never_forwarded_to_custom_endpoint(litellm_stub):
     assert _kwargs(litellm_stub)["api_key"] == _PLACEHOLDER_API_KEY
 
 
+@pytest.mark.parametrize(
+    "provider,key_env", [("openai", "OPENAI_API_KEY"), ("anthropic", "ANTHROPIC_API_KEY")]
+)
+def test_custom_endpoint_warns_how_to_keep_gateway_auth(
+    litellm_stub, monkeypatch, caplog, provider, key_env
+):
+    monkeypatch.setenv(key_env, "private-test-key")
+    _call(LLMSpec(provider=provider, model="m", endpoint=ENDPOINT))
+    assert f"--llm-key-env {key_env}" in caplog.text
+    assert "private-test-key" not in caplog.text
+    assert _kwargs(litellm_stub)["api_key"] == _PLACEHOLDER_API_KEY
+
+
+def test_explicit_gateway_key_does_not_warn(litellm_stub, monkeypatch, caplog):
+    monkeypatch.setenv("OPENAI_API_KEY", "private-test-key")
+    _call(LLMSpec(provider="openai", model="m", endpoint=ENDPOINT, api_key_env="OPENAI_API_KEY"))
+    assert not caplog.records
+
+
 @mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-live"}, clear=True)
 def test_explicit_key_env_is_forwarded_to_endpoint(litellm_stub):
     spec = LLMSpec(provider="openai", model="m", endpoint=ENDPOINT, api_key_env="OPENAI_API_KEY")

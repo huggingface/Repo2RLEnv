@@ -6,6 +6,19 @@ summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## Unreleased — custom LLM endpoints
+
+`generate` and `bootstrap` now accept `--llm-endpoint` and `--llm-key-env`.
+Keyless self-hosted providers can use LiteLLM's native credential handling.
+
+Existing configurations with a custom `llm.endpoint` must explicitly name
+`llm.api_key_env` to send a hosted provider's default key there. For example,
+an authenticated OpenAI-compatible gateway that previously used `OPENAI_API_KEY`
+implicitly now needs `--llm-key-env OPENAI_API_KEY` or
+`llm.api_key_env: OPENAI_API_KEY`. The CLI warns when that default key is set
+but withheld. An explicitly named, unset key variable now raises an error
+instead of falling back to a different key. Default hosted endpoints are unchanged.
+
 ---
 
 ## v0.1.0 — first release
