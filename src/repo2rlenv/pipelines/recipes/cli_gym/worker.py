@@ -22,7 +22,9 @@ _CONTROL = "/opt/repo2rlenv-verifier/bin/python"
 
 
 def run(argv, *, timeout=60, check=True):
-    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=check)
+    return subprocess.run(
+        argv, capture_output=True, text=True, encoding="utf-8", timeout=timeout, check=check
+    )
 
 
 def create(image: str) -> str:

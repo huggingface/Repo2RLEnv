@@ -88,6 +88,7 @@ def reverse_crlf_patch(root: Path, patch: Path) -> bool:
             cwd=staged,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
             check=False,
         )

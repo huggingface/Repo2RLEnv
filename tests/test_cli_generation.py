@@ -64,6 +64,39 @@ def test_native_json_flag_fails_before_execution(tmp_path, capsys):
     assert "Native generation has no JSON" in json.loads(capsys.readouterr().out)["message"]
 
 
+def test_owned_config_combines_endpoint_options_and_resume(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines.recipes.cli.run_recipe",
+        lambda config, **kwargs: captured.append(config) or 0,
+    )
+    assert (
+        main(
+            [
+                "generate",
+                "--config",
+                str(EXAMPLES / "owned-seta.yaml"),
+                "--llm",
+                "hosted_vllm/example",
+                "--llm-endpoint",
+                "http://localhost:8000/v1",
+                "--llm-key-env",
+                "LOCAL_MODEL_KEY",
+                "--pipeline-opt",
+                "target=3",
+                "--resume",
+            ]
+        )
+        == 0
+    )
+    config = captured[0]
+    assert config.llm.endpoint == "http://localhost:8000/v1"
+    assert config.llm.api_key_env == "LOCAL_MODEL_KEY"
+    assert config.pipeline.options["target"] == 3
+    assert config.pipeline.options["max_candidates"] == 30
+    assert config.execution.resume is True
+
+
 @pytest.mark.parametrize("limit", ["0", "0.01", "999"])
 def test_owned_spending_flag_rejected_before_dispatch(monkeypatch, capsys, limit):
     def no_dispatch(*args, **kwargs):

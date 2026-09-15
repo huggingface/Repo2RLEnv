@@ -128,7 +128,7 @@ def list_source_files(clone_dir: Path, *, file_glob: str, exclude_glob: list[str
     for p in clone_dir.glob(file_glob):
         if not p.is_file():
             continue
-        rel = str(p.relative_to(clone_dir))
+        rel = p.relative_to(clone_dir).as_posix()
         if is_excluded(rel, exclude_glob):
             continue
         out.append(p)
@@ -168,7 +168,8 @@ def sample_seed(
         chunk = "\n".join(chunk_lines)
         if _looks_substantive(chunk_lines):
             return Seed(
-                relative_path=str(f.relative_to(clone_dir)),
+                # POSIX on every OS: feeds the task ID, reference URL and metadata
+                relative_path=f.relative_to(clone_dir).as_posix(),
                 start_line=start + 1,
                 end_line=end,
                 text=chunk,

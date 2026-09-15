@@ -34,7 +34,13 @@ from repo2rlenv.tasksmith.source_patch import reverse_crlf_patch
 def run(argv, *, cwd=None, timeout=120, build_log: Path | None = None):
     try:
         result = subprocess.run(
-            argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
+            argv,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+            check=False,
         )
     except subprocess.TimeoutExpired as exc:
         if build_log is None:
@@ -100,6 +106,7 @@ def build_dependency_image(
         ["docker", "image", "inspect", base_image, "--format", "{{.Id}}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if base.returncode:

@@ -73,6 +73,6 @@ def test_e2e_public_trl(tmp_path: Path):
         assert oracle.stat().st_size > 0, f"empty oracle in {task_dir}"
 
         # Self-similarity sanity check
-        oracle_text = oracle.read_text()
+        oracle_text = oracle.read_text(encoding="utf-8")
         reward, _ = calculate_diff_similarity_reward(oracle_text, oracle_text)
         assert reward == 1.0, f"oracle should self-score 1.0 in {task_dir}"

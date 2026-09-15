@@ -71,7 +71,17 @@ ERROR = "ERROR"
 # ---------------------------------------------------------------------------
 
 _PYTEST_STATUSES = (PASSED, FAILED, SKIPPED, ERROR)
-_PYTEST_VERBOSE_RE = re.compile(r"^(?P<name>\S+)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)\b")
+# Keep these patterns in sync with log_parsers/pytest_parser.py. This module
+# also runs standalone inside task containers, without a repo2rlenv install.
+_PYTEST_PROGRESS = (
+    r"\[\s*\d+%\]|\[\s*\d+\s*/\s*\d+\s*\]"
+    r"|\d+(?:\.\d+)?(?:us|ms|s)|\d+m \d+s|\d+h \d+m"
+)
+_PYTEST_VERBOSE_RE = re.compile(
+    r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
+    rf"(?:\s+\(.*\))?(?:\s+(?:{_PYTEST_PROGRESS}))?$"
+)
+_PYTEST_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
 
 
 def parse_pytest(log: str) -> dict[str, str]:
@@ -83,28 +93,28 @@ def parse_pytest(log: str) -> dict[str, str]:
         line = raw.strip()
         if not line:
             continue
-        # Summary lines (STATUS first) — checked before verbose so a
-        # "PASSED tests/foo.py::test_a" line isn't misread as name=PASSED.
+        # Summary lines (STATUS first), preserving the full node ID.
         leading = None
         for st in _PYTEST_STATUSES:
             if line.startswith(st + " ") or line == st:
                 leading = st
                 break
         if leading is not None:
-            work = line
-            if leading == FAILED and " - " in work:
-                work = work.split(" - ", 1)[0]
-            tokens = work.split()
-            if len(tokens) < 2:
-                continue
-            name = tokens[1]
-            if name.startswith("[") and name.endswith("]"):  # SKIPPED [N] file:line
-                if len(tokens) < 3:
+            work = line[len(leading) :].strip()
+            if leading == SKIPPED and re.match(r"^\[\d+\](?:\s|$)", work):
+                # Folded skips report a file location, not a parametrized ID.
+                tokens = work.split(maxsplit=2)
+                if len(tokens) < 2:
                     continue
-                name = tokens[2]
-            out[name] = leading
+                out[tokens[1]] = leading
+            elif m := _PYTEST_SUMMARY_NAME_RE.match(work):
+                out[m.group("name")] = leading
             continue
         # Verbose progress (NAME first, STATUS after)
+        # Filter non-test output before attempting the backtracking regex.
+        head = line.split(None, 1)[0]
+        if "::" not in head and not head.endswith(".py"):
+            continue
         m = _PYTEST_VERBOSE_RE.match(line)
         if m:
             name = m.group("name")

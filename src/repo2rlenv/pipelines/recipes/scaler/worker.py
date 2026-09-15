@@ -82,6 +82,7 @@ def execute(
             ["docker", "start", "-a", name],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             check=False,
         )
@@ -116,6 +117,7 @@ def generate(config: dict, destination: Path) -> dict:
         ["docker", "build", "-t", tag, str(build)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=300,
         check=False,
     )

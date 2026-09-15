@@ -35,7 +35,7 @@ For `repo2rlenv push` / `pull`. Resolved by `huggingface_hub` itself; we don't o
 
 ## LLM providers
 
-LiteLLM-resolved; per-provider defaults. Override with `llm.api_key_env` in config if you use non-default names.
+LiteLLM-resolved; per-provider defaults. Override with `--llm-key-env VAR` (or `llm.api_key_env` in config) if you use non-default names.
 
 | Variable | Provider |
 |---|---|
@@ -44,6 +44,15 @@ LiteLLM-resolved; per-provider defaults. Override with `llm.api_key_env` in conf
 | `HF_TOKEN` | Hugging Face Router |
 | `TOGETHER_API_KEY` | Together |
 | `GROQ_API_KEY` | Groq |
+
+Those five are resolved by `repo2rlenv` itself, so a missing key fails fast with the variable named. Every other LiteLLM provider resolves its own credentials inside LiteLLM (e.g. `OPENROUTER_API_KEY`, AWS credentials for Bedrock). Self-hosted servers need none:
+
+| Variable | Provider |
+|---|---|
+| `HOSTED_VLLM_API_KEY` *(optional)* | `hosted_vllm/…` — only if your vLLM was started with `--api-key`; honoured with or without `--llm-endpoint`. `HOSTED_VLLM_API_BASE` is the alternative to `--llm-endpoint`. |
+| `OLLAMA_API_KEY` *(optional)* | `ollama/…` — `OLLAMA_API_BASE` defaults to `http://localhost:11434`. |
+
+With `--llm-endpoint` (or `llm.endpoint` in config) the provider-default key — `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, … — is never forwarded to the custom server: `openai/<model>` gets a placeholder, `hosted_vllm/` and `ollama/` use LiteLLM's own lookup above. Pass `--llm-key-env VAR` to send a specific key.
 
 ## Container registry (for `_runtime` image distribution on push)
 

@@ -29,7 +29,9 @@ class TestInstrumentation:
 
 
 def _run(argv: list[str], *, timeout: int = 600, check: bool = True):
-    result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+    result = subprocess.run(
+        argv, capture_output=True, text=True, encoding="utf-8", timeout=timeout, check=False
+    )
     if check and result.returncode:
         raise RuntimeError(f"Remote worker command failed ({result.returncode}): {argv[0]}")
     return result

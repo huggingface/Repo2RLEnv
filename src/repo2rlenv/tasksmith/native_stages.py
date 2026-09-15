@@ -370,6 +370,7 @@ class NativeStages:
                     [sys.executable, "-m", "modal", "image", "logs", exc.image_id],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=60,
                     check=False,
                 )

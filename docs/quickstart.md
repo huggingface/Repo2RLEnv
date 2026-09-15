@@ -79,7 +79,18 @@ Run `repo2rlenv push --check-auth` to verify your registry credentials before pu
 ```bash
 # Fast structural check — every task.toml parses + has required fields
 repo2rlenv validate ./datasets/<dataset-name>
+
+# Deeper preflight before an expensive build or eval — also checks each task's
+# assets (instruction, tests/test.sh, environment, graded verifier files) and
+# its [metadata.repo2env.reproducibility] table. --oracle additionally requires
+# a solve script, plus solution/patch.diff for native pipelines.
+repo2rlenv validate ./datasets/<dataset-name> --deep
+repo2rlenv validate ./datasets/<dataset-name> --oracle
 ```
+
+Both are static checks — they don't build the Dockerfile or apply the patch.
+`harbor run --agent oracle` is still the end-to-end proof. See
+[Deep validation](./reference/SPEC.md#deep-validation) for exactly what is checked.
 
 For diff-similarity scoring inside a training loop, import the Python function
 directly instead of shelling out:

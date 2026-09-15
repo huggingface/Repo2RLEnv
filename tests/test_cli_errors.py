@@ -67,3 +67,36 @@ def test_logs_stay_out_of_json_stream(monkeypatch, capsys):
     monkeypatch.setattr("repo2rlenv.cli.cmd_generate", fail)
     assert main(["generate", "--json"]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "RuntimeError"
+
+
+def test_invalid_llm_config_preserves_json_error_contract(tmp_path, capsys):
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "repo": {"url": "example/project"},
+                "pipeline": {"name": "pr_diff"},
+                "output": {
+                    "destination": str(tmp_path / "tasks"),
+                    "org": "example",
+                    "dataset_name": "test",
+                },
+            }
+        )
+    )
+    assert (
+        main(
+            [
+                "generate",
+                "--config",
+                str(config),
+                "--llm-endpoint",
+                "http://localhost:8000/v1",
+                "--json",
+            ]
+        )
+        == 2
+    )
+    output = capsys.readouterr()
+    assert json.loads(output.out)["error"] == "ValidationError"
+    assert "Traceback" not in output.err

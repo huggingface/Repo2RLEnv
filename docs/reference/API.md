@@ -85,7 +85,7 @@ response = complete(
 print(response.content)
 ```
 
-Single-shot LiteLLM call. Honors `spec.endpoint` for self-hosted backends; auto-points HF provider at `https://router.huggingface.co/v1`.
+Single-shot LiteLLM call. Honors `spec.endpoint` for self-hosted backends — no key required, and the provider-default key is never forwarded there unless `spec.api_key_env` names it; auto-points HF provider at `https://router.huggingface.co/v1`. Providers outside `auth.LLM_KEY_ENV_DEFAULTS` resolve their credentials inside LiteLLM. `check_provider(spec)` fails fast on an unknown provider anywhere in the fallback chain.
 
 ## `repo2rlenv.reward`
 
@@ -160,6 +160,7 @@ Repo2RLEnv ships **no execution runtime**. To run/score:
 |---|---|
 | `repo2rlenv generate ...` | `pipelines.PIPELINES[name](input, opts).run(out_dir)` |
 | `repo2rlenv validate <path>` | walk task.toml files + `tomllib.loads` |
+| `repo2rlenv validate <path> --deep [--oracle]` | `validation.validate_task(task_dir, data, oracle=...)` per task → `list[Finding]` |
 | `repo2rlenv push <dir> <owner>/<name>` | `hub.push_to_hub(local_dir, repo_id, auth, ...)` |
 | `repo2rlenv pull <owner>/<name> [<dir>]` | `hub.pull_from_hub(repo_id, local_dir, auth, ...)` |
 | `repo2rlenv bootstrap ...` | `bootstrap.ensure_bootstrap(repo, spec, llm)` |

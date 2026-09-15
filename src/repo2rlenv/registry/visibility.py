@@ -48,6 +48,7 @@ def _gh_user() -> str | None:
         ["gh", "api", "user", "--jq", ".login"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=15,
         check=False,
     )
@@ -122,6 +123,7 @@ def ensure_ghcr_visibility(
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )

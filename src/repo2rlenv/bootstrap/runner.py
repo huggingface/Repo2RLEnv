@@ -42,6 +42,7 @@ def _resolve_head_sha(local_clone: Path) -> str:
         ["git", "-C", str(local_clone), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
         timeout=30,
     )
@@ -87,6 +88,7 @@ def _run_git_streaming(
             args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             check=False,
         )
@@ -96,6 +98,7 @@ def _run_git_streaming(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
         bufsize=1,
     )
     err_buf: list[str] = []
@@ -214,6 +217,7 @@ def _shallow_clone_at_ref(
         ["git", "-C", str(dest), "checkout", ref],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
         check=False,
     )
@@ -240,6 +244,7 @@ def _scrub_clone_credentials(clone_dir: Path, repo_url: str) -> None:
             ["git", "-C", str(clone_dir), "remote", "set-url", "origin", repo_url],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             check=False,
         )

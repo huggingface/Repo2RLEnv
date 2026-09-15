@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -30,6 +30,28 @@ class PipelineName(StrEnum):
     REASONING_SYNTH = "reasoning_synth"
 
 
+def _is_local_path(v: str, *, windows: bool) -> bool:
+    """Whether a `--repo` value names a local checkout rather than a git remote."""
+    if v.startswith(("/", "~", "./", "../")):
+        return True
+    # Windows paths can also start with a drive (C:\x, C:/x) or be UNC
+    # (\\server\share\x) or backslash-relative (.\x). None of those is a
+    # valid owner/name or git remote.
+    return windows and (bool(PureWindowsPath(v).drive) or "\\" in v)
+
+
+def _file_url_path(url: str, *, windows: bool) -> str:
+    """The path in a file:// URL.
+
+    On Windows, RFC 8089's `file:///C:/x` (what `Path.as_uri()` returns) means
+    `C:/x`; read naively it is the root-relative `/C:/x`.
+    """
+    path = url[len("file://") :]
+    if windows and path.startswith("/") and PureWindowsPath(path[1:]).drive:
+        path = path[1:]
+    return path
+
+
 class RepoSpec(BaseModel):
     url: str
     ref: str = "HEAD"
@@ -41,10 +63,11 @@ class RepoSpec(BaseModel):
     @classmethod
     def normalize_url(cls, v: str) -> str:
         v = v.strip()
+        windows = os.name == "nt"
         # Local checkout — canonicalize to an absolute file:// URL.
         if v.startswith("file://"):
-            return "file://" + str(Path(v[len("file://") :]).expanduser().resolve())
-        if v.startswith(("/", "~", "./", "../")):
+            return "file://" + str(Path(_file_url_path(v, windows=windows)).expanduser().resolve())
+        if _is_local_path(v, windows=windows):
             return "file://" + str(Path(v).expanduser().resolve())
         # Remote git host (github default for a bare owner/name; gitlab needs
         # a full URL since a bare owner/name is indistinguishable from github).

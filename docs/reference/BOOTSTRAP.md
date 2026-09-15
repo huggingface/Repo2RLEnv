@@ -64,7 +64,7 @@ The `--llm` flag accepts a LiteLLM-format string. Some examples:
 | Anthropic | `anthropic/<model-name>` |
 | OpenAI | `openai/<model-name>` |
 | Hugging Face Inference Providers | `huggingface/<repo>:<provider>` (e.g. `huggingface/<org>/<model>:together`) |
-| Self-hosted vLLM / Ollama | `openai/<your-model>` with `--llm-endpoint http://...` |
+| Self-hosted vLLM / Ollama / any OpenAI-compatible server | `hosted_vllm/<model>` or `openai/<model>` with `--llm-endpoint http://host:8000/v1` — no API key needed |
 
 Anything LiteLLM supports works, including Bedrock, Vertex, Mistral, and others.
 
@@ -77,11 +77,14 @@ Set the provider's default environment variable; the CLI picks it up automatical
 | Anthropic | `ANTHROPIC_API_KEY` |
 | OpenAI | `OPENAI_API_KEY` |
 | Hugging Face | `HF_TOKEN` |
-| Other | override via `--llm-key-env` or YAML config |
+| Self-hosted (`--llm-endpoint`) | none — the provider-default key is never sent to a custom endpoint. If your server enforces one: `HOSTED_VLLM_API_KEY` for `hosted_vllm/`, or `--llm-key-env VAR` for any route |
+| Other | override via `--llm-key-env` or YAML config; otherwise LiteLLM's own per-provider lookup applies (Bedrock, Vertex, OpenRouter, …) |
 
 ### Cost guardrail
 
 Every bootstrap run is bounded by `max_llm_spend_usd` (default `$5.0`). When the running cost reaches the cap, the agent loop aborts cleanly. Set lower for tighter control:
+
+> Self-hosted models are not in LiteLLM's price table, so their calls count as `$0` and the cap never trips. `max_iterations` / `max_seconds` remain the bounds there.
 
 ```bash
 repo2rlenv generate ... --bootstrap-opt max_llm_spend_usd=1.0
@@ -128,12 +131,13 @@ repo2rlenv generate \
   --bootstrap-opt max_llm_spend_usd=3.0 \
   --out ./datasets/<name>
 
-# Self-hosted vLLM or Ollama (OpenAI-compatible endpoint)
+# Self-hosted vLLM or Ollama (OpenAI-compatible endpoint) — no API key needed
+vllm serve Qwen/Qwen3.5-4B --port 8000          # or: ollama serve
 repo2rlenv generate \
   --repo <owner>/<repo> \
   --pipeline pr_runtime --pipeline-opt limit=10 \
-  --llm "openai/<your-model>" \
-  --llm-endpoint http://your-vllm-host:8000/v1 \
+  --llm "hosted_vllm/Qwen/Qwen3.5-4B" \
+  --llm-endpoint http://localhost:8000/v1 \
   --out ./datasets/<name>
 ```
 

@@ -15,7 +15,7 @@ from repo2rlenv.sources import (
     capabilities_for,
     detect_source_kind,
 )
-from repo2rlenv.spec.input import AuthSpec, RepoSpec
+from repo2rlenv.spec.input import AuthSpec, RepoSpec, _file_url_path, _is_local_path
 
 # ---------------------------------------------------------------------------
 # RepoSpec normalization + source_kind + owner_name
@@ -52,6 +52,42 @@ def test_local_path_canonicalized_to_file_url(tmp_path):
 def test_file_url_and_relative_path_are_local():
     assert RepoSpec(url="file:///tmp/x").source_kind == SourceKind.LOCAL
     assert RepoSpec(url="./somedir").source_kind == SourceKind.LOCAL
+
+
+@pytest.mark.parametrize(
+    "value",
+    [r"C:\repos\demo", "C:/repos/demo", r"\\server\share\demo", r".\demo", r"repos\demo"],
+)
+def test_windows_path_forms_are_local_only_on_windows(value):
+    assert _is_local_path(value, windows=True)
+    # POSIX classification is unchanged: none of these is a local path there.
+    assert not _is_local_path(value, windows=False)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["huggingface/trl", "https://github.com/a/b", "git@github.com:a/b", "https://gitlab.com/a/b"],
+)
+def test_remotes_are_never_local_paths(value):
+    assert not _is_local_path(value, windows=True)
+    assert not _is_local_path(value, windows=False)
+
+
+def test_file_url_path_reads_windows_drive_urls():
+    # RFC 8089 form, as produced by Path.as_uri() on Windows
+    assert _file_url_path("file:///C:/repos/demo", windows=True) == "C:/repos/demo"
+    # The canonical form normalize_url emits on Windows round-trips unchanged
+    assert _file_url_path(r"file://C:\repos\demo", windows=True) == r"C:\repos\demo"
+    assert _file_url_path("file:///tmp/demo", windows=True) == "/tmp/demo"
+    # On POSIX, /C:/repos/demo is a real absolute path
+    assert _file_url_path("file:///C:/repos/demo", windows=False) == "/C:/repos/demo"
+
+
+def test_local_path_forms_normalize_to_the_same_url(tmp_path):
+    """Native path, Path.as_uri(), and the canonical URL itself all agree."""
+    canonical = RepoSpec(url=str(tmp_path)).url
+    assert RepoSpec(url=tmp_path.as_uri()).url == canonical
+    assert RepoSpec(url=canonical).url == canonical
 
 
 def test_bare_single_token_still_rejected():

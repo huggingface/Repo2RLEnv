@@ -119,6 +119,7 @@ def capture(config: dict, destination: Path) -> dict:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
         result["image_digest"] = image.stdout.strip()

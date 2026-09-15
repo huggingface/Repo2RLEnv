@@ -131,6 +131,7 @@ def cpu_build(spec: RepositoryBootstrap, output: Path) -> dict:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=180,
         check=False,
     )
@@ -150,6 +151,7 @@ def cpu_build(spec: RepositoryBootstrap, output: Path) -> dict:
             "/opt/bootstrap-freeze.txt",
         ],
         text=True,
+        encoding="utf-8",
         timeout=30,
     )
     (output / "pip-freeze.txt").write_text(freeze)

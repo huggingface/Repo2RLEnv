@@ -47,8 +47,8 @@ repo2rlenv generate \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 
-# Validate (fast structural check) and publish
-repo2rlenv validate ./datasets/<dataset-name>
+# Validate (fast structural check; --deep also checks task assets) and publish
+repo2rlenv validate ./datasets/<dataset-name> --deep
 repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 
 # Anyone can pull + run a published dataset on a fresh machine
@@ -131,7 +131,7 @@ Repo2RLEnv offers **six native pipelines**, **14 experimental research-inspired 
 | `equivalence_tests` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 
 **What the columns mean**
-- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
+- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`; on Windows also `C:\abs`, `.\rel`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
 - **Reward signal** — the verifiable signal emitted per task. `test_execution` = the repo's own tests gate the reward (F2P/P2P or pytest pass rate); `diff_similarity` = the agent's output is scored against the oracle diff (format, file targeting, region overlap, LLM judge). Pipelines that emit both use `test_execution` as the primary training signal.
 - **Sandbox** — whether the task runs inside Docker. `✅` = a per-repo image is built once by the [bootstrap phase](#bootstrap) and cached; `thin` = no bootstrap, just a generic `python:3.12-slim` image.
 - **LLM use** — *when* a language model is invoked, which sets where your API cost goes:

@@ -161,6 +161,31 @@ class TestHelpers:
         assert len(out) == 1
         assert out[0].name == "task-1"
 
+    def test_list_task_dirs_accepts_nested_tasks_layout(self, tmp_path: Path) -> None:
+        tasks = tmp_path / "tasks"
+        _write_runtime_task(tasks, "task-2", bootstrap_ref="local/x:1")
+        _write_runtime_task(tasks, "task-1", bootstrap_ref="local/x:1")
+        (tasks / ".hidden").mkdir()
+        (tasks / ".hidden" / "task.toml").write_text("ignored")
+
+        out = _list_task_dirs(tmp_path)
+
+        assert [path.name for path in out] == ["task-1", "task-2"]
+        assert all(path.parent == tasks for path in out)
+
+    def test_list_task_dirs_combines_flat_and_nested_layouts(self, tmp_path: Path) -> None:
+        _write_runtime_task(tmp_path, "flat", bootstrap_ref="local/x:1")
+        _write_runtime_task(tmp_path / "tasks", "nested", bootstrap_ref="local/x:1")
+
+        assert [path.name for path in _list_task_dirs(tmp_path)] == ["flat", "nested"]
+
+    def test_list_task_dirs_rejects_duplicate_task_ids(self, tmp_path: Path) -> None:
+        _write_runtime_task(tmp_path, "duplicate", bootstrap_ref="local/x:1")
+        _write_runtime_task(tmp_path / "tasks", "duplicate", bootstrap_ref="local/x:1")
+
+        with pytest.raises(RuntimeError, match="duplicate Harbor task 'duplicate'"):
+            _list_task_dirs(tmp_path)
+
     def test_bootstrap_image_refs(self, tmp_path: Path) -> None:
         _write_runtime_task(tmp_path, "task-1", bootstrap_ref="local/r2e:1")
         _write_runtime_task(tmp_path, "task-2", bootstrap_ref="local/r2e:1")

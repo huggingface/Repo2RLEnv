@@ -119,12 +119,14 @@ def ensure_ecr_repository(remote_ref: str) -> ECRRepoResult:
         ]
 
     describe = subprocess.run(
-        describe_args, capture_output=True, text=True, timeout=30, check=False
+        describe_args, capture_output=True, text=True, encoding="utf-8", timeout=30, check=False
     )
     if describe.returncode == 0:
         return ECRRepoResult(repo=repo, created=False, is_public=is_public)
 
-    create = subprocess.run(create_args, capture_output=True, text=True, timeout=60, check=False)
+    create = subprocess.run(
+        create_args, capture_output=True, text=True, encoding="utf-8", timeout=60, check=False
+    )
     if create.returncode != 0:
         raise ECRError(
             f"ECR create-repository failed: {create.stderr.strip() or create.stdout.strip()}"

@@ -27,6 +27,7 @@ def _cleanup_containers(job_id: str) -> dict:
         ["docker", "ps", "-aq", "--filter", f"label={JOB_LABEL}={job_id}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -39,6 +40,7 @@ def _cleanup_containers(job_id: str) -> dict:
         ["docker", "rm", "-f", *containers],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
         check=False,
     )

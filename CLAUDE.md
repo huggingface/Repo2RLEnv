@@ -171,6 +171,7 @@ src/repo2rlenv/
 ├── auth.py                     # token resolution (repo / LLM / registry / Hub)
 ├── llm.py                      # LiteLLM wrapper + completion_cost tracking
 ├── reward.py                   # SWE-RL-style diff-similarity reward (stdlib only)
+├── validation.py               # `validate --deep`: static task-asset + reproducibility checks
 └── config.py                   # YAML/TOML config loader
 
 tests/                  # unit tests mirror the module they cover; e2e in test_e2e_*.py
@@ -235,7 +236,8 @@ auto-suppressed to WARNING while a Live is active.
 ## Input sources + auth
 
 `--repo` accepts a GitHub `owner/name`, a `gitlab.com` URL, or a local path
-(`/abs`, `./rel`, `~`, `file://` — canonicalized to `file://<abspath>`).
+(`/abs`, `./rel`, `~`, `file://`; on Windows also `C:\abs`, `.\rel`, UNC —
+canonicalized to `file://<abspath>`).
 `RepoSpec.source_kind` classifies it; `sources.py` defines a `Capability`
 (pull_requests / issues / commit_api) per source and per pipeline's
 `required_capabilities`. `cmd_generate` gates incompatible combinations up front —
@@ -257,7 +259,10 @@ shell-out); gitlab → `repo.auth_token_env` then `$GITLAB_TOKEN`; github →
 
 HF Hub auth uses `huggingface_hub`'s own resolution
 (`~/.cache/huggingface/token` or `$HF_TOKEN`). LLM keys come from provider-default
-env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) via `auth.resolve_llm_api_key()`.
+env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) via `auth.resolve_llm_api_key()` —
+only for the providers in `auth.LLM_KEY_ENV_DEFAULTS`. Anything else is left to LiteLLM's
+own lookup, and a self-hosted `LLMSpec.endpoint` (`--llm-endpoint`) needs no key at all
+(`llm._resolve_api_key`).
 
 Registry push credentials resolve from explicit env vars first: GHCR reads
 `GHCR_TOKEN` / `GITHUB_TOKEN` (needs a one-time
@@ -350,6 +355,8 @@ uv run repo2rlenv generate \
 
 # Validate a dataset (fast structural check — no LLM, no Docker)
 uv run repo2rlenv validate ./workspace/datasets/<name>
+# ...plus task assets + reproducibility metadata (still static); --oracle adds solution/
+uv run repo2rlenv validate ./workspace/datasets/<name> --deep
 
 # Publish / retrieve (a bare name resolves its owner via whoami)
 uv run repo2rlenv push ./workspace/datasets/<name> <org>/<name>

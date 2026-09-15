@@ -76,6 +76,7 @@ def ensure_gar_repository(remote_ref: str) -> GARRepoResult:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -97,6 +98,7 @@ def ensure_gar_repository(remote_ref: str) -> GARRepoResult:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=120,
         check=False,
     )

@@ -37,6 +37,7 @@ def generate(source: dict, options: PRRecipeOptions, destination: Path) -> dict:
         cwd=defective,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )

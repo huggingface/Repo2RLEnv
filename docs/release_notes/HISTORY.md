@@ -6,6 +6,38 @@ summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## Unreleased — portability, validation and custom LLM endpoints
+
+Native generation preserves parametrized pytest IDs containing spaces in both
+test discovery and the copied runtime verifier. GitLab tasks use the source host
+for clone URLs and commit references. Hub publishing accepts both flat datasets
+and `tasks/<id>` layouts, and Windows generation uses portable paths and explicit
+UTF-8 output.
+
+`validate --deep` checks task assets and metadata without running a sandbox.
+`--oracle` also checks reference-solution assets; named recipes can provide a
+solve script without a patch. These checks do not establish oracle success or
+task quality. Use Harbor execution and the quality workflow for that evidence.
+
+Generated datasets retain the code they were emitted with. Updating the package
+does not replace existing `tests/verifier.py` files or repair saved F2P/P2P lists.
+For an affected dataset, recover complete test IDs from the original test results,
+update the verifier, and rerun baseline and oracle checks before publishing a new
+revision. Metadata-only reference corrections do not change rewards; clone-URL
+corrections need a new image build. Preserve earlier dataset revisions and keep
+validation claims tied to the revision actually tested.
+
+`generate` and `bootstrap` now accept `--llm-endpoint` and `--llm-key-env`.
+Keyless self-hosted providers can use LiteLLM's native credential handling.
+
+Existing configurations with a custom `llm.endpoint` must explicitly name
+`llm.api_key_env` to send a hosted provider's default key there. For example,
+an authenticated OpenAI-compatible gateway that previously used `OPENAI_API_KEY`
+implicitly now needs `--llm-key-env OPENAI_API_KEY` or
+`llm.api_key_env: OPENAI_API_KEY`. The CLI warns when that default key is set
+but withheld. An explicitly named, unset key variable now raises an error
+instead of falling back to a different key. Default hosted endpoints are unchanged.
+
 ---
 
 ## v0.1.0 — first release

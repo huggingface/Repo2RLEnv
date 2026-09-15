@@ -39,7 +39,7 @@ For each merged PR within scope:
 
 The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
 
-**Private repos** work the same way — the Dockerfile clones via an optional `GITHUB_TOKEN` build arg. Public repos need nothing; for a private source, the consumer passes `--build-arg GITHUB_TOKEN=$GITHUB_TOKEN` to `harbor run`. The token is used only for the clone and the remote is scrubbed afterward, so it never persists in the image. See [`reference/AUTH.md`](../reference/AUTH.md#private-repos-at-task-build-time).
+**Source host and authentication:** the Dockerfile clones the original GitHub or GitLab repository over HTTPS, preserving its full path. Public repos need no token. The optional clone build arg is `GITHUB_TOKEN` for GitHub or `GITLAB_TOKEN` for GitLab; the consumer supplies it at build time, and the remote URL is scrubbed afterward. Private GitLab MR diff fetching during generation remains a separate unsupported case ([#65](https://github.com/huggingface/Repo2RLEnv/issues/65)); clone authentication alone does not enable end-to-end private GitLab mining. See [`reference/AUTH.md`](../reference/AUTH.md#private-repos-at-task-build-time).
 
 ## Multi-component reward
 

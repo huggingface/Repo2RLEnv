@@ -63,7 +63,13 @@ def _run_gh(args: list[str], token: str | None = None) -> str:
     for attempt in range(3 if read_only else 1):
         try:
             proc = subprocess.run(
-                ["gh", *args], capture_output=True, text=True, timeout=60, env=env, check=False
+                ["gh", *args],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=60,
+                env=env,
+                check=False,
             )
             break
         except subprocess.TimeoutExpired:

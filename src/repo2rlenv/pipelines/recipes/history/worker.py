@@ -32,7 +32,12 @@ from repo2rlenv.ui import console
 
 def git(root: Path, *args: str) -> str:
     return subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=120, check=True
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+        check=True,
     ).stdout
 
 
