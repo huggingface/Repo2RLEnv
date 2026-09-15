@@ -47,8 +47,8 @@ repo2rlenv generate \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./datasets/<dataset-name>
 
-# Validate (fast structural check) and publish
-repo2rlenv validate ./datasets/<dataset-name>
+# Validate (fast structural check; --deep also checks task assets) and publish
+repo2rlenv validate ./datasets/<dataset-name> --deep
 repo2rlenv push ./datasets/<dataset-name> <your-org>/<dataset-name>
 
 # Anyone can pull + run a published dataset on a fresh machine
@@ -57,6 +57,10 @@ harbor run -p ./datasets/<dataset-name> -a oracle --env docker
 ```
 
 → Explore and visualize any Harbor dataset pushed to the Hub: [**Harbor Visualizer**](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser)
+
+The [owned recipe and Tasksmith release inventory](docs/pipelines/releases.md)
+links the HuggingEnvs datasets, pipeline guides, generation evidence and measured
+costs. Generated exports and independently reviewed tasks retain distinct labels.
 
 Full walkthrough in [**`docs/quickstart.md`**](./docs/quickstart.md).
 
@@ -92,20 +96,20 @@ Each agent's per-task reward lands in `/logs/verifier/reward.json`, ready for tr
 
 ## Pipelines
 
-A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended for production; **three are experimental** — usable today (the CLI prints a warning before they run), with interfaces and output quality still evolving.
+Repo2RLEnv offers **six native pipelines**, **14 experimental research-inspired recipes**, and **Tasksmith** for adaptive PR conversion. Inputs include repositories, PRs, task seeds and reasoning families. Implementation maturity and generated-task quality are separate labels.
 
 ### Stable
 
 **[`pr_diff`](./docs/pipelines/pr_diff.md)** mines merged pull-request diffs into lightweight, text-only tasks. The agent proposes an edit, and a verifier scores it against the real merged diff — on format, the files it touched, how much it changed, and (via an LLM judge) whether it's semantically right. No per-repo setup: every task ships a thin `python:3.12-slim` image.
-→ Reference dataset: [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100 oracle-verified tasks).
+→ Reference dataset: [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 tasks in the cached reference manifest; [historical validation scope](./docs/pipelines/native_results.md#pr-diff)).
 
-**[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. That makes it the strongest, least-gameable signal of the set.
+**[`pr_runtime`](./docs/pipelines/pr_runtime.md)** is the SWE-bench-style flagship. It mines merged PRs and actually runs the repo's test suite inside a Docker sandbox: the tests the PR fixed must go from failing to passing under the gold patch, while the rest keep passing. The recorded F2P/P2P outcomes provide a test-based reward.
 → Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100 oracle-verified tasks).
 
-**[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a clean, leak-free problem statement so the task isn't gameable.
-→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100 oracle-verified envs; Opus solves the sampled tasks).
+**[`commit_runtime`](./docs/pipelines/commit_runtime.md)** is `pr_runtime`'s sibling for repos that don't gate fixes behind PRs (squash-merge / direct-to-main / GitLab / local). It mines **commits** directly, runs the repo's tests in a sandbox (same graded F2P/P2P reward), and an LLM rewrites each commit/issue into a symptom-focused problem statement.
+→ Reference dataset: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100 tasks with generation-time verification metadata; [cohort evidence](./docs/pipelines/native_results.md#commit-runtime)).
 
-→ All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments)
+→ All reference datasets: [**Verifiable RL Environments collection**](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
 
 ### Experimental
 
@@ -115,7 +119,7 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 - **[`code_instruct`](./docs/pipelines/code_instruct.md)** — generates a problem + executable verifier from a real source file.
 - **[`equivalence_tests`](./docs/pipelines/equivalence_tests.md)** — the agent reimplements a real function; generated tests check it matches the original.
 
-### At a glance
+### Native pipelines at a glance
 
 | Pipeline | Stability | Source | Reward signal | Sandbox | LLM use | Languages |
 |---|:-:|:-:|---|:-:|---|---|
@@ -127,7 +131,7 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 | `equivalence_tests` | experimental | GitHub · GitLab · local | `test_execution` | ✅ | at synthesis — writes the task | Py |
 
 **What the columns mean**
-- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
+- **Source** — where `--repo` can point. **`GitHub · GitLab · local`** = a GitHub `owner/name`, a `gitlab.com` URL, **or a local path** (`/abs`, `./rel`, `~`, `file://`; on Windows also `C:\abs`, `.\rel`); these need only git + source files. **`GitHub · GitLab`** = PR/MR-mining pipelines (work on github.com and gitlab.com, not a bare local clone — no pull/merge requests there). **`GitHub`** = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear, actionable error.
 - **Reward signal** — the verifiable signal emitted per task. `test_execution` = the repo's own tests gate the reward (F2P/P2P or pytest pass rate); `diff_similarity` = the agent's output is scored against the oracle diff (format, file targeting, region overlap, LLM judge). Pipelines that emit both use `test_execution` as the primary training signal.
 - **Sandbox** — whether the task runs inside Docker. `✅` = a per-repo image is built once by the [bootstrap phase](#bootstrap) and cached; `thin` = no bootstrap, just a generic `python:3.12-slim` image.
 - **LLM use** — *when* a language model is invoked, which sets where your API cost goes:
@@ -137,6 +141,41 @@ A pipeline turns a repo into Harbor tasks. **Three are stable** and recommended 
 - **Languages** — source languages the pipeline supports.
 
 → **Full reference** — per-pipeline options, reward design, and dataset cards: [**`docs/pipelines/`**](./docs/pipelines/README.md).
+
+### Tasksmith and research-inspired recipes
+
+**[Tasksmith](docs/pipelines/tasksmith.md)** investigates a merged PR, builds its
+environment, designs the instruction and private verifier, then runs bounded
+review and repair. LangGraph orchestrates Pi or OpenCode. Its
+[HF_ML_Tasksmith dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith)
+contains 50 verified tasks from an assisted campaign; Sonnet solved 19.
+
+Tasksmith and all 14 recipes below are **experimental**. Use the
+[route guide](docs/pipelines/owned_recipes.md) for CLI family/recipe names and
+[the prompt guide](docs/pipelines/prompt_reference.md) to follow each model call.
+
+| Recipe | Task shape | Reward | Reference dataset |
+|---|---|---|---|
+| [**swe_smith**](docs/pipelines/repo_mutate.md) | Repair a deliberately introduced source defect | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
+| [**swe_gen**](docs/pipelines/pr_to_env.md) | Implement the behavior of a supplied merged PR | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
+| [**swe_flow**](docs/pipelines/repo_reconstruct.md) | Reconstruct functions in dependency order | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
+| [**r2e**](docs/pipelines/r2e.md) | Implement a function equivalent to a private reference | Equivalence tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
+| [**swe_next**](docs/pipelines/swe_next.md) | Repair a task mined from PR history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
+| [**r2e_gym**](docs/pipelines/r2e_gym.md) | Repair a task mined from commit history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
+| [**cli_gym**](docs/pipelines/env_repair.md) | Restore a damaged development environment | Restoration tests, 0/1 | [25 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
+| [**seta_seed2synth**](docs/pipelines/terminal_synth.md) | Solve a terminal task synthesized from question/answer seeds | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
+| [**seta_evol**](docs/pipelines/task_evolve.md) | Solve an evolved version of an existing Harbor task | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
+| [**dataarc**](docs/pipelines/dataarc.md) | Solve a related or more demanding variant of a Harbor seed | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
+| [**tmax**](docs/pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
+| [**endless_terminals**](docs/pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
+| [**terminalworld**](docs/pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [**scaler**](docs/pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
+
+The [release inventory](docs/pipelines/releases.md) distinguishes 50 verified,
+5 needing repair and 1,275 unverified tasks across these 15 datasets. The earlier
+native datasets are outside those counts. SCALER is a reasoning profile;
+DataArc's published version 1 cohort does not measure the replacement prompts
+in version 2. SEC-bench remains deferred.
 
 ## Bootstrap
 
@@ -182,7 +221,7 @@ Fastest jumps:
 
 - 🚀 [Quickstart](https://huggingface.github.io/Repo2RLEnv/quickstart/) — install → generate → push, in 10 min
 - 📦 [Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/) — one page per pipeline (status, oracle shape, options, yield)
-- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — design docs for every pipeline (10 total, 6 implemented + 4 draft)
+- 📋 [RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) — pipeline designs, shared contracts and implementation status
 - 📚 [Reference](https://huggingface.github.io/Repo2RLEnv/reference/API/) — API, SPEC, AUTH, ENV, BOOTSTRAP, AGENTS, REWARD_SCHEMA, RELATED_WORK
 - 🛠 [Adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/) — cookbook
 - 🔭 [Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser) — explore any Harbor dataset pushed to the Hub
@@ -195,8 +234,16 @@ Fastest jumps:
 - [**SWE-Gym**](https://github.com/SWE-Gym/SWE-Gym) — RL-environment framing for SWE-bench-style tasks
 - [**verifiers**](https://github.com/willccbb/verifiers) (Prime Intellect), [**OpenEnv**](https://github.com/meta-pytorch/OpenEnv) (Meta + HF) — adjacent standardization efforts
 
-Every pipeline that draws from external work carries an Acknowledgment block in its `.py` file. No code is copied — implementations are independent and Apache-2.0 licensed. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md) for the full per-pipeline provenance plus adjacent papers, datasets, and frameworks (incl. recent Microsoft and NVIDIA code-RL work).
+Each adapted recipe records its source revision, retained material and changes in
+`provenance.md`. [Third-party notices](./THIRD_PARTY_NOTICES.md) index the bundled
+licenses and credits. See [`docs/reference/RELATED_WORK.md`](./docs/reference/RELATED_WORK.md)
+for adjacent papers, datasets and frameworks.
 
 ## License
 
-[Apache 2.0](./LICENSE). The original PR/commit contents remain under their respective source-repo licenses; datasets redistribute public commits for ML research under fair use.
+Repo2RLEnv's own code is [Apache 2.0](./LICENSE). Bundled adaptations also retain
+MIT and Apache-2.0 material; the distribution declares `Apache-2.0 AND MIT`.
+See [third-party notices](./THIRD_PARTY_NOTICES.md) for scope and attribution.
+Source repositories, seed data and generated task assets retain their respective
+terms. Public availability alone does not establish redistribution permission;
+consult each dataset's license and provenance records, including recorded gaps.

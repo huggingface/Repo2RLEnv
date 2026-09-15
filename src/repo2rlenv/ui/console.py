@@ -12,6 +12,8 @@ silenced so they don't tear the live display.
 
 from __future__ import annotations
 
+import codecs
+import json
 import logging
 import os
 import sys
@@ -87,6 +89,11 @@ class R2EConsole:
     def print(self, *args: Any, **kwargs: Any) -> None:
         self.console.print(*args, **kwargs)
 
+    def json(self, value: Any) -> None:
+        """Write one machine-readable record, without terminal wrapping or ANSI."""
+        self.console.file.write(json.dumps(value, sort_keys=True, default=str) + "\n")
+        self.console.file.flush()
+
 
 def _make_default_console() -> R2EConsole:
     return R2EConsole()
@@ -116,7 +123,7 @@ def install_logging(*, level: int = logging.INFO, propagate_noisy: bool = False)
     _LOGGING_INSTALLED = True
 
     handler = RichHandler(
-        console=console.console,
+        console=Console(stderr=True),
         rich_tracebacks=True,
         markup=True,
         show_path=False,
@@ -130,6 +137,30 @@ def install_logging(*, level: int = logging.INFO, propagate_noisy: bool = False)
     if not propagate_noisy:
         for noisy in ("litellm", "LiteLLM", "httpx", "httpcore", "anthropic", "openai"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+def ensure_utf8_output() -> None:
+    """Let stdout/stderr encode the UI's glyphs (✓ ✗ ⚠ ─).
+
+    Call once at CLI entry. When stdout is a pipe or a redirected file, Python
+    on Windows encodes it with the ANSI code page (e.g. cp1252), which has none
+    of those glyphs, so the first stamped line raised UnicodeEncodeError and the
+    command exited 1. Such streams are switched to UTF-8, as `PYTHONUTF8=1`
+    would do. An explicit `PYTHONIOENCODING` is left alone.
+    """
+    if os.environ.get("PYTHONIOENCODING"):
+        return
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None and not _is_utf8(getattr(stream, "encoding", None)):
+            reconfigure(encoding="utf-8", errors="replace")
+
+
+def _is_utf8(encoding: str | None) -> bool:
+    try:
+        return codecs.lookup(encoding or "").name == "utf-8"
+    except LookupError:
+        return False
 
 
 def should_use_rich() -> bool:  # re-export for views

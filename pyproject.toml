@@ -3,8 +3,25 @@ name = "repo2rlenv"
 version = "0.8.8"
 description = "Turn any repository into an RL environment for training and evaluation."
 readme = "README.md"
-license = "Apache-2.0"
-license-files = ["LICENSE"]
+license = "Apache-2.0 AND MIT"
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "src/repo2rlenv/pipelines/recipes/cli_gym/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/endless_terminals/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/r2e/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/r2e_gym/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/scaler/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/scaler/UPSTREAM_NOTICE",
+    "src/repo2rlenv/pipelines/recipes/seta_evol/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/seta_seed2synth/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/swe_flow/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/swe_gen/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/swe_next/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/swe_smith/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/terminalworld/UPSTREAM_LICENSE",
+    "src/repo2rlenv/pipelines/recipes/tmax/UPSTREAM_LICENSE",
+]
 authors = [
     { name = "adithya-s-k", email = "adithyaskolavi@gmail.com" }
 ]
@@ -46,6 +63,27 @@ repo2rlenv = "repo2rlenv.cli:main"
 Homepage = "https://github.com/huggingface/Repo2RLEnv"
 Repository = "https://github.com/huggingface/Repo2RLEnv"
 Issues = "https://github.com/huggingface/Repo2RLEnv/issues"
+
+[project.optional-dependencies]
+tasksmith = [
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-sqlite>=3,<4",
+    "aiohttp>=3.13,<4",
+]
+modal = [
+    "modal==1.5.5",
+    "dockerfile-parse==2.0.1",
+]
+daytona = [
+    "daytona==0.198.0",
+]
+mutation = [
+    "libcst==1.9.0",
+    "pyflakes>=3.4.0",
+]
+harbor = [
+    "harbor==0.20.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]

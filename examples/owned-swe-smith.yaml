@@ -1,0 +1,28 @@
+source:
+  kind: repository
+  repo:
+    url: https://github.com/more-itertools/more-itertools
+    ref: 9ed3dbb0ae527230cd156d91d0af305478558fba
+    access: public
+pipeline:
+  name: repo_mutate
+  recipe: swe_smith
+  options:
+    source_paths: [more_itertools]
+    test_paths: [tests]
+    target: 1
+    max_candidates: 10
+llm:
+  provider: openai
+  model: gpt-5-mini
+execution:
+  campaign_dir: workspace/smith
+  run_id: smith-first
+  worker_receipt: workspace/smith/workers/smith-worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 1800
+output:
+  destination: workspace/smith/tasks
+  org: repo2rlenv
+  dataset_name: smith-first
+  visibility: private

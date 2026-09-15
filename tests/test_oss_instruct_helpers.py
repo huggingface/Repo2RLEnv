@@ -45,7 +45,7 @@ def test_list_source_files_glob_and_exclude(tmp_path: Path):
     (tmp_path / "README.md").write_text("docs\n")
 
     files = list_source_files(tmp_path, file_glob="**/*.py", exclude_glob=["tests/**"])
-    rels = sorted(str(p.relative_to(tmp_path)) for p in files)
+    rels = sorted(p.relative_to(tmp_path).as_posix() for p in files)
     assert rels == ["src/a.py", "src/b.py"]
 
 
@@ -65,8 +65,10 @@ def test_sample_seed_returns_none_for_short_file(tmp_path: Path):
     assert seed is None
 
 
-def test_sample_seed_returns_substantive_window(tmp_path: Path):
-    f = tmp_path / "real.py"
+@pytest.mark.parametrize("rel", ["real.py", "pkg/sub/real.py"])
+def test_sample_seed_returns_substantive_window(tmp_path: Path, rel: str):
+    f = tmp_path / rel
+    f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(
         "\n".join(
             [
@@ -89,7 +91,7 @@ def test_sample_seed_returns_substantive_window(tmp_path: Path):
     )
     seed = sample_seed([f], tmp_path, rng=random.Random(0), min_loc=5, max_loc=10)
     assert seed is not None
-    assert seed.relative_path == "real.py"
+    assert seed.relative_path == rel  # POSIX separators on every OS
     assert seed.start_line >= 1
     assert seed.end_line > seed.start_line
     # Should contain real code

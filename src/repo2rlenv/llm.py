@@ -11,10 +11,15 @@ import logging
 import re
 from dataclasses import dataclass
 
-from repo2rlenv.auth import resolve_llm_api_key
+from repo2rlenv.auth import LLM_KEY_ENV_DEFAULTS, resolve_llm_api_key
 from repo2rlenv.spec.input import LLMSpec
 
 logger = logging.getLogger(__name__)
+
+# Sent with `endpoint` to providers whose client insists on *some* key string
+# (`openai/<model>` against vLLM, Ollama, llama.cpp — the server ignores it).
+# Same value vLLM's docs use.
+_PLACEHOLDER_API_KEY = "EMPTY"
 
 
 # Models that reject any `temperature` value (forced default). Add patterns
@@ -23,10 +28,21 @@ _NO_TEMPERATURE_RE = re.compile(
     r"(claude-opus-4-7|claude-opus-4-8|gpt-5(\.|-|$)|gpt-6|o1-|o3-|o4-)",
     re.IGNORECASE,
 )
+_OPENAI_COMPLETION_LIMIT_RE = re.compile(r"^(gpt-[56](?:[.-]|$)|o[134](?:-|$))")
 
 
 def _supports_temperature(model: str) -> bool:
     return _NO_TEMPERATURE_RE.search(model) is None
+
+
+def completion_token_limit(spec: LLMSpec, max_tokens: int) -> dict[str, int]:
+    """Provider wire parameters shared with externally orchestrated Harbor calls."""
+    name = (
+        "max_completion_tokens"
+        if spec.provider == "openai" and _OPENAI_COMPLETION_LIMIT_RE.match(spec.model)
+        else "max_tokens"
+    )
+    return {name: max_tokens}
 
 
 @dataclass(slots=True)
@@ -58,6 +74,65 @@ def _is_failover_eligible(exc: BaseException) -> bool:
     }
 
 
+def _resolve_api_key(spec: LLMSpec) -> str | None:
+    """The API key to hand LiteLLM, or None to let LiteLLM resolve it.
+
+    - `api_key_env` given → its value; raise if unset (never falls through)
+    - `endpoint` given → the provider-default key is *not* forwarded to a
+      custom server. `LLM_KEY_ENV_DEFAULTS` clients (`openai/`, …) need a key
+      string, so they get the placeholder; `hosted_vllm/`, `ollama/`, … get
+      None and LiteLLM applies its own `HOSTED_VLLM_API_KEY`-style lookup.
+    - otherwise → provider-default key; raise naming the var for
+      `LLM_KEY_ENV_DEFAULTS` providers, None (LiteLLM's call) for the rest
+    """
+    provider = spec.provider.lower()
+    if spec.api_key_env:
+        key = resolve_llm_api_key(provider, spec.api_key_env)
+        if key is None:
+            raise RuntimeError(
+                f"no API key for provider {spec.provider!r}: ${spec.api_key_env} is unset."
+            )
+        return key
+    if spec.endpoint:
+        if provider in LLM_KEY_ENV_DEFAULTS and resolve_llm_api_key(provider):
+            key_env = LLM_KEY_ENV_DEFAULTS[provider]
+            logger.warning(
+                "$%s is set but is not sent to the custom LLM endpoint. "
+                "Use --llm-key-env %s (or llm.api_key_env in config) "
+                "if this endpoint should receive that key.",
+                key_env,
+                key_env,
+            )
+        return _PLACEHOLDER_API_KEY if provider in LLM_KEY_ENV_DEFAULTS else None
+    key = resolve_llm_api_key(provider)
+    if key is None and provider in LLM_KEY_ENV_DEFAULTS:
+        raise RuntimeError(
+            f"no API key resolved for provider {spec.provider!r}. Set "
+            f"{LLM_KEY_ENV_DEFAULTS[provider]}, or use --llm-endpoint for a self-hosted server."
+        )
+    return key
+
+
+def check_provider(spec: LLMSpec) -> None:
+    """Raise early if LiteLLM doesn't know a provider in the spec's fallback chain.
+
+    Cheap next to what follows (clone, image pull, agent loop), so the bootstrap
+    entry points call it before any of that starts.
+    """
+    import litellm  # type: ignore[import-untyped]
+
+    cur: LLMSpec | None = spec
+    while cur is not None:
+        try:
+            litellm.get_llm_provider(cur.qualified_name)
+        except Exception as exc:
+            first_line = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+            raise RuntimeError(
+                f"unknown LLM provider in {cur.qualified_name!r}: {first_line}"
+            ) from exc
+        cur = cur.fallback
+
+
 def _do_complete(
     spec: LLMSpec,
     *,
@@ -65,16 +140,12 @@ def _do_complete(
     user: str,
     max_tokens: int,
     temperature: float,
+    response_schema: dict | None = None,
 ) -> LLMResponse:
     """One non-fallback chat-completion call. Internal helper for `complete()`."""
     import litellm  # type: ignore[import-untyped]
 
-    api_key = resolve_llm_api_key(spec.provider, spec.api_key_env)
-    if api_key is None:
-        raise RuntimeError(
-            f"no API key resolved for provider {spec.provider!r}. "
-            f"Set {spec.api_key_env or 'the provider-default env var'}."
-        )
+    api_key = _resolve_api_key(spec)
 
     messages: list[dict] = []
     if system:
@@ -84,15 +155,28 @@ def _do_complete(
     kwargs: dict = {
         "model": spec.qualified_name,
         "messages": messages,
-        "max_tokens": max_tokens,
-        "api_key": api_key,
+        "num_retries": 0,
         "timeout": spec.timeout_sec,
     }
+    # Unknown-to-LiteLLM model IDs still need the current OpenAI wire contract.
+    # Do not rely on the installed SDK's model catalog to rename this parameter.
+    kwargs.update(completion_token_limit(spec, max_tokens))
+    if api_key is not None:
+        kwargs["api_key"] = api_key
     # Newer reasoning-focused models (Opus 4.7+, GPT-5+) reject `temperature`.
     if _supports_temperature(spec.model):
         kwargs["temperature"] = temperature
     if spec.endpoint:
         kwargs["api_base"] = spec.endpoint
+    if response_schema is not None:
+        kwargs["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "repo2rlenv_response",
+                "strict": True,
+                "schema": response_schema,
+            },
+        }
 
     if spec.provider == "huggingface" and spec.endpoint is None:
         kwargs.setdefault("api_base", "https://router.huggingface.co/v1")
@@ -130,6 +214,7 @@ def complete(
     user: str,
     max_tokens: int = 1024,
     temperature: float = 0.7,
+    response_schema: dict | None = None,
     _depth: int = 0,
 ) -> LLMResponse:
     """Single chat-completion call with automatic fallback on transient errors.
@@ -148,6 +233,7 @@ def complete(
             user=user,
             max_tokens=max_tokens,
             temperature=temperature,
+            response_schema=response_schema,
         )
     except Exception as exc:
         if _depth >= 3 or spec.fallback is None or not _is_failover_eligible(exc):
@@ -164,5 +250,6 @@ def complete(
             user=user,
             max_tokens=max_tokens,
             temperature=temperature,
+            response_schema=response_schema,
             _depth=_depth + 1,
         )

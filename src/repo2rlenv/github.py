@@ -15,6 +15,7 @@ import json
 import logging
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import date
 
@@ -48,14 +49,33 @@ def _run_gh(args: list[str], token: str | None = None) -> str:
         import os
 
         env = {**os.environ, "GH_TOKEN": token}
-    proc = subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        env=env,
-        check=False,
+    read_only = bool(args) and (
+        (
+            args[0] == "api"
+            and not any(
+                arg.startswith(("-X", "-f", "-F"))
+                or arg.split("=", 1)[0] in {"--method", "--raw-field", "--field", "--input"}
+                for arg in args[1:]
+            )
+        )
+        or args[:2] in (["pr", "list"], ["pr", "view"], ["pr", "diff"])
     )
+    for attempt in range(3 if read_only else 1):
+        try:
+            proc = subprocess.run(
+                ["gh", *args],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=60,
+                env=env,
+                check=False,
+            )
+            break
+        except subprocess.TimeoutExpired:
+            if not read_only or attempt == 2:
+                raise
+            time.sleep(0.5 * 2**attempt)
     if proc.returncode != 0:
         raise GitHubError(f"gh {' '.join(args)!r} failed: {proc.stderr.strip()}")
     return proc.stdout

@@ -34,7 +34,7 @@ Output is automatically silenced from noisy libraries (litellm, httpx) while
 a Live is active so the display doesn't tear.
 """
 
-from repo2rlenv.ui.console import R2EConsole, console, install_logging
+from repo2rlenv.ui.console import R2EConsole, console, ensure_utf8_output, install_logging
 from repo2rlenv.ui.live import live_view, quiet_libraries
 from repo2rlenv.ui.primitives import (
     error_panel,
@@ -53,6 +53,7 @@ __all__ = [
     "GenerationView",
     "R2EConsole",
     "console",
+    "ensure_utf8_output",
     "error_panel",
     "header_panel",
     "install_logging",

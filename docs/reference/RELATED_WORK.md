@@ -10,10 +10,14 @@ evaluating code agents. This page records two things:
    frameworks worth knowing, including recent model lines from Microsoft and
    NVIDIA that consume verifiable code-RL environments.
 
-> No code is copied from any source below. Every implementation is independent
-> and Apache-2.0 licensed. The one non-permissive influence is SWE-RL (CC BY-NC
-> 4.0); our `reward.py` is a clean reimplementation of the *concept* and carries
-> an explicit license-posture note.
+Original Repo2RLEnv code is Apache-2.0. Some owned recipes retain upstream code,
+prompts or examples under MIT or Apache-2.0; their `provenance.md` files describe
+the exact scope and adaptations. The
+[third-party index](https://github.com/huggingface/Repo2RLEnv/blob/main/THIRD_PARTY_NOTICES.md)
+lists the bundled licenses and notices. SWE-RL is a non-permissive influence
+(CC BY-NC 4.0); our `reward.py` independently implements the concept and records
+that distinction. Referenced research, bundled material and input data have
+separate licensing boundaries.
 
 ## Provenance — what each pipeline draws from
 

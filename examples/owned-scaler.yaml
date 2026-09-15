@@ -1,0 +1,23 @@
+source:
+  kind: family
+  path: workspace/scaler-families.json
+pipeline:
+  name: reasoning_synth
+  recipe: scaler
+  options:
+    target: 20
+    max_candidates: 48
+    difficulties: [2, 4, 6, 8, 10, 12]
+    samples_per_difficulty: 1
+    seed: 24
+execution:
+  campaign_dir: workspace/campaign
+  run_id: scaler-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/scaler
+  org: your-org
+  dataset_name: scaler-first
+  visibility: private

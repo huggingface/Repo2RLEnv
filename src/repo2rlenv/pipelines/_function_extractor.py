@@ -450,7 +450,9 @@ def walk_repo(
     for path in clone_dir.glob(file_glob):
         if not path.is_file():
             continue
-        rel = str(path.relative_to(clone_dir))
+        # POSIX separators on every OS: this path feeds task IDs, reference URLs
+        # and metadata, which must not depend on the generating host.
+        rel = path.relative_to(clone_dir).as_posix()
         if _is_excluded(rel, exclude_glob):
             continue
         try:

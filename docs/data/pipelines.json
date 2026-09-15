@@ -1,0 +1,1050 @@
+{
+  "schema_version": 1,
+  "measured_on": "2026-09-14",
+  "scope": "Observed generation samples, excluding retained task costs and interactive assistant usage. Compute is estimated, not invoiced. Independent quality evaluation is separate. Missing values are unavailable, never zero.",
+  "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
+  "shared_compute": {
+    "recipes": [
+      "swe-smith",
+      "r2e",
+      "swe-gen",
+      "swe-next",
+      "r2e-gym",
+      "scaler"
+    ],
+    "sample_exports": 476,
+    "model_usd": "32.805526",
+    "compute_usd": "43.093688",
+    "total_usd": "75.899214",
+    "unresolved_usd": "2.250000",
+    "allocation": "Shared workers served multiple recipes; no defensible per-recipe compute allocation is recorded."
+  },
+  "pipelines": [
+    {
+      "recipe": "swe-smith",
+      "guide": "repo_mutate.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 76,
+      "model_usd": "2.407499",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "r2e",
+      "guide": "r2e.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "artifact_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "17.725424",
+      "unresolved_usd": "1.5",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-gen",
+      "guide": "pr_to_env.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "artifact_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "1.634643",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-next",
+      "guide": "swe_next.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "artifact_commit": "917f48135e7368c42b962860c2475975d0b87b12",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "7.514418",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "r2e-gym",
+      "guide": "r2e_gym.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "artifact_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "3.523542",
+      "unresolved_usd": "0.75",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "scaler",
+      "guide": "scaler.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "artifact_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "0",
+      "unresolved_usd": "0",
+      "cost_scope": "Shared compute is not allocated to this recipe; model cost only.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": []
+    },
+    {
+      "recipe": "endless-terminals",
+      "guide": "endless_terminals.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
+      "artifact_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "29.468191",
+      "compute_usd": "12.046353",
+      "generation_usd": "41.514544",
+      "unresolved_usd": "0",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 99,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "cli-gym",
+      "guide": "env_repair.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
+      "artifact_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
+      "published_tasks": 25,
+      "quality_counts": {
+        "unverified": 25
+      },
+      "sample_exports": 5,
+      "model_usd": "3.543614",
+      "compute_usd": "2.168529",
+      "generation_usd": "5.712143",
+      "unresolved_usd": "0",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "swe-flow",
+      "guide": "repo_reconstruct.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
+      "artifact_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
+      "published_tasks": 100,
+      "quality_counts": {
+        "needs_repair": 2,
+        "unverified": 98
+      },
+      "sample_exports": 76,
+      "model_usd": "4.049313",
+      "compute_usd": "18.857685",
+      "generation_usd": "22.906998",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "seta-seed2synth",
+      "guide": "terminal_synth.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+      "artifact_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 77,
+      "model_usd": "41.740588",
+      "compute_usd": "12.896534",
+      "generation_usd": "54.637122",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 112,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "seta-evol",
+      "guide": "task_evolve.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "artifact_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "30.750897",
+      "compute_usd": "13.969454",
+      "generation_usd": "44.720351",
+      "unresolved_usd": "1.250000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 92,
+      "unfinished_candidates": 1,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "tmax",
+      "guide": "tmax.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-tmax",
+      "artifact_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
+      "published_tasks": 55,
+      "quality_counts": {
+        "unverified": 55
+      },
+      "sample_exports": 35,
+      "model_usd": "58.832978",
+      "compute_usd": "14.678519",
+      "generation_usd": "73.511497",
+      "unresolved_usd": "5.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 104,
+      "unfinished_candidates": 8,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6",
+        "gpt-5.4-mini"
+      ]
+    },
+    {
+      "recipe": "terminalworld",
+      "guide": "terminalworld.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "artifact_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
+      "published_tasks": 100,
+      "quality_counts": {
+        "needs_repair": 3,
+        "unverified": 97
+      },
+      "sample_exports": 80,
+      "model_usd": "54.342498",
+      "compute_usd": "46.131863",
+      "generation_usd": "100.474361",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 1293,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 1145,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "dataarc",
+      "guide": "dataarc.md",
+      "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
+      "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
+      "published_tasks": 100,
+      "quality_counts": {
+        "unverified": 100
+      },
+      "sample_exports": 80,
+      "model_usd": "14.530915",
+      "compute_usd": "12.036370",
+      "generation_usd": "26.567285",
+      "unresolved_usd": "0.000000",
+      "cost_scope": "Generation including failed attempts and estimated compute/build costs; independent evaluation excluded.",
+      "attempted_candidates": 83,
+      "unfinished_candidates": 0,
+      "screened_out_candidates": 0,
+      "yield_basis": "Unique recorded generator candidate IDs, before design screening; retries deduplicated and unfinished candidates count as non-exports.",
+      "configured_generation_models": [
+        "claude-sonnet-4-6"
+      ]
+    },
+    {
+      "recipe": "tasksmith",
+      "guide": "tasksmith.md",
+      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "artifact_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
+      "published_tasks": 50,
+      "quality_counts": {
+        "verified": 50
+      },
+      "sample_exports": 26,
+      "cost_scope": "Assisted expansion added 26 accepted PR tasks and included repairs to retained tasks; generation-only cost is not separable.",
+      "evaluation_sample": {
+        "author_model_usd": "63.912073",
+        "review_repair_model_usd": "86.06338",
+        "solver_model_usd": "21.197755",
+        "combined_compute_usd": "220.83248",
+        "total_usd": "392.005688",
+        "unresolved_usd": "4.982418"
+      },
+      "yield_basis": "A deduplicated attempt denominator for this cost sample is unavailable; output targets are not yield."
+    }
+  ],
+  "tasksmith_observation": {
+    "verified": 50,
+    "sonnet_solved": 19,
+    "provenance": "assisted"
+  },
+  "native_history": {
+    "reviewed_on": "2026-09-15",
+    "scope": "Historical local evidence, May-July 2026. Cached Hub manifests and local publication stagings, not a fresh Hub recount or new quality gate. Six selected inventories sum to 600 task entries; older revisions and duplicate stagings are excluded. No claim of globally unique tasks or modern verified labels.",
+    "pipelines": [
+      {
+        "pipeline": "pr_diff",
+        "guide": "pr_diff.md",
+        "repo_id": "AdithyaSK/repo2rlenv-pr-diff",
+        "tasks": 181,
+        "repo_distribution": {
+          "BurntSushi/ripgrep": 8,
+          "axios/axios": 7,
+          "chalk/chalk": 7,
+          "clap-rs/clap": 6,
+          "date-fns/date-fns": 6,
+          "expressjs/express": 8,
+          "gin-gonic/gin": 8,
+          "gradio-app/gradio": 8,
+          "huggingface/datasets": 7,
+          "huggingface/evaluate": 5,
+          "huggingface/huggingface_hub": 8,
+          "huggingface/tokenizers": 8,
+          "pallets/click": 8,
+          "pallets/flask": 4,
+          "pallets/werkzeug": 8,
+          "prettier/prettier": 7,
+          "psf/black": 8,
+          "psf/requests": 7,
+          "pydantic/pydantic": 8,
+          "python-attrs/attrs": 6,
+          "python-jsonschema/jsonschema": 6,
+          "serde-rs/json": 8,
+          "spf13/cobra": 7,
+          "tiangolo/typer": 3,
+          "urfave/cli": 8,
+          "vitejs/vite": 7
+        },
+        "inventory_basis": "Cached Hub manifest",
+        "sources": [
+          "pr-diff-manifest"
+        ],
+        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json",
+        "validation_summary": "181 listed; no per-task validation in this snapshot. Earlier 100-task release reported oracle passes.",
+        "solver_summary": "Earlier 23-trial Sonnet pilot: median reward 0.71; not a binary solve rate.",
+        "attempted_candidates": null,
+        "recorded_synthesis_usd": null,
+        "cost_scope": "No complete generation-cost ledger recovered. Unavailable does not mean zero."
+      },
+      {
+        "pipeline": "pr_runtime",
+        "guide": "pr_runtime.md",
+        "repo_id": "AdithyaSK/repo2rlenv-pr-runtime",
+        "tasks": 100,
+        "repo_distribution": {
+          "pallets/click": 28,
+          "urfave/cli": 25,
+          "pallets/werkzeug": 16,
+          "pallets/flask": 7,
+          "gorilla/mux": 5,
+          "python-attrs/attrs": 5,
+          "encode/httpx": 4,
+          "stretchr/testify": 3,
+          "psf/requests": 2,
+          "spf13/cobra": 2,
+          "gin-gonic/gin": 1,
+          "sirupsen/logrus": 1,
+          "tiangolo/typer": 1
+        },
+        "inventory_basis": "Cached enriched Hub manifest",
+        "sources": [
+          "pr-runtime-manifest"
+        ],
+        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json",
+        "validation_summary": "100 oracle/tracked passes; 88 clean commands; 87 with a regression guard.",
+        "solver_summary": "Release report: approximately 55\u201360% solved in a ~20-task Sonnet pilot; raw final sample not recovered.",
+        "attempted_candidates": null,
+        "recorded_synthesis_usd": null,
+        "cost_scope": "No complete generation-cost ledger recovered. Unavailable does not mean zero."
+      },
+      {
+        "pipeline": "commit_runtime",
+        "guide": "commit_runtime.md",
+        "repo_id": "AdithyaSK/repo2rlenv-commit-runtime",
+        "tasks": 100,
+        "repo_distribution": {
+          "encode/httpx": 1,
+          "encode/starlette": 3,
+          "gin-gonic/gin": 9,
+          "gofiber/fiber": 6,
+          "golang-jwt/jwt": 2,
+          "google/uuid": 1,
+          "gorilla/mux": 3,
+          "gorilla/websocket": 1,
+          "labstack/echo": 9,
+          "pallets/click": 3,
+          "pallets/jinja": 4,
+          "psf/requests": 2,
+          "python-attrs/attrs": 6,
+          "samber/lo": 1,
+          "sirupsen/logrus": 1,
+          "spf13/cobra": 11,
+          "spf13/viper": 1,
+          "stretchr/testify": 2,
+          "tidwall/gjson": 5,
+          "uber-go/zap": 6,
+          "urfave/cli": 10,
+          "valyala/fasthttp": 13
+        },
+        "inventory_basis": "Cached v2 manifest and matching local task IDs",
+        "sources": [
+          "commit-runtime-v2-manifest",
+          "commit-runtime-100"
+        ],
+        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json",
+        "validation_summary": "100 generation-time verified stamps. Full 100-task oracle gate not recovered; older 52-task gate is separate.",
+        "solver_summary": "No reliable final-cohort solve rate recovered; retained development runs mix revisions and setup failures.",
+        "attempted_candidates": null,
+        "recorded_synthesis_usd": null,
+        "cost_scope": "No complete generation-cost ledger recovered. Unavailable does not mean zero."
+      },
+      {
+        "pipeline": "code_instruct",
+        "guide": "code_instruct.md",
+        "repo_id": "AdithyaSK/repo2rlenv-code-instruct",
+        "tasks": 100,
+        "repo_distribution": {
+          "encode/starlette": 20,
+          "pallets/click": 20,
+          "pallets/flask": 20,
+          "psf/requests": 20,
+          "python-attrs/attrs": 20
+        },
+        "inventory_basis": "Local publication staging",
+        "sources": [
+          "cinst-100-flat",
+          "cinst-100-gen.log"
+        ],
+        "manifest_url": null,
+        "validation_summary": "100 emitted after generation checks; no separate 100-task Harbor gate recovered.",
+        "solver_summary": "Sonnet 4.6: 4/5 scored 1; one scored 0.",
+        "attempted_candidates": 136,
+        "recorded_synthesis_usd": "3.775929",
+        "cost_scope": "Run-cumulative synthesis counters: sum one final maximum per repo, not every task. Includes retries through the last export; excludes bootstrap, compute, rollouts and earlier development."
+      },
+      {
+        "pipeline": "equivalence_tests",
+        "guide": "equivalence_tests.md",
+        "repo_id": "AdithyaSK/repo2rlenv-equivalence-tests",
+        "tasks": 100,
+        "repo_distribution": {
+          "Suor/funcy": 7,
+          "hjson/hjson-py": 3,
+          "mahmoud/boltons": 15,
+          "more-itertools/more-itertools": 13,
+          "pygments/pygments": 12,
+          "pytoolz/toolz": 20,
+          "sympy/sympy": 30
+        },
+        "inventory_basis": "Local publication staging",
+        "sources": [
+          "eqv-100-flat"
+        ],
+        "manifest_url": null,
+        "validation_summary": "100 emitted after generation checks; no separate 100-task Harbor gate recovered.",
+        "solver_summary": "Sonnet: 4/5 reached reward 1 after retries, one setup error. Codex and Qwen: 5/5 each on different samples.",
+        "attempted_candidates": null,
+        "recorded_synthesis_usd": "2.512044",
+        "cost_scope": "Lower bound from seven productive runs only. Excludes zero-output runs, later failed attempts, bootstrap, compute and rollouts; not an all-in task price."
+      },
+      {
+        "pipeline": "cve_patches",
+        "guide": "cve_patches.md",
+        "repo_id": "AdithyaSK/repo2rlenv-cve-patches",
+        "tasks": 19,
+        "repo_distribution": {
+          "Pylons/waitress": 8,
+          "andialbrecht/sqlparse": 1,
+          "lepture/mistune": 2,
+          "pallets/flask": 2,
+          "pallets/werkzeug": 3,
+          "psf/requests": 3
+        },
+        "inventory_basis": "Cached Hub composition manifest",
+        "sources": [
+          "cve-patches-manifest"
+        ],
+        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json",
+        "validation_summary": "19 listed; validation fields absent. A 19-task oracle or independent quality gate was not recovered.",
+        "solver_summary": "No cohort-matched solver result recovered.",
+        "attempted_candidates": null,
+        "recorded_synthesis_usd": null,
+        "cost_scope": "No complete generation-cost ledger recovered. Unavailable does not mean zero."
+      }
+    ],
+    "pr_runtime_validation": {
+      "resolved": 100,
+      "command_resolved": 88,
+      "eval_grade": 87,
+      "oracle_reward_one": 100
+    },
+    "commit_runtime_previous_cohort": {
+      "tasks": 52,
+      "included_in_inventory_total": false,
+      "source": "commit-runtime-manifest",
+      "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json",
+      "validation": {
+        "resolved": 52,
+        "command_resolved": 47,
+        "eval_grade": 47,
+        "oracle_reward_one": 52
+      },
+      "note": "May 2026, before instruction synthesis; do not transfer these results onto June 100-task set. Manifest top-level pipeline is mislabeled pr_runtime; commit URLs and repository release report identify commit_runtime."
+    },
+    "generation_reports": [
+      {
+        "source": "cinst-100-gen.log",
+        "reports": [
+          {
+            "run": "pallets/click -> click",
+            "candidates": 27,
+            "emitted": 20
+          },
+          {
+            "run": "pallets/flask -> flask",
+            "candidates": 28,
+            "emitted": 20
+          },
+          {
+            "run": "psf/requests -> requests",
+            "candidates": 24,
+            "emitted": 20
+          },
+          {
+            "run": "python-attrs/attrs -> attrs",
+            "candidates": 23,
+            "emitted": 20
+          },
+          {
+            "run": "encode/starlette -> starlette",
+            "candidates": 34,
+            "emitted": 20
+          }
+        ]
+      },
+      {
+        "source": "eqv-100-gen.log",
+        "reports": [
+          {
+            "run": "sympy/sympy -> sympy (limit=30, so far=0/100)",
+            "candidates": 35,
+            "emitted": 30
+          },
+          {
+            "run": "mpmath/mpmath -> mpmath (limit=20, so far=30/100)",
+            "candidates": 42,
+            "emitted": 0
+          },
+          {
+            "run": "more-itertools/more-itertools -> more-itertools (limit=15, so far=30/100)",
+            "candidates": 15,
+            "emitted": 13
+          },
+          {
+            "run": "Suor/funcy -> funcy (limit=12, so far=43/100)",
+            "candidates": 10,
+            "emitted": 7
+          },
+          {
+            "run": "pypa/setuptools -> setuptools (limit=20, so far=50/100)",
+            "candidates": 35,
+            "emitted": 0
+          },
+          {
+            "run": "pytoolz/toolz -> toolz (limit=20, so far=50/100)",
+            "candidates": 26,
+            "emitted": 20
+          }
+        ]
+      },
+      {
+        "source": "eqv-100-gen_black.log",
+        "reports": [
+          {
+            "run": "psf/black \u2192 black (limit=8)",
+            "candidates": 7,
+            "emitted": 0
+          }
+        ]
+      },
+      {
+        "source": "eqv-100-gen_boltons.log",
+        "reports": [
+          {
+            "run": "mahmoud/boltons \u2192 boltons (limit=15)",
+            "candidates": 15,
+            "emitted": 15
+          }
+        ]
+      },
+      {
+        "source": "eqv-100-gen_cattrs.log",
+        "reports": []
+      },
+      {
+        "source": "eqv-100-gen_hjson-py.log",
+        "reports": [
+          {
+            "run": "hjson/hjson-py \u2192 hjson-py (limit=3)",
+            "candidates": 3,
+            "emitted": 3
+          }
+        ]
+      },
+      {
+        "source": "eqv-100-gen_huggingface_hub.log",
+        "reports": []
+      },
+      {
+        "source": "eqv-100-gen_pygments.log",
+        "reports": [
+          {
+            "run": "pygments/pygments \u2192 pygments (limit=12)",
+            "candidates": 12,
+            "emitted": 12
+          }
+        ]
+      }
+    ],
+    "cumulative_synthesis_counters": {
+      "code_instruct": [
+        {
+          "repo": "encode/starlette",
+          "tasks": 20,
+          "max_cumulative_model_usd": "1.003815"
+        },
+        {
+          "repo": "pallets/click",
+          "tasks": 20,
+          "max_cumulative_model_usd": "0.708336"
+        },
+        {
+          "repo": "pallets/flask",
+          "tasks": 20,
+          "max_cumulative_model_usd": "0.783933"
+        },
+        {
+          "repo": "psf/requests",
+          "tasks": 20,
+          "max_cumulative_model_usd": "0.720597"
+        },
+        {
+          "repo": "python-attrs/attrs",
+          "tasks": 20,
+          "max_cumulative_model_usd": "0.559248"
+        }
+      ],
+      "equivalence_tests": [
+        {
+          "repo": "Suor/funcy",
+          "tasks": 7,
+          "max_cumulative_model_usd": "0.274803"
+        },
+        {
+          "repo": "hjson/hjson-py",
+          "tasks": 3,
+          "max_cumulative_model_usd": "0.035886"
+        },
+        {
+          "repo": "mahmoud/boltons",
+          "tasks": 15,
+          "max_cumulative_model_usd": "0.208299"
+        },
+        {
+          "repo": "more-itertools/more-itertools",
+          "tasks": 13,
+          "max_cumulative_model_usd": "0.296877"
+        },
+        {
+          "repo": "pygments/pygments",
+          "tasks": 12,
+          "max_cumulative_model_usd": "0.155607"
+        },
+        {
+          "repo": "pytoolz/toolz",
+          "tasks": 20,
+          "max_cumulative_model_usd": "0.598914"
+        },
+        {
+          "repo": "sympy/sympy",
+          "tasks": 30,
+          "max_cumulative_model_usd": "0.941658"
+        }
+      ]
+    },
+    "solver_jobs": {
+      "code_instruct": [
+        {
+          "job": "val100-sonnet-click",
+          "source": "cinst-100-val100-sonnet-click",
+          "started_at": "2026-07-21T23:15:13.403824",
+          "recorded_model_usd": "0.0711135",
+          "trials": [
+            {
+              "task": "pallets__click-cinst-63be6f5c",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "val100-sonnet-flask",
+          "source": "cinst-100-val100-sonnet-flask",
+          "started_at": "2026-07-21T23:16:29.483462",
+          "recorded_model_usd": "0.0429285",
+          "trials": [
+            {
+              "task": "pallets__flask-cinst-0ec362a5",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "val100-sonnet-requests",
+          "source": "cinst-100-val100-sonnet-requests",
+          "started_at": "2026-07-21T23:17:43.508306",
+          "recorded_model_usd": "0.04436085",
+          "trials": [
+            {
+              "task": "psf__requests-cinst-52d645e8",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "val100-sonnet-attrs",
+          "source": "cinst-100-val100-sonnet-attrs",
+          "started_at": "2026-07-21T23:18:46.006624",
+          "recorded_model_usd": "0.0425715",
+          "trials": [
+            {
+              "task": "python-attrs__attrs-cinst-e5f0e483",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "val100-sonnet-starlette",
+          "source": "cinst-100-val100-sonnet-starlette",
+          "started_at": "2026-07-21T23:19:42.300076",
+          "recorded_model_usd": "0.0695559",
+          "trials": [
+            {
+              "task": "encode__starlette-cinst-fb036a71",
+              "reward": 0.0,
+              "error": null
+            }
+          ]
+        }
+      ],
+      "equivalence_tests": [
+        {
+          "job": "eval-sonnet",
+          "source": "eqv-eval-eval-sonnet",
+          "started_at": "2026-07-22T15:06:59.036501",
+          "recorded_model_usd": "0.05295075",
+          "trials": [
+            {
+              "task": "Suor__funcy-eqv-1697f88e",
+              "reward": null,
+              "error": "NonZeroAgentExitCodeError"
+            },
+            {
+              "task": "mahmoud__boltons-eqv-01d53dba",
+              "reward": null,
+              "error": "NonZeroAgentExitCodeError"
+            },
+            {
+              "task": "mahmoud__boltons-eqv-b88346df",
+              "reward": null,
+              "error": "NonZeroAgentExitCodeError"
+            },
+            {
+              "task": "pytoolz__toolz-eqv-993b1d4c",
+              "reward": null,
+              "error": "NonZeroAgentExitCodeError"
+            },
+            {
+              "task": "sympy__sympy-eqv-45f868ba",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "eval-sonnet-retry",
+          "source": "eqv-eval-eval-sonnet-retry",
+          "started_at": "2026-07-22T15:15:03.155278",
+          "recorded_model_usd": "0.1496304",
+          "trials": [
+            {
+              "task": "Suor__funcy-eqv-1697f88e",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "mahmoud__boltons-eqv-01d53dba",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "mahmoud__boltons-eqv-b88346df",
+              "reward": null,
+              "error": "NonZeroAgentExitCodeError"
+            },
+            {
+              "task": "pytoolz__toolz-eqv-993b1d4c",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "eval-codex",
+          "source": "eqv-eval-eval-codex",
+          "started_at": "2026-07-22T15:06:59.036339",
+          "recorded_model_usd": "0.29694805",
+          "trials": [
+            {
+              "task": "more-itertools__more-itertools-eqv-8f5a37bb",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "pytoolz__toolz-eqv-0a82fbd9",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "pytoolz__toolz-eqv-f81828db",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "sympy__sympy-eqv-2791077f",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "sympy__sympy-eqv-e78e6420",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "job": "eval-qwen",
+          "source": "eqv-eval-eval-qwen",
+          "started_at": "2026-07-22T15:06:59.036581",
+          "recorded_model_usd": "0.0",
+          "trials": [
+            {
+              "task": "Suor__funcy-eqv-1f07168e",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "mahmoud__boltons-eqv-0c358869",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "pygments__pygments-eqv-d99f4343",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "pytoolz__toolz-eqv-4d4041ba",
+              "reward": 1.0,
+              "error": null
+            },
+            {
+              "task": "sympy__sympy-eqv-a41493b3",
+              "reward": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    "solver_cost_scope": "Harbor-recorded model charges only. Setup retries may have missing charges; compute and interactive assistant usage excluded. Qwen records zero, not evidence of a free workload.",
+    "sources": {
+      "pr-diff-manifest": {
+        "filename": "manifest.json",
+        "sha256": "f9cac67fb978e7073c2569a82e2018f731a14965dcb5a2c5c884397f0ca8083e",
+        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json"
+      },
+      "pr-runtime-manifest": {
+        "filename": "manifest.json",
+        "sha256": "31a8d0289c70758b8c2a36f8f34883acad3a07f8a6002ef9e595a01f5ad0ef6e",
+        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json"
+      },
+      "commit-runtime-manifest": {
+        "filename": "manifest.json",
+        "sha256": "f4e077ccbdf1881b9f6615ea0d645b0919b49ade71786436b26b736a1c39555c",
+        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json"
+      },
+      "commit-runtime-v2-manifest": {
+        "filename": "manifest.json",
+        "sha256": "e882108799e9cec07fbb49b7c07edaa259fdf34dca751a969cf34b3517dcaecb",
+        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json"
+      },
+      "cve-patches-manifest": {
+        "filename": "manifest.json",
+        "sha256": "cd21029f3cc3ab3549a04b4176cd707b5448a450efd164982f9bdbdea2bc9342",
+        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json"
+      },
+      "commit-runtime-100": {
+        "directory": "workspace/datasets/commit-runtime-100",
+        "task_count": 100,
+        "files": 900,
+        "tree_sha256": "7ca2b33a0252718f7d9f04968f7f578e2fc91da8b073979277499d6cdad9caa5",
+        "hash_method": "SHA256 of sorted relative-path TAB file-SHA256 NEWLINE records; all task files.",
+        "required_artifacts_present": true
+      },
+      "cinst-100-flat": {
+        "directory": "workspace/datasets/cinst-100-flat",
+        "task_count": 100,
+        "files": 700,
+        "tree_sha256": "197a58aaaf726cddbe70061bfdfb400fdf067ef8b138d5baa86693d9afb627fd",
+        "hash_method": "SHA256 of sorted relative-path TAB file-SHA256 NEWLINE records; all task files.",
+        "required_artifacts_present": true
+      },
+      "eqv-100-flat": {
+        "directory": "workspace/datasets/eqv-100-flat",
+        "task_count": 100,
+        "files": 700,
+        "tree_sha256": "742a0ef8901c7ebec51f9028cce5e748a6ec89b39d626db86b2263bd9c920003",
+        "hash_method": "SHA256 of sorted relative-path TAB file-SHA256 NEWLINE records; all task files.",
+        "required_artifacts_present": true
+      },
+      "cinst-100-gen.log": {
+        "filename": "gen.log",
+        "sha256": "6ff463439fff2b59ab75e4068a38de35a2ba06c2fc0c37e507b65cc266913168"
+      },
+      "eqv-100-gen.log": {
+        "filename": "gen.log",
+        "sha256": "9ed2ecccd3a43cc27c49a8d8975596d534d5e40945ac75c594d2880d53d8dee1"
+      },
+      "eqv-100-gen_black.log": {
+        "filename": "gen_black.log",
+        "sha256": "f9f2ff7e788446f83e1b21f2befa38e9243a2fb746bdf0745105cab41d80255d"
+      },
+      "eqv-100-gen_boltons.log": {
+        "filename": "gen_boltons.log",
+        "sha256": "a929c3167f3e6c11f8a7a5c0a36e911bd6d06247a6658dabdbcfa19e8b9ba73e"
+      },
+      "eqv-100-gen_cattrs.log": {
+        "filename": "gen_cattrs.log",
+        "sha256": "cf4ebbbe82b2eaa0d1ccef25a6d478f99e8911330bce27feaf17377701dd1e04"
+      },
+      "eqv-100-gen_hjson-py.log": {
+        "filename": "gen_hjson-py.log",
+        "sha256": "f55d7b5a906e5d050b3bbe304408ce8c7322a98e65857bf7edfdb0ca485b7f85"
+      },
+      "eqv-100-gen_huggingface_hub.log": {
+        "filename": "gen_huggingface_hub.log",
+        "sha256": "5fa0d7c840b63b35e3d4935eacb87af8d5f64ee90ea93b68ba821c0a73e778ae"
+      },
+      "eqv-100-gen_pygments.log": {
+        "filename": "gen_pygments.log",
+        "sha256": "ecb978bb7637086b362ed768a83d60325afc5fba1e2e45f823d428e35205f0f4"
+      },
+      "cinst-100-val100-sonnet-click": {
+        "filename": "result.json",
+        "sha256": "58b7e482529219e2f8f2ce5b806a0f581a22fa3b89309b74e6dd853961bd2f08"
+      },
+      "cinst-100-val100-sonnet-flask": {
+        "filename": "result.json",
+        "sha256": "509d6b86d30454fb1f4fdde62d652f6c2255146c19f30bdf88a75b2157997e6a"
+      },
+      "cinst-100-val100-sonnet-requests": {
+        "filename": "result.json",
+        "sha256": "f1d294740fc5b8e76f8c381641eecb74edd1465036aa3a1859534c640d9da38f"
+      },
+      "cinst-100-val100-sonnet-attrs": {
+        "filename": "result.json",
+        "sha256": "e91b56697672179c23e111e6046aa0de2c768a660074464a07a0d89c4eba6c55"
+      },
+      "cinst-100-val100-sonnet-starlette": {
+        "filename": "result.json",
+        "sha256": "654b0e297b4c6cc1d29c7e588e7d4b508e643a8b9369d15df132655e16f3eda8"
+      },
+      "eqv-eval-eval-sonnet": {
+        "filename": "result.json",
+        "sha256": "4a6217d6ebcd9b11de4098a2f9ced7d6f73862739b4addd3e542a1d72cf5527f"
+      },
+      "eqv-eval-eval-sonnet-retry": {
+        "filename": "result.json",
+        "sha256": "e9ee988e7c1c6896e40d82860938d2af4542a4811ca41472a2166ffb33947a09"
+      },
+      "eqv-eval-eval-codex": {
+        "filename": "result.json",
+        "sha256": "73829feabdde5a64004fbf799c785e8f269d4636983c2ebff3bd53307603e49d"
+      },
+      "eqv-eval-eval-qwen": {
+        "filename": "result.json",
+        "sha256": "9fffb84909e1a16a7ddbf13b077a4f50ee807f0993b39c447aefcfbcdb3d4782"
+      }
+    }
+  }
+}

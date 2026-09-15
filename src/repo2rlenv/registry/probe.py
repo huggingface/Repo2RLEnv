@@ -213,6 +213,7 @@ def _docker_credential_helper_get(helper: str, host: str) -> tuple[str, str] | N
             [binary, "get"],
             input=host,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=10,
             check=False,

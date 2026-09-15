@@ -1,0 +1,12 @@
+{
+  "provider": "modal",
+  "gpus": 1,
+  "author_runtime": "pi",
+  "author_model": "anthropic/claude-sonnet-4-6",
+  "max_stage_attempts": 3,
+  "max_spend_usd": "50.00",
+  "quality": {
+    "max_repairs": 3,
+    "run_rollout": true
+  }
+}

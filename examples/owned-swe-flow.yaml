@@ -1,0 +1,31 @@
+source:
+  kind: repository
+  repo:
+    url: more-itertools/more-itertools
+    ref: 9ed3dbb0ae527230cd156d91d0af305478558fba
+pipeline:
+  name: repo_reconstruct
+  recipe: swe_flow
+  options:
+    source_paths: [more_itertools/more.py, more_itertools/recipes.py]
+    test_paths: [tests]
+    target: 20
+    max_candidates: 60
+    trace_max_tests: 128
+    trace_seed: 24
+    test_timeout_sec: 180
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+  timeout_sec: 240
+execution:
+  campaign_dir: workspace/campaign
+  run_id: swe-flow-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 10000
+output:
+  destination: workspace/campaign/generated/swe-flow
+  org: repo2rlenv
+  dataset_name: swe-flow-first
+  visibility: private

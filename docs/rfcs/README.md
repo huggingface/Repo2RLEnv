@@ -55,6 +55,26 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0008 | `env_setup` | draft | [0008-env-setup.md](./0008-env-setup.md) | — |
 | 0009 | `test_synthesis` | draft | [0009-test-synthesis.md](./0009-test-synthesis.md) | — |
 | 0010 | `issue_runtime` | draft | [0010-issue-runtime.md](./0010-issue-runtime.md) | — |
+| 0011 | owned recipe contract | implementation in PR #109 | [0011-owned-recipes.md](0011-owned-recipes.md) | [Release inventory](../pipelines/releases.md) |
+| 0012 | `repo_mutate` / `swe_smith` | experimental; PR #109 | [0012-swe-smith-recipe.md](0012-swe-smith-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
+| 0013 | `terminal_synth` / `seta_seed2synth` | experimental; PR #109 | [0013-seta-seed2synth-recipe.md](0013-seta-seed2synth-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth) |
+| 0014 | `task_evolve` / `seta_evol` | experimental; PR #109 | [0014-seta-evol-recipe.md](0014-seta-evol-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol) |
+| 0015 | `pr_to_env` / `swe_gen` | experimental; PR #109 | [0015-swe-gen-recipe.md](0015-swe-gen-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
+| 0016 | `repo_reconstruct` / `swe_flow` | experimental; PR #109 | [0016-swe-flow-recipe.md](0016-swe-flow-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
+| 0017 | `equivalence_tests` / `r2e` | experimental; PR #109 | [0017-r2e-recipe.md](0017-r2e-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
+| 0018 | `terminal_synth` / `tmax` | experimental; PR #109 | [0018-tmax-recipe.md](0018-tmax-recipe.md) | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
+| 0019 | `terminal_reconstruct` / `terminalworld` | experimental; PR #109 | [0019-terminalworld-recipe.md](0019-terminalworld-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| 0020 | `terminal_synth` / `endless_terminals` | experimental; PR #109 | [0020-endless-terminals-recipe.md](0020-endless-terminals-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
+| 0021 | `env_repair` / `cli_gym` | experimental; PR #109 | [0021-cli-gym-recipe.md](0021-cli-gym-recipe.md) | [25 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-cli-gym) |
+| 0022 | `terminal_synth` / `dataarc` | experimental; PR #109 | [0022-dataarc-terminal-recipe.md](0022-dataarc-terminal-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) |
+| 0023 | `pr_runtime` / `swe_next` | experimental; PR #109 | [0023-swe-next-recipe.md](0023-swe-next-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
+| 0024 | `commit_runtime` / `r2e_gym` | experimental; PR #109 | [0024-r2e-gym-recipe.md](0024-r2e-gym-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
+| 0025 | `cve_patches` / `sec_bench` | deferred | [0025-sec-bench-recipe.md](0025-sec-bench-recipe.md) | Excluded |
+| 0026 | `reasoning_synth` / `scaler` | experimental; PR #109 | [0026-scaler-recipe.md](0026-scaler-recipe.md) | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
+| 0027 | Harbor review and repair | implementation in PR #109 | [0027-harbor-quality-loop.md](0027-harbor-quality-loop.md) | — |
+| 0028 | Tasksmith PR pilot | completed pilot; PR #109 | [0028-tasksmith-pr-pilot.md](0028-tasksmith-pr-pilot.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
+| 0029 | HF bootstrap and Tasksmith scale | recorded campaign; PR #109 | [0029-tasksmith-hf-scale.md](0029-tasksmith-hf-scale.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
+| 0030 | Campaign expansion and Harbor releases | implementation in PR #109 | [0030-campaign-expansion-and-release.md](0030-campaign-expansion-and-release.md) | [Release inventory](../pipelines/releases.md) |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 

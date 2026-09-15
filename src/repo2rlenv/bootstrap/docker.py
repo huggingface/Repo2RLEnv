@@ -56,6 +56,7 @@ def _run(args: list[str], *, timeout: int = 600, input_text: str | None = None) 
             args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             input=input_text,
             check=False,
@@ -129,6 +130,7 @@ def pull_image_streaming(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
         bufsize=1,
     )
 

@@ -1,38 +1,71 @@
 # Pipelines
 
-A pipeline is a synthesis method that takes a repo and emits Harbor-shaped tasks. They share the same input shape (`GenerationInput`) and output shape (Harbor task dirs); they differ in **how** they manufacture verifiable tasks.
+A pipeline turns source material into Harbor tasks. Inputs can be repositories,
+PRs, questions, existing tasks, recordings or problem-family definitions.
+Pipelines share `GenerationInput` and Harbor output; they differ in how they
+create the problem, reference solution and verifier.
+
+For adaptive PR conversion, start with [Tasksmith](tasksmith.md): investigation,
+remote bootstrap, task design, construction, and bounded review and repair.
+The [homepage overview](../index.md#pipelines-at-a-glance) lists all six native
+pipelines, 14 research-inspired recipes, and Tasksmith with their rewards and datasets.
+
+For the 14 owned research recipes, start with the
+[visual route map and execution boundaries](owned_recipes.md), then
+[follow the actual prompts](prompt_reference.md). Each recipe has a stage diagram,
+call-by-call input/output table, concrete example and complete prompt reference.
+
+Compare [observed yield and cost per task](economics.md), or browse the
+[published Harbor datasets](releases.md). Measurements distinguish generation,
+independent quality acceptance and solver success.
+
+Use the shared [Harbor review and repair loop](quality_loop.md) to review an
+existing task/rollout or run bounded remote validation and repairs from the CLI.
 
 ## Common shape
 
-Every pipeline follows the same skeleton — only the box labelled "synthesize" varies.
+The routes share Harbor delivery while keeping their generation and quality
+checks explicit. Tasksmith uses an agent to construct a PR task and runs its
+review/repair workflow. The research recipes use their own authoring stages and
+generation checks; independent quality review can follow in a separate campaign.
 
 ```mermaid
-flowchart LR
-    A[Source repo<br/>+ config] --> B[Discover<br/>candidates]
-    B --> C[Synthesize<br/>per pipeline]
-    C --> D[QA gate]
-    D -- pass --> E[Harbor task dir]
-    D -- fail --> F[Skip + log reason]
-    E --> G[Local dataset]
-    E --> H[HF Hub<br/>+ registry.json]
+flowchart TD
+    A["Repository, PR, question, recording, task or sampler"] --> B["Select native pipeline or owned recipe"]
+    A --> T["Tasksmith: PR investigation, design and agent construction"]
+    B --> C["Recipe-specific authoring and execution checks"]
+    C -->|"Generation controls pass"| E["Harbor task bundle"]
+    C -->|"Attempt fails"| F["Retain diagnostics and cost receipts"]
+    T --> Q["Tasksmith review, bounded repair and controls"]
+    Q --> E
+    E --> L["Uniform labels bound to the artifact revision"]
+    L --> S["Explicit release selection and file audit"]
+    S --> H["Hub task trees, archive, registry and collection"]
+    E -.-> R["Independent review, attacks and blind rollouts"]
+    R --> L
 ```
 
-## Pipelines
+## Native pipelines
 
-All 6 pipelines are shipped — 3 stable (`pr_diff`, `pr_runtime`, `commit_runtime`), 3 experimental. See per-pipeline pages for the recipe + options + Harbor verification status.
+The original six native pipelines remain available: three stable (`pr_diff`,
+`pr_runtime`, `commit_runtime`) and three experimental. [Owned recipes](owned_recipes.md)
+add 14 method-specific experimental implementations. The catalog labels deferred
+or planned methods explicitly. The table below covers the original native
+pipelines; the [owned recipe table](owned_recipes.md#choose-a-generation-route)
+covers the new methods, inputs and reference sources.
 
 | Pipeline | What it produces | Source | Sandbox | LLM use | GPU helpful? | Reference dataset | Inspiration |
 |---|---|:-:|:-:|---|:-:|---|---|
-| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub · GitLab | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (100) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
+| [`pr_diff`](./pr_diff.md) | Harbor-runnable env + 6-component diff-similarity reward (deterministic 5 + LLM judge) | GitHub · GitLab | thin¹ | at verify (judge, optional) | No | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 in cached snapshot) | [SWE-RL](https://github.com/facebookresearch/swe-rl) |
 | [`pr_runtime`](./pr_runtime.md) | Sandbox-verified PR with F2P/P2P test oracle | GitHub · GitLab | ✅ | at bootstrap (cached) | ML repos | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) (100) | [SWE-bench](https://github.com/SWE-bench/SWE-bench) |
-| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | — | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
-| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks × 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
-| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | *pending v0.8.8* | [R2E](https://github.com/r2e-project/r2e) |
+| [`commit_runtime`](./commit_runtime.md) | Commit-level oracle (bypass PR-review filters) | GitHub · GitLab · local | ✅ | at bootstrap (cached) | ML repos | [`repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (100) | [R2E-Gym SWE-GEN](https://github.com/R2E-Gym/R2E-Gym) |
+| [`code_instruct`](./code_instruct.md) | LLM-authored problem + executable verifier anchored to real source | GitHub · GitLab · local | ✅ | at synthesis (problem + verifier) | Sometimes | [`repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) — 100 tasks across 5 Python repos | [Magicoder](https://github.com/ise-uiuc/magicoder) |
+| [`equivalence_tests`](./equivalence_tests.md) | Extract a function; LLM writes equivalence tests vs `reference_<name>` | GitHub · GitLab · local | ✅ | at synthesis (tests, feedback-driven retry) | If function uses GPU | [`repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) (100) | [R2E](https://github.com/r2e-project/r2e) |
 | [`cve_patches`](./cve_patches.md) | OSV CVE → fix commit → Harbor task (reuses `pr_runtime` verifier) | GitHub | ✅ | at bootstrap (cached) | Rarely | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) (19) | [PatchSeeker](https://github.com/hungkien05/PatchSeeker) / CVE-Bench |
 
-- **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
+- **Source** — where `--repo` can point. `GitHub · GitLab · local` = a GitHub `owner/name`, a `gitlab.com` URL, or a local path (`/abs`, `./rel`, `~`, `file://`; on Windows also `C:\abs`, `.\rel`); these need only git + source files. `GitHub · GitLab` = PR/MR-mining pipelines (github.com or gitlab.com, not a bare local clone). `GitHub` = needs the GitHub commit API + OSV CVE data (`cve_patches`). `generate` blocks an unsupported source up front with a clear error.
 - **Sandbox** ✅ = needs Docker + the bootstrap-built env. `thin¹` = needs Docker but ships a lightweight `python:3.12-slim` env baked at generation time (no bootstrap LLM agent, ~30 s build). `—` = pure text, no execution.
-- **LLM use**: every pipeline calls an LLM at *some* stage. `at synthesis` = the pipeline itself authors task content (problems, mutations, tests) — this is the heavy spend. `at bootstrap (cached)` = the pipeline doesn't call the LLM, but the per-repo env construction does — that runs **once per repo**, content-addressed, then cached. `at verify` = an LLM is invoked at reward time (only `pr_diff`'s LLM-judge component).
+- **LLM use** in this native-pipeline table: `at synthesis` authors task content; `at bootstrap (cached)` constructs the per-repo environment; `at verify` invokes a reward-time model (the optional `pr_diff` judge). Owned recipes have different [call sequences](prompt_reference.md), including explicit bootstrap profiles without model calls and SCALER's entirely programmatic generation.
 
 ¹ `pr_diff` is the unusual case — it skips bootstrap entirely (no per-repo image build), ships a generic env, and only uses the LLM at *verify* time. The judge degrades gracefully on missing API key (`status=no_api_key`), and the remaining 5 components renormalize.
 
@@ -50,7 +83,7 @@ yield band below.
 | `pr_diff` | **80–95%** | almost every merged PR qualifies (text-only, no execution gate) | `min_loc_changed`, `max_files_per_pr`, `skip_drafts` |
 | `pr_runtime` | **15–40%** | does a PR ship a *new* test that flips fail→pass, and does the suite run green in the container? | `require_fail_to_pass`, `require_new_test_funcs`, `lite_filter`, `min_problem_statement_words` |
 | `commit_runtime` | **10–35%** | same F2P gate as `pr_runtime`, on commits — **~0% on squash/merge-PR repos** (use `pr_runtime` there) | `skip_merge_commits`, `require_new_test_funcs`, `min_message_words`, `synthesize_with_llm` |
-| `code_instruct` | **60–90%** (v0.8.6 gates + retries; empirically 75.8% across 5 Python libs on the reference dataset) | fraction of seed snippets where the LLM's test passes all quality gates AND fails-without / passes-with the oracle | `max_attempts_per_seed` (default 3), LLM quality, `seed_min/max_loc` |
+| `code_instruct` | **60–90%** (v0.8.6 gates + retries; measured 73.5% across 5 Python libs on the reference dataset) | fraction of seed snippets where the LLM's test passes all quality gates AND fails-without / passes-with the oracle | `max_attempts_per_seed` (default 3), LLM quality, `seed_min/max_loc` |
 | `equivalence_tests` | **~50% of pure candidates** (v0.8.7 gates + retries; the purity filter is the real gate — framework-heavy repos yield 0–2 pure candidates, utility-heavy repos yield 10s) | fraction of extracted pure functions where the LLM writes a test that fails-with-stub / passes-with-oracle | `max_attempts_per_function` (default 3), `min/max_loc`, LLM quality, repo shape (utility vs framework) |
 | `cve_patches` | **5–25%** | does the CVE fix have a verifiable test (shipped *or* agent-synthesized) **and** does the repo's suite collect in a slim container? | `synthesize_poc_test`, `poc_agent`, `require_fail_to_pass`, `min_severity` |
 
@@ -76,13 +109,16 @@ surviving tasks are higher quality. For `pr_diff` the same 100 tasks need only
 at ~15% yield, 100 tasks ≈ 15–20 CVE-rich, test-clean repos (see
 `plans/cve_repo_scout.py`).
 
+Counts and recovered validation evidence for all six native pipelines are in
+[native results](native_results.md). Historical counts are not modern quality labels.
+
 ## Spotlight: `pr_diff` (v0.8.3 reference dataset)
 
 The first pipeline to ship a published 100-env reference dataset. Pull and run it on a fresh machine in two commands:
 
 ```bash
 repo2rlenv pull AdithyaSK/repo2rlenv-pr-diff /tmp/pr-diff
-harbor run -p /tmp/pr-diff -a oracle --env docker   # → 1.000 on every task
+harbor run -p /tmp/pr-diff -a oracle --env docker   # inspect oracle rewards
 ```
 
 ### What each task contains
@@ -207,7 +243,7 @@ these is in `plans/reward_hacking_writeups.md`.
 
 See the **[cookbook](../contributing/ADDING_A_PIPELINE.md)** for the full step-by-step walkthrough — covers the enum + Options + Pipeline class + tests + doc page, with template snippets and conventions taken from `pr_diff`.
 
-TL;DR: every pipeline must satisfy the [`Pipeline` Protocol](https://github.com/huggingface/Repo2RLEnv/blob/mahttps://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py):
+TL;DR: every pipeline must satisfy the [`Pipeline` Protocol](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/base.py):
 
 ```python
 class Pipeline(Protocol):
@@ -217,3 +253,8 @@ class Pipeline(Protocol):
 ```
 
 `tests/test_pipeline_contract.py` verifies every registered pipeline conforms to the Protocol — adding a new one without finishing the registration steps will fail there.
+
+Dataset publication: [immutable Harbor releases](dataset_release.md), including
+quality labels, evidence manifests, cost accounting and executable-mode archives.
+
+The [Tasksmith PR harness](tasksmith.md) connects remote repository investigation, cached bootstrap, PR regression construction and the shared quality loop.

@@ -428,7 +428,7 @@ def push_to_hub(
     """
     from huggingface_hub import HfApi
 
-    from repo2rlenv.registry.integration import prepare_dataset_for_push
+    from repo2rlenv.registry.integration import _list_task_dirs, prepare_dataset_for_push
 
     token = resolve_hf_token(auth)
     if not token:
@@ -470,12 +470,8 @@ def push_to_hub(
     first_metadata: dict[str, Any] = {}
     source_repos: set[str] = set()
     has_environment = False
-    for child in sorted(local_dataset_dir.iterdir()):
-        if not child.is_dir() or child.name.startswith("."):
-            continue
+    for child in _list_task_dirs(local_dataset_dir):
         toml_path = child / "task.toml"
-        if not toml_path.exists():
-            continue
         meta = _read_task_metadata(toml_path)
         if not first_metadata:
             first_metadata = meta
@@ -516,12 +512,12 @@ def push_to_hub(
     enriched = False
     if src_manifest.exists():
         try:
-            enriched = "validation" in json.loads(src_manifest.read_text())
+            enriched = "validation" in json.loads(src_manifest.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             enriched = False
     manifest_summary: dict[str, Any] | None = None
     if enriched:
-        manifest_text = src_manifest.read_text()
+        manifest_text = src_manifest.read_text(encoding="utf-8")
         (staging / "manifest.json").write_text(manifest_text, encoding="utf-8")
         logger.info("preserving enriched manifest.json (has validation block)")
         try:
@@ -796,7 +792,9 @@ def pull_from_harbor(
         if registry_url:
             args += ["--registry-url", registry_url]
         logger.info("running: %s", " ".join(args))
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=600, check=False)
+        proc = subprocess.run(
+            args, capture_output=True, text=True, encoding="utf-8", timeout=600, check=False
+        )
         if proc.returncode != 0:
             raise RuntimeError(
                 f"harbor download failed (exit {proc.returncode}): "
@@ -880,7 +878,9 @@ def pull_from_github(
             args += ["--branch", ref]
         args += [clone_url, str(clone_dir)]
         logger.info("running: git clone --depth 1 [...] %s", owner_repo)
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+        proc = subprocess.run(
+            args, capture_output=True, text=True, encoding="utf-8", timeout=300, check=False
+        )
         if proc.returncode != 0:
             stderr = proc.stderr.replace(token, "***") if token else proc.stderr
             raise RuntimeError(f"git clone failed (exit {proc.returncode}): {stderr.strip()[:400]}")

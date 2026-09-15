@@ -1,0 +1,25 @@
+source:
+  kind: recording
+  path: workspace/recordings
+pipeline:
+  name: terminal_reconstruct
+  recipe: terminalworld
+  options:
+    target: 20
+    max_candidates: 100
+    max_repairs: 2
+    min_score: 4
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+execution:
+  campaign_dir: workspace/campaign
+  run_id: terminalworld-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/terminalworld
+  org: your-org
+  dataset_name: terminalworld-first
+  visibility: private

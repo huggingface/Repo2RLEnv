@@ -66,16 +66,16 @@ theme:
     edit: material/pencil
     view: material/eye
 
+# Build detailed references from canonical source.
+hooks:
+  - docs/_tools/hooks.py
+
 # Plugins
 plugins:
   - search:
       separator: '[\s​\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - minify:
       minify_html: true
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: iso_date
-      fallback_to_build_date: true
 
 # Extensions
 markdown_extensions:
@@ -134,7 +134,7 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/repo2rlenv/
     - icon: material/database
-      link: https://huggingface.co/collections/AdithyaSK/repo2rlenv-verifiable-rl-environments-6a15e7eee7c112fe841b2990
+      link: https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d
       name: Reference datasets on Hugging Face
   version:
     provider: mike
@@ -146,28 +146,63 @@ nav:
   - Quickstart: quickstart.md
   - Pipelines:
       - Overview: pipelines/README.md
-      - "pr_diff (stable)": pipelines/pr_diff.md
-      - "pr_runtime (stable)": pipelines/pr_runtime.md
-      - "commit_runtime (stable)": pipelines/commit_runtime.md
-      - "code_instruct (experimental)": pipelines/code_instruct.md
-      - "equivalence_tests (experimental)": pipelines/equivalence_tests.md
-      - "cve_patches (experimental)": pipelines/cve_patches.md
-  - RFCs:
-      - Index: rfcs/README.md
-      - "0001 — pr_diff": rfcs/0001-pr-diff.md
-      - "0002 — pr_runtime": rfcs/0002-pr-runtime.md
-      - "0003 — commit_runtime": rfcs/0003-commit-runtime.md
-      - "0004 — code_instruct": rfcs/0004-code-instruct.md
-      - "0005 — equivalence_tests": rfcs/0005-equivalence-tests.md
-      - "0006 — cve_patches": rfcs/0006-cve-patches.md
-      - "0007 — pr_to_env (draft)": rfcs/0007-pr-to-env.md
-      - "0008 — env_setup (draft)": rfcs/0008-env-setup.md
-      - "0009 — test_synthesis (draft)": rfcs/0009-test-synthesis.md
-      - "0010 — issue_runtime (draft)": rfcs/0010-issue-runtime.md
-      - Template: rfcs/TEMPLATE.md
+      - Native pipelines:
+          - PR diff: pipelines/pr_diff.md
+          - PR runtime: pipelines/pr_runtime.md
+          - Commit runtime: pipelines/commit_runtime.md
+          - Code instruct: pipelines/code_instruct.md
+          - Equivalence tests: pipelines/equivalence_tests.md
+          - CVE patches: pipelines/cve_patches.md
+      - Tasksmith: pipelines/tasksmith.md
+      - Research recipes:
+          - Choose a recipe: pipelines/owned_recipes.md
+          - swe-smith: pipelines/repo_mutate.md
+          - r2e: pipelines/r2e.md
+          - swe-gen: pipelines/pr_to_env.md
+          - swe-next: pipelines/swe_next.md
+          - r2e-gym: pipelines/r2e_gym.md
+          - scaler: pipelines/scaler.md
+          - endless-terminals: pipelines/endless_terminals.md
+          - cli-gym: pipelines/env_repair.md
+          - swe-flow: pipelines/repo_reconstruct.md
+          - seta-seed2synth: pipelines/terminal_synth.md
+          - seta-evol: pipelines/task_evolve.md
+          - tmax: pipelines/tmax.md
+          - terminalworld: pipelines/terminalworld.md
+          - dataarc: pipelines/dataarc.md
+  - Guides:
+      - Execution and providers: pipelines/owned_recipes.md
+      - Review and repair: pipelines/quality_loop.md
+      - Evaluation labels: pipelines/task_evaluation_labels.md
+      - Learner Python runtime: pipelines/learner_runtime.md
+      - Tasksmith batches: pipelines/tasksmith_parallel_campaigns.md
+      - Publish a dataset: pipelines/dataset_release.md
+  - Results:
+      - Yield and cost per task: pipelines/economics.md
+      - Published datasets: pipelines/releases.md
+      - Native pipeline results: pipelines/native_results.md
   - Reference:
+      - Prompt stages: pipelines/prompt_reference.md
+      - Full prompts (generated):
+          - Shared terminal stages: pipelines/prompts/shared_terminal.md
+          - Review and repair: pipelines/prompts/quality_loop.md
+          - Tasksmith: pipelines/prompts/tasksmith.md
+          - swe-smith: pipelines/prompts/swe_smith.md
+          - r2e: pipelines/prompts/r2e.md
+          - swe-gen: pipelines/prompts/swe_gen.md
+          - swe-next: pipelines/prompts/swe_next.md
+          - r2e-gym: pipelines/prompts/r2e_gym.md
+          - scaler: pipelines/prompts/scaler.md
+          - endless-terminals: pipelines/prompts/endless_terminals.md
+          - cli-gym: pipelines/prompts/cli_gym.md
+          - swe-flow: pipelines/prompts/swe_flow.md
+          - seta-seed2synth: pipelines/prompts/seta_seed2synth.md
+          - seta-evol: pipelines/prompts/seta_evol.md
+          - tmax: pipelines/prompts/tmax.md
+          - terminalworld: pipelines/prompts/terminalworld.md
+          - dataarc: pipelines/prompts/dataarc.md
       - API: reference/API.md
-      - SPEC: reference/SPEC.md
+      - Configuration: reference/SPEC.md
       - Auth: reference/AUTH.md
       - Bootstrap: reference/BOOTSTRAP.md
       - Agents: reference/AGENTS.md
@@ -175,7 +210,43 @@ nav:
       - Environment variables: reference/ENV.md
       - Registry auth: reference/REGISTRY_AUTH.md
       - Related work: reference/RELATED_WORK.md
+  - RFCs:
+      - Index: rfcs/README.md
+      - Shared architecture: rfcs/0011-owned-recipes.md
+      - Review and repair: rfcs/0027-harbor-quality-loop.md
+      - Tasksmith design: rfcs/0028-tasksmith-pr-pilot.md
+      - Tasksmith bootstrap: rfcs/0029-tasksmith-hf-scale.md
+      - Campaigns and releases: rfcs/0030-campaign-expansion-and-release.md
+      - Recipe designs:
+          - 0012 swe-smith-recipe: rfcs/0012-swe-smith-recipe.md
+          - 0013 seta-seed2synth-recipe: rfcs/0013-seta-seed2synth-recipe.md
+          - 0014 seta-evol-recipe: rfcs/0014-seta-evol-recipe.md
+          - 0015 swe-gen-recipe: rfcs/0015-swe-gen-recipe.md
+          - 0016 swe-flow-recipe: rfcs/0016-swe-flow-recipe.md
+          - 0017 r2e-recipe: rfcs/0017-r2e-recipe.md
+          - 0018 tmax-recipe: rfcs/0018-tmax-recipe.md
+          - 0019 terminalworld-recipe: rfcs/0019-terminalworld-recipe.md
+          - 0020 endless-terminals-recipe: rfcs/0020-endless-terminals-recipe.md
+          - 0021 cli-gym-recipe: rfcs/0021-cli-gym-recipe.md
+          - 0022 dataarc-terminal-recipe: rfcs/0022-dataarc-terminal-recipe.md
+          - 0023 swe-next-recipe: rfcs/0023-swe-next-recipe.md
+          - 0024 r2e-gym-recipe: rfcs/0024-r2e-gym-recipe.md
+          - 0026 scaler-recipe: rfcs/0026-scaler-recipe.md
+      - Native designs and proposals:
+          - 0001 pr-diff: rfcs/0001-pr-diff.md
+          - 0002 pr-runtime: rfcs/0002-pr-runtime.md
+          - 0003 commit-runtime: rfcs/0003-commit-runtime.md
+          - 0004 code-instruct: rfcs/0004-code-instruct.md
+          - 0005 equivalence-tests: rfcs/0005-equivalence-tests.md
+          - 0006 cve-patches: rfcs/0006-cve-patches.md
+          - 0007 pr-to-env: rfcs/0007-pr-to-env.md
+          - 0008 env-setup: rfcs/0008-env-setup.md
+          - 0009 test-synthesis: rfcs/0009-test-synthesis.md
+          - 0010 issue-runtime: rfcs/0010-issue-runtime.md
+      - Template: rfcs/TEMPLATE.md
   - Contributing:
-      - Adding a pipeline: contributing/ADDING_A_PIPELINE.md
+      - Add a pipeline: contributing/ADDING_A_PIPELINE.md
+      - Maintain documentation: contributing/DOCUMENTATION.md
   - Release notes:
+      - Version history: release_notes/HISTORY.md
       - v0.8.2.post3: release_notes/v0.8.2.post3.md

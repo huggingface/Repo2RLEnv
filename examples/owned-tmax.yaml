@@ -1,0 +1,24 @@
+source:
+  kind: seeds
+  path: workspace/tmax-sampler.json
+pipeline:
+  name: terminal_synth
+  recipe: tmax
+  options:
+    target: 20
+    max_candidates: 40
+    max_repairs: 2
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+execution:
+  campaign_dir: workspace/campaign
+  run_id: tmax-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 14000
+output:
+  destination: workspace/generated/tmax
+  org: your-org
+  dataset_name: tmax-first
+  visibility: private

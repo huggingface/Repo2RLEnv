@@ -77,6 +77,7 @@ def _run_git(args: list[str], cwd: Path, *, timeout: int = 60) -> str:
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=timeout,
         check=False,
     )

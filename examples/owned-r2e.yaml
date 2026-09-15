@@ -1,0 +1,31 @@
+source:
+  kind: repository
+  repo:
+    url: more-itertools/more-itertools
+    ref: 9ed3dbb0ae527230cd156d91d0af305478558fba
+pipeline:
+  name: equivalence_tests
+  recipe: r2e
+  options:
+    source_paths: [more_itertools/more.py, more_itertools/recipes.py]
+    test_paths: [tests]
+    target: 20
+    max_candidates: 60
+    max_rounds: 3
+    min_branch_coverage: 0.8
+    test_timeout_sec: 180
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-6
+  timeout_sec: 240
+execution:
+  campaign_dir: workspace/campaign
+  run_id: r2e-first
+  worker_receipt: workspace/campaign/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.8.8-py3-none-any.whl
+  timeout_sec: 13000
+output:
+  destination: workspace/campaign/generated/r2e
+  org: repo2rlenv
+  dataset_name: r2e-first
+  visibility: private

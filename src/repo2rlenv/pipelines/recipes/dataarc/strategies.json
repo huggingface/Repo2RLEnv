@@ -1,0 +1,6 @@
+{
+  "few_shot": "Vary a concrete input or requirement within the parent's workflow. Keep its central skill recognizable, but require a different result and adapt the private checks to that result.",
+  "self_instruct": "Use the parent to identify a practical skill and its tools, then pose a distinct exercise that uses them. Derive the starting files, reference program and success conditions for this new goal.",
+  "evol_instruct:in_breadth": "Choose another workflow in the parent's subject area. Reuse useful tooling and fixture conventions, and define the new workflow's own observable completion criteria.",
+  "evol_instruct:in_depth": "Keep the parent's goal and add a meaningful complication, such as an exceptional input or an additional constraint. State it explicitly and include private checks that fail when it is ignored."
+}

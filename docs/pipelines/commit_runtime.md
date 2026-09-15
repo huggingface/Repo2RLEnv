@@ -2,9 +2,9 @@
 
 R2E-Gym SWE-GEN-style PR mining: walk **commits**, not PRs. Trades signal quality for yield, and catches drive-by fixes that never went through a PR — repos that squash-merge or commit directly to main aren't reachable from `pr_runtime` at all.
 
-**As of v0.8.4 the problem statement is LLM-synthesized** (`synthesize_with_llm`, default on): the commit/issue text is rewritten into a clean, symptom-focused **problem statement with the solution stripped out**. This fixed the two failure modes of raw commit text — *leakage* (changelog bullets naming the fix → gameable) and *thinness* (title-only subjects → unsolvable). A `min_problem_statement_words` floor drops near-empty commits, and `max_pass_to_pass` (default 50) caps the regression set so whole-suite P2P doesn't inflate flaky-reward risk. A 100-env audit went from ~33% → **100% clean** instructions; Opus solves the sampled tasks (non-gameable: tasks that scored 1.0 only when the fix leaked now require a real solve).
+**As of v0.8.4 the problem statement is LLM-synthesized** (`synthesize_with_llm`, default on): the commit/issue text is rewritten into a symptom-focused problem statement, with instructions to remove solution details. This addresses two failure modes of raw commit text: leakage from changelog bullets and insufficient detail in title-only subjects. A `min_problem_statement_words` floor drops near-empty commits, and `max_pass_to_pass` (default 50) caps the regression set to reduce flaky-reward risk. Individual tasks still need instruction and verifier review.
 
-**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) — 100 oracle-verified envs (Python + Go). The original [`…commit-runtime-test`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) (52 envs, pre-synthesis) is kept for comparison.
+**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) — 100 tasks across 22 Python and Go repos, with generation-time verification metadata. A full 100-task Harbor oracle-gate receipt was not recovered. The earlier 52-task cohort has separate oracle evidence; see [native results](native_results.md#commit-runtime) for both cohorts and their limits.
 
 | | |
 |---|---|

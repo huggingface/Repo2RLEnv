@@ -28,10 +28,10 @@ jobs:
     name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3  # v8.3.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           # Pin a Python for the lint job — ruff itself doesn't care, this just
@@ -47,6 +47,26 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
+      - name: Generate and verify documentation sources
+        run: |
+          uv run python docs/_tools/generate_prompt_reference.py
+          uv run python docs/_tools/generate_prompt_reference.py --check
+          uv run python docs/_tools/generate_metrics.py --check
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-docs.txt
+      - name: Build from canonical prompts and portable metrics
+        run: mkdocs build --strict
+      - name: No tracked files changed during build
+        run: git diff --exit-code
+
   test:
     name: Tests (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -55,29 +75,97 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3  # v8.3.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
       - name: Install project + dev dependencies
-        run: uv sync --group dev --frozen
+        run: uv sync --group dev --all-extras --frozen
 
       - name: Run pytest
-        run: uv run pytest -q
+        run: uv run --all-extras pytest -q
+
+  owned-contracts:
+    name: Owned recipe contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --group dev --all-extras --frozen
+      - name: Test optional mutation and Harbor contracts without cloud execution
+        run: >-
+          uv run --all-extras pytest -q
+          tests/test_swe_smith_mutations.py tests/test_swe_smith_export.py
+          tests/test_harbor_offline.py tests/test_worker_lifecycle.py
+          tests/test_remote_artifacts.py tests/test_metered_llm.py
+          tests/test_recipe_contracts.py tests/test_recipe_events.py
+          tests/test_terminal_draft.py tests/test_issue_reproducers.py
+          tests/test_task_evolution.py tests/test_swe_gen_recipe.py tests/test_swe_flow_recipe.py tests/test_r2e_recipe.py tests/test_tmax_recipe.py
+          tests/test_endless_terminals_recipe.py
+          tests/test_terminalworld_recipe.py
+          tests/test_cli_gym_recipe.py
+          tests/test_dataarc_recipe.py tests/test_history_recipes.py
+          tests/test_scaler_recipe.py
+          tests/test_remote_job.py tests/test_verifier_driver.py
+          tests/test_shared_budget_wait.py tests/test_cpu_rollout_reservation.py
+          tests/test_quality_loop.py tests/test_quality_probe_focus.py
+          tests/test_tasksmith.py tests/test_tasksmith_bridge.py
+          tests/test_tasksmith_reuse.py tests/test_tasksmith_bootstrap.py
+          tests/test_hf_bootstrap_resume.py tests/test_quality_context_scale.py
+          tests/test_native_modal_accounting.py tests/test_native_verifier_recovery.py
+          tests/test_native_modal_build_logs.py
+          tests/test_repository_test_resources.py
+          tests/test_tasksmith_native_stages.py tests/test_tasksmith_build_logs.py
+          tests/test_tasksmith_readiness_preflight.py
+          tests/test_task_labels.py tests/test_quality_publication.py tests/test_tasksmith_batch.py
+          tests/test_hub_asset_aliases.py tests/test_quality_requirements.py
+          tests/test_tasksmith_worker_release.py tests/test_tasksmith_quality_input.py
+          tests/test_tasksmith_source_coverage.py
+          tests/test_tasksmith_source_patch.py
+          tests/test_quality_citation_paths.py tests/test_quality_review_corrections.py
+          tests/test_tasksmith_artifact_seed.py tests/test_tasksmith_prepared_profiles.py
+          tests/test_tasksmith_prepared_designs.py
+          tests/test_quality_context_budget.py tests/test_quality_repair_protocol.py
+          tests/test_quality_contract_append.py
+          tests/test_tasksmith_verifier_policy.py
+          tests/test_quality_probe_recovery.py tests/test_quality_rollout_consistency.py
+          tests/test_quality_probe_behavior.py tests/test_repository_learner_runtime.py
+          tests/test_quality_context_priority.py
+          tests/test_repository_source_collection.py
+
+  tasksmith-runtimes:
+    name: Tasksmith coding runtime contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+      - run: uv sync --extra tasksmith --frozen
+      - run: uv run repo2rlenv tasksmith install-runtime
+      - name: Exercise real SDKs against local mock servers
+        run: |
+          TASKSMITH_TEST_RUNTIME=$(uv run python -c 'from repo2rlenv.tasksmith.runtime import directory; print(directory())') node --test tests/test_tasksmith_pi.mjs tests/test_tasksmith_opencode.mjs
 
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, owned-contracts, tasksmith-runtimes]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3  # v8.3.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           python-version: "3.12"
@@ -90,9 +178,10 @@ jobs:
           uv venv /tmp/check-install
           uv pip install --python /tmp/check-install/bin/python dist/*.whl
           /tmp/check-install/bin/repo2rlenv --version
+          /tmp/check-install/bin/python tests/check_distribution.py dist
 
       - name: Upload distribution artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: repo2rlenv-dist-${{ github.sha }}
           path: dist/

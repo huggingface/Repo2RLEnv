@@ -68,14 +68,30 @@ _FROM_LINE_RE = re.compile(r"^(\s*FROM\s+)(\S+)", re.IGNORECASE | re.MULTILINE)
 
 
 def _list_task_dirs(local_dir: Path) -> list[Path]:
-    """Return task directories (each containing task.toml), sorted, no hidden."""
-    out = []
-    for child in sorted(local_dir.iterdir()):
-        if not child.is_dir() or child.name.startswith("."):
-            continue
-        if (child / "task.toml").exists():
-            out.append(child)
-    return out
+    """Return task directories from flat or ``tasks/`` dataset layouts.
+
+    A dataset may contain tasks directly under its root or under the canonical
+    Hub ``tasks/`` directory. Both layouts can coexist, but duplicate task IDs
+    are rejected rather than silently choosing one copy.
+    """
+    roots = [local_dir]
+    nested_root = local_dir / "tasks"
+    if nested_root.is_dir():
+        roots.append(nested_root)
+
+    by_name: dict[str, Path] = {}
+    for root in roots:
+        for child in sorted(root.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if not (child / "task.toml").is_file():
+                continue
+            if previous := by_name.get(child.name):
+                raise RuntimeError(
+                    f"duplicate Harbor task {child.name!r} found in {previous} and {child}"
+                )
+            by_name[child.name] = child
+    return [by_name[name] for name in sorted(by_name)]
 
 
 def _bootstrap_image_refs(task_dirs: list[Path]) -> list[tuple[str, Path]]:
