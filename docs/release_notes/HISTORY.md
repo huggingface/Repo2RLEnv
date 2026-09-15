@@ -8,6 +8,12 @@ For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 
 ## Unreleased — portability, validation and custom LLM endpoints
 
+Dependency maintenance updates the locked HTTP clients and LiteLLM to patched
+versions, with security minimums for direct dependencies and transitive lock
+constraints. Existing pip environments should upgrade transitive dependencies
+as well; uv constraints are not included in wheel metadata. Dependabot now tracks
+the Python and coding-agent locks alongside GitHub Actions.
+
 Native generation preserves parametrized pytest IDs containing spaces in both
 test discovery and the copied runtime verifier. GitLab tasks use the source host
 for clone URLs and commit references. Hub publishing accepts both flat datasets

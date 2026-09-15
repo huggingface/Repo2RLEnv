@@ -9,3 +9,25 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      python-compatible:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"
+    directory: "/src/repo2rlenv/tasksmith/author/runtimes"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      coding-runtimes:
+        patterns: ["*"]

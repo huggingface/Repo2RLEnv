@@ -93,6 +93,28 @@ A green CI is the floor for merge — green plus at least one approving review i
 - Prefer stdlib when reasonable. We're a research repo, not a kitchen-sink framework; every dep is a future supply-chain risk and an install-time slowdown.
 - If you add a transitive subdependency that's load-bearing for our public API (e.g. exposing a Pydantic v3 type), pin a minimum version in `pyproject.toml` so consumers don't break on older installs.
 
+For security fixes, update the affected packages with `uv lock --upgrade-package
+<name>` and raise direct dependency minimums when necessary. The `[tool.uv]`
+constraints protect the repository lock from vulnerable transitive versions;
+they are not part of wheel metadata. Consumers with existing environments should
+upgrade affected transitive packages too, or install into a fresh environment.
+
+Before merging a dependency update, run the all-extras tests and audit the lock:
+
+```bash
+uv sync --all-extras --group dev --frozen
+uv run --all-extras --frozen pytest -q
+uv export --all-extras --group dev --frozen --no-emit-project --no-hashes \
+  --output-file /tmp/repo2rlenv-audit.txt
+uvx pip-audit --disable-pip --no-deps -r /tmp/repo2rlenv-audit.txt
+(cd src/repo2rlenv/tasksmith/author/runtimes && npm audit --package-lock-only)
+```
+
+Dependabot checks Actions, the Python lock and the coding-agent npm lock weekly.
+Every update still needs review and passing CI. Keep Actions pinned to full
+commit SHAs with a version comment, and disable dependency caches in publishing
+jobs. Audit results cover known advisories; they are not a guarantee of safety.
+
 ### Tests
 
 - **Every code change keeps the suite green.** `uv run pytest -q` is the canonical command; if you add code, you usually add tests.
@@ -109,7 +131,7 @@ That's a structured task with its own walkthrough — see [**`docs/contributing/
 
 Releases are tag-driven and handled by `.github/workflows/release.yml`. The flow:
 
-1. Bump `version` in `pyproject.toml` (e.g. `0.3.0` → `0.4.0`). The `__version__` and `repo2rlenv --version` output read from package metadata, so no other code change needed.
+1. Bump `version` in `pyproject.toml` (e.g. `0.3.0` → `0.4.0`), run `uv lock` to update the lock's project version, and update the release notes. The `__version__` and `repo2rlenv --version` output read from package metadata, so no separate version constant needs editing.
 2. Commit + push to `main`. CI confirms tests still pass.
 3. Tag: `git tag v0.4.0 && git push origin v0.4.0`.
 4. Create a GitHub Release pointing at the tag: `gh release create v0.4.0 --generate-notes` (or use the web UI).
