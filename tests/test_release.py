@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tarfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -57,6 +58,31 @@ def test_release_archive_roundtrip_preserves_modes_identity_and_labels(selection
     assert manifest["quality_counts"] == {"unverified": 1}
     assert manifest["tasks"][0]["generation_status"] == "exported"
     assert inspect_bundle(selection.tasks[0].path)["integrity_passed"]
+
+
+def test_release_from_current_task_directory_has_valid_manifest_paths(
+    selection, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(selection.tasks[0].path)
+    selection.tasks[0].path = Path(".")
+    stage = tmp_path / "stage"
+    report = stage_release(selection, stage)
+    row = report["tasks"][0]
+    assert row["task_id"] == "example"
+    assert (stage / row["path"] / "task.toml").is_file()
+    verify_release(stage)
+
+
+def test_release_cannot_stage_inside_a_selected_task(selection, monkeypatch):
+    source = selection.tasks[0].path
+    original = inspect_bundle(source)
+    copy = Mock(side_effect=AssertionError("Would recursively copy the staging directory"))
+    monkeypatch.setattr("repo2rlenv.campaigns.release.shutil.copytree", copy)
+    with pytest.raises(ValueError, match="inside a selected task"):
+        stage_release(selection, source / "releases" / "stage")
+    copy.assert_not_called()
+    assert not (source / "releases").exists()
+    assert inspect_bundle(source) == original
 
 
 @pytest.mark.parametrize("normalize", [False, True])

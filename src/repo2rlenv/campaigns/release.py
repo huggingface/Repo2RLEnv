@@ -81,7 +81,10 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
     """Check exact identities, copy artifacts and create a mode-preserving archive."""
     if destination.exists():
         raise FileExistsError("Release staging already exists; verify it instead of overwriting")
-    names = [task.task_id or task.path.name for task in plan.tasks]
+    sources = [task.path.resolve() for task in plan.tasks]
+    if any(destination.resolve().is_relative_to(source) for source in sources):
+        raise ValueError("Release staging cannot be inside a selected task")
+    names = [task.task_id or source.name for task, source in zip(plan.tasks, sources, strict=True)]
     if len(set(names)) != len(names):
         raise ValueError("A release cannot contain duplicate task IDs")
     destination.parent.mkdir(parents=True, exist_ok=True)

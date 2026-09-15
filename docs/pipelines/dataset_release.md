@@ -31,8 +31,10 @@ A release plan is JSON. Paths refer to the local selected exports; evidence and
 costs must describe actual receipts, with missing evidence stated explicitly.
 An optional `task_id` selects the published directory name for delivery layouts
 such as `entries/<id>/<hash>/task/`. It must match the name in `[task]` and does
-not change any bundle contents or hashes. Ordinary exports use their directory
-name by default.
+not change any bundle contents or hashes. Ordinary exports use their resolved
+directory name by default, including when the selected path is `.`. Keep the
+staging destination outside every selected task directory; nested output is
+rejected before any directories are created.
 
 ```json
 {
