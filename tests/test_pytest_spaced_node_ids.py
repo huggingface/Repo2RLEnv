@@ -12,10 +12,8 @@ import pytest
 
 from repo2rlenv.log_parsers.pytest_parser import parse_pytest as parse_canonical_pytest
 from repo2rlenv.pipelines import _pr_runtime_verifier as runtime_verifier
-from repo2rlenv.pipelines._pr_runtime_verifier import (
-    grade,
-    parse_pytest as parse_runtime_pytest,
-)
+from repo2rlenv.pipelines._pr_runtime_verifier import grade
+from repo2rlenv.pipelines._pr_runtime_verifier import parse_pytest as parse_runtime_pytest
 
 
 @pytest.fixture(params=[parse_canonical_pytest, parse_runtime_pytest], ids=["canonical", "runtime"])
@@ -116,7 +114,7 @@ def test_distinct_parameters_and_last_write_wins(parser):
 
 
 def test_long_unrelated_status_heavy_line_is_ignored(parser):
-    log = (("noise PASSED FAILED SKIPPED ERROR " * 10_000) + "[100%]\n")
+    log = ("noise PASSED FAILED SKIPPED ERROR " * 10_000) + "[100%]\n"
     assert parser(log) == {}
 
 
@@ -185,16 +183,8 @@ def test_real_pytest_output_and_standalone_verifier(tmp_path: Path):
     assert parse_runtime_pytest(logs[0]) == pre
     assert parse_runtime_pytest(logs[1]) == post
 
-    f2p = [
-        name
-        for name, status in pre.items()
-        if status == "FAILED" and post.get(name) == "PASSED"
-    ]
-    p2p = [
-        name
-        for name, status in pre.items()
-        if status == "PASSED" and post.get(name) == "PASSED"
-    ]
+    f2p = [name for name, status in pre.items() if status == "FAILED" and post.get(name) == "PASSED"]
+    p2p = [name for name, status in pre.items() if status == "PASSED" and post.get(name) == "PASSED"]
 
     assert f2p == [f"test_calc.py::test_eval[{parameter}]" for parameter in parameters]
     assert p2p == ["test_calc.py::test_keep[keep passing]"]
