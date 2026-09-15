@@ -8,6 +8,6 @@ mkdocs-material>=9.5
 mkdocs-material-extensions>=1.3.1
 pymdown-extensions>=10.7
 mkdocs-minify-plugin>=0.8
-pygments>=2.17
+pygments>=2.21.0
 # mike (optional) for versioned docs. Uncomment when we start publishing per-release variants.
 # mike>=2.1

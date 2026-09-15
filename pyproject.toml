@@ -75,14 +75,14 @@ modal = [
     "dockerfile-parse==2.0.1",
 ]
 daytona = [
-    "daytona==0.198.0",
+    "daytona==0.211.2",
 ]
 mutation = [
     "libcst==1.9.0",
     "pyflakes>=3.4.0",
 ]
 harbor = [
-    "harbor==0.20.0",
+    "harbor==0.22.0",
 ]
 
 [build-system]
