@@ -194,11 +194,9 @@ harbor run \
   --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   --env docker -n 1
 
-# Example 3: a self-hosted judge. `vllm serve Qwen/Qwen3.5-4B --port 8000`
-# on the host, then route the verifier to it; ANTHROPIC_API_KEY is not
-# needed and is never sent there. host.docker.internal resolves to the
-# host on Docker Desktop; on a bare Linux daemon add
-# `--add-host=host.docker.internal:host-gateway` to the container run.
+# Example 3: a self-hosted judge. `vllm serve Qwen/Qwen3.5-4B --host 0.0.0.0
+# --port 8000` on the host, then route the verifier to it; ANTHROPIC_API_KEY
+# is not needed and is never sent there.
 harbor run \
   -p ./datasets/click-prdiff \
   -a claude-code -m anthropic/claude-sonnet-4-6 \
@@ -206,6 +204,9 @@ harbor run \
   --ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 \
   --ve R2E_JUDGE_MODEL=Qwen/Qwen3.5-4B \
   --env docker -n 1
+#   ^ host.docker.internal is a Docker Desktop name (macOS / Windows / WSL2).
+#     On a bare Linux daemon it does not resolve: use the host's LAN IP
+#     instead, e.g. --ve R2E_JUDGE_ENDPOINT=http://$(hostname -I | cut -d' ' -f1):8000/v1
 
 # Harbor ships 25+ agent harnesses you can swap in here:
 #   claude-code · openhands / openhands-sdk · codex · aider · gemini-cli

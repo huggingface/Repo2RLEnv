@@ -463,9 +463,11 @@ def _judge_config_from_env() -> tuple[str, str, str | None]:
 
     With ``R2E_JUDGE_ENDPOINT`` set, the key comes from ``R2E_JUDGE_API_KEY``
     (placeholder when unset) and ``ANTHROPIC_API_KEY`` is never forwarded to
-    the custom server; ``R2E_JUDGE_MODEL`` is then required (no default —
-    a self-hosted server won't have Haiku). Without an endpoint the default
-    Anthropic route is unchanged.
+    the custom server. ``R2E_JUDGE_MODEL`` has no default on that route (a
+    self-hosted server won't have Haiku): when unset, ``model`` comes back
+    as ``""`` and ``llm_judge`` reports ``no_judge_model`` instead of
+    calling out. Without an endpoint the default Anthropic route is
+    unchanged.
     """
     endpoint = os.environ.get("R2E_JUDGE_ENDPOINT", "").strip() or None
     model = os.environ.get("R2E_JUDGE_MODEL", "").strip()

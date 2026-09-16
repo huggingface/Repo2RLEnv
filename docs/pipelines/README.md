@@ -190,7 +190,9 @@ harbor run -p /tmp/pr-diff-click -a claude-code \
 # The verifier's LLM-judge uses Anthropic (Haiku) by default — pass
 # ANTHROPIC_API_KEY via `--ve` regardless of which agent you run — or
 # route it to a self-hosted model with
-# `--ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 --ve R2E_JUDGE_MODEL=<model>`.
+# `--ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 --ve R2E_JUDGE_MODEL=<model>`
+# (host.docker.internal is Docker Desktop only; on a bare Linux daemon use
+# the host's LAN IP, e.g. http://$(hostname -I | cut -d' ' -f1):8000/v1).
 
 # Publish
 repo2rlenv push /tmp/pr-diff-click <your-org>/<dataset-name>
