@@ -52,7 +52,7 @@ The verifier captures the agent's edits as a unified diff against `base_commit`,
 | `file_targeting` | [0, 1] | 0.12 | F1 over the changed-file sets (not Jaccard — missing an oracle file is worse than touching one extra). |
 | `region_overlap` | [0, 1] | 0.20 | For each oracle hunk, did the predicted diff edit a line within 5 lines of that hunk in the same file? Strongest spatial-localization signal. |
 | `similarity` | [0, 1] | 0.10 | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no free credit for unchanged context). |
-| `llm_judge` | [0, 1] or null | 0.50 | Haiku rates "does this patch logically address the issue described?" Most informative semantic signal. Null on missing API key / network error → remaining weights are re-normalized. |
+| `llm_judge` | [0, 1] or null | 0.50 | An LLM rates "does this patch logically address the issue described?" — Anthropic Haiku by default, or any OpenAI-compatible server (vLLM, Ollama, a gateway) via `R2E_JUDGE_ENDPOINT` + `R2E_JUDGE_MODEL`. Most informative semantic signal. Null on missing API key / network error → remaining weights are re-normalized. |
 
 Final reward is clipped to `[0, 1]`. A **catastrophic-size hard cap** clamps the final to ≤ 0.40 when `size_sanity < 0.10` — stops a charitable judge from inflating scores on patches that are wildly the wrong size.
 
@@ -171,8 +171,10 @@ repo2rlenv generate \
 harbor run -p ./datasets/click-prdiff -a oracle --env docker -n 1
 
 # Run it through harbor with a real agent.
-# The verifier's LLM judge also needs an API key — pass via --ve so it
-# reaches the verifier container (the --ae key only reaches the agent).
+# The verifier's LLM judge also needs credentials — pass via --ve so they
+# reach the verifier container (the --ae key only reaches the agent).
+# Default judge: Anthropic Haiku via ANTHROPIC_API_KEY. Self-hosted judge:
+# R2E_JUDGE_ENDPOINT + R2E_JUDGE_MODEL, no key needed (Example 3).
 
 # Example 1: claude-code + Sonnet 4.6 (what we used to verify the
 # reference dataset).
@@ -190,6 +192,19 @@ harbor run \
   -a openhands -m openai/gpt-4o \
   --ae OPENAI_API_KEY=$OPENAI_API_KEY \
   --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker -n 1
+
+# Example 3: a self-hosted judge. `vllm serve Qwen/Qwen3.5-4B --port 8000`
+# on the host, then route the verifier to it; ANTHROPIC_API_KEY is not
+# needed and is never sent there. host.docker.internal resolves to the
+# host on Docker Desktop; on a bare Linux daemon add
+# `--add-host=host.docker.internal:host-gateway` to the container run.
+harbor run \
+  -p ./datasets/click-prdiff \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 \
+  --ve R2E_JUDGE_MODEL=Qwen/Qwen3.5-4B \
   --env docker -n 1
 
 # Harbor ships 25+ agent harnesses you can swap in here:

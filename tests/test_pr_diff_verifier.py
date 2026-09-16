@@ -7,11 +7,13 @@ without spinning up Docker.
 
 from __future__ import annotations
 
+import json
 from unittest import mock
 
 import pytest
 
 from repo2rlenv.pipelines._pr_diff_verifier import (
+    _judge_config_from_env,
     _normalize_changes_only,
     combine,
     file_paths,
@@ -294,6 +296,160 @@ def test_llm_judge_clamps_out_of_range_score() -> None:
         score, status = llm_judge(instruction="i", oracle="o", predicted="p", api_key="sk-test")
     assert score == 1.0
     assert status == "ok"
+
+
+# ---------------------------------------------------------------------------
+# llm_judge — routing: Anthropic by default, OpenAI-compatible via endpoint
+# ---------------------------------------------------------------------------
+
+
+_ENDPOINT = "http://127.0.0.1:8000/v1"
+_OPENAI_STYLE_OK = (
+    b'{"choices": [{"message": {"role": "assistant", '
+    b'"content": "{\\"score\\": 0.6, \\"reasoning\\": \\"ok\\"}"}}]}'
+)
+
+
+def _judge_via(endpoint, response: bytes, **kw):
+    """Run llm_judge with urlopen mocked; return (score, status, Request)."""
+    with mock.patch("urllib.request.urlopen") as m:
+        m.return_value.__enter__.return_value.read.return_value = response
+        score, status = llm_judge(
+            instruction="i",
+            oracle="diff --git a/x b/x\n",
+            predicted="diff --git a/x b/x\n+fix\n",
+            api_key=kw.pop("api_key", "EMPTY"),
+            endpoint=endpoint,
+            **kw,
+        )
+        req = m.call_args.args[0]
+    return score, status, req
+
+
+def test_llm_judge_default_route_is_anthropic() -> None:
+    fake = b'{"content": [{"text": "{\\"score\\": 0.5}"}]}'
+    score, status, req = _judge_via(None, fake, api_key="sk-ant", model="claude-x")
+    assert status == "ok" and score == pytest.approx(0.5)
+    assert req.full_url == "https://api.anthropic.com/v1/messages"
+    assert req.get_header("X-api-key") == "sk-ant"
+    assert req.get_header("Authorization") is None
+    assert "temperature" not in json.loads(req.data)  # default route untouched
+
+
+def test_llm_judge_endpoint_uses_openai_compatible_route() -> None:
+    score, status, req = _judge_via(_ENDPOINT, _OPENAI_STYLE_OK, model="Qwen/Qwen3.5-4B")
+    assert status == "ok" and score == pytest.approx(0.6)
+    assert req.full_url == _ENDPOINT + "/chat/completions"
+    assert req.get_header("Authorization") == "Bearer EMPTY"
+    assert req.get_header("X-api-key") is None
+    body = json.loads(req.data)
+    assert body["model"] == "Qwen/Qwen3.5-4B"
+    assert body["messages"][0]["role"] == "user"
+    assert body["temperature"] == 0  # greedy: small local judges are noisy otherwise
+
+
+def test_llm_judge_endpoint_trailing_slash_and_explicit_key() -> None:
+    _, status, req = _judge_via(_ENDPOINT + "/", _OPENAI_STYLE_OK, api_key="srv", model="m")
+    assert status == "ok"
+    assert req.full_url == _ENDPOINT + "/chat/completions"
+    assert req.get_header("Authorization") == "Bearer srv"
+
+
+def test_llm_judge_endpoint_requires_model() -> None:
+    score, status = llm_judge(
+        instruction="i", oracle="o", predicted="p", api_key="EMPTY", model="", endpoint=_ENDPOINT
+    )
+    assert score is None
+    assert status == "no_judge_model"
+
+
+def test_llm_judge_endpoint_anthropic_shaped_reply_is_parse_error() -> None:
+    """A server answering in Anthropic's shape on the OpenAI route is a parse failure, not a crash."""
+    anthropic_shaped = b'{"content": [{"text": "{\\"score\\": 0.9}"}]}'
+    score, status, _ = _judge_via(_ENDPOINT, anthropic_shaped, model="m")
+    assert score is None
+    assert status == "parse"
+
+
+def test_llm_judge_endpoint_null_content_is_parse_error() -> None:
+    """Thinking-mode servers can return content=null with the text elsewhere."""
+    null_content = b'{"choices": [{"message": {"content": null, "reasoning_content": "..."}}]}'
+    score, status, _ = _judge_via(_ENDPOINT, null_content, model="m")
+    assert score is None
+    assert status == "parse"
+
+
+def test_llm_judge_endpoint_network_error() -> None:
+    import urllib.error
+
+    with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+        score, status = llm_judge(
+            instruction="i",
+            oracle="o",
+            predicted="p",
+            api_key="EMPTY",
+            model="m",
+            endpoint=_ENDPOINT,
+        )
+    assert score is None
+    assert status == "network"
+
+
+# ---------------------------------------------------------------------------
+# _judge_config_from_env — what main() hands to llm_judge
+# ---------------------------------------------------------------------------
+
+
+_JUDGE_VARS = ("ANTHROPIC_API_KEY", "R2E_JUDGE_MODEL", "R2E_JUDGE_ENDPOINT", "R2E_JUDGE_API_KEY")
+
+
+def _env(monkeypatch: pytest.MonkeyPatch, **values: str) -> None:
+    for name in _JUDGE_VARS:
+        monkeypatch.delenv(name, raising=False)
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_judge_config_default_route_no_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    _env(monkeypatch)
+    assert _judge_config_from_env() == ("", "claude-haiku-4-5-20251001", None)
+
+
+def test_judge_config_default_route_with_key_and_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    _env(monkeypatch, ANTHROPIC_API_KEY=" sk-ant ", R2E_JUDGE_MODEL="claude-x")
+    assert _judge_config_from_env() == ("sk-ant", "claude-x", None)
+
+
+def test_judge_config_endpoint_withholds_anthropic_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    _env(
+        monkeypatch,
+        ANTHROPIC_API_KEY="sk-ant",
+        R2E_JUDGE_ENDPOINT=_ENDPOINT,
+        R2E_JUDGE_MODEL="Qwen/Qwen3.5-4B",
+    )
+    api_key, model, endpoint = _judge_config_from_env()
+    assert api_key == "EMPTY"
+    assert (model, endpoint) == ("Qwen/Qwen3.5-4B", _ENDPOINT)
+
+
+def test_judge_config_endpoint_explicit_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    _env(monkeypatch, R2E_JUDGE_ENDPOINT=_ENDPOINT, R2E_JUDGE_MODEL="m", R2E_JUDGE_API_KEY="srv")
+    assert _judge_config_from_env() == ("srv", "m", _ENDPOINT)
+
+
+def test_judge_config_endpoint_without_model_has_no_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _env(monkeypatch, R2E_JUDGE_ENDPOINT=_ENDPOINT)
+    api_key, model, endpoint = _judge_config_from_env()
+    assert api_key == "EMPTY"
+    assert model == ""  # llm_judge turns this into status "no_judge_model"
+    assert endpoint == _ENDPOINT
+
+
+def test_judge_config_blank_endpoint_means_default_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    _env(monkeypatch, R2E_JUDGE_ENDPOINT="  ", ANTHROPIC_API_KEY="sk-ant")
+    assert _judge_config_from_env() == ("sk-ant", "claude-haiku-4-5-20251001", None)
 
 
 # ---------------------------------------------------------------------------

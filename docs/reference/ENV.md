@@ -81,8 +81,10 @@ The diff-similarity verifier baked into every `pr_diff` task is configurable at 
 | `R2E_W_REGION` | Weight for the *region overlap* component. | wired in source |
 | `R2E_W_SIM` | Weight for the *changes-only similarity* component. | wired in source |
 | `R2E_W_JUDGE` | Weight for the *LLM-as-judge* semantic-correctness component. | wired in source |
-| `R2E_JUDGE_MODEL` | Override the judge model (LiteLLM-qualified name). | claude-haiku |
-| `ANTHROPIC_API_KEY` | Required for the LLM-judge component; the verifier degrades gracefully (records `status=no_api_key`) when unset, so the other five components still score. |
+| `R2E_JUDGE_MODEL` | The judge model, as the serving API names it (a bare model id, not a LiteLLM `provider/model` string — the verifier is stdlib-only and does not go through LiteLLM). Required when `R2E_JUDGE_ENDPOINT` is set. | `claude-haiku-4-5-20251001` |
+| `R2E_JUDGE_ENDPOINT` | Base URL of an OpenAI-compatible server to use as the judge instead of Anthropic — vLLM, Ollama, llama.cpp, a gateway. The verifier posts to `<endpoint>/chat/completions` at temperature 0 (small local models are noisy judges at their default sampling temperature). From inside the verifier container a model on the host is typically `http://host.docker.internal:8000/v1`. | unset (Anthropic) |
+| `R2E_JUDGE_API_KEY` | Bearer token sent to `R2E_JUDGE_ENDPOINT`. Optional: self-hosted servers ignore it, so a placeholder is sent when unset. `ANTHROPIC_API_KEY` is never forwarded to a custom endpoint. | unset |
+| `ANTHROPIC_API_KEY` | Required for the LLM-judge component on the default Anthropic route; the verifier degrades gracefully (records `judge_status=no_api_key`) when unset, so the other five components still score. Ignored when `R2E_JUDGE_ENDPOINT` is set. |
 
 ## UI / logging
 

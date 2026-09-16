@@ -60,7 +60,7 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
 
 ## LLM use
 
-- **`at verify` (per scoring)** — one Anthropic Haiku call per agent invocation, weight 0.50. Graceful degradation on missing API key: `judge_status=no_api_key`, other 5 components renormalize.
+- **`at verify` (per scoring)** — one judge call per agent invocation (Anthropic Haiku by default; any OpenAI-compatible server via `R2E_JUDGE_ENDPOINT`), weight 0.50. Graceful degradation on missing API key: `judge_status=no_api_key`, other 5 components renormalize.
 - **No bootstrap LLM** — the thin env doesn't need it.
 - **Cost order-of-magnitude** — ~$0.001-$0.005 per scoring call. A 100-agent-run × 100-task eval ≈ $10-50.
 
@@ -72,7 +72,7 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
 ## Dependencies
 
 - No reuse; `pr_diff` is the *base* pipeline. Later pipelines borrow its Dockerfile-baking + verifier pattern.
-- Stdlib + `difflib`. LLM judge via LiteLLM.
+- Stdlib + `difflib`. LLM judge via `urllib` (the verifier is baked into the image and stays stdlib-only — it does not go through LiteLLM).
 
 ## Alternatives considered
 

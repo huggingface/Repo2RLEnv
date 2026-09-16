@@ -351,3 +351,21 @@ def test_dockerfile_supports_private_repo_build_arg() -> None:
     assert "remote set-url origin https://github.com/myorg/private-repo.git" in df
     # The token itself must never appear literally baked anywhere.
     assert "ghp_" not in df
+
+
+def test_verifier_source_is_stdlib_only() -> None:
+    """The verifier is baked into a bare python:3.12-slim image — nothing but stdlib may be imported."""
+    import ast
+    import sys
+
+    from repo2rlenv.pipelines.pr_diff import _verifier_source
+
+    tree = ast.parse(_verifier_source())
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            imported.add(node.module.split(".")[0])
+    non_stdlib = sorted(imported - sys.stdlib_module_names)
+    assert non_stdlib == [], f"verifier imports non-stdlib modules: {non_stdlib}"

@@ -186,8 +186,8 @@ def build_pr_diff_environment_dockerfile(
     No bootstrap LLM agent — just python:3.12-slim + git + the repo checked
     out at ``base_commit``. The oracle diff, the instruction, AND the
     verifier source are all base64-baked into the image so the verifier
-    runs offline with only the Anthropic API call (for the LLM judge) as
-    its outbound dep.
+    runs offline with only the LLM-judge call (Anthropic by default, or
+    the server named by ``R2E_JUDGE_ENDPOINT``) as its outbound dep.
 
     The clone uses an optional ``GITHUB_TOKEN`` or ``GITLAB_TOKEN`` build
     arg, selected by host. Public repos need no arg. The authenticated

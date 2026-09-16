@@ -147,7 +147,7 @@ default/<repo>__<pr_number>/
 | `file_targeting` | 0.12 | F1 over the changed-file sets (not Jaccard — F1 properly credits TP) |
 | `region_overlap` | 0.20 | Predicted hunks overlap oracle hunks (5-line slack) |
 | `similarity` | 0.10 | `SequenceMatcher` over `+`/`-` lines only (no free credit for context) |
-| `llm_judge` | 0.50 | Haiku 4.5 rates semantic correctness; graceful degradation on missing API key |
+| `llm_judge` | 0.50 | An LLM rates semantic correctness — Haiku 4.5 by default, or a self-hosted model via `R2E_JUDGE_ENDPOINT`; graceful degradation on missing API key |
 
 Plus a **catastrophic-size hard cap**: clamps reward to ≤ 0.40 when `size_sanity < 0.10`, so a charitable judge can't inflate scores on patches that are wildly the wrong size.
 
@@ -187,8 +187,10 @@ harbor run -p /tmp/pr-diff-click -a claude-code \
 #   -a qwen-coder         -m qwen/qwen3-coder
 #   -a copilot-cli        (uses GH_TOKEN)
 #   -a mini-swe-agent · swe-agent · cursor-cli · kimi-cli · goose · ...
-# The verifier's LLM-judge always uses Anthropic (Haiku) — pass
-# ANTHROPIC_API_KEY via `--ve` regardless of which agent you run.
+# The verifier's LLM-judge uses Anthropic (Haiku) by default — pass
+# ANTHROPIC_API_KEY via `--ve` regardless of which agent you run — or
+# route it to a self-hosted model with
+# `--ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 --ve R2E_JUDGE_MODEL=<model>`.
 
 # Publish
 repo2rlenv push /tmp/pr-diff-click <your-org>/<dataset-name>

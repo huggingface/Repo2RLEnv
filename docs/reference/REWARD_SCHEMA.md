@@ -41,7 +41,8 @@ full breakdown for analysis, filtering, and debugging.
     "similarity":     0.10,
     "llm_judge":      0.50
   },
-  "judge_model":  "anthropic/claude-haiku-4-5-20251001",
+  "judge_model":  "claude-haiku-4-5-20251001",
+  "judge_endpoint": null,
   "judge_status": "ok",
   "capped":       false
 }
@@ -59,12 +60,15 @@ full breakdown for analysis, filtering, and debugging.
 | `components.similarity` | [0, 1] | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no credit for context lines). |
 | `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` when disabled or API key absent — weight redistributed to remaining components. |
 | `weights` | object | Effective per-component weights (overridable via `R2E_W_*` env vars). |
-| `judge_model` | string or `null` | Model used for `llm_judge`, or `null` if judge was skipped. |
-| `judge_status` | string | `"ok"` \| `"no_api_key"` \| `"error"` \| `"timeout"` |
+| `judge_model` | string or `null` | Model used for `llm_judge` as the serving API names it (e.g. `claude-haiku-4-5-20251001`, `Qwen/Qwen3.5-4B`), or `null` if the judge did not score. |
+| `judge_endpoint` | string or `null` | The OpenAI-compatible server the judge was routed to (`R2E_JUDGE_ENDPOINT`), or `null` on the default Anthropic route. |
+| `judge_status` | string | `"ok"` \| `"no_api_key"` \| `"no_judge_model"` \| `"empty_predicted"` \| `"network"` \| `"parse"` \| `"missing_score"` |
 | `capped` | bool | `true` if the hard size-sanity cap was applied (`reward` forced to ≤ 0.40). |
 
 **Weight override env vars** (set inside the verifier container via `--ve`):
 `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM`, `R2E_W_JUDGE`
+
+**Judge routing env vars** (also via `--ve`): `R2E_JUDGE_MODEL`, `R2E_JUDGE_ENDPOINT`, `R2E_JUDGE_API_KEY` — see [`ENV.md`](./ENV.md#pr_diff-reward-tuning).
 
 ---
 

@@ -17,7 +17,9 @@ Reward = weighted sum of 6 components (5 deterministic + 1 optional LLM):
                                   (strongest spatial-localization signal)
   similarity      ([0, 1])      — SequenceMatcher ratio over +/- lines only
                                   (no free credit for context lines)
-  llm_judge       ([0, 1] or null) — Haiku rates "does this address the issue?"
+  llm_judge       ([0, 1] or null) — an LLM rates "does this address the issue?"
+                                     Anthropic Haiku by default; any OpenAI-
+                                     compatible server via ``R2E_JUDGE_ENDPOINT``.
                                      null on API failure / missing key →
                                      remaining weights are re-normalized
 
@@ -28,6 +30,14 @@ Override per-task via ``task.toml.metadata`` or per-run via env vars
 ``R2E_W_FORMAT`` / ``R2E_W_SIZE`` / ``R2E_W_FILE`` / ``R2E_W_REGION`` /
 ``R2E_W_SIM`` / ``R2E_W_JUDGE`` (pass via harbor ``--ve`` so they
 reach the verifier container).
+
+Judge routing, also via ``--ve``: ``R2E_JUDGE_MODEL`` picks the model
+(default Haiku); ``R2E_JUDGE_ENDPOINT`` points at an OpenAI-compatible
+server (vLLM, Ollama, a gateway) and switches the request to
+``<endpoint>/chat/completions`` with a bearer token from
+``R2E_JUDGE_API_KEY`` — or a placeholder when unset, since self-hosted
+servers ignore it. ``ANTHROPIC_API_KEY`` is only read on the default
+route and is never sent to a custom endpoint.
 
 Final reward is clipped to [0, 1] and additionally clamped to ≤ 0.40
 when ``size_sanity < 0.10`` (catastrophic-size hard cap — stops a
@@ -268,6 +278,10 @@ _JUDGE_PROMPT = (
 
 
 _DEFAULT_JUDGE_MODEL = "claude-haiku-4-5-20251001"
+_ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+# Bearer token for a self-hosted judge when R2E_JUDGE_API_KEY is unset. vLLM /
+# Ollama ignore it; the OpenAI wire format still wants one. Same value llm.py uses.
+_PLACEHOLDER_API_KEY = "EMPTY"
 
 
 def llm_judge(
@@ -278,17 +292,25 @@ def llm_judge(
     api_key: str,
     model: str = _DEFAULT_JUDGE_MODEL,
     timeout: int = 60,
+    endpoint: str | None = None,
 ) -> tuple[float | None, str]:
     """Return ``(score, status)``.
 
     ``score`` is a float in [0, 1] on success, ``None`` on failure.
     ``status`` is a short string: ``"ok"`` / ``"no_api_key"`` /
-    ``"empty_predicted"`` / ``"network"`` / ``"parse"`` /
-    ``"missing_score"``. Caller redistributes the judge weight if score
-    is None.
+    ``"no_judge_model"`` / ``"empty_predicted"`` / ``"network"`` /
+    ``"parse"`` / ``"missing_score"``. Caller redistributes the judge
+    weight if score is None.
+
+    ``endpoint`` — base URL of an OpenAI-compatible server. When set, the
+    request goes to ``<endpoint>/chat/completions`` with ``api_key`` as a
+    bearer token, at temperature 0, and ``model`` must be given explicitly;
+    otherwise it goes to Anthropic's Messages API unchanged.
     """
     if not api_key:
         return None, "no_api_key"
+    if endpoint and not model:
+        return None, "no_judge_model"
     if not predicted.strip():
         return 0.0, "empty_predicted"
 
@@ -298,23 +320,31 @@ def llm_judge(
         oracle=oracle[:4000],
         predicted=predicted[:4000],
     )
-    body = json.dumps(
-        {
-            "model": model,
-            "max_tokens": 200,
-            "messages": [{"role": "user", "content": prompt}],
+    payload: dict = {
+        "model": model,
+        "max_tokens": 200,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if endpoint:
+        # Small self-hosted models are noisy judges at their default sampling
+        # temperature (same input scoring 0.0 one call and 1.0 the next); pin
+        # them to greedy. The Anthropic route keeps its defaults — the weights
+        # were calibrated against them.
+        payload["temperature"] = 0
+        url = endpoint.rstrip("/") + "/chat/completions"
+        headers = {
+            "authorization": f"Bearer {api_key}",
+            "content-type": "application/json",
         }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=body,
-        headers={
+    else:
+        url = _ANTHROPIC_MESSAGES_URL
+        headers = {
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
-        },
-        method="POST",
-    )
+        }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
@@ -323,7 +353,12 @@ def llm_judge(
 
     try:
         payload = json.loads(raw)
-        text = payload["content"][0]["text"]
+        if endpoint:
+            text = payload["choices"][0]["message"]["content"]
+        else:
+            text = payload["content"][0]["text"]
+        if not isinstance(text, str):
+            raise TypeError("judge response text is not a string")
     except (json.JSONDecodeError, KeyError, IndexError, TypeError):
         return None, "parse"
 
@@ -423,6 +458,23 @@ def _read_weights_from_env() -> dict[str, float]:
     return out
 
 
+def _judge_config_from_env() -> tuple[str, str, str | None]:
+    """``(api_key, model, endpoint)`` for the judge, from the verifier env.
+
+    With ``R2E_JUDGE_ENDPOINT`` set, the key comes from ``R2E_JUDGE_API_KEY``
+    (placeholder when unset) and ``ANTHROPIC_API_KEY`` is never forwarded to
+    the custom server; ``R2E_JUDGE_MODEL`` is then required (no default —
+    a self-hosted server won't have Haiku). Without an endpoint the default
+    Anthropic route is unchanged.
+    """
+    endpoint = os.environ.get("R2E_JUDGE_ENDPOINT", "").strip() or None
+    model = os.environ.get("R2E_JUDGE_MODEL", "").strip()
+    if endpoint:
+        api_key = os.environ.get("R2E_JUDGE_API_KEY", "").strip() or _PLACEHOLDER_API_KEY
+        return api_key, model, endpoint
+    return os.environ.get("ANTHROPIC_API_KEY", "").strip(), model or _DEFAULT_JUDGE_MODEL, None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if len(args) < 3:
@@ -435,8 +487,7 @@ def main(argv: list[str] | None = None) -> int:
     oracle = _read_or_empty(args[0])
     predicted = _read_or_empty(args[1])
     instruction = _read_or_empty(args[2])
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    judge_model = os.environ.get("R2E_JUDGE_MODEL", _DEFAULT_JUDGE_MODEL)
+    api_key, judge_model, judge_endpoint = _judge_config_from_env()
 
     fv = format_valid(predicted)
     ss = size_sanity(oracle, predicted)
@@ -449,6 +500,7 @@ def main(argv: list[str] | None = None) -> int:
         predicted=predicted,
         api_key=api_key,
         model=judge_model,
+        endpoint=judge_endpoint,
     )
 
     components: dict[str, float | None] = {
@@ -476,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
         "components": {k: (None if v is None else round(v, 6)) for k, v in components.items()},
         "weights": {k: round(v, 6) for k, v in weights.items()},
         "judge_model": judge_model if judge_status == "ok" else None,
+        "judge_endpoint": judge_endpoint,
         "judge_status": judge_status,
     }
 
