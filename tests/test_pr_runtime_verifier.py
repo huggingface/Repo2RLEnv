@@ -130,6 +130,41 @@ def test_grade_untracked_failure_keeps_tracked_resolved():
     assert r["untracked_failed"] == ["tests/other::cp1252"]
 
 
+def test_grade_go_subtests_do_not_count_when_parent_passes():
+    """Go subtest failures under a passing parent remain untracked."""
+    r = grade(
+        [],
+        [],
+        {
+            "TestExample": "PASSED",
+            "TestExample/subtest1": "FAILED",
+            "TestExample/subtest2": "FAILED",
+        },
+        runner="go",
+    )
+    assert r["untracked_failed_count"] == 2
+    assert r["untracked_failed"] == [
+        "TestExample/subtest1",
+        "TestExample/subtest2",
+    ]
+
+def test_grade_go_subtests_count_parent_failure_once():
+    """Go subtests under a failed parent are represented by the parent failure."""
+    r = grade(
+        [],
+        [],
+        {
+            "TestExample": "FAILED",
+            "TestExample/subtest1": "FAILED",
+            "TestExample/subtest2": "FAILED",
+        },
+        runner="go",
+    )
+
+    assert r["untracked_failed_count"] == 1
+    assert r["untracked_failed"] == ["TestExample"]
+
+
 def test_grade_no_untracked_failure_resolves():
     r = grade(["f1"], ["keep"], {"f1": "PASSED", "keep": "PASSED"})
     assert r["resolved"] is True
@@ -176,6 +211,47 @@ def test_main_writes_graded_reward(tmp_path: Path):
     assert breakdown["command_resolved"] is True  # clean command, exit 0
     assert breakdown["parse_status"] == "ok"
     assert breakdown["exit_code"] == 0  # always recorded, not just in fallback
+
+
+def test_main_go_subtest_failure_under_passing_parent_is_untracked(tmp_path: Path):
+    """Go subtest failures under a passing parent remain untracked."""
+    log = _write(
+        tmp_path / "out.log",
+        """--- PASS: TestTracked (0.01s)
+    --- PASS: TestExample (0.01s)
+        --- FAIL: TestExample/subtest1 (0.00s)
+        --- FAIL: TestExample/subtest2 (0.00s)
+    """,
+    )
+    f2p = _write(tmp_path / "f2p.json", json.dumps(["TestTracked"]))
+    p2p = _write(tmp_path / "p2p.json", json.dumps([]))
+    out_dir = tmp_path / "verifier"
+
+    main(
+        [
+            "--log",
+            log,
+            "--f2p",
+            f2p,
+            "--p2p",
+            p2p,
+            "--runner",
+            "go",
+            "--exit-code",
+            "0",
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    breakdown = json.loads((out_dir / "reward-details.json").read_text())
+    assert breakdown["f2p_passed"] == 1
+    assert breakdown["untracked_failed_count"] == 2
+    assert breakdown["untracked_failed"] == [
+        "TestExample/subtest1",
+        "TestExample/subtest2",
+    ]
+    assert breakdown["command_resolved"] is False
 
 
 def test_main_command_resolved_false_on_untracked_failure(tmp_path: Path):
