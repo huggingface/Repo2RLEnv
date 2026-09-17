@@ -139,19 +139,37 @@ def parse_go_test(log: str) -> dict[str, str]:
     return out
 
 
-_CARGO_TEST_RE = re.compile(r"^test\s+(?P<name>\S+)\s+\.\.\.\s+(?P<status>ok|FAILED|ignored)\b")
+# Keep these patterns in sync with log_parsers/cargo_parser.py.
+_CARGO_TEST_RE = re.compile(r"^test\s+(?P<name>\S.*?) \.\.\. (?P<status>ok|FAILED|ignored)\b")
+_CARGO_MODE_RE = re.compile(r" - (?:should panic|compile fail|compile)$")
+_CARGO_DOCTEST_RE = re.compile(r"^(?P<file>\S+) - (?:(?P<item>.+?) )?\(line \d+\)$")
 _CARGO_STATUS = {"ok": PASSED, "FAILED": FAILED, "ignored": SKIPPED}
+_CARGO_DOCTEST_RANK = {SKIPPED: 0, PASSED: 1, FAILED: 2}
 
 
 def parse_cargo_test(log: str) -> dict[str, str]:
-    """{test_name -> status} from `cargo test` output."""
+    """{test_name -> status} from `cargo test` output.
+
+    Test modes (` - should panic`) are dropped from names, and doctests are
+    keyed without their `(line N)` so line shifts don't change identity; the
+    worst status among an item's doctests wins.
+    """
     out: dict[str, str] = {}
     if not log:
         return out
     for raw in log.split("\n"):
         m = _CARGO_TEST_RE.match(raw)
-        if m:
-            out[m.group("name")] = _CARGO_STATUS[m.group("status")]
+        if not m:
+            continue
+        name = _CARGO_MODE_RE.sub("", m.group("name")).rstrip()
+        status = _CARGO_STATUS[m.group("status")]
+        doctest = _CARGO_DOCTEST_RE.match(name)
+        if doctest:
+            item = doctest.group("item")
+            name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
+            if name in out and _CARGO_DOCTEST_RANK[out[name]] > _CARGO_DOCTEST_RANK[status]:
+                continue
+        out[name] = status
     return out
 
 
