@@ -77,3 +77,29 @@ def test_partial_match_scores_in_between():
     b = SAMPLE_DIFF.replace("hello, world", "goodbye")
     reward, _ = calculate_diff_similarity_reward(a, b)
     assert 0.5 < reward < 1.0
+
+
+def test_normalization_ignores_git_extended_headers_and_mode_changes():
+    """Diffs that differ only in file modes or extended git headers should score 1.0."""
+    oracle = """diff --git a/script.py b/script.py
+new file mode 100755
+index 0000000..abcdef1
+--- /dev/null
++++ b/script.py
+@@ -0,0 +1,2 @@
++#!/usr/bin/env python3
++print("run")
+\\ No newline at end of file
+"""
+    predicted = """diff --git a/script.py b/script.py
+index 0000000..abcdef1
+--- /dev/null
++++ b/script.py
+@@ -0,0 +1,2 @@
++#!/usr/bin/env python3
++print("run")
+"""
+    reward, meta = calculate_diff_similarity_reward(oracle, predicted)
+    assert reward == 1.0
+    assert meta.parse_error is None
+

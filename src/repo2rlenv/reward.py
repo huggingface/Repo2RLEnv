@@ -31,6 +31,10 @@ _HUNK_HEADER_RE = re.compile(r"^@@.*@@")
 _FILE_HEADER_RE = re.compile(r"^(?:---|\+\+\+) ")
 _INDEX_LINE_RE = re.compile(r"^index ")
 _DIFF_GIT_RE = re.compile(r"^diff --git ")
+_GIT_EXTENDED_HEADER_RE = re.compile(
+    r"^(?:new file mode|deleted file mode|old mode|new mode|similarity index|copy from|copy to|rename from|rename to|dissimilarity index)\b"
+)
+_NO_NEWLINE_RE = re.compile(r"^\\ No newline at end of file")
 
 
 @dataclass(slots=True)
@@ -49,6 +53,10 @@ def _normalize_diff(diff: str) -> list[str]:
         if _DIFF_GIT_RE.match(line):
             continue
         if _INDEX_LINE_RE.match(line):
+            continue
+        if _GIT_EXTENDED_HEADER_RE.match(line):
+            continue
+        if _NO_NEWLINE_RE.match(line):
             continue
         if _HUNK_HEADER_RE.match(line):
             lines.append("@@")  # keep as a separator but drop line numbers
