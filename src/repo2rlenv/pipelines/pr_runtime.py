@@ -629,9 +629,12 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
       cargo test:
         - Default output is already parseable; no transform needed
-      jest / npm test:
+      jest / mocha / npm test:
         - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
         - Some configs swallow stdout via `--silent`; we strip that
+      vitest:
+        - Use `--reporter=verbose` instead: vitest rejects `--verbose`, and its
+          default reporter collapses fully passing files to one summary line
     """
     out: list[str] = []
     for cmd in test_cmds:
@@ -674,9 +677,14 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         # --- jest / npm test / yarn test / pnpm test ---
         elif re.search(r"\b(?:jest|mocha|vitest|npm\s+test|yarn\s+test|pnpm\s+test)\b", cleaned):
             cleaned = re.sub(r"\s+--silent\b", "", cleaned)
-            # Add --verbose if the cmd is the runner itself (skip wrappers
-            # where flags need to go after `--`)
-            if re.search(r"\b(?:jest|mocha|vitest)\b", cleaned) and not re.search(
+            # Add a per-test reporter if the cmd is the runner itself (skip
+            # wrappers where flags need to go after `--`)
+            if re.search(r"\bvitest\b", cleaned):
+                # `vitest --verbose` exits with `CACError: Unknown option`.
+                cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
+                if not re.search(r"\s--reporter\b", cleaned):
+                    cleaned = cleaned.rstrip() + " --reporter=verbose"
+            elif re.search(r"\b(?:jest|mocha)\b", cleaned) and not re.search(
                 r"\s--verbose\b|\s--reporter\b", cleaned
             ):
                 cleaned = cleaned.rstrip() + " --verbose"
