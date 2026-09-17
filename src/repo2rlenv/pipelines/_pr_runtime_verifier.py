@@ -244,7 +244,7 @@ def _has_go_parent(name: str, status_map: dict[str, str]) -> bool:
 
     for i in range(1, len(parts)):
         parent = "/".join(parts[:i])
-        if parent in status_map:
+        if status_map.get(parent) == FAILED:
             return True
 
     return False

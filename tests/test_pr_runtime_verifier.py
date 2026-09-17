@@ -131,7 +131,7 @@ def test_grade_untracked_failure_keeps_tracked_resolved():
 
 
 def test_grade_go_subtests_do_not_count_when_parent_passes():
-    """Go subtest failures under a passing parent do not block command resolution."""
+    """Go subtest failures under a passing parent remain untracked."""
     r = grade(
         [],
         [],
@@ -142,10 +142,11 @@ def test_grade_go_subtests_do_not_count_when_parent_passes():
         },
         runner="go",
     )
-
-    assert r["untracked_failed_count"] == 0
-    assert r["untracked_failed"] == []
-
+    assert r["untracked_failed_count"] == 2
+    assert r["untracked_failed"] == [
+        "TestExample/subtest1",
+        "TestExample/subtest2",
+    ]
 
 def test_grade_go_subtests_count_parent_failure_once():
     """Go subtests under a failed parent are represented by the parent failure."""
@@ -212,8 +213,8 @@ def test_main_writes_graded_reward(tmp_path: Path):
     assert breakdown["exit_code"] == 0  # always recorded, not just in fallback
 
 
-def test_main_go_subtest_failure_under_passing_parent_is_not_untracked(tmp_path: Path):
-    """Go subtest failures under a passing parent should not be counted separately."""
+def test_main_go_subtest_failure_under_passing_parent_is_untracked(tmp_path: Path):
+    """Go subtest failures under a passing parent remain untracked."""
     log = _write(
         tmp_path / "out.log",
         """--- PASS: TestTracked (0.01s)
@@ -245,9 +246,12 @@ def test_main_go_subtest_failure_under_passing_parent_is_not_untracked(tmp_path:
 
     breakdown = json.loads((out_dir / "reward-details.json").read_text())
     assert breakdown["f2p_passed"] == 1
-    assert breakdown["untracked_failed_count"] == 0
-    assert breakdown["untracked_failed"] == []
-    assert breakdown["command_resolved"] is True
+    assert breakdown["untracked_failed_count"] == 2
+    assert breakdown["untracked_failed"] == [
+        "TestExample/subtest1",
+        "TestExample/subtest2",
+    ]
+    assert breakdown["command_resolved"] is False
 
 
 def test_main_command_resolved_false_on_untracked_failure(tmp_path: Path):
