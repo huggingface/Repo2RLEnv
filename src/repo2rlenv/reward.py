@@ -31,8 +31,9 @@ _HUNK_HEADER_RE = re.compile(r"^@@.*@@")
 _FILE_HEADER_RE = re.compile(r"^(?:---|\+\+\+) ")
 _INDEX_LINE_RE = re.compile(r"^index ")
 _DIFF_GIT_RE = re.compile(r"^diff --git ")
-_GIT_EXTENDED_HEADER_RE = re.compile(
-    r"^(?:new file mode|deleted file mode|old mode|new mode|similarity index|copy from|copy to|rename from|rename to|dissimilarity index)\b"
+_SIMILARITY_LINE_RE = re.compile(r"^(?:similarity index|dissimilarity index)\b")
+_MODE_OR_RENAME_RE = re.compile(
+    r"^(?:old mode|new mode|new file mode|deleted file mode|copy from|copy to|rename from|rename to)\b"
 )
 _NO_NEWLINE_RE = re.compile(r"^\\ No newline at end of file")
 
@@ -46,26 +47,54 @@ class DiffRewardMetadata:
     parse_error: str | None = None
 
 
-def _normalize_diff(diff: str) -> list[str]:
-    """Strip volatile metadata (hunk line numbers, indices, file headers context)."""
-    lines: list[str] = []
+def _split_diff_sections(diff: str) -> list[list[str]]:
+    sections: list[list[str]] = []
+    current: list[str] = []
     for line in diff.splitlines():
         if _DIFF_GIT_RE.match(line):
-            continue
-        if _INDEX_LINE_RE.match(line):
-            continue
-        if _GIT_EXTENDED_HEADER_RE.match(line):
-            continue
-        if _NO_NEWLINE_RE.match(line):
-            continue
-        if _HUNK_HEADER_RE.match(line):
-            lines.append("@@")  # keep as a separator but drop line numbers
-            continue
-        if _FILE_HEADER_RE.match(line):
-            # Keep filename markers but normalize whitespace
-            lines.append(line.split("\t")[0].strip())
-            continue
-        lines.append(line)
+            if current:
+                sections.append(current)
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        sections.append(current)
+    return sections
+
+
+def _normalize_diff(diff: str) -> list[str]:
+    """Strip volatile metadata while preserving mode-only and rename-only changes."""
+    lines: list[str] = []
+    for section in _split_diff_sections(diff):
+        has_hunks = any(_HUNK_HEADER_RE.match(line) for line in section)
+        has_file_headers = any(_FILE_HEADER_RE.match(line) for line in section)
+
+        for line in section:
+            if _DIFF_GIT_RE.match(line):
+                # Keep diff --git if there are no ---/+++ markers (e.g. mode-only or rename-only changes)
+                if not has_file_headers:
+                    lines.append(line.strip())
+                continue
+            if _INDEX_LINE_RE.match(line):
+                continue
+            if _SIMILARITY_LINE_RE.match(line):
+                continue
+            if _NO_NEWLINE_RE.match(line):
+                continue
+            if _MODE_OR_RENAME_RE.match(line):
+                # Extended headers are volatile when content hunks are present,
+                # but essential to preserve when there are mode-only or rename-only changes.
+                if not has_hunks:
+                    lines.append(line.strip())
+                continue
+            if _HUNK_HEADER_RE.match(line):
+                lines.append("@@")  # keep as a separator but drop line numbers
+                continue
+            if _FILE_HEADER_RE.match(line):
+                # Keep filename markers but normalize whitespace
+                lines.append(line.split("\t")[0].strip())
+                continue
+            lines.append(line)
     return lines
 
 

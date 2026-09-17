@@ -103,3 +103,61 @@ index 0000000..abcdef1
     assert reward == 1.0
     assert meta.parse_error is None
 
+
+def test_mode_only_patch_scores_one():
+    """An identical mode-only patch (e.g. 100644 to 100755) should score 1.0."""
+    diff = """diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+"""
+    reward, meta = calculate_diff_similarity_reward(diff, diff)
+    assert reward == 1.0
+    assert meta.parse_error is None
+
+
+def test_mode_only_patch_mismatch():
+    """A mode-only patch with differing target mode should score less than 1.0."""
+    oracle = """diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+"""
+    predicted = """diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100644
+"""
+    reward, _ = calculate_diff_similarity_reward(oracle, predicted)
+    assert reward < 1.0
+
+
+def test_rename_only_patch_scores_one():
+    """An identical rename-only patch should score 1.0."""
+    oracle = """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+"""
+    predicted = """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+"""
+    reward, meta = calculate_diff_similarity_reward(oracle, predicted)
+    assert reward == 1.0
+    assert meta.parse_error is None
+
+
+def test_multi_file_diff_with_mode_only_change():
+    """Diff with both code hunks and mode-only changes should score 1.0 when identical."""
+    diff = """diff --git a/foo.py b/foo.py
+--- a/foo.py
++++ b/foo.py
+@@ -1,2 +1,2 @@
+-print(1)
++print(2)
+diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+"""
+    reward, meta = calculate_diff_similarity_reward(diff, diff)
+    assert reward == 1.0
+    assert meta.parse_error is None
