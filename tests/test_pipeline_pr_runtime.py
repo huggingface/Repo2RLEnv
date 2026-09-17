@@ -529,6 +529,21 @@ def test_normalize_jest_adds_verbose_and_strips_silent():
     assert normalize_test_cmds_for_runtime(["jest --verbose"]) == ["jest --verbose"]
 
 
+def test_normalize_vitest_uses_verbose_reporter():
+    # `vitest --verbose` exits with `CACError: Unknown option`.
+    assert normalize_test_cmds_for_runtime(["npx vitest run"]) == [
+        "npx vitest run --reporter=verbose"
+    ]
+    assert normalize_test_cmds_for_runtime(["npx vitest run --verbose --silent"]) == [
+        "npx vitest run --reporter=verbose"
+    ]
+    # An explicit reporter is the repo's choice ⇒ keep
+    assert normalize_test_cmds_for_runtime(["vitest run --reporter=junit"]) == [
+        "vitest run --reporter=junit"
+    ]
+    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --verbose"]
+
+
 def test_normalize_strips_trailing_pipe_head_or_tail():
     """Bootstrap agents sometimes save commands with a `| head -N` tail truncator.
 

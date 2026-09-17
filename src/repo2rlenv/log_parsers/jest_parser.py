@@ -30,8 +30,19 @@ Glyph legend:
   ○ / "skipped"   → SKIPPED
 
 Mocha (the other common JS runner) uses the same ✓/✕ glyphs, so this parser
-covers most mocha output too. Vitest's default reporter is jest-compatible
-by design — also covered.
+covers most mocha output too.
+
+Vitest (3+) is detected by its ` RUN  vX.Y.Z` / ` Test Files` markers and read
+from `--reporter=verbose`, which prints one fully qualified line per test:
+
+     ✓ src/foo.test.ts > Foo > returns 200 1ms
+     × |unit| src/foo.test.ts > Foo > returns 500 3ms
+
+The name is kept as printed, minus the duration and retry/heap/note suffixes.
+Vitest's default reporter collapses fully passing files to one summary line,
+so its per-test lines are ignored: a test would vanish from the log as soon as
+a patch fixed the rest of its file. Vitest also colors output whenever TERM is
+unset, as in a non-TTY `docker exec`, so escape codes are stripped first.
 
 Released under Apache-2.0.
 """
@@ -44,8 +55,9 @@ from repo2rlenv.log_parsers.pytest_parser import TestStatus
 
 # File header: `PASS src/foo.test.ts (123 ms)` or `FAIL src/foo.test.ts`.
 # Captures the file path so we can prefix it onto test names.
+# With color, the label is padded (` FAIL `), leaving one leading space.
 _JEST_FILE_RE = re.compile(
-    r"^(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b",
+    r"^ ?(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b",
 )
 
 # Per-test glyph line. Indented arbitrarily; the glyph is the discriminator.
@@ -65,6 +77,44 @@ _GLYPH_STATUS: dict[str, TestStatus] = {
     "◯": "SKIPPED",
 }
 
+# Terminal escape codes (colors), stripped before any matching.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+# ` RUN  v5.0.1 /repo` starts a vitest run; ` Test Files  1 passed (1)` ends it.
+_VITEST_MARKER_RE = re.compile(r"^\s*(?:RUN\s+v\d+\.\d+|Test Files\s+\d)", re.MULTILINE)
+
+# A `--reporter=verbose` test line. The optional project label is `|unit| `
+# without color and ` unit  ` with it. Suffixes follow vitest's
+# getTestCaseSuffix: duration, retries, repeats, heap usage, skip note.
+_VITEST_TEST_RE = re.compile(
+    r"^\s*(?P<glyph>[✓×↓□]) (?:\|(?P<project>[^|]+)\| | (?P<label>\S+)  )?"
+    r"(?P<name>\S+ > .+?)(?P<duration> \d{1,9}ms)?"
+    r"(?: \(retry x\d{1,9}\))?(?: \(repeat x\d{1,9}\))?(?: \d{1,9} MB heap used)?(?: \[[^\[\]]*\])?$"
+)
+
+_VITEST_STATUS: dict[str, TestStatus] = {
+    "✓": "PASSED",
+    "×": "FAILED",
+    "↓": "SKIPPED",
+    "□": "SKIPPED",
+}
+
+
+def _parse_vitest(log: str) -> dict[str, TestStatus]:
+    out: dict[str, TestStatus] = {}
+    for raw in log.split("\n"):
+        m = _VITEST_TEST_RE.match(raw.rstrip())
+        if not m:
+            continue
+        glyph = m.group("glyph")
+        name = m.group("name")
+        # Only finished tests print a duration; keep a skipped title's own "5ms".
+        if glyph in "↓□" and m.group("duration"):
+            name += m.group("duration")
+        project = m.group("project") or m.group("label")
+        out[f"|{project}| {name}" if project else name] = _VITEST_STATUS[glyph]
+    return out
+
 
 def parse_jest(log: str) -> dict[str, TestStatus]:
     """Return {test_name -> status} parsed from Jest / Mocha / Vitest output.
@@ -78,6 +128,9 @@ def parse_jest(log: str) -> dict[str, TestStatus]:
     out: dict[str, TestStatus] = {}
     if not log:
         return out
+    log = _ANSI_RE.sub("", log)
+    if _VITEST_MARKER_RE.search(log):
+        return _parse_vitest(log)
 
     current_file: str | None = None
     # describe stack indexed by indent depth (in characters). On a new test
