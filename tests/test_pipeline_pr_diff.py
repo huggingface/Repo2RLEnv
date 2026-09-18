@@ -17,6 +17,7 @@ from __future__ import annotations
 from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_diff import (
     _build_instruction,
+    _pr_diff_aux_files,
     _strip_info_leak,
     build_pr_diff_environment_dockerfile,
     build_pr_diff_eval_script,
@@ -257,8 +258,6 @@ def test_dockerfile_starts_from_python_slim() -> None:
     df = build_pr_diff_environment_dockerfile(
         repo_url="https://github.com/pallets/click.git",
         base_commit="abc1234567890",
-        oracle_diff="diff --git a/x.py b/x.py\n",
-        instruction="# Issue\n\nfix the thing",
     )
     assert "FROM python:3.12-slim" in df
     assert "apt-get install" in df and "git" in df
@@ -266,49 +265,31 @@ def test_dockerfile_starts_from_python_slim() -> None:
     assert "git reset --hard abc1234567890" in df
 
 
-def test_dockerfile_bakes_oracle_diff_as_base64() -> None:
+def test_dockerfile_does_not_contain_the_oracle() -> None:
+    """The oracle must NOT be baked into the agent's image — it ships as a
+    tests/ aux file Harbor delivers only at verify time. Baking it let the
+    agent read /verifier/oracle.patch and `git apply` it for a free 1.0."""
     import base64
 
-    oracle = "diff --git a/foo.py b/foo.py\n@@ -1 +1 @@\n-old\n+new\n"
+    oracle = "diff --git a/foo.py b/foo.py\n@@ -1 +1 @@\n-old\n+secret_fix\n"
     df = build_pr_diff_environment_dockerfile(
         repo_url="https://github.com/x/y.git",
         base_commit="deadbeef",
-        oracle_diff=oracle,
-        instruction="anything",
     )
-    encoded = base64.b64encode(oracle.encode("utf-8")).decode("ascii")
-    assert encoded in df
-    assert "base64 -d > /verifier/oracle.patch" in df
+    # Neither the oracle text nor its base64 encoding appears in the image.
+    assert "secret_fix" not in df
+    assert base64.b64encode(oracle.encode()).decode() not in df
+    # No /verifier bakes at all.
+    assert "/verifier/" not in df
+    assert "base64 -d" not in df
 
 
-def test_dockerfile_bakes_instruction_and_verifier_source() -> None:
-    import base64
-
-    instr = "# Issue\nTitle: Fix the thing"
-    df = build_pr_diff_environment_dockerfile(
-        repo_url="https://github.com/x/y.git",
-        base_commit="deadbeef",
-        oracle_diff="diff --git a/x b/x\n",
-        instruction=instr,
-    )
-    encoded_instr = base64.b64encode(instr.encode("utf-8")).decode("ascii")
-    assert encoded_instr in df
-    assert "base64 -d > /verifier/instruction.md" in df
-    assert "base64 -d > /verifier/verifier.py" in df
-
-
-def test_dockerfile_handles_oracle_with_special_chars() -> None:
-    """A patch containing quotes / $ / backticks must base64-encode cleanly."""
-    oracle = 'diff --git a/q.py b/q.py\n+x = "$y `cmd` $(other)"\n'
-    df = build_pr_diff_environment_dockerfile(
-        repo_url="https://github.com/x/y.git",
-        base_commit="cafe",
-        oracle_diff=oracle,
-        instruction="anything",
-    )
-    # No raw special chars from the patch should appear in the Dockerfile —
-    # they're only in the base64 blob.
-    assert "$y `cmd`" not in df
+def test_aux_files_ship_verifier_oracle_instruction() -> None:
+    """The verifier, oracle, and instruction ride in tests/ (verify-time only)."""
+    aux = _pr_diff_aux_files(oracle_diff="diff --git a/x b/x\n+fix\n", instruction="# Issue\ndo it")
+    assert set(aux) == {"tests/verifier.py", "tests/oracle.patch", "tests/instruction.md"}
+    assert aux["tests/oracle.patch"] == "diff --git a/x b/x\n+fix\n"
+    assert "def main" in aux["tests/verifier.py"]
 
 
 def test_eval_script_shebang_and_paths() -> None:
@@ -319,10 +300,21 @@ def test_eval_script_shebang_and_paths() -> None:
     # without this, PRs that add files would silently downscore.
     assert "git add -A" in es
     assert "git diff --cached abc1234567890 > /tmp/predicted.patch" in es
-    # The thin shim just invokes the baked-in verifier
-    assert "/verifier/verifier.py" in es
-    assert "/verifier/oracle.patch" in es
-    assert "/verifier/instruction.md" in es
+    # The verifier + oracle come from tests/ ($SCRIPT_DIR), not the image.
+    assert 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"' in es
+    assert '"$SCRIPT_DIR/verifier.py"' in es
+    assert '"$SCRIPT_DIR/oracle.patch"' in es
+    assert '"$SCRIPT_DIR/instruction.md"' in es
+    # The old baked location must be gone (but /logs/verifier/ stays).
+    assert "/verifier/verifier.py" not in es
+    assert "/verifier/oracle.patch" not in es
+
+
+def test_eval_script_clears_stale_reward_files() -> None:
+    """A tampering agent must not be able to pre-write reward.txt and have it
+    stand — the script drops any reward file before the verifier runs."""
+    es = build_pr_diff_eval_script(base_commit="abc")
+    assert "rm -f /logs/verifier/reward.txt /logs/verifier/reward-details.json" in es
 
 
 def test_eval_script_exits_zero() -> None:
@@ -338,8 +330,6 @@ def test_dockerfile_supports_private_repo_build_arg() -> None:
     df = build_pr_diff_environment_dockerfile(
         repo_url="https://github.com/myorg/private-repo.git",
         base_commit="abc123",
-        oracle_diff="diff --git a/x b/x\n+1\n",
-        instruction="do it",
     )
     # Build arg declared, empty default (public repos need no arg).
     assert "ARG GITHUB_TOKEN=" in df
@@ -354,7 +344,7 @@ def test_dockerfile_supports_private_repo_build_arg() -> None:
 
 
 def test_verifier_source_is_stdlib_only() -> None:
-    """The verifier is baked into a bare python:3.12-slim image — nothing but stdlib may be imported."""
+    """The verifier ships to a bare python:3.12-slim container — nothing but stdlib may be imported."""
     import ast
     import sys
 

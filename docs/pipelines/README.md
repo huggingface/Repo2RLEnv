@@ -132,10 +132,13 @@ default/<repo>__<pr_number>/
 │   ├── patch.diff             # the merged PR's diff = oracle
 │   └── solve.sh               # `git apply patch.diff` (used by harbor's oracle agent)
 ├── environment/
-│   └── Dockerfile             # python:3.12-slim + repo @ base_commit + base64-baked
-│                              #   oracle.patch, instruction.md, verifier.py
+│   └── Dockerfile             # python:3.12-slim + repo @ base_commit
+│                              #   (the oracle is NOT baked here — see tests/)
 └── tests/
-    └── test.sh                # extract verifier from base64; run on the agent's diff
+    ├── test.sh                # capture the agent's diff, run the verifier
+    ├── verifier.py            # the 6-component scorer
+    ├── oracle.patch           # the reference diff — Harbor delivers tests/ only
+    └── instruction.md         #   at verify time, so the agent never sees it
 ```
 
 ### The 6-component reward

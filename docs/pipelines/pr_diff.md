@@ -26,7 +26,7 @@ flowchart TD
     E --> F[Strip info-leak from<br/>instruction title + body]
     F --> G[Compute baseline reward<br/>+ difficulty bucket]
     G --> H[Build Harbor task]
-    H --> I[task.toml<br/>+ instruction.md<br/>+ solution/patch.diff<br/>+ solution/solve.sh<br/>+ environment/Dockerfile<br/>+ tests/test.sh]
+    H --> I[task.toml<br/>+ instruction.md<br/>+ solution/patch.diff<br/>+ solution/solve.sh<br/>+ environment/Dockerfile<br/>+ tests/test.sh<br/>+ tests/verifier.py<br/>+ tests/oracle.patch]
 ```
 
 For each merged PR within scope:
@@ -35,9 +35,9 @@ For each merged PR within scope:
 2. Fetch the unified diff via `gh pr diff`.
 3. Strip leakage patterns from the PR title + body (eight pattern families — see [Instruction info-leak strip](#instruction-info-leak-strip) below).
 4. Compute the **calibration baseline** (the score an empty patch would get against this oracle) and the **difficulty bucket** by LOC changed.
-5. Emit a Harbor-spec task: `instruction.md`, `solution/{patch.diff, solve.sh}`, `environment/Dockerfile`, `tests/test.sh`, `task.toml`.
+5. Emit a Harbor-spec task: `instruction.md`, `solution/{patch.diff, solve.sh}`, `environment/Dockerfile`, `tests/{test.sh, verifier.py, oracle.patch, instruction.md}`, `task.toml`. The oracle and verifier ship under `tests/`, which Harbor uploads only at verify time, so they never enter the agent's image.
 
-The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. The verifier (`tests/test.sh`) runs after the agent and computes the [multi-component reward](#multi-component-reward).
+The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed, and **no oracle or verifier is baked in**. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. After the agent, Harbor uploads `tests/` (which carries `verifier.py`, `oracle.patch`, and `instruction.md`) and runs `tests/test.sh`, which computes the [multi-component reward](#multi-component-reward). Keeping the oracle in `tests/` rather than the image is what stops an agent from reading and re-applying it for a free score.
 
 **Source host and authentication:** the Dockerfile clones the original GitHub or GitLab repository over HTTPS, preserving its full path. Public repos need no token. The optional clone build arg is `GITHUB_TOKEN` for GitHub or `GITLAB_TOKEN` for GitLab; the consumer supplies it at build time, and the remote URL is scrubbed afterward. Private GitLab MR diff fetching during generation remains a separate unsupported case ([#65](https://github.com/huggingface/Repo2RLEnv/issues/65)); clone authentication alone does not enable end-to-end private GitLab mining. See [`reference/AUTH.md`](../reference/AUTH.md#private-repos-at-task-build-time).
 
