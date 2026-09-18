@@ -21,6 +21,7 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.pipelines._env_guard import egress_guard_compose
 from repo2rlenv.pipelines.code_instruct import build_code_instruct_dockerfile
 from repo2rlenv.pipelines.pr_diff import (
+    _pr_diff_aux_files,
     build_pr_diff_environment_dockerfile,
     build_pr_diff_eval_script,
 )
@@ -61,10 +62,9 @@ def _pr_diff_env(tmp_path: Path) -> Path:
         environment_dockerfile=build_pr_diff_environment_dockerfile(
             repo_url="https://github.com/demo/repo.git",
             base_commit=BASE,
-            oracle_diff=PATCH,
-            instruction="fix the bug",
         ),
         test_script=build_pr_diff_eval_script(base_commit=BASE),
+        aux_files=_pr_diff_aux_files(oracle_diff=PATCH, instruction="fix the bug"),
     )
     return write_harbor_task(task, tmp_path)
 

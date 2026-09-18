@@ -25,7 +25,7 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
 1. `gh pr list --state merged --json ...` — filter mergeAts and skip drafts client-side.
 2. Fetch `base.sha` per PR via `github.fetch_pr` (patched in #73 — `gh pr list --json baseRefOid` doesn't populate).
 3. Per PR: split into `(source_patch, test_patch)`, apply structural filters, drop drafts and CI-only changes.
-4. Emit a Harbor task with the thin env: `python:3.12-slim` + repo clone at `base_commit` + base64-baked `/verifier/oracle.patch`, `/verifier/instruction.md`, `/verifier/verifier.py`.
+4. Emit a Harbor task with the thin env: `python:3.12-slim` + repo clone at `base_commit`. The oracle, instruction, and verifier ship as `tests/` aux files (`tests/{oracle.patch, instruction.md, verifier.py}`), which Harbor delivers only at verify time — not baked into the agent's image. (Early versions baked them into `/verifier/`; that let the agent read the oracle, fixed by moving them to `tests/`.)
 5. **No sandbox bootstrap.** The Dockerfile is self-contained; consumers rebuild it in ~30 s.
 
 ### Output
