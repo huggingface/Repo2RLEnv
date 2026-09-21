@@ -51,7 +51,11 @@ from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import GitHubError, PullRequestSummary
 from repo2rlenv.gitlab import GitLabError
-from repo2rlenv.pipelines._env_guard import egress_guard_compose, git_history_scrub
+from repo2rlenv.pipelines._env_guard import (
+    egress_guard_compose,
+    fix_source_hosts,
+    git_history_scrub,
+)
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
@@ -1139,6 +1143,8 @@ class PRRuntimePipeline:
             # diff so the agent cannot fetch the gold patch at run time.
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                "environment/docker-compose.yaml": egress_guard_compose(),
+                "environment/docker-compose.yaml": egress_guard_compose(
+                    fix_source_hosts(self.input.repo.source_kind)
+                ),
             },
         )

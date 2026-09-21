@@ -9,7 +9,7 @@ scrub in `build_environment_dockerfile`), and when that was closed it ran
 
 This module ships a per-task `environment/docker-compose.yaml` overlay that
 Harbor merges into its compose chain. It blackholes the fix-bearing hosts
-(PyPI + GitHub + their CDNs) by mapping them to 0.0.0.0, so `pip download`,
+(PyPI + the repo's own forge and their CDNs) by mapping them to 0.0.0.0, so `pip download`,
 `git fetch github.com`, `curl raw.githubusercontent...` and WebFetch against
 those hosts all fail, while general internet (the model API, the agent's own
 installer, apt) stays reachable.
@@ -26,6 +26,8 @@ See docs/pipelines/README.md and plans/reward_hacking_writeups.md.
 
 from __future__ import annotations
 
+from repo2rlenv.sources import SourceKind
+
 # Hosts that serve the published fix / hidden tests for an open-source repo.
 # Blackholed to 0.0.0.0 in the agent's container at run time.
 FIX_SOURCE_HOSTS: tuple[str, ...] = (
@@ -38,6 +40,25 @@ FIX_SOURCE_HOSTS: tuple[str, ...] = (
     "codeload.github.com",
     "objects.githubusercontent.com",
 )
+
+# gitlab.com serves the merged MR, its diff and the fixed tarball, exactly as
+# github.com does. Self-hosted instances are out of scope (see gitlab.py).
+GITLAB_FIX_SOURCE_HOSTS: tuple[str, ...] = (
+    "gitlab.com",
+    "www.gitlab.com",
+)
+
+
+def fix_source_hosts(source_kind: SourceKind | None = None) -> tuple[str, ...]:
+    """Return the hosts to blackhole for a task mined from `source_kind`.
+
+    The base list covers PyPI and GitHub. A GitLab-sourced repo's fix lives on
+    gitlab.com, so a task built from one has to blackhole that too, or the
+    agent can simply clone the repo and read the answer.
+    """
+    if source_kind is SourceKind.GITLAB:
+        return FIX_SOURCE_HOSTS + GITLAB_FIX_SOURCE_HOSTS
+    return FIX_SOURCE_HOSTS
 
 
 def git_history_scrub(base_commit: str) -> str:

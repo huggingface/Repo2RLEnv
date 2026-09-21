@@ -47,7 +47,7 @@ from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
 from repo2rlenv.llm import complete
-from repo2rlenv.pipelines._env_guard import egress_guard_compose
+from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     _count_new_test_funcs,
@@ -640,6 +640,8 @@ class CommitRuntimePipeline:
             # upstream fix so the agent cannot fetch it at run time.
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                "environment/docker-compose.yaml": egress_guard_compose(),
+                "environment/docker-compose.yaml": egress_guard_compose(
+                    fix_source_hosts(self.input.repo.source_kind)
+                ),
             },
         )
