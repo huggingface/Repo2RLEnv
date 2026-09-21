@@ -82,7 +82,7 @@ mutation = [
     "pyflakes>=3.4.0",
 ]
 harbor = [
-    "harbor==0.22.0",
+    "harbor==0.23.0",
 ]
 
 [build-system]
