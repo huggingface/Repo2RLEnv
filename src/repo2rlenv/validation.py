@@ -58,6 +58,11 @@ GRADED_VERIFIER_PIPELINES = frozenset({"pr_runtime", "commit_runtime", "cve_patc
 # Pipelines that ship an LLM-authored test at tests/<subtable.test_filename>.
 TEST_FILE_PIPELINES = frozenset({"code_instruct", "equivalence_tests"})
 
+# Pipelines whose runnable test.sh reads tests/{verifier.py,oracle.patch,
+# instruction.md} — shipped as plain aux files (by `pipelines.pr_diff.
+# _pr_diff_aux_files`) so the oracle stays out of the agent's image.
+DIFF_VERIFIER_PIPELINES = frozenset({"pr_diff"})
+
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _FROM_LINE_RE = re.compile(r"^\s*FROM\s+(\S+)", re.IGNORECASE | re.MULTILINE)
 _DIFF_FILE_HEADER_RE = re.compile(r"^(diff --git |\+\+\+ )", re.MULTILINE)
@@ -174,6 +179,8 @@ def _check_layout(
         _check_graded_verifier(task_dir, sub["fail_to_pass"], report)
     if pipeline in TEST_FILE_PIPELINES and "test_filename" in sub:
         _check_test_file(task_dir, sub["test_filename"], report)
+    if pipeline in DIFF_VERIFIER_PIPELINES and has_env_definition:
+        _check_diff_verifier(task_dir, report)
 
 
 def _reward_kinds(r2e: dict[str, Any], report: _Report) -> list[str]:
@@ -206,6 +213,25 @@ def _check_graded_verifier(task_dir: Path, meta_f2p: Any, report: _Report) -> No
         elif _is_str_list(meta_f2p) and set(f2p) != set(meta_f2p):
             report.warn("tests/f2p.json", "does not match fail_to_pass in task.toml")
     _load_test_id_list(task_dir, "tests/p2p.json", report)
+
+
+def _check_diff_verifier(task_dir: Path, report: _Report) -> None:
+    """A runnable pr_diff task must ship its verifier + oracle under tests/.
+
+    The oracle is deliberately NOT in the environment image (an agent could
+    read and apply it), so it rides in tests/, which Harbor delivers only at
+    verify time. If these are missing the task builds but scores nothing.
+    """
+    verifier = _check_nonempty_file(task_dir, "tests/verifier.py", report)
+    if verifier is not None:
+        try:
+            ast.parse(verifier, filename="tests/verifier.py")
+        except SyntaxError as exc:
+            report.error("tests/verifier.py", f"not valid Python: {exc.msg} (line {exc.lineno})")
+    oracle = _check_nonempty_file(task_dir, "tests/oracle.patch", report)
+    if oracle is not None and not _DIFF_FILE_HEADER_RE.search(oracle):
+        report.error("tests/oracle.patch", "does not look like a unified diff")
+    _check_nonempty_file(task_dir, "tests/instruction.md", report)
 
 
 def _load_test_id_list(task_dir: Path, rel: str, report: _Report) -> list[str] | None:

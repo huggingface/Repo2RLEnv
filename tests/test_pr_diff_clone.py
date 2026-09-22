@@ -88,8 +88,6 @@ def test_clone_shell_uses_correct_token_and_scrubs_origin(
     dockerfile = build_pr_diff_environment_dockerfile(
         repo_url=repo_url,
         base_commit="0" * 40,
-        oracle_diff="",
-        instruction="Fix the result",
     )
     assert f"ARG {token_arg}=\n" in dockerfile
     assert other_arg not in dockerfile
