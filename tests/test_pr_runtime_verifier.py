@@ -130,7 +130,7 @@ def test_grade_untracked_failure_keeps_tracked_resolved():
     assert r["untracked_failed"] == ["tests/other::cp1252"]
 
 
-def test_grade_go_subtests_do_not_count_when_parent_passes():
+def test_grade_go_subtests_remain_failures_when_parent_passes():
     """Go subtest failures under a passing parent remain untracked."""
     r = grade(
         [],
@@ -147,6 +147,7 @@ def test_grade_go_subtests_do_not_count_when_parent_passes():
         "TestExample/subtest1",
         "TestExample/subtest2",
     ]
+
 
 def test_grade_go_subtests_count_parent_failure_once():
     """Go subtests under a failed parent are represented by the parent failure."""
