@@ -14,6 +14,13 @@ produce. We strip:
 
 from __future__ import annotations
 
+import os
+import shlex
+import subprocess
+from pathlib import Path
+
+import pytest
+
 from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_diff import (
     _build_instruction,
@@ -314,7 +321,67 @@ def test_eval_script_clears_stale_reward_files() -> None:
     """A tampering agent must not be able to pre-write reward.txt and have it
     stand — the script drops any reward file before the verifier runs."""
     es = build_pr_diff_eval_script(base_commit="abc")
-    assert "rm -f /logs/verifier/reward.txt /logs/verifier/reward-details.json" in es
+    assert (
+        "rm -f /logs/verifier/reward.txt /logs/verifier/reward.json "
+        "/logs/verifier/reward-details.json"
+    ) in es
+
+
+@pytest.mark.skipif(os.name == "nt", reason="The emitted verifier runs in a Linux sandbox")
+@pytest.mark.parametrize("apply_oracle", [False, True], ids=["no-op", "oracle"])
+def test_verify_time_assets_grade_edits_and_remove_forged_rewards(tmp_path: Path, apply_oracle):
+    """Execute the emitted shell and real verifier with only paths relocated."""
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=workspace, capture_output=True, text=True, check=True
+        ).stdout
+
+    git("init", "-q")
+    git("config", "user.name", "Test")
+    git("config", "user.email", "test@example.invalid")
+    source = workspace / "answer.py"
+    source.write_text("answer = 1\n", encoding="utf-8")
+    git("add", "answer.py")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD").strip()
+    source.write_text("answer = 2\n", encoding="utf-8")
+    oracle = git("diff", "HEAD")
+    if not apply_oracle:
+        git("checkout", "--", "answer.py")
+
+    rewards = tmp_path / "rewards"
+    rewards.mkdir()
+    for name, content in (("reward.txt", "1"), ("reward.json", '{"reward": 1}')):
+        (rewards / name).write_text(content, encoding="utf-8")
+    for name, content in _pr_diff_aux_files(oracle_diff=oracle, instruction="Fix answer").items():
+        target = tmp_path / name
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(content.replace("/logs/verifier", str(rewards)), encoding="utf-8")
+    script = build_pr_diff_eval_script(base_commit=base)
+    for original, relocated in (
+        ("/workspace", workspace),
+        ("/logs/verifier", rewards),
+        ("/tmp/predicted.patch", tmp_path / "predicted.patch"),
+    ):
+        script = script.replace(original, shlex.quote(str(relocated)))
+    script_path = tmp_path / "tests/test.sh"
+    script_path.write_text(script, encoding="utf-8")
+    env = {key: value for key, value in os.environ.items() if not key.startswith("R2E_")}
+    env.update(ANTHROPIC_API_KEY="", GIT_CONFIG_GLOBAL=str(tmp_path / "gitconfig"))
+    result = subprocess.run(
+        ["bash", str(script_path)], env=env, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Harbor reads reward.json before reward.txt; a forged JSON must not survive.
+    assert not (rewards / "reward.json").exists()
+    reward = float((rewards / "reward.txt").read_text(encoding="utf-8"))
+    if apply_oracle:
+        assert reward == 1.0
+    else:
+        assert reward < 1.0
 
 
 def test_eval_script_exits_zero() -> None:

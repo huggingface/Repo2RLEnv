@@ -289,7 +289,8 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
         # The verifier is the sole authority on the reward: drop any reward
         # file the agent may have pre-written. Mirrors Harbor's own
         # separate-verifier `empty_dirs([verifier_dir])`.
-        "rm -f /logs/verifier/reward.txt /logs/verifier/reward-details.json\n"
+        "rm -f /logs/verifier/reward.txt /logs/verifier/reward.json "
+        "/logs/verifier/reward-details.json\n"
         # Capture the agent's edits as a unified diff against base_commit.
         # IMPORTANT: `git add -A` stages new (untracked) files. Without this
         # step, `git diff` would skip any file the agent created from scratch
