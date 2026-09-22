@@ -173,7 +173,7 @@ def parse_cargo_test(log: str) -> dict[str, str]:
     return out
 
 
-_JEST_FILE_RE = re.compile(r"^(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b")
+_JEST_FILE_RE = re.compile(r"^ ?(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b")
 _JEST_TEST_RE = re.compile(
     r"^(?P<indent>\s*)(?P<glyph>✓|√|✕|×|✗|○|◯)\s+(?P<name>.+?)(?:\s+\(\d+(?:\.\d+)?\s*m?s\))?$"
 )
@@ -186,6 +186,30 @@ _JEST_GLYPH = {
     "○": SKIPPED,
     "◯": SKIPPED,
 }
+# Keep these patterns in sync with log_parsers/jest_parser.py.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_VITEST_MARKER_RE = re.compile(r"^\s*(?:RUN\s+v\d+\.\d+|Test Files\s+\d)", re.MULTILINE)
+_VITEST_TEST_RE = re.compile(
+    r"^\s*(?P<glyph>[✓×↓□]) (?:\|(?P<project>[^|]+)\| | (?P<label>\S+)  )?"
+    r"(?P<name>\S+ > .+?)(?P<duration> \d{1,9}ms)?"
+    r"(?: \(retry x\d{1,9}\))?(?: \(repeat x\d{1,9}\))?(?: \d{1,9} MB heap used)?(?: \[[^\[\]]*\])?$"
+)
+_VITEST_STATUS = {"✓": PASSED, "×": FAILED, "↓": SKIPPED, "□": SKIPPED}
+
+
+def _parse_vitest(log: str) -> dict[str, str]:
+    """{test_name -> status} from vitest `--reporter=verbose` lines only."""
+    out: dict[str, str] = {}
+    for raw in log.split("\n"):
+        m = _VITEST_TEST_RE.match(raw.rstrip())
+        if not m:
+            continue
+        glyph, name = m.group("glyph"), m.group("name")
+        if glyph in "↓□" and m.group("duration"):
+            name += m.group("duration")
+        project = m.group("project") or m.group("label")
+        out[f"|{project}| {name}" if project else name] = _VITEST_STATUS[glyph]
+    return out
 
 
 def parse_jest(log: str) -> dict[str, str]:
@@ -193,6 +217,9 @@ def parse_jest(log: str) -> dict[str, str]:
     out: dict[str, str] = {}
     if not log:
         return out
+    log = _ANSI_RE.sub("", log)
+    if _VITEST_MARKER_RE.search(log):
+        return _parse_vitest(log)
     current_file: str | None = None
     describe_stack: list[tuple[int, str]] = []
     last_test_indent: int | None = None
