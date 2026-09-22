@@ -24,10 +24,12 @@ import pytest
 from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_diff import (
     _build_instruction,
+    _harbor_content_hash,
     _pr_diff_aux_files,
     _strip_info_leak,
     build_pr_diff_environment_dockerfile,
     build_pr_diff_eval_script,
+    migrate_pr_diff_task,
 )
 
 
@@ -426,3 +428,220 @@ def test_verifier_source_is_stdlib_only() -> None:
             imported.add(node.module.split(".")[0])
     non_stdlib = sorted(imported - sys.stdlib_module_names)
     assert non_stdlib == [], f"verifier imports non-stdlib modules: {non_stdlib}"
+
+
+# ---------------------------------------------------------------------------
+# migrate_pr_diff_task — repair for tasks emitted before #145
+# ---------------------------------------------------------------------------
+
+
+def _write_old_style_pr_diff_task(
+    task_dir: Path,
+    *,
+    repo_url: str = "https://github.com/x/y.git",
+    base_commit: str = "deadbeef1234",
+    oracle_diff: str = "diff --git a/x b/x\n+fix\n",
+    instruction: str = "# Issue\ndo it",
+    content_hash: str | None = None,
+) -> None:
+    """Reconstruct a pre-#145 emitted task: the pattern from #144/#155, not the
+    real old builder (removed) — just enough surface for migrate_pr_diff_task
+    to detect and repair: the baked-oracle Dockerfile marker, the old test.sh
+    shim, and the task.toml fields the migration reads."""
+    import base64
+
+    import tomli_w
+
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "instruction.md").write_text(instruction, encoding="utf-8")
+    (task_dir / "solution").mkdir(exist_ok=True)
+    (task_dir / "solution" / "patch.diff").write_text(oracle_diff, encoding="utf-8")
+
+    encoded_oracle = base64.b64encode(oracle_diff.encode("utf-8")).decode("ascii")
+    env_dir = task_dir / "environment"
+    env_dir.mkdir(exist_ok=True)
+    (env_dir / "Dockerfile").write_text(
+        "FROM python:3.12-slim\n"
+        f"RUN git clone --filter=blob:none {repo_url} /workspace \\\n"
+        f" && git -C /workspace remote set-url origin {repo_url}\n"
+        f"RUN git reset --hard {base_commit}\n"
+        "RUN mkdir -p /verifier\n"
+        f'RUN echo "{encoded_oracle}" | base64 -d > /verifier/oracle.patch\n',
+        encoding="utf-8",
+    )
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir(exist_ok=True)
+    (tests_dir / "test.sh").write_text(
+        "#!/bin/bash\npython3 /verifier/verifier.py /verifier/oracle.patch "
+        "/tmp/predicted.patch /verifier/instruction.md\n",
+        encoding="utf-8",
+    )
+
+    resolved_hash = content_hash or _harbor_content_hash(instruction, oracle_diff)
+    payload = {
+        "version": "1.0",
+        "task": {"name": "test/task", "description": "x"},
+        "metadata": {
+            "difficulty": "medium",
+            "category": "bugfix",
+            "keywords": [],
+            "repo2env": {
+                "pipeline": "pr_diff",
+                "ref": base_commit,
+                "content_hash": resolved_hash,
+                "reward_kinds": ["test_execution", "diff_similarity"],
+            },
+        },
+        "agent": {"timeout_sec": 1800.0},
+        "verifier": {"timeout_sec": 300.0},
+    }
+    (task_dir / "task.toml").write_bytes(tomli_w.dumps(payload).encode("utf-8"))
+
+
+def test_migrate_detects_and_repairs_baked_oracle(tmp_path: Path) -> None:
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(
+        task_dir,
+        repo_url="https://github.com/x/y.git",
+        base_commit="deadbeef1234",
+        oracle_diff="diff --git a/x b/x\n+fix\n",
+        instruction="# Issue\ndo it",
+    )
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result == {"task": "x__y-1", "action": "migrated", "detail": ""}
+    dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+    assert "base64 -d" not in dockerfile
+    assert "/verifier/" not in dockerfile
+    assert "git clone --filter=blob:none https://github.com/x/y.git /workspace" in dockerfile
+    assert "git reset --hard deadbeef1234" in dockerfile
+
+    test_sh = (task_dir / "tests" / "test.sh").read_text(encoding="utf-8")
+    assert '"$SCRIPT_DIR/oracle.patch"' in test_sh
+    assert "/verifier/verifier.py" not in test_sh
+
+    aux = _pr_diff_aux_files(oracle_diff="diff --git a/x b/x\n+fix\n", instruction="# Issue\ndo it")
+    for relative, content in aux.items():
+        assert (task_dir / relative).read_text(encoding="utf-8") == content
+
+    # The oracle itself and the instruction are untouched by the migration.
+    assert (task_dir / "instruction.md").read_text(encoding="utf-8") == "# Issue\ndo it"
+    assert (task_dir / "solution" / "patch.diff").read_text(
+        encoding="utf-8"
+    ) == "diff --git a/x b/x\n+fix\n"
+
+
+def test_migrate_preserves_content_hash(tmp_path: Path) -> None:
+    """content_hash only ever covers instruction.md + solution/patch.diff — since
+    the migration never touches either, a migrated task keeps its identity."""
+    task_dir = tmp_path / "x__y-1"
+    oracle = "diff --git a/x b/x\n+fix\n"
+    instruction = "# Issue\ndo it"
+    _write_old_style_pr_diff_task(task_dir, oracle_diff=oracle, instruction=instruction)
+    before = _harbor_content_hash(instruction, oracle)
+
+    migrate_pr_diff_task(task_dir)
+
+    after = _harbor_content_hash(
+        (task_dir / "instruction.md").read_text(encoding="utf-8"),
+        (task_dir / "solution" / "patch.diff").read_text(encoding="utf-8"),
+    )
+    assert before == after
+
+
+def test_migrate_is_idempotent(tmp_path: Path) -> None:
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir)
+    migrate_pr_diff_task(task_dir)
+
+    second = migrate_pr_diff_task(task_dir)
+
+    assert second == {"task": "x__y-1", "action": "already_safe", "detail": ""}
+
+
+def test_migrate_dry_run_does_not_write(tmp_path: Path) -> None:
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir)
+    original_dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+
+    result = migrate_pr_diff_task(task_dir, dry_run=True)
+
+    assert result == {"task": "x__y-1", "action": "would_migrate", "detail": ""}
+    assert (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8") == (
+        original_dockerfile
+    )
+    assert not (task_dir / "tests" / "oracle.patch").exists()
+
+
+def test_migrate_skips_non_pr_diff_task(tmp_path: Path) -> None:
+    import tomli_w
+
+    task_dir = tmp_path / "other-task"
+    task_dir.mkdir()
+    payload = {
+        "version": "1.0",
+        "task": {"name": "test/other", "description": "x"},
+        "metadata": {"repo2env": {"pipeline": "pr_runtime"}},
+    }
+    (task_dir / "task.toml").write_bytes(tomli_w.dumps(payload).encode("utf-8"))
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result == {"task": "other-task", "action": "skipped", "detail": "not a pr_diff task"}
+
+
+def test_migrate_already_safe_task_is_a_noop(tmp_path: Path) -> None:
+    """A task already emitted by the fixed generator has no baked-oracle marker
+    in its Dockerfile — migrate must recognize that and touch nothing."""
+    task_dir = tmp_path / "x__y-1"
+    task_dir.mkdir()
+    env_dir = task_dir / "environment"
+    env_dir.mkdir()
+    (env_dir / "Dockerfile").write_text(
+        build_pr_diff_environment_dockerfile(
+            repo_url="https://github.com/x/y.git", base_commit="deadbeef"
+        ),
+        encoding="utf-8",
+    )
+
+    import tomli_w
+
+    payload = {
+        "version": "1.0",
+        "task": {"name": "test/task", "description": "x"},
+        "metadata": {"repo2env": {"pipeline": "pr_diff", "ref": "deadbeef"}},
+    }
+    (task_dir / "task.toml").write_bytes(tomli_w.dumps(payload).encode("utf-8"))
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result == {"task": "x__y-1", "action": "already_safe", "detail": ""}
+
+
+def test_migrate_flags_content_hash_mismatch_instead_of_silently_rewriting(
+    tmp_path: Path,
+) -> None:
+    """If instruction.md/solution/patch.diff on disk don't hash to the
+    content_hash task.toml claims, something is inconsistent — refuse to
+    auto-migrate rather than paper over it."""
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir, content_hash="sha256:" + "0" * 64)
+    original_dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "error"
+    assert "content_hash mismatch" in result["detail"]
+    assert (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8") == (
+        original_dockerfile
+    )
+
+
+def test_migrate_reports_error_for_missing_task_toml(tmp_path: Path) -> None:
+    task_dir = tmp_path / "empty"
+    task_dir.mkdir()
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result == {"task": "empty", "action": "error", "detail": "no task.toml"}

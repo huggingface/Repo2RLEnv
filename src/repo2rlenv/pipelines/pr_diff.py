@@ -328,6 +328,138 @@ def _pr_diff_aux_files(*, oracle_diff: str, instruction: str) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Migration: repair tasks emitted before #145's oracle-isolation fix
+# ---------------------------------------------------------------------------
+
+_BAKED_ORACLE_MARKER = "base64 -d > /verifier/oracle.patch"
+
+
+def _harbor_content_hash(instruction: str, oracle_diff: str) -> str:
+    """Mirror ``emitter/harbor.py:_content_hash`` without needing a full HarborTask.
+
+    ``content_hash`` only ever covers ``instruction.md`` + ``solution/patch.diff``
+    (see that function) — the migration below never touches either file, so this
+    is purely a sanity check that we're reading the same pair the task was
+    originally hashed against, not a value the migration recomputes and writes.
+    """
+    import hashlib
+
+    h = hashlib.sha256()
+    h.update(instruction.encode("utf-8"))
+    h.update(b"\0")
+    h.update(oracle_diff.encode("utf-8"))
+    return f"sha256:{h.hexdigest()}"
+
+
+def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, str]:
+    """Repair a single ``pr_diff`` task emitted before #145's oracle-isolation fix.
+
+    Pre-#145, ``environment/Dockerfile`` baked the oracle patch, instruction, and
+    verifier into the agent's own image — readable and ``git apply``-able for a
+    perfect score. This detects that shape and rewrites ``environment/Dockerfile``
+    + ``tests/{test.sh,verifier.py,oracle.patch,instruction.md}`` using the exact
+    builder functions fresh ``generate`` calls today, so a migrated task is
+    byte-identical to one emitted now — not a hand-maintained parallel
+    implementation that could drift from the real fix.
+
+    ``instruction.md`` and ``solution/patch.diff`` (the oracle diff itself) are
+    never modified, so ``content_hash`` — which only covers those two files
+    (``emitter/harbor.py:_content_hash``) — is unaffected; a migrated task keeps
+    its original identity. ``repo_url`` and ``base_commit`` are recovered from
+    the existing Dockerfile's ``remote set-url origin`` line and ``task.toml``'s
+    ``metadata.repo2env.ref`` respectively — both fields the pre-#145 builder
+    already wrote unchanged, so nothing about them needs to be guessed or
+    re-derived from an external source.
+
+    With ``dry_run=True``, every check runs identically (including the
+    ``content_hash`` sanity check) but nothing is written — ``action`` reports
+    what *would* happen (``"would_migrate"`` in place of ``"migrated"``).
+
+    Returns ``{"task": <dir name>, "action": ..., "detail": ...}`` where
+    ``action`` is one of:
+
+    - ``"migrated"`` / ``"would_migrate"`` — rewritten in place / would be
+    - ``"already_safe"``   — no baked oracle found; nothing to do
+    - ``"skipped"``        — not a pr_diff task (different pipeline, or malformed)
+    - ``"error"``          — needs manual review; nothing was written
+    """
+    import tomllib
+
+    name = task_dir.name
+    toml_path = task_dir / "task.toml"
+    if not toml_path.exists():
+        return {"task": name, "action": "error", "detail": "no task.toml"}
+    try:
+        config = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        return {"task": name, "action": "error", "detail": f"cannot parse task.toml: {exc}"}
+    repo2env = config.get("metadata", {}).get("repo2env", {})
+    if repo2env.get("pipeline") != "pr_diff":
+        return {"task": name, "action": "skipped", "detail": "not a pr_diff task"}
+
+    dockerfile_path = task_dir / "environment" / "Dockerfile"
+    if not dockerfile_path.exists():
+        return {"task": name, "action": "skipped", "detail": "text-only task, no environment/"}
+    dockerfile = dockerfile_path.read_text(encoding="utf-8")
+    if _BAKED_ORACLE_MARKER not in dockerfile:
+        return {"task": name, "action": "already_safe", "detail": ""}
+
+    base_commit = repo2env.get("ref")
+    origin_match = re.search(r"remote set-url origin (\S+)\n", dockerfile)
+    if not base_commit or not origin_match:
+        return {
+            "task": name,
+            "action": "error",
+            "detail": "cannot recover repo_url/base_commit from task.toml/Dockerfile",
+        }
+    repo_url = origin_match.group(1).strip("'\"")
+
+    instruction_path = task_dir / "instruction.md"
+    oracle_path = task_dir / "solution" / "patch.diff"
+    if not instruction_path.exists() or not oracle_path.exists():
+        return {
+            "task": name,
+            "action": "error",
+            "detail": "missing instruction.md or solution/patch.diff",
+        }
+    instruction = instruction_path.read_text(encoding="utf-8")
+    oracle_diff = oracle_path.read_text(encoding="utf-8")
+
+    claimed_hash = repo2env.get("content_hash")
+    recomputed_hash = _harbor_content_hash(instruction, oracle_diff)
+    if claimed_hash and claimed_hash != recomputed_hash:
+        return {
+            "task": name,
+            "action": "error",
+            "detail": (
+                f"content_hash mismatch: task.toml claims {claimed_hash}, "
+                f"instruction.md + solution/patch.diff hash to {recomputed_hash} — "
+                "needs manual review, not auto-migrated"
+            ),
+        }
+
+    if dry_run:
+        return {"task": name, "action": "would_migrate", "detail": ""}
+
+    dockerfile_path.write_text(
+        build_pr_diff_environment_dockerfile(repo_url=repo_url, base_commit=base_commit),
+        encoding="utf-8",
+    )
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir(exist_ok=True)
+    (tests_dir / "test.sh").write_text(
+        build_pr_diff_eval_script(base_commit=base_commit), encoding="utf-8"
+    )
+    (tests_dir / "test.sh").chmod(0o755)
+    for relative, content in _pr_diff_aux_files(
+        oracle_diff=oracle_diff, instruction=instruction
+    ).items():
+        (task_dir / relative).write_text(content, encoding="utf-8")
+
+    return {"task": name, "action": "migrated", "detail": ""}
+
+
+# ---------------------------------------------------------------------------
 # Gen-time helpers: quality filter, baseline calibration, difficulty bucket
 # ---------------------------------------------------------------------------
 
