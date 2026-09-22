@@ -286,12 +286,23 @@ def parse_logs(runner: str, log: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Grading
 # ---------------------------------------------------------------------------
+def _has_go_parent(name: str, status_map: dict[str, str]) -> bool:
+    """Return True if a Go test has an ancestor represented in the status map."""
+    parts = name.split("/")
+
+    for i in range(1, len(parts)):
+        parent = "/".join(parts[:i])
+        if status_map.get(parent) == FAILED:
+            return True
+
+    return False
 
 
 def grade(
     fail_to_pass: list[str],
     pass_to_pass: list[str],
     status_map: dict[str, str],
+    runner: str | None = None,
 ) -> dict:
     """Compute the graded reward + strict resolved bool from a status map.
 
@@ -324,10 +335,22 @@ def grade(
     p2p_passed = sum(1 for t in pass_to_pass if status_map.get(t) == PASSED)
     # Tests that should have stayed green but regressed (PASS->not-pass).
     regressions = [t for t in pass_to_pass if status_map.get(t) != PASSED]
+
     # FAILED tests outside the tracked sets — the selected command isn't clean.
-    untracked_failed = sorted(
-        t for t, s in status_map.items() if s == FAILED and t not in f2p_set and t not in p2p_set
-    )
+    if runner == "go":
+        failed_tests = {
+            t
+            for t, s in status_map.items()
+            if s == FAILED and t not in f2p_set and t not in p2p_set
+        }
+
+        untracked_failed = sorted(t for t in failed_tests if not _has_go_parent(t, status_map))
+    else:
+        untracked_failed = sorted(
+            t
+            for t, s in status_map.items()
+            if s == FAILED and t not in f2p_set and t not in p2p_set
+        )
 
     f2p_rate = (f2p_passed / f2p_total) if f2p_total else 0.0
     p2p_rate = (p2p_passed / p2p_total) if p2p_total else 1.0
@@ -412,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             "exit_code": args.exit_code,
         }
     else:
-        breakdown = grade(f2p, p2p, status_map)
+        breakdown = grade(f2p, p2p, status_map, runner)
         breakdown["parse_status"] = "ok"
         breakdown["runner"] = runner
         breakdown["tests_parsed"] = len(status_map)
