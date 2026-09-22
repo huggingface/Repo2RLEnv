@@ -8,8 +8,8 @@
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
     "@earendil-works/pi-server": "0.85.1",
-    "@opencode-ai/plugin": "1.18.29",
-    "opencode-ai": "1.18.29",
-    "zod": "4.5.4"
+    "@opencode-ai/plugin": "1.18.30",
+    "opencode-ai": "1.18.30",
+    "zod": "4.6.5"
   }
 }

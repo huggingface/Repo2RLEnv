@@ -1,5 +1,5 @@
 /**
- * OpenCode 1.18.29 adapter. Run with: node opencode.mjs CONFIG_JSON_PATH
+ * Pinned OpenCode adapter. Run with: node opencode.mjs CONFIG_JSON_PATH
  *
  * Only the private Anthropic/tool HTTP bridge is exposed to the model. The
  * bridge owns credentials, request limits, tool execution, and actual cost.
@@ -16,7 +16,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { describeError, requestJSON, RUNTIME_REQUEST_TIMEOUT_MS } from "./local_http.mjs";
 
 const require = createRequire(import.meta.url);
-const VERSION = "1.18.29";
+// Use the installation manifest as the single source for the runtime pin.
+const dependencies = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).dependencies;
+const VERSION = dependencies["opencode-ai"];
+if (dependencies["@opencode-ai/plugin"] !== VERSION) {
+  throw new Error("OpenCode and its plugin must have matching package.json pins");
+}
 const PROVIDER = "repo2rlenv";
 const AGENT = "author";
 
