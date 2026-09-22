@@ -14,6 +14,8 @@
 | Options model | [`PRDiffOptions`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) |
 | Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) on HF Hub |
 
+**Existing exports:** tasks generated before [#145](https://github.com/huggingface/Repo2RLEnv/pull/145) can expose the oracle patch inside the agent image. Updating the package does not repair those tasks or cached images. Regenerate affected exports and rebuild their images before using them for training or evaluation. Migration of the published reference dataset is tracked in [#155](https://github.com/huggingface/Repo2RLEnv/issues/155).
+
 ## What it does
 
 ```mermaid
@@ -56,7 +58,7 @@ The verifier captures the agent's edits as a unified diff against `base_commit`,
 
 Final reward is clipped to `[0, 1]`. A **catastrophic-size hard cap** clamps the final to ≤ 0.40 when `size_sanity < 0.10` — stops a charitable judge from inflating scores on patches that are wildly the wrong size.
 
-The verifier writes both `/logs/verifier/reward.txt` (single float, Harbor reads this) and `/logs/verifier/reward.json` (full breakdown for downstream inspection / re-weighting).
+The verifier writes `/logs/verifier/reward.txt` (the reward) and `/logs/verifier/reward-details.json` (the component breakdown). Before grading, the script removes stale text and JSON reward files, since Harbor gives `reward.json` priority when both formats exist.
 
 Weights are overridable per-task via `task.toml.metadata` or per-run via `R2E_W_{FORMAT,SIZE,FILE,REGION,SIM,JUDGE}` env vars passed to `harbor run --ve`.
 
