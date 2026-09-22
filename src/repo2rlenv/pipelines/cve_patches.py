@@ -57,7 +57,7 @@ from repo2rlenv.github import (
 )
 from repo2rlenv.llm import complete
 from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
-from repo2rlenv.pipelines._env_guard import egress_guard_compose
+from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.code_instruct import new_file_hunk
 from repo2rlenv.pipelines.pr_runtime import (
@@ -585,6 +585,8 @@ class CVEPatchesPipeline:
             # fix so the agent cannot fetch the answer at run time.
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                "environment/docker-compose.yaml": egress_guard_compose(),
+                "environment/docker-compose.yaml": egress_guard_compose(
+                    fix_source_hosts(self.input.repo.source_kind)
+                ),
             },
         )

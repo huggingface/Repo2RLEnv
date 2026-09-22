@@ -230,8 +230,9 @@ three defenses, all baked in at generation time by `pipelines/_env_guard.py`:
   `git show origin/main:<testfile>`. `base_commit` stays reachable for the
   verifier's anti-tamper reset.
 - **Egress guard** — an `environment/docker-compose.yaml` overlay blackholes the
-  package index + code host (`pypi.org`, `files.pythonhosted.org`, `github.com`,
-  their CDNs), so `pip download` / `git fetch` / web fetches against them fail
+  package index + the repo's own code host (`pypi.org`, `files.pythonhosted.org`,
+  `github.com`, their CDNs, plus `gitlab.com` for a GitLab-sourced repo), so
+  `pip download` / `git fetch` / web fetches against them fail
   while the model API and the agent's installer stay reachable. This is a
   denylist (the realistic control at the compose layer); a default-deny egress
   allowlist proxy or a date-pinned package mirror is the stricter follow-up.
