@@ -32,7 +32,12 @@ def test_timeout_terminates_process_group_and_its_owned_containers(tmp_path, mon
         return Process()
 
     monkeypatch.setattr(job.subprocess, "Popen", start)
-    monkeypatch.setattr(job.os, "killpg", lambda *args: calls.append(args))
+    # raising=False: neither os.killpg nor signal.SIGKILL exists on Windows.
+    # execute() only ever runs for real inside a Linux remote worker; both are
+    # faked here so the supervisor's timeout/cleanup logic can be verified
+    # from any host OS.
+    monkeypatch.setattr(job.os, "killpg", lambda *args: calls.append(args), raising=False)
+    monkeypatch.setattr(job.signal, "SIGKILL", 9, raising=False)
     monkeypatch.setattr(job, "_cleanup_containers", lambda token: {"passed": True, "removed": 1})
     with pytest.raises(subprocess.TimeoutExpired):
         job.execute(tmp_path, ["remote-test-fixture"], timeout_sec=1)
