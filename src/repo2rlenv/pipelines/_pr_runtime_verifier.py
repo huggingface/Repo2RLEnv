@@ -82,6 +82,8 @@ _PYTEST_VERBOSE_RE = re.compile(
     rf"(?:\s+\(.*\))?(?:\s+(?:{_PYTEST_PROGRESS}))?$"
 )
 _PYTEST_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
+# pytest-xdist worker label, e.g. `[gw1] [ 20%] PASSED tests/foo.py::test_x`.
+_PYTEST_XDIST_PREFIX_RE = re.compile(rf"^\[gw\d+\]\s+(?:(?:{_PYTEST_PROGRESS})\s+)?")
 
 
 def parse_pytest(log: str) -> dict[str, str]:
@@ -93,6 +95,7 @@ def parse_pytest(log: str) -> dict[str, str]:
         line = raw.strip()
         if not line:
             continue
+        line = _PYTEST_XDIST_PREFIX_RE.sub("", line, count=1)
         # Summary lines (STATUS first), preserving the full node ID.
         leading = None
         for st in _PYTEST_STATUSES:
