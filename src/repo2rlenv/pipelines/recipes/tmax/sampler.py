@@ -76,11 +76,11 @@ def sample_inputs(path: Path) -> list[dict]:
 
 
 def template_prompt(seed: dict) -> str:
-    data = json.loads(files(__package__).joinpath("taxonomy.json").read_text())
+    data = json.loads(files(__package__).joinpath("taxonomy.json").read_text(encoding="utf-8"))
     return (
         files(__package__)
         .joinpath("template_prompt.md")
-        .read_text()
+        .read_text(encoding="utf-8")
         .replace("{{domain_label}}", seed["domain"].replace("_", " ").title())
         .replace("{{module}}", data["DOMAIN_MODULES"][seed["domain"]])
         .replace("{{v2_block}}", "")
