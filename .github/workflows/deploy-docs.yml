@@ -20,13 +20,13 @@ concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+
+permissions: {}
 
 jobs:
   build:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -48,6 +48,9 @@ jobs:
           path: site
 
   deploy:
+    permissions:
+      id-token: write
+      pages: write
     needs: build
     runs-on: ubuntu-latest
     environment:

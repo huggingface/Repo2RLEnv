@@ -8,11 +8,13 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: read
+
+permissions: {}
 
 jobs:
   wheel:
+    permissions:
+      contents: read
     name: Windows wheel (py${{ matrix.python-version }})
     runs-on: windows-latest
     strategy:
