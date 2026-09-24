@@ -212,6 +212,44 @@ def test_unknown_provider_outcome_retains_reservation(tmp_path):
     assert ledger.status()["operations"][0]["status"] == "uncertain"
 
 
+def test_provider_refusal_is_metered_and_never_treated_as_recoverable_output(tmp_path):
+    from repo2rlenv.tasksmith.author.bridge import ProviderOutputError
+    from repo2rlenv.tasksmith.author.openai_agent import ProviderRefusalError
+
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1")
+    budget = AuthorBudget(RunBudget(ledger, "refusal", "1"), tmp_path / "costs", "design")
+    calls = []
+
+    async def create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            model_dump=lambda **_: {
+                "status": "completed",
+                "usage": {"input_tokens": 100, "output_tokens": 20},
+                "output": [{"type": "message", "content": [{"type": "refusal", "refusal": "No"}]}],
+            }
+        )
+
+    with pytest.raises(ProviderRefusalError) as exc:
+        asyncio.run(
+            run_openai_agent(
+                model="gpt-6-luna",
+                system="System",
+                prompt="Task",
+                budget=budget,
+                tools=[],
+                handlers={},
+                trace=tmp_path / "trace.jsonl",
+                max_turns=4,
+                client=SimpleNamespace(responses=SimpleNamespace(create=create)),
+            )
+        )
+    assert not isinstance(exc.value, ProviderOutputError)
+    assert len(calls) == 1
+    assert ledger.status()["accounted_usd"] == "0.000020"
+    assert ledger.status()["reserved_usd"] == "0.000000"
+
+
 def test_malformed_tool_arguments_get_feedback_without_executing_handler(tmp_path):
     ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1")
     budget = AuthorBudget(RunBudget(ledger, "cm-test", "1"), tmp_path / "costs", "design")

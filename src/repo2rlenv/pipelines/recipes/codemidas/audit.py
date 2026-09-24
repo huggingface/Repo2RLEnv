@@ -337,15 +337,17 @@ def audit_task(
         mode = "exploit" if kind == "exploit" else "solve"
         evidence = attempt(kind, model, mode)
         policy_refused = False
-        if evidence.exception_type == "BadRequestError":
+        if evidence.exception_type in {"BadRequestError", "ProviderRefusalError"}:
             raw = json.loads(evidence.result.read_text())
             message = (raw.get("exception_info") or {}).get("exception_message", "")
-            if "cyber_policy" in message and kind == "exploit":
+            if kind == "exploit" and (
+                "cyber_policy" in message or evidence.exception_type == "ProviderRefusalError"
+            ):
                 policy_refused = True
                 save_record(
                     policy_block,
                     {
-                        "code": "cyber_policy",
+                        "code": "cyber_policy" if "cyber_policy" in message else "provider_refusal",
                         "action": "adversarial_checks_paused",
                         "result": str(evidence.result.resolve()),
                         "sha256": hashlib.sha256(evidence.result.read_bytes()).hexdigest(),

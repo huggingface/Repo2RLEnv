@@ -62,6 +62,8 @@ checks can continue. A task with passing solver review then records `blocked`,
 check remains incomplete and it cannot enter the paper's selected curriculum.
 The campaign's `codemidas-adversarial-policy-block.json` prevents new adversarial
 dispatches; it does not silently substitute a different model or prompt.
+Explicit model refusals also stop the affected stage. They are metered and
+preserved separately from malformed output, and never trigger format-recovery retries.
 
 ## Prompts and evidence
 

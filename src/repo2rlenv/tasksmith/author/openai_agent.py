@@ -28,6 +28,10 @@ class AgentLimitReached(ValueError):
     """A bounded attempt ended with any existing workspace edits preserved."""
 
 
+class ProviderRefusalError(RuntimeError):
+    """A metered provider refusal must not enter output-format recovery."""
+
+
 def model_name(model: str) -> str:
     name = model.removeprefix("openai/")
     if name not in PRICES:
@@ -150,6 +154,15 @@ async def run_openai_agent(
                 raise
             cost += actual
             record("model_response", turn=turn, cost_usd=str(actual), response=str(response_path))
+            if any(
+                isinstance(part, dict) and part.get("type") == "refusal"
+                for item in data.get("output", [])
+                for part in (item.get("content") or [])
+            ):
+                record("provider_refusal", turn=turn)
+                raise ProviderRefusalError(
+                    "Provider declined the request; automatic retry disabled"
+                )
             if data.get("status") != "completed":
                 reason = (data.get("incomplete_details") or {}).get("reason")
                 if (
