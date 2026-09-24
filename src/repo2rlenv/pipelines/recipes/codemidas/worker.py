@@ -112,7 +112,10 @@ def prepare(repo, options, destination, stack_source=None):
             >= options.min_implementation_statements
         ]
         random.Random(f"{options.seed}:{relative}").shuffle(anchors)
-        for name, node in anchors[: options.max_per_module]:
+        selected = 0
+        for name, node in anchors:
+            if selected >= options.max_per_module:
+                break
             identity = {
                 "repo": repo.url,
                 "ref": repo.ref if stack_source else boot.ref,
@@ -122,6 +125,7 @@ def prepare(repo, options, destination, stack_source=None):
             key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
             if key in options.exclude_candidate_ids:
                 continue
+            selected += 1
             candidates.append(
                 {
                     **identity,

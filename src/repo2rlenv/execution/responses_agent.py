@@ -70,9 +70,11 @@ class ResponsesAgent(BaseAgent):
 
         async def terminal(command: str, timeout_sec: int = 60):
             if not isinstance(command, str) or len(command) > 24000:
-                raise ValueError("Terminal commands must be bounded strings")
+                return json.dumps({"error": "command must be a string of at most 24000 characters"})
+            if type(timeout_sec) is not int:
+                return json.dumps({"error": "timeout_sec must be an integer"})
             result = await environment.exec(
-                command=command, timeout_sec=max(1, min(int(timeout_sec), 120))
+                command=command, timeout_sec=max(1, min(timeout_sec, 120))
             )
             return json.dumps(
                 {
@@ -84,6 +86,8 @@ class ResponsesAgent(BaseAgent):
 
         async def finish(summary: str):
             nonlocal finished
+            if not isinstance(summary, str):
+                return json.dumps({"error": "summary must be a string"})
             finished = True
             (self.logs_dir / "conclusion.txt").write_text(summary)
             return "Artifact committed. Solver attempt finished."

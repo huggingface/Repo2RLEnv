@@ -49,6 +49,40 @@ def test_all_verifier_requirements_are_visible_to_the_learner():
     assert task.rationale not in instruction
 
 
+def test_excluded_candidates_do_not_consume_module_quota(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines.recipes.codemidas import worker
+    from repo2rlenv.spec.input import RepoSpec
+    from repo2rlenv.spec.recipe_options import CodeMidasOptions
+
+    base = tmp_path / "base"
+    (base / "lib").mkdir(parents=True)
+    (base / "lib/core.py").write_text(
+        "\n\n".join(
+            f"def {name}(value):\n"
+            + "".join(f"    value += {i}\n" for i in range(12))
+            + "    return value\n"
+            for name in ("first", "second", "third")
+        )
+    )
+    monkeypatch.setattr(
+        worker,
+        "bootstrap_snapshot",
+        lambda *args: (SimpleNamespace(ref="a" * 40, image_digest="sha256:fixture"), base),
+    )
+    monkeypatch.setattr(
+        worker, "_run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr="")
+    )
+    repo = RepoSpec(url="example/project", ref="a" * 40)
+    options = CodeMidasOptions(source_paths=["lib"], max_per_module=1)
+    first = worker.prepare(repo, options, tmp_path / "first")["candidates"]
+    assert len(first) == 1
+    options.exclude_candidate_ids = [first[0]["id"]]
+    second = worker.prepare(repo, options, tmp_path / "second")["candidates"]
+    assert len(second) == 1
+    assert second[0]["id"] != first[0]["id"]
+    assert second[0]["path"] == first[0]["path"]
+
+
 def test_verifier_timeout_is_retained_repair_feedback_not_baseline_success(tmp_path, monkeypatch):
     import subprocess
 
@@ -296,6 +330,36 @@ def test_malformed_tool_arguments_get_feedback_without_executing_handler(tmp_pat
     assert executed == ["done"]
     assert ledger.status()["accounted_usd"] == "0.000040"
     assert ledger.status()["reserved_usd"] == "0.000000"
+
+
+def test_solver_rejects_invalid_terminal_arguments_without_aborting_attempt(tmp_path, monkeypatch):
+    pytest.importorskip("harbor")
+    from repo2rlenv.execution import responses_agent
+
+    executions = []
+
+    async def execute(**kwargs):
+        executions.append(kwargs)
+        return SimpleNamespace(return_code=0, stdout="ok", stderr="")
+
+    async def run(**kwargs):
+        terminal = kwargs["handlers"]["terminal"]
+        for timeout in (None, "60 seconds", 1.5, True):
+            assert "error" in json.loads(await terminal("pwd", timeout))
+        assert "error" in json.loads(await terminal(None))
+        assert executions == []
+        assert json.loads(await terminal("pwd", 240))["stdout"] == "ok"
+        assert "error" in json.loads(await kwargs["handlers"]["finish"](None))
+        assert not (tmp_path / "conclusion.txt").exists()
+        await kwargs["handlers"]["finish"]("Completed")
+
+    monkeypatch.setattr(responses_agent, "run_openai_agent", run)
+    agent = responses_agent.ResponsesAgent(logs_dir=tmp_path, model_name="gpt-6-luna")
+    context = SimpleNamespace()
+    asyncio.run(agent.run("Implement the feature", SimpleNamespace(exec=execute), context))
+    assert executions == [{"command": "pwd", "timeout_sec": 120}]
+    assert context.metadata["finished"] is True
+    assert (tmp_path / "conclusion.txt").read_text() == "Completed"
 
 
 def test_cache_writes_are_billed_at_their_distinct_rate():

@@ -178,7 +178,7 @@ class CodeMidasOptions(PythonRepositoryProfile):
     pytest_args: list[str] = Field(default_factory=lambda: ["--noconftest"])
     target: int = Field(default=5, ge=1, le=1000)
     max_candidates: int = Field(default=12, ge=1, le=1000)
-    max_per_module: int = Field(default=2, ge=1, le=10)
+    max_per_module: int = Field(default=2, ge=1, le=100)
     min_implementation_statements: int = Field(default=5, ge=1, le=100)
     seed: int = 24
     stack_manifest: Path | None = None
