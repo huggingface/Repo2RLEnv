@@ -8,6 +8,7 @@ import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from difflib import SequenceMatcher
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
@@ -155,6 +156,23 @@ def evidence_index(task: Path, directory: Path) -> dict:
                 original = task / "environment/source" / relative
                 if not original.is_file() or path.read_bytes() != original.read_bytes():
                     add("attempts", directory, path)
+                    key = "attempts/" + path.relative_to(directory).as_posix()
+                    if key in index and original.is_file():
+                        before = original.read_text(errors="replace").splitlines()
+                        after = path.read_text(errors="replace").splitlines()
+                        index[key]["changed_ranges"] = [
+                            {
+                                "kind": kind,
+                                "starter_first_line": i + 1,
+                                "starter_line_count": j - i,
+                                "submitted_first_line": k + 1,
+                                "submitted_line_count": m - k,
+                            }
+                            for kind, i, j, k, m in SequenceMatcher(
+                                None, before, after, autojunk=False
+                            ).get_opcodes()
+                            if kind != "equal"
+                        ]
                     if original.is_file():
                         add("task", task, original)
             elif path.name in {
@@ -346,7 +364,14 @@ def audit_task(
     index = evidence_index(task, directory)
 
     async def read_evidence(path: str, first_line: int = 1, lines: int = 150):
-        if path not in index or not first_line >= 1 or not 1 <= lines <= 400:
+        if (
+            not isinstance(path, str)
+            or path not in index
+            or type(first_line) is not int
+            or type(lines) is not int
+            or not first_line >= 1
+            or not 1 <= lines <= 400
+        ):
             return "Choose a listed evidence path and 1-400 lines."
         record = index[path]
         source = Path(record["path"])
@@ -362,14 +387,23 @@ def audit_task(
     async def read_evidence_batch(requests: list[dict]):
         if not isinstance(requests, list) or not 1 <= len(requests) <= 4:
             return "Read one to four evidence windows per call."
-        result = {}
+        result = []
         for request in requests:
-            result[request["path"]] = await read_evidence(**request)
-        return json.dumps(result)[:48000]
+            if (
+                not isinstance(request, dict)
+                or not isinstance(request.get("path"), str)
+                or set(request) - {"path", "first_line", "lines"}
+            ):
+                return "Each window needs path and optional first_line/lines fields."
+            content = await read_evidence(**request)
+            limit = 21000 // len(requests)
+            if len(content) > limit:
+                content = content[:limit] + "\n[Truncated: request a smaller line window.]"
+            result.append(request["path"] + "\n" + content)
+        # Keep repeated windows of the same path, and avoid cutting JSON in half.
+        return "\n\n".join(result)
 
     async def review():
-        review_key = hashlib.sha256(json.dumps(summaries, sort_keys=True).encode()).hexdigest()[:12]
-        root = directory / "reviews" / review_key
         inputs = {
             "task": task.name,
             "bundle_hash": identity,
@@ -382,6 +416,11 @@ def audit_task(
                 for path, record in index.items()
             },
         }
+        system = files(__package__).joinpath("audit.md").read_text()
+        review_key = hashlib.sha256(
+            json.dumps({"inputs": inputs, "system": system}, sort_keys=True).encode()
+        ).hexdigest()[:12]
+        root = directory / "reviews" / review_key
 
         async def check(value):
             validate_review(value, index, summaries)
@@ -390,7 +429,7 @@ def audit_task(
             schema=AuditReview,
             stage="rollout-review",
             inputs=inputs,
-            system=files(__package__).joinpath("audit.md").read_text(),
+            system=system,
             prompt=json.dumps(inputs),
             root=root,
             model="openai/" + screen_model,

@@ -28,3 +28,11 @@ Finish within 20 calls, leaving the last call for submit_artifact. If a material
 question remains unresolved, report it explicitly instead of guessing soundness.
 The learner-visible prose is the contract; a hidden requirement map cannot repair
 an ambiguous or contradictory instruction.
+
+Submitted files include changed_ranges against the learner's starter, with
+one-based line starts and counts. Start with those windows and nearby context;
+inspect unchanged helpers only when a specific question requires it. Read the
+recorded commands once per attempt. Rewards and controls are already supplied;
+do not repeatedly reread their receipts. Focus on whether each submitted change
+meets the public contract. If a tool marks a window truncated, request a smaller
+window rather than assuming the omitted content was inspected.

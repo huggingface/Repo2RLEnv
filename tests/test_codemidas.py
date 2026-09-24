@@ -345,6 +345,33 @@ def test_audit_indexes_all_changed_files_under_nested_workspace(tmp_path):
     assert set(evidence_index(task, runs)) == {"attempts/solve-0/job/trial/artifacts/manifest.json"}
 
 
+def test_audit_points_to_changed_lines_without_replacing_submitted_evidence(tmp_path):
+    from repo2rlenv.pipelines.recipes.codemidas.audit import evidence_index
+
+    task, runs = tmp_path / "task", tmp_path / "audit"
+    original = task / "environment/source/lib.py"
+    submitted = runs / "solve-0/job/trial/artifacts/workspace/lib.py"
+    original.parent.mkdir(parents=True)
+    submitted.parent.mkdir(parents=True)
+    original.write_text(
+        "def public():\n    raise NotImplementedError\n\ndef other():\n    return 9\n"
+    )
+    replacement = "def public():\n    value = 3\n    return value\n\ndef other():\n    return 9\n"
+    submitted.write_text(replacement)
+    record = evidence_index(task, runs)["attempts/solve-0/job/trial/artifacts/workspace/lib.py"]
+    assert record["changed_ranges"] == [
+        {
+            "kind": "replace",
+            "starter_first_line": 2,
+            "starter_line_count": 1,
+            "submitted_first_line": 2,
+            "submitted_line_count": 2,
+        }
+    ]
+    assert record["path"] == str(submitted.resolve())
+    assert submitted.read_text() == replacement
+
+
 def test_incomplete_response_is_billed_but_never_executes_partial_tools(tmp_path):
     ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1")
     budget = AuthorBudget(RunBudget(ledger, "cm", "1"), tmp_path / "costs", "design")
