@@ -210,9 +210,31 @@ edit existing Python files under configured roots. It does not yet support arbit
 new implementation files, non-Python builds, GPU tasks or external services.
 Structural anchor selection is our engineering choice; unlike the paper's broader
 generation, it currently selects multiline public functions and methods.
+`max_per_module` limits eligible, non-excluded anchors, not attempted slots.
+Use `exclude_candidate_ids` when continuing a repository with a new run identity;
+the default per-module cap is two and an explicit campaign can raise it to 100.
+The candidate pool can be smaller than `target`, and different anchors can select
+the same missing implementation. Such duplicates do not count as new tasks.
 Private helper modules are excluded from directory-wide discovery. An explicitly
 listed Python file can override this filter when it implements an exported public
 API, as is common in Hugging Face libraries.
+
+### Reproduction boundary
+
+| Aspect | This implementation |
+|---|---|
+| Source-driven design | Working repository code supplies the behavior and original-source oracle. No PR, issue, docstring or existing test is required. |
+| Execution and agreement | Six fresh control trials and four independently reviewed solver attempts follow the published method. |
+| Generation choices | Public Python AST anchors, Sol/Luna, bounded repairs and the owned prompts are our choices; they are not upstream code or undisclosed paper settings. |
+| Scope | Python CPU libraries. Multi-symbol and multi-file removal is supported; measured task scope must be reported separately from this capability. |
+| Final screening | Four Sol attempts are our explicit sample size. All-pass/all-fail artifacts are retained, but do not satisfy the paper's mixed-outcome selection. |
+| Adversarial coverage | Implemented; blocked in the initial campaign by provider access. A blocked check never establishes soundness. |
+| Training and generalization | No RL training, benchmark improvement, or benchmark-contamination clearance is claimed. Public sources may appear in model pretraining. |
+
+Compare these boundaries with [Sections 3.1–3.5 of the paper](https://arxiv.org/html/2609.22068v1#S3).
+The emitted Dockerfiles retain the source profile's package constraints and base
+image tag. Remote receipts identify the images used in this campaign, but rebuilds
+are not a fully locked, permanently archived dependency closure.
 
 Report spend over **all attempted candidates**, including failures, model calls and
 Daytona compute. Keep cost per generated task separate from cost per reviewed or
