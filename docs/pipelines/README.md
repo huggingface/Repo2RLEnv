@@ -8,9 +8,9 @@ create the problem, reference solution and verifier.
 For adaptive PR conversion, start with [Tasksmith](tasksmith.md): investigation,
 remote bootstrap, task design, construction, and bounded review and repair.
 The [homepage overview](../index.md#pipelines-at-a-glance) lists all six native
-pipelines, 14 research-inspired recipes, and Tasksmith with their rewards and datasets.
+pipelines, 15 research-inspired recipes, and Tasksmith with their rewards and datasets.
 
-For the 14 owned research recipes, start with the
+For the 15 owned research recipes, start with the
 [visual route map and execution boundaries](owned_recipes.md), then
 [follow the actual prompts](prompt_reference.md). Each recipe has a stage diagram,
 call-by-call input/output table, concrete example and complete prompt reference.
@@ -49,7 +49,7 @@ flowchart TD
 
 The original six native pipelines remain available: three stable (`pr_diff`,
 `pr_runtime`, `commit_runtime`) and three experimental. [Owned recipes](owned_recipes.md)
-add 14 method-specific experimental implementations. The catalog labels deferred
+add 15 method-specific experimental implementations. The catalog labels deferred
 or planned methods explicitly. The table below covers the original native
 pipelines; the [owned recipe table](owned_recipes.md#choose-a-generation-route)
 covers the new methods, inputs and reference sources.
