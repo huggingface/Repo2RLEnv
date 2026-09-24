@@ -92,6 +92,10 @@ option interactions are uncertain. Early audits found both an incorrect promise
 about empty output shapes and a verifier that tested options separately while
 missing their combined behavior. Construction prompts now explicitly check those
 boundaries; existing frozen tasks keep their original results and defect labels.
+Graph pilots exposed another pattern: an optional filter was exercised on inputs
+where every result matched, and a repair replaced an earlier useful case. Prompts
+now require contrasting selection fixtures and preserve justified checks during
+repair. These changes improve construction; they do not rewrite audited tasks.
 The controller renders every requirement into `instruction.md` as an acceptance
 criterion. Tests and independent review receive that exact text. The private
 requirement map links tests to public behavior; it cannot introduce extra rules.

@@ -26,3 +26,8 @@ Where relevant, exercise zero-result output shapes, explicit values versus omitt
 defaults, and one meaningful interaction between options. Tests for each option
 in isolation may miss incorrect combined behavior. Stay within the stated contract
 and use observed original behavior; report a contradiction instead of encoding it.
+For filtering or selection options, include both matching and nonmatching inputs.
+An enumeration check needs more than one qualifying result when that is supported.
+Passing an option on a fixture where it changes nothing does not test its effect.
+When repairing a verifier, preserve its already justified checks and add the missing
+case; remove a check only when the contract or execution evidence shows it is wrong.

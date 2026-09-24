@@ -32,3 +32,7 @@ Prioritize empty-result shapes, sentinel/default semantics, and interactions of
 public options. Normally zero to three focused calls are sufficient. A missing
 case is material only when you can explain the observable contract violation it
 would permit; do not demand exhaustive branch coverage or speculative rewrites.
+Report the concrete material issues found in this pass together, so one bounded
+repair can address them. Check that selection fixtures contain both included and
+excluded cases, and that enumeration fixtures distinguish all results from the first.
+When reviewing a repair, check that it retains the earlier justified coverage.
