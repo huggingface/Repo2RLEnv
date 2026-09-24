@@ -225,9 +225,9 @@ and [R2E](r2e.md), plus [TMax](tmax.md) and
 [Endless Terminals](endless_terminals.md), [TerminalWorld](terminalworld.md),
 [CLI-Gym](env_repair.md), [DataArc](dataarc.md), [SWE-Next](swe_next.md), and [R2E-Gym](r2e_gym.md).
 [SCALER](scaler.md) adds algorithmic reasoning instances from released families.
-The active campaign covers these 14 recipes. SEC-bench remains a deferred design
-and is excluded from this integration milestone. Campaigns are still collecting
-generated outputs.
+Those 14 recipes form the published research cohort. [CodeMidas](codemidas.md)
+adds source-driven reconstruction in a separate local campaign using Sol/Luna and
+Daytona. SEC-bench remains deferred and is not an implemented recipe.
 
 ## Contract references
 

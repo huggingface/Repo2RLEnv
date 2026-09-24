@@ -117,7 +117,7 @@ which includes example inputs, provider setup and an explicit spending limit.
 
 ### Research recipes
 
-These **14 experimental recipes** adapt published methods into code owned by this
+These **15 experimental recipes** adapt published methods into code owned by this
 repository. No upstream research package is installed at runtime. A pipeline
 names the generation family; a recipe selects its method.
 
@@ -128,6 +128,7 @@ names the generation family; a recipe selects its method.
 | `swe_next` | `pr_runtime` | Repair a task mined from PR history |
 | `r2e_gym` | `commit_runtime` | Repair a task mined from commit history |
 | `swe_flow` | `repo_reconstruct` | Reconstruct functions in dependency order |
+| `codemidas` | `repo_reconstruct` | Restore working functionality using reference-grounded tests |
 | `r2e` | `equivalence_tests` | Match a private reference through generated tests |
 | `cli_gym` | `env_repair` | Restore a damaged development environment |
 | `seta_seed2synth` | `terminal_synth` | Solve a terminal task derived from question/answer seeds |

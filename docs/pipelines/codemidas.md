@@ -69,8 +69,8 @@ preserved separately from malformed output, and never trigger format-recovery re
 
 | Stage | Model | What it receives | Required result |
 |---|---|---|---|
-| Design | GPT-6 Luna | Pinned source, anchor, source roots, read-only remote shell | Public instruction, requirement IDs, selected function/method bodies |
-| Verifier | GPT-6 Luna | Frozen feature, working reference shell, execution feedback | Pytest tests, assertion-to-requirement map, observed examples |
+| Design | GPT-6 Luna by default | Pinned source, anchor, source roots, read-only remote shell | Public instruction, requirement IDs, selected function/method bodies |
+| Verifier | Same configured author | Frozen feature, working reference shell, execution feedback | Pytest tests, assertion-to-requirement map, observed examples |
 | Assertion review | GPT-6 Sol | Instruction, tests, original source, observations, contrast, read-only reference shell | Material defects or an explicit approval |
 | Adversarial attempt | GPT-6 Sol | Only the learner task and isolated terminal | Concrete evidence of accessible answers or reward bypasses |
 | Four solver attempts | GPT-6 Luna | Only the learner task and isolated terminal | Independent patches and deterministic rewards |
@@ -78,7 +78,11 @@ preserved separately from malformed output, and never trigger format-recovery re
 | Curriculum screen | GPT-6 Sol | Four fresh learner environments | `mixed`, `all_pass`, `all_fail`, or `incomplete` |
 
 Read the [complete prompts and request assembly](prompts/codemidas.md), including
-the solver and adversarial instructions. Before freezing a task, assertion review
+the solver and adversarial instructions. To author with Sol, explicitly set
+`pipeline.options.author_model: openai/gpt-6-sol` and the matching
+`llm.model: gpt-6-sol`. Each task records its author and reviewer models; independent
+review uses a separate context even when both stages select Sol.
+Before freezing a task, assertion review
 can route a correction to its tests or its description. Description repairs keep
 the selected implementation boundary and reconcile an observed public API
 discrepancy. All repairs share the same maximum of three executed verifier versions.

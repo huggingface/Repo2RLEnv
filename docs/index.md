@@ -35,7 +35,7 @@ repo2rlenv generate \
 
     ---
 
-    Six native pipelines, 14 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
+    Six native pipelines, 15 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
 
     [:octicons-arrow-right-24: Browse the pipelines](pipelines/README.md)
 
@@ -63,7 +63,7 @@ Repo2RLEnv authors and checks tasks; Harbor defines their runtime contract and e
 
 | Layer | Repo2RLEnv ships | We rely on |
 |---|---|---|
-| **Generation** | Native pipelines, 14 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
+| **Generation** | Native pipelines, 15 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
 | **Spec** | The `[metadata.repo2env]` extension to `task.toml` — source lineage, artifact identities and evaluation labels | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
 | **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's runtime](https://github.com/harbor-framework/harbor) — sandbox providers and coding-agent integrations |
 
@@ -99,7 +99,7 @@ measure that cohort, not unattended success on arbitrary PRs.
 
 ### Research-inspired recipes — experimental
 
-All 14 recipes below are implemented. Their stage diagrams, prompts, input
+All 15 recipes below are implemented. Their stage diagrams, prompts, input
 requirements and upstream credits are in the linked guides.
 
 | Recipe | Task shape | Reward | Reference dataset |
@@ -107,6 +107,7 @@ requirements and upstream credits are in the linked guides.
 | [**swe_smith**](pipelines/repo_mutate.md) | Repair a deliberately introduced source defect | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
 | [**swe_gen**](pipelines/pr_to_env.md) | Implement the behavior of a supplied merged PR | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
 | [**swe_flow**](pipelines/repo_reconstruct.md) | Reconstruct functions in dependency order | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
+| [**codemidas**](pipelines/codemidas.md) | Reconstruct working functionality from source, with execution-grounded tests and independent rollout review | Private tests, 0/1 | Local campaign; not published |
 | [**r2e**](pipelines/r2e.md) | Implement a function equivalent to a private reference | Equivalence tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
 | [**swe_next**](pipelines/swe_next.md) | Repair a task mined from PR history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
 | [**r2e_gym**](pipelines/r2e_gym.md) | Repair a task mined from commit history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |
@@ -123,9 +124,9 @@ SCALER produces reasoning instances rather than repository coding tasks.
 DataArc's published cohort used recipe version 1; the current version 2 uses
 replacement prompts and still needs a fresh generation-quality pilot.
 
-The [release inventory](pipelines/releases.md) records **1,330 tasks across these
-15 Tasksmith/recipe datasets: 50 verified, 5 needing repair and 1,275 unverified**.
-The six earlier native datasets are outside these counts. Compare
+The [release inventory](pipelines/releases.md) records **1,330 tasks across
+15 published Tasksmith/recipe datasets: 50 verified, 5 needing repair and 1,275 unverified**.
+The six earlier native datasets and the local CodeMidas campaign are outside these counts. Compare
 [yield and cost](pipelines/economics.md), [evaluation labels](pipelines/task_evaluation_labels.md)
 and the [complete prompt reference](pipelines/prompt_reference.md).
 
