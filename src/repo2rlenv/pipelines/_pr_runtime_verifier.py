@@ -177,6 +177,7 @@ def parse_cargo_test(log: str) -> dict[str, str]:
 
 
 _JEST_FILE_RE = re.compile(r"^ ?(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b")
+_JEST_FILE_MARKER_RE = re.compile(_JEST_FILE_RE.pattern, re.MULTILINE)
 _JEST_TEST_RE = re.compile(
     r"^(?P<indent>\s*)(?P<glyph>✓|√|✕|×|✗|○|◯)\s+(?P<name>.+?)(?:\s+\(\d+(?:\.\d+)?\s*m?s\))?$"
 )
@@ -197,7 +198,53 @@ _VITEST_TEST_RE = re.compile(
     r"(?P<name>\S+ > .+?)(?P<duration> \d{1,9}ms)?"
     r"(?: \(retry x\d{1,9}\))?(?: \(repeat x\d{1,9}\))?(?: \d{1,9} MB heap used)?(?: \[[^\[\]]*\])?$"
 )
+# ✔ is log-symbols' check mark, which jest never prints; √ is ambiguous (both
+# use it on Windows), so a √-only log is recognized by mocha's epilogue.
+_MOCHA_MARKER_RE = re.compile(r"^\s*(?:\d+ passing \(|✔ )", re.MULTILINE)
+_MOCHA_EPILOGUE_RE = re.compile(r"^\s*\d+ passing \(")
+_MOCHA_FAILING_RE = re.compile(r"^\s*(?P<count>\d+) failing\b")
+_MOCHA_TEST_RE = re.compile(
+    r"^(?P<indent>\s*)(?:(?P<passed>[✔✓√])|(?P<failed>\d+\))|(?P<pending>-))\s"
+    r"(?P<name>\S.*?)(?:\s\(\d{1,9}\s?ms\))?$"
+)
 _VITEST_STATUS = {"✓": PASSED, "×": FAILED, "↓": SKIPPED, "□": SKIPPED}
+
+
+def _parse_mocha(log: str) -> dict[str, str]:
+    """{test_name -> status} from mocha's spec reporter (no file header)."""
+    out: dict[str, str] = {}
+    suites: list[tuple[int, str]] = []
+    in_epilogue = False
+    failures_left = 0
+    for raw in log.split("\n"):
+        line = raw.rstrip()
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        indent = len(line) - len(stripped)
+        if _MOCHA_EPILOGUE_RE.match(line):
+            in_epilogue, failures_left = True, 0
+            continue
+        if in_epilogue:
+            failing = _MOCHA_FAILING_RE.match(line)
+            if failing:
+                failures_left = int(failing.group("count"))
+                continue
+        m = _MOCHA_TEST_RE.match(line)
+        if m:
+            if in_epilogue:
+                if m.group("failed") and indent == 2 and failures_left > 0:
+                    failures_left -= 1
+                    continue
+                in_epilogue = False
+            status = PASSED if m.group("passed") else FAILED if m.group("failed") else SKIPPED
+            describes = [title for ind, title in suites if ind < indent]
+            out[" > ".join([*describes, m.group("name")])] = status
+            continue
+        if indent >= 2:
+            suites = [(i, t) for i, t in suites if i < indent]
+            suites.append((indent, stripped))
+    return out
 
 
 def _parse_vitest(log: str) -> dict[str, str]:
@@ -223,6 +270,8 @@ def parse_jest(log: str) -> dict[str, str]:
     log = _ANSI_RE.sub("", log)
     if _VITEST_MARKER_RE.search(log):
         return _parse_vitest(log)
+    if _MOCHA_MARKER_RE.search(log) and not _JEST_FILE_MARKER_RE.search(log):
+        return _parse_mocha(log)
     current_file: str | None = None
     describe_stack: list[tuple[int, str]] = []
     last_test_indent: int | None = None
