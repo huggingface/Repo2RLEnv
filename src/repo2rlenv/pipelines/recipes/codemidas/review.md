@@ -25,3 +25,10 @@ original public API does not support, or omits essential public semantics. Cite
 the concrete discrepancy. Set it to "tests" for verifier-only problems. Repairs
 happen before the task is frozen and before any solver attempt; never optimize
 the contract for a solver's success.
+
+You have read-only shell access to the original repository. If a broad contract
+claim or a plausible missing test is uncertain, execute a small concrete example.
+Prioritize empty-result shapes, sentinel/default semantics, and interactions of
+public options. Normally zero to three focused calls are sufficient. A missing
+case is material only when you can explain the observable contract violation it
+would permit; do not demand exhaustive branch coverage or speculative rewrites.

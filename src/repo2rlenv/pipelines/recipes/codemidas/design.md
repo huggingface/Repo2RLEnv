@@ -26,3 +26,7 @@ anchor is unsuitable, explain that rather than inventing a fake task.
 The controller appends every requirement's behavior to the learner instruction.
 Write these as concise human-readable acceptance criteria. They must contain no
 solution code or prescribed algorithm, and must agree with the introductory prose.
+Check broad claims against empty inputs, omitted versus explicit defaults, and
+interacting public options when applicable. State observable exceptions to output
+shape or option behavior. Do not turn a common-case observation into an unconditional
+promise. Use a few targeted executions, not exhaustive input enumeration.

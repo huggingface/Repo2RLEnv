@@ -69,7 +69,7 @@ dispatches; it does not silently substitute a different model or prompt.
 |---|---|---|---|
 | Design | GPT-6 Luna | Pinned source, anchor, source roots, read-only remote shell | Public instruction, requirement IDs, selected function/method bodies |
 | Verifier | GPT-6 Luna | Frozen feature, working reference shell, execution feedback | Pytest tests, assertion-to-requirement map, observed examples |
-| Assertion review | GPT-6 Sol | Instruction, tests, original source, observations, contrast | Material defects or an explicit approval |
+| Assertion review | GPT-6 Sol | Instruction, tests, original source, observations, contrast, read-only reference shell | Material defects or an explicit approval |
 | Adversarial attempt | GPT-6 Sol | Only the learner task and isolated terminal | Concrete evidence of accessible answers or reward bypasses |
 | Four solver attempts | GPT-6 Luna | Only the learner task and isolated terminal | Independent patches and deterministic rewards |
 | Rollout review | GPT-6 Sol | Immutable task, traces, submitted source and rewards | Evidence-backed agreement or false positives/negatives |
@@ -81,6 +81,11 @@ can route a correction to its tests or its description. Description repairs keep
 the selected implementation boundary and reconcile an observed public API
 discrepancy. All repairs share the same maximum of three executed verifier versions.
 Solver outcomes never drive a change to the task contract.
+Review can execute a few targeted reference probes when broad claims or missing
+option interactions are uncertain. Early audits found both an incorrect promise
+about empty output shapes and a verifier that tested options separately while
+missing their combined behavior. Construction prompts now explicitly check those
+boundaries; existing frozen tasks keep their original results and defect labels.
 The controller renders every requirement into `instruction.md` as an acceptance
 criterion. Tests and independent review receive that exact text. The private
 requirement map links tests to public behavior; it cannot introduce extra rules.

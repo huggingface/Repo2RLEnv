@@ -20,3 +20,9 @@ mistakes using observed feedback, at most three submitted versions. The contract
 frozen: do not weaken or alter it to accommodate the reference or starter. If it is
 inconsistent, state the defect and stop. Submit Verifier; use revise_artifact for
 small corrections. Finish promptly once it is accepted.
+
+Check the contract's boundary claims, not only one example per requirement ID.
+Where relevant, exercise zero-result output shapes, explicit values versus omitted
+defaults, and one meaningful interaction between options. Tests for each option
+in isolation may miss incorrect combined behavior. Stay within the stated contract
+and use observed original behavior; report a contradiction instead of encoding it.

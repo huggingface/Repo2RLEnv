@@ -284,6 +284,7 @@ class CodeMidasPipeline(RepositoryGenerationPipeline):
                 },
                 "review",
                 self.options.reviewer_model,
+                use_shell=True,
             )
             if review.approved:
                 break
