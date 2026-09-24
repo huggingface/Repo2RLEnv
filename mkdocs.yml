@@ -170,6 +170,7 @@ nav:
           - tmax: pipelines/tmax.md
           - terminalworld: pipelines/terminalworld.md
           - dataarc: pipelines/dataarc.md
+          - CodeMidas: pipelines/codemidas.md
   - Guides:
       - Execution and providers: pipelines/owned_recipes.md
       - Review and repair: pipelines/quality_loop.md
@@ -187,6 +188,7 @@ nav:
           - Shared terminal stages: pipelines/prompts/shared_terminal.md
           - Review and repair: pipelines/prompts/quality_loop.md
           - Tasksmith: pipelines/prompts/tasksmith.md
+          - CodeMidas: pipelines/prompts/codemidas.md
           - swe-smith: pipelines/prompts/swe_smith.md
           - r2e: pipelines/prompts/r2e.md
           - swe-gen: pipelines/prompts/swe_gen.md
@@ -232,6 +234,7 @@ nav:
           - 0023 swe-next-recipe: rfcs/0023-swe-next-recipe.md
           - 0024 r2e-gym-recipe: rfcs/0024-r2e-gym-recipe.md
           - 0026 scaler-recipe: rfcs/0026-scaler-recipe.md
+          - 0031 codemidas-recipe: rfcs/0031-codemidas-recipe.md
       - Native designs and proposals:
           - 0001 pr-diff: rfcs/0001-pr-diff.md
           - 0002 pr-runtime: rfcs/0002-pr-runtime.md

@@ -21,7 +21,8 @@ def test_every_retained_recipe_license_is_declared():
             continue
         folder = ROOT / "src/repo2rlenv/pipelines/recipes" / recipe.id
         assert (folder / "provenance.md").is_file()
-        assert recipe.upstream["commit"] in notices
+        reference = recipe.upstream.get("commit") or recipe.upstream["version"]
+        assert reference in notices
         license_file = folder / "UPSTREAM_LICENSE"
         if recipe.upstream.get("retained_material", True):
             assert license_file in declared

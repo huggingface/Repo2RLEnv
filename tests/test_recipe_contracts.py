@@ -55,7 +55,7 @@ def test_discovery_json_is_parseable_without_credentials(monkeypatch, capsys):
         monkeypatch.delenv(key, raising=False)
     assert main(["pipelines", "list", "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert len(data["recipes"]) == 15
+    assert len(data["recipes"]) == 16
     assert {item["recipe"] for item in data["native"]} == {"native"}
 
 

@@ -9,6 +9,7 @@ import re
 import tarfile
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 from repo2rlenv.auth import resolve_llm_api_key
@@ -18,6 +19,7 @@ from repo2rlenv.execution.artifacts import unpack_evidence
 from repo2rlenv.execution.base import RemoteWorker
 from repo2rlenv.execution.jobs import launch_job, observe_job
 from repo2rlenv.execution.lifecycle import now, save_record
+from repo2rlenv.execution.read_retry import retry_read
 from repo2rlenv.llm import completion_token_limit
 from repo2rlenv.spec.input import LLMSpec
 
@@ -59,6 +61,110 @@ def read_trial(directory: Path) -> TrialEvidence:
     return TrialEvidence(reward, exception, path, cost)
 
 
+def responses_cost_is_complete(evidence: TrialEvidence) -> bool:
+    """A failed agent can still have complete, settled usage for every request."""
+    if evidence.cost_usd is None:
+        return False
+    result = json.loads(evidence.result.read_text())
+    budget = ((result.get("agent_result") or {}).get("metadata") or {}).get("budget") or {}
+    operations = budget.get("operations", [])
+    if not operations or any(
+        op.get("status") != "settled"
+        or type(op.get("actual_micros")) is not int
+        or op["actual_micros"] < 0
+        for op in operations
+    ):
+        return False
+    amount = Decimal(sum(op["actual_micros"] for op in operations)) / 1_000_000
+    return (
+        budget.get("reserved_usd") == "0.000000"
+        and amount == Decimal(str(evidence.cost_usd))
+        and amount == Decimal(budget["accounted_usd"])
+    )
+
+
+def _collect_trial(worker, output: Path, record: dict, ledger, status: dict) -> TrialEvidence:
+    trial_id = record["trial_id"]
+    receipt = output / "trial.json"
+    remote_dir = "/work/trials/" + trial_id
+    remote_jobs = "/evidence/trials/" + trial_id
+    operation_id = "trial:" + trial_id
+    save_record(output / "remote-job.json", status)
+    worker.download(remote_dir + "/stdout.txt", output / "stdout.txt")
+    worker.download(remote_dir + "/stderr.txt", output / "stderr.txt")
+    record["command_returncode"] = status.get("returncode")
+    if status["state"] != "completed" or status.get("returncode") != 0:
+        raise RuntimeError("Harbor job failed or needs cleanup; inspect remote-job.json")
+    worker.exec(
+        ["tar", "-czf", remote_dir + "/evidence.tar.gz", "-C", remote_jobs, trial_id],
+        timeout=60,
+    ).checked("Archive exact trial evidence")
+    worker.download(remote_dir + "/evidence.tar.gz", output / "evidence.tar.gz")
+    job = unpack_evidence(output / "evidence.tar.gz", output, root_name=trial_id)
+    evidence = read_trial(job)
+    record.update(
+        state="completed",
+        finished_at=now(),
+        reward=evidence.reward,
+        exception_type=evidence.exception_type,
+        result=str(evidence.result),
+        result_sha256=hashlib.sha256(evidence.result.read_bytes()).hexdigest(),
+    )
+    save_record(receipt, record)
+    if record["model"] is not None:
+        if (
+            evidence.cost_usd is not None
+            and evidence.cost_usd > 0
+            and (
+                evidence.completed
+                or (record["agent"] == "responses" and responses_cost_is_complete(evidence))
+            )
+        ):
+            ledger.settle(operation_id, evidence.cost_usd, evidence=str(receipt.resolve()))
+        else:
+            ledger.mark_uncertain(
+                operation_id, f"Incomplete trial or unknown usage: {receipt.resolve()}"
+            )
+    return evidence
+
+
+def recover_trial(worker: RemoteWorker, output: Path, *, ledger=None) -> TrialEvidence:
+    """Collect an already completed remote job without another model dispatch.
+
+    A lost observation is not a failed solve. Preserve the interrupted receipt and
+    require the original worker and exact supervised command before reconciliation.
+    Running, missing, and failed supervisors retain their uncertain reservation.
+    """
+    receipt = output / "trial.json"
+    record = json.loads(receipt.read_text())
+    if (
+        record["state"] not in {"interrupted", "dispatched"}
+        or record["worker_id"] != worker.id
+        or not record.get("trial_dispatched", record.get("model") is None)
+        or not re.fullmatch(r"[a-z][a-z0-9-]{0,60}", record["trial_id"])
+        or not record.get("command")
+        or (record["model"] is not None and ledger is None)
+    ):
+        raise ValueError("Recovery requires the original dispatched trial, worker and ledger")
+    remote = "/work/trials/" + record["trial_id"]
+    response = retry_read(lambda: worker.exec(["cat", remote + "/job.json"], timeout=30))
+    response.checked("Read original remote trial status")
+    status = json.loads(response.stdout)
+    if (
+        status.get("command") != record["command"]
+        or status.get("state") != "completed"
+        or status.get("returncode") != 0
+        or not status.get("cleanup", {}).get("passed")
+    ):
+        raise ValueError("Original remote job is not confirmed complete with successful cleanup")
+    original = output / "interrupted-trial.json"
+    if not original.exists():
+        save_record(original, record)
+    evidence = _collect_trial(worker, output, record, ledger, status)
+    save_record(output / "recovery.json", {"recovered_at": now(), "redispatched": False})
+    return evidence
+
+
 def run_trial(
     worker: RemoteWorker,
     task: Path,
@@ -77,10 +183,11 @@ def run_trial(
     submitted_path: str | None = None,
     resume: bool = False,
     python: str = "python",
+    agent_mode: str = "solve",
 ) -> TrialEvidence:
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,60}", trial_id):
         raise ValueError("Trial ID must be a unique lowercase slug")
-    if agent not in {"nop", "oracle", "terminus-2", "probe"}:
+    if agent not in {"nop", "oracle", "terminus-2", "probe", "responses"}:
         raise ValueError("Use a supported deterministic or external Harbor agent")
     if (agent == "probe") != (probe is not None):
         raise ValueError("Probe trials require an explicit probe name")
@@ -88,8 +195,14 @@ def run_trial(
         from repo2rlenv.execution.probe_agent import probe_program
 
         probe_program(probe, submitted_path)
-    if (agent == "terminus-2") != (model is not None):
-        raise ValueError("Terminus-2 requires a model; nop and oracle do not")
+    if (agent in {"terminus-2", "responses"}) != (model is not None):
+        raise ValueError("Coding agents require a model; deterministic agents do not")
+    if agent_mode not in {"solve", "exploit"} or (agent_mode != "solve" and agent != "responses"):
+        raise ValueError("Exploit mode requires the Responses agent")
+    if agent == "responses":
+        from repo2rlenv.tasksmith.author.openai_agent import model_name
+
+        model_name(model.qualified_name)
     if not (1 <= max_turns <= 100 and 256 <= max_tokens <= 8192 and 30 <= timeout_sec <= 3600):
         raise ValueError("Trial limits are outside the supported bounded range")
     if type(reservation_wait_sec) is not int or not 0 <= reservation_wait_sec <= 300:
@@ -115,6 +228,7 @@ def run_trial(
         "bundle_hash": identity["bundle_hash"],
         "worker_id": worker.id,
         "agent": agent,
+        **({"agent_mode": agent_mode} if agent == "responses" else {}),
         "probe": probe,
         "model": model.qualified_name if model else None,
         "submitted_path": submitted_path,
@@ -206,7 +320,13 @@ def run_trial(
             "--path",
             remote_dir + "/" + task.name,
             "--agent",
-            "repo2rlenv.execution.probe_agent:VerifierProbeAgent" if probe else agent,
+            (
+                "repo2rlenv.execution.probe_agent:VerifierProbeAgent"
+                if probe
+                else "repo2rlenv.execution.responses_agent:ResponsesAgent"
+                if agent == "responses"
+                else agent
+            ),
             "--env",
             "repo2rlenv.execution.harbor_offline:OfflineDockerEnvironment",
             "--n-concurrent",
@@ -223,7 +343,22 @@ def run_trial(
             command.extend(["--ak", "probe=" + probe])
             if submitted_path:
                 command.extend(["--ak", "submitted_path=" + submitted_path])
-        if model:
+        if agent == "responses":
+            command.extend(
+                [
+                    "--model",
+                    model.qualified_name,
+                    "--ak",
+                    f"max_turns={max_turns}",
+                    "--ak",
+                    f"max_tokens={max_tokens}",
+                    "--ak",
+                    f"max_cost={reservation_usd}",
+                    "--ak",
+                    f"mode={agent_mode}",
+                ]
+            )
+        elif model:
             command.extend(
                 [
                     "--model",
@@ -240,36 +375,7 @@ def run_trial(
         save_record(receipt, record)
         launch_job(worker, remote_dir, command, timeout_sec=timeout_sec, env=env, python=python)
         status = observe_job(worker, remote_dir, timeout_sec=timeout_sec + 100)
-        save_record(output / "remote-job.json", status)
-        worker.download(remote_dir + "/stdout.txt", output / "stdout.txt")
-        worker.download(remote_dir + "/stderr.txt", output / "stderr.txt")
-        record["command_returncode"] = status.get("returncode")
-        if status["state"] != "completed" or status.get("returncode") != 0:
-            raise RuntimeError("Harbor job failed or needs cleanup; inspect remote-job.json")
-        worker.exec(
-            ["tar", "-czf", remote_dir + "/evidence.tar.gz", "-C", remote_jobs, trial_id],
-            timeout=60,
-        ).checked("Archive exact trial evidence")
-        worker.download(remote_dir + "/evidence.tar.gz", output / "evidence.tar.gz")
-        job = unpack_evidence(output / "evidence.tar.gz", output, root_name=trial_id)
-        evidence = read_trial(job)
-        record.update(
-            state="completed",
-            finished_at=now(),
-            reward=evidence.reward,
-            exception_type=evidence.exception_type,
-            result=str(evidence.result),
-            result_sha256=hashlib.sha256(evidence.result.read_bytes()).hexdigest(),
-        )
-        save_record(receipt, record)
-        if model is not None:
-            if evidence.cost_usd is not None and evidence.cost_usd > 0 and evidence.completed:
-                ledger.settle(operation_id, evidence.cost_usd, evidence=str(receipt.resolve()))
-            else:
-                ledger.mark_uncertain(
-                    operation_id, f"Incomplete trial or unknown usage: {receipt.resolve()}"
-                )
-        return evidence
+        return _collect_trial(worker, output, record, ledger, status)
     except BaseException:
         record.update(state="interrupted", interrupted_at=now())
         save_record(receipt, record)

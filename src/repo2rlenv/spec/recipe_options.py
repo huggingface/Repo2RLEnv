@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -168,6 +169,31 @@ class ReconstructionOptions(PythonRepositoryProfile):
     max_candidates: int = Field(default=60, ge=1, le=1000)
     trace_max_tests: int = Field(default=128, ge=20, le=1000)
     trace_seed: int = 24
+
+
+class CodeMidasOptions(PythonRepositoryProfile):
+    """Paper-inspired construction with explicit, separately metered screening."""
+
+    test_paths: list[str] = Field(default_factory=lambda: ["test_codemidas_generated.py"])
+    pytest_args: list[str] = Field(default_factory=lambda: ["--noconftest"])
+    target: int = Field(default=5, ge=1, le=1000)
+    max_candidates: int = Field(default=12, ge=1, le=1000)
+    max_per_module: int = Field(default=2, ge=1, le=10)
+    min_implementation_statements: int = Field(default=5, ge=1, le=100)
+    seed: int = 24
+    stack_manifest: Path | None = None
+    stack_materialization: Literal["inline", "hydrated"] = "inline"
+    max_rounds: int = Field(default=3, ge=1, le=3)
+    max_turns: int = Field(default=16, ge=4, le=40)
+    candidate_budget_usd: float = Field(default=2.0, gt=0, le=20)
+    author_model: Literal["openai/gpt-6-luna", "openai/gpt-6-sol"] = "openai/gpt-6-luna"
+    reviewer_model: Literal["openai/gpt-6-luna", "openai/gpt-6-sol"] = "openai/gpt-6-sol"
+
+    @model_validator(mode="after")
+    def generated_test_contract(self):
+        if self.test_paths != ["test_codemidas_generated.py"] or self.test_selectors:
+            raise ValueError("CodeMidas runs only its independently constructed private verifier")
+        return self
 
 
 class HistoryRecipeOptions(PythonRepositoryProfile):

@@ -36,8 +36,10 @@ def cmd_pipelines(args: argparse.Namespace) -> int:
                     "input": ", ".join(recipe.source_kinds),
                     "scope": recipe.summary,
                     "target": recipe.target,
-                    "upstream": recipe.upstream["repository"],
-                    "source pin": recipe.upstream["commit"],
+                    "upstream": recipe.upstream.get("repository", recipe.upstream.get("paper")),
+                    "source pin": recipe.upstream.get(
+                        "commit", recipe.upstream.get("version", "not published")
+                    ),
                     "RFC": recipe.rfc,
                 },
                 title=recipe.title,

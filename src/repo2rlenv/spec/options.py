@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from repo2rlenv.spec.recipe_options import (
+    CodeMidasOptions,
     DataArcOptions,
     EnvironmentRepairOptions,
     PRRecipeOptions,
@@ -288,6 +289,7 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
 
 
 RECIPE_OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
+    "codemidas": CodeMidasOptions,
     "scaler": ScalerOptions,
     "r2e": R2EOptions,
     "dataarc": DataArcOptions,

@@ -325,5 +325,23 @@
     },
     "rfc": "0026-scaler-recipe.md",
     "target": 20
+  },
+  {
+    "id": "codemidas",
+    "title": "CodeMidas",
+    "pipeline": "repo_reconstruct",
+    "source_kinds": [
+      "repository"
+    ],
+    "summary": "Explore working source, remove a coherent feature, generate observed behavioral tests, and export a private-oracle Harbor task.",
+    "upstream": {
+      "paper": "https://arxiv.org/abs/2609.22068",
+      "implementation": "independent method reproduction",
+      "version": "arXiv:2609.22068v1",
+      "license": "NOASSERTION",
+      "retained_material": false
+    },
+    "rfc": "0031-codemidas-recipe.md",
+    "target": 100
   }
 ]

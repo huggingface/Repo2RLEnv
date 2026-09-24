@@ -1,0 +1,27 @@
+repo:
+  url: https://github.com/mahmoud/boltons
+  ref: 4e5faa3d7e4008d89e0d8bf1ea87b6d9a061a16d
+  access: public
+pipeline:
+  name: repo_reconstruct
+  recipe: codemidas
+  options:
+    source_paths: [boltons]
+    target: 2
+    max_candidates: 6
+    max_rounds: 3
+    candidate_budget_usd: 2
+llm:
+  provider: openai
+  model: gpt-6-luna
+execution:
+  campaign_dir: workspace/codemidas
+  run_id: boltons-first
+  worker_receipt: workspace/codemidas/workers/worker.json
+  runtime_wheel: dist/repo2rlenv-0.9.1-py3-none-any.whl
+  timeout_sec: 3600
+output:
+  destination: workspace/codemidas/tasks
+  org: repo2rlenv
+  dataset_name: codemidas-first
+  visibility: private
