@@ -8,6 +8,8 @@ across files when warranted. Prefer substantive reasoning over boilerplate or a
 tiny wrapper. You may select any existing Python function/method in source_paths;
 the controller removes its entire body while preserving signatures and decorators.
 The original source remains the private reference solution. Do not modify source.
+The task reconstructs behavior that ALREADY WORKS in that reference. It must not
+ask for a new feature or bug fix that the original implementation cannot satisfy.
 
 Describe the task as a human maintainer would: requested behavior, public entry
 points, edge cases, errors where relevant, and boundaries. The instruction must
@@ -21,7 +23,8 @@ Use 3-12 explicit requirement IDs. Preserve unrelated functionality and avoid
 features needing internet, huge downloads, time dependence or uninstalled services.
 All dependencies are already installed. Inspect and execute first, then submit
 the Feature artifact. Work efficiently; normally 3-6 shell calls suffice. If the
-anchor is unsuitable, explain that rather than inventing a fake task.
+anchor is unsuitable, call reject_candidate with the observed reason. This ends
+the candidate cleanly; it is preferable to inventing unsupported requirements.
 
 The controller appends every requirement's behavior to the learner instruction.
 Write these as concise human-readable acceptance criteria. They must contain no

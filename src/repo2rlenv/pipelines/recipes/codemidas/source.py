@@ -111,7 +111,10 @@ def implementation_pair(base: Path, feature: Feature, source_paths: list[str]):
 
 
 def validate_assertions(feature: Feature, verifier: Verifier):
-    tree = ast.parse(verifier.test_code)
+    try:
+        tree = ast.parse(verifier.test_code)
+    except SyntaxError as exc:
+        raise ValueError(f"Generated verifier is not valid Python: {exc}") from exc
     tests = {
         node.name
         for node in tree.body

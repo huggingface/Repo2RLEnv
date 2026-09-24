@@ -80,6 +80,10 @@ the solver and adversarial instructions. Before freezing a task, assertion revie
 can route a correction to its tests or its description. Description repairs keep
 the selected implementation boundary and reconcile an observed public API
 discrepancy. All repairs share the same maximum of three executed verifier versions.
+Invalid Python is returned as authoring feedback before execution. An author can
+explicitly reject an unsuitable candidate with an observed reason; the pipeline
+retains that diagnosis and continues. A reconstruction must describe behavior
+already present in the original code, rather than a proposed extension.
 Solver outcomes never drive a change to the task contract.
 Review can execute a few targeted reference probes when broad claims or missing
 option interactions are uncertain. Early audits found both an incorrect promise

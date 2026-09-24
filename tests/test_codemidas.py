@@ -125,6 +125,9 @@ def test_assertion_map_rejects_uncovered_or_invented_requirements():
     verifier.assertions[0].requirements = ["R999"]
     with pytest.raises(ValueError, match="declared"):
         validate_assertions(feature(), verifier)
+    verifier.test_code += chr(0)
+    with pytest.raises(ValueError, match="not valid Python"):
+        validate_assertions(feature(), verifier)
 
 
 def test_prices_include_cache_and_refuse_unapproved_models():

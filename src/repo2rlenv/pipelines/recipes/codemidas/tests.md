@@ -18,7 +18,7 @@ The controller executes your tests on original and removed-body snapshots. Origi
 must pass, starter must collect successfully and fail behavioral assertions. Correct
 mistakes using observed feedback, at most three submitted versions. The contract is
 frozen: do not weaken or alter it to accommodate the reference or starter. If it is
-inconsistent, state the defect and stop. Submit Verifier; use revise_artifact for
+inconsistent, call reject_candidate with the observed defect. Submit Verifier; use revise_artifact for
 small corrections. Finish promptly once it is accepted.
 
 Check the contract's boundary claims, not only one example per requirement ID.

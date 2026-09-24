@@ -172,6 +172,35 @@ class CodeMidasPipeline(RepositoryGenerationPipeline):
                 inputs = previous
             else:
                 save_record(context_path, inputs)
+
+            async def reject_candidate(reason):
+                if not isinstance(reason, str) or not 20 <= len(reason) <= 2000:
+                    return "Give a concrete reason between 20 and 2000 characters."
+                save_record(root / "rejection.json", {"reason": reason})
+                raise ConstructionExhausted(reason)
+
+            rejection_tools = []
+            rejection_handlers = {}
+            if prompt_name in {"design", "tests"}:
+                rejection_tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "reject_candidate",
+                            "description": (
+                                "Stop an unsuitable construction with a concrete observed "
+                                "reason. Do not invent behavior absent from the reference."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"reason": {"type": "string"}},
+                                "required": ["reason"],
+                                "additionalProperties": False,
+                            },
+                        },
+                    }
+                ]
+                rejection_handlers = {"reject_candidate": reject_candidate}
             return await artifact_stage(
                 schema=schema,
                 stage=label,
@@ -188,6 +217,8 @@ class CodeMidasPipeline(RepositoryGenerationPipeline):
                 shell=shell if use_shell else None,
                 validate=validate,
                 initial_draft_key=initial_draft_key,
+                extra_tools=rejection_tools,
+                extra_handlers=rejection_handlers,
             )
 
         async def check_feature(value):
