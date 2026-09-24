@@ -1,6 +1,6 @@
 # RFC 0031: CodeMidas source-to-environment recipe
 
-**Status:** implementing
+**Status:** implementation in [draft PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165); 100 tasks staged locally, adversarial checks blocked
 
 **Author:** adithya-s-k
 
@@ -142,6 +142,15 @@ Existing recipe behavior must remain unchanged. Run a small end-to-end Daytona
 pilot, inspect tasks and evidence, then scale with bounded worker concurrency.
 Finish with a reproducible local task collection and a draft PR; publication and
 package releases are separate actions.
+
+## Measured outcome
+
+The first campaign completed a 100-task local collection. Every selected task passed
+six execution controls and ordinary solver review, with four additional Sol screens.
+Provider-blocked adversarial checks remain explicit; full method acceptance is not
+claimed. [Measured yield, difficulty, sources and economics](../pipelines/codemidas.md#measured-local-campaign)
+include rejected attempts and distinguish API usage from compute estimates. The PR
+remains a draft; no dataset publication, merge or package release is included.
 
 ## Credit and implementation map
 

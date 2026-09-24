@@ -240,8 +240,98 @@ The emitted Dockerfiles retain the source profile's package constraints and base
 image tag. Remote receipts identify the images used in this campaign, but rebuilds
 are not a fully locked, permanently archived dependency closure.
 
-Report spend over **all attempted candidates**, including failures, model calls and
-Daytona compute. Keep cost per generated task separate from cost per reviewed or
-curriculum-selected task. The initial campaign has a $300 hard cap. Pilot results
-and measured economics will be added after the end-to-end evidence is inspected;
-no projected yield is represented as a measured result.
+## Measured local campaign
+
+The 2026-09-25 campaign staged **100 Harbor tasks locally**. All selected tasks passed
+two fresh baseline-failure controls, four oracle-success controls, and an independent
+review of four Luna solver attempts. Each then received four Sol screening attempts;
+their rewards are reported separately below.
+Adversarial checks were blocked by provider access; the user approved continuing
+with explicit blocked-stage labels. **Zero tasks are claimed as fully method-validated
+or paper-curriculum accepted.** No dataset was published and no RL training was run.
+
+| Outcome | Count |
+|---|---:|
+| Current-collection construction attempts | 213 |
+| Unique exports passing all six execution controls | 128 |
+| Ordinary solver reviews passed | 101 |
+| Reviews with demonstrated false positives or false negatives | 26 |
+| Reviews unresolved without a demonstrated false positive/negative | 1 |
+| Curated local tasks | 100 |
+
+Construction yield was **60.1%**;
+ordinary-review yield among exports was **78.9%**. These denominators
+exclude unattempted discovery candidates; the attempt count includes two candidates
+stopped at a safe control boundary after the goal was reached. Rejected candidates, diagnosed exports and
+nine older pilot folders remain available locally, outside the curated collection.
+
+| Source repository | Generated | Ordinary review passed | Curated |
+|---|---:|---:|---:|
+| [ShipDataProcess](https://github.com/GlobalFishingWatch/ShipDataProcess) | 2 | 2 | 2 |
+| [pydash](https://github.com/dgilland/pydash) | 10 | 8 | 8 |
+| [filesystem_spec](https://github.com/fsspec/filesystem_spec) | 3 | 1 | 1 |
+| [python-sortedcontainers](https://github.com/grantjenks/python-sortedcontainers) | 4 | 2 | 2 |
+| [huggingface_hub](https://github.com/huggingface/huggingface_hub) | 3 | 3 | 3 |
+| [boltons](https://github.com/mahmoud/boltons) | 32 | 24 | 24 |
+| [more-itertools](https://github.com/more-itertools/more-itertools) | 32 | 28 | 27 |
+| [networkx](https://github.com/networkx/networkx) | 28 | 22 | 22 |
+| [packaging](https://github.com/pypa/packaging) | 5 | 4 | 4 |
+| [toolz](https://github.com/pytoolz/toolz) | 9 | 7 | 7 |
+
+The curated set contains 98 GitHub-sourced tasks and
+2 tasks from actual inline Stack v3 files.
+It has **17 multi-symbol tasks and 0 multi-file tasks**.
+These are Python CPU library tasks; multi-file and broader domain capability should
+not be confused with measured coverage in this campaign.
+
+### Difficulty and quality
+
+Sol's four-attempt screening produced **90 all-pass,
+4 mixed and 6 all-fail tasks** in the curated set.
+Sol solved 370/400 attempts and at least one attempt on
+94/100 tasks. Luna solved 358/400
+attempts and at least one attempt on 92/100 tasks.
+Most tasks are easy for Sol; an ordinary-review pass establishes sampled agreement,
+not frontier difficulty or exhaustive verifier correctness. Only the mixed subset
+meets the screening-outcome filter, and blocked adversarial checks prevent full
+method acceptance even there.
+
+Review caught missed boundary cases, contradictory requirements and tests that
+accepted implementations violating the public contract. Construction controls alone
+did not catch these defects. Reference probes, contrasting fixtures and preserving
+coverage during repairs improved subsequent generation. Repository profiles and
+candidate pools were selected and adjusted during development; this campaign does
+not demonstrate unattended success on arbitrary repositories.
+
+### Measured economics
+
+The $300 cap covered the whole campaign, including failed construction, older
+pilots, review, screening and compute. Accounted cost is **$99.91**, plus
+**$1.47 reserved** for API calls whose billing outcome remained unknown after
+a connectivity interruption. All workers are stopped. The accounted amount includes
+**$11.71 of conservative Daytona compute estimates**, not an invoice; the
+remaining **$88.20** comes from recorded API usage.
+
+| Stage | Accounted USD |
+|---|---:|
+| Task design | $2.58 |
+| Verifier construction and repair | $4.14 |
+| Independent assertion review | $28.32 |
+| Ordinary Luna rollouts | $2.13 |
+| Independent rollout review | $27.49 |
+| Sol screening | $23.14 |
+| Adversarial attempts before the access block | $0.39 |
+| Daytona compute estimate | $11.71 |
+| Other recorded pilot calls | $0.00 |
+
+Across the entire campaign, this is **$0.78 per current export**,
+**$0.99 per passing ordinary review**, and **$1.00 per curated task**
+(up to **$1.01** per curated task if every unresolved reservation is charged).
+These are observed averages for this source/model mix, not a price guarantee for
+other repositories. There is no cost per fully accepted task because none completed
+the blocked adversarial stage.
+
+The ignored local campaign directory contains the 100-task archive, retained
+`task.toml` labels, checksummed release manifest, source provenance, per-task trials,
+usage receipts and a detailed report. Only implementation, tests, prompts and this
+measured summary belong in the PR. See [draft PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165).
