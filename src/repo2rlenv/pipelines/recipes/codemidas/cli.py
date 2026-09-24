@@ -25,6 +25,7 @@ def command(args):
                 worker_receipt=args.worker_receipt,
                 wheel=args.runtime_wheel,
                 screen_attempts=args.screen_attempts,
+                attempt_concurrency=args.attempt_concurrency,
                 max_cost=args.max_cost,
                 resume=args.resume,
             )
@@ -52,6 +53,13 @@ def add_parser(subparsers):
     for flag in ("controls", "out", "campaign", "worker-receipt", "runtime-wheel"):
         audit.add_argument("--" + flag, type=Path, required=True)
     audit.add_argument("--screen-attempts", type=int, default=4)
+    audit.add_argument(
+        "--attempt-concurrency",
+        type=int,
+        choices=range(1, 5),
+        default=2,
+        help="Independent solver attempts in parallel; each has its own environment and receipt",
+    )
     audit.add_argument(
         "--max-cost",
         default="6",

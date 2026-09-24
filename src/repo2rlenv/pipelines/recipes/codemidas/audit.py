@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
@@ -230,6 +231,7 @@ def audit_task(
     worker_receipt: Path,
     wheel: Path,
     screen_attempts: int = 4,
+    attempt_concurrency: int = 2,
     audit_model: str = "gpt-6-luna",
     screen_model: str = "gpt-6-sol",
     max_cost: str = "6",
@@ -237,6 +239,8 @@ def audit_task(
 ):
     if not 2 <= screen_attempts <= 16:
         raise ValueError("Use 2-16 independent curriculum attempts")
+    if type(attempt_concurrency) is not int or not 1 <= attempt_concurrency <= 4:
+        raise ValueError("Run one to four independent attempts concurrently")
     identity = inspect_bundle(task)["bundle_hash"]
     controls_data = control_evidence(controls, identity)
     record = json.loads(worker_receipt.read_text())
@@ -251,58 +255,53 @@ def audit_task(
         "cm-audit-" + hashlib.sha256(f"{identity}:{directory.resolve()}".encode()).hexdigest()[:16]
     )
     budget = RunBudget(ledger, "trial:" + prefix, max_cost)
-    summaries = []
-    audit_retries = []
     policy_block = campaign / "codemidas-adversarial-policy-block.json"
-    for kind, model in [
-        ("exploit", screen_model),
-        *[(f"solve-{i}", audit_model) for i in range(4)],
-    ]:
+
+    def attempt(kind, model, mode="solve"):
+        output = directory / kind
+        if resume and (output / "trial.json").exists():
+            return completed_attempt(
+                output, identity=identity, model=model, mode=mode, worker=worker, ledger=budget
+            )
+        return run_trial(
+            worker,
+            task,
+            output,
+            trial_id=prefix + "-" + kind.replace("/", "-"),
+            agent="responses",
+            agent_mode=mode,
+            model=LLMSpec(provider="openai", model=model),
+            ledger=budget,
+            reservation_usd="1.25" if model == "gpt-6-sol" else "0.20",
+            max_turns=18,
+            max_tokens=4096,
+            timeout_sec=900,
+            python=runtime,
+            resume=resume,
+        )
+
+    def audit_attempt(pair):
+        kind, model = pair
         if (
             kind == "exploit"
             and policy_block.exists()
             and not (resume and (directory / kind / "trial.json").exists())
         ):
-            summaries.append(
-                {
-                    "trial": kind,
-                    "reward": None,
-                    "exception": "ProviderPolicyBlocked",
-                    "result": None,
-                }
-            )
-            continue
-        evidence = (
-            completed_attempt(
-                directory / kind,
-                identity=identity,
-                model=model,
-                mode="exploit" if kind == "exploit" else "solve",
-                worker=worker,
-                ledger=budget,
-            )
-            if resume and (directory / kind / "trial.json").exists()
-            else run_trial(
-                worker,
-                task,
-                directory / kind,
-                trial_id=prefix + "-" + kind,
-                agent="responses",
-                agent_mode="exploit" if kind == "exploit" else "solve",
-                model=LLMSpec(provider="openai", model=model),
-                ledger=budget,
-                reservation_usd="1.25" if model == "gpt-6-sol" else "0.20",
-                max_turns=18,
-                max_tokens=4096,
-                timeout_sec=900,
-                python=runtime,
-                resume=resume,
-            )
-        )
+            return {
+                "trial": kind,
+                "reward": None,
+                "exception": "ProviderPolicyBlocked",
+                "provider_policy_blocked": True,
+                "result": None,
+            }, None
+        mode = "exploit" if kind == "exploit" else "solve"
+        evidence = attempt(kind, model, mode)
+        policy_refused = False
         if evidence.exception_type == "BadRequestError":
             raw = json.loads(evidence.result.read_text())
             message = (raw.get("exception_info") or {}).get("exception_message", "")
             if "cyber_policy" in message and kind == "exploit":
+                policy_refused = True
                 save_record(
                     policy_block,
                     {
@@ -313,53 +312,35 @@ def audit_task(
                         "detail": "Provider requires appropriate access before retrying this stage.",
                     },
                 )
+        retry_record = None
         if evidence.exception_type == "ProviderOutputError" and (
             kind != "exploit" or not policy_block.exists()
         ):
-            retry = directory / kind / "retry-1"
             original = {
                 "trial": kind,
                 "result": str(evidence.result.relative_to(directory)),
                 "exception": evidence.exception_type,
             }
-            evidence = (
-                completed_attempt(
-                    retry,
-                    identity=identity,
-                    model=model,
-                    mode="exploit" if kind == "exploit" else "solve",
-                    worker=worker,
-                    ledger=budget,
-                )
-                if resume and (retry / "trial.json").exists()
-                else run_trial(
-                    worker,
-                    task,
-                    retry,
-                    trial_id=prefix + "-" + kind + "-retry-1",
-                    agent="responses",
-                    agent_mode="exploit" if kind == "exploit" else "solve",
-                    model=LLMSpec(provider="openai", model=model),
-                    ledger=budget,
-                    reservation_usd="1.25" if model == "gpt-6-sol" else "0.20",
-                    max_turns=18,
-                    max_tokens=4096,
-                    timeout_sec=900,
-                    python=runtime,
-                    resume=resume,
-                )
-            )
-            audit_retries.append(
-                {**original, "replacement": str(evidence.result.relative_to(directory))}
-            )
-        summaries.append(
-            {
-                "trial": kind,
-                "reward": evidence.reward,
-                "exception": evidence.exception_type,
-                "result": str(evidence.result.relative_to(directory)),
-            }
-        )
+            evidence = attempt(kind + "/retry-1", model, mode)
+            retry_record = {**original, "replacement": str(evidence.result.relative_to(directory))}
+        return {
+            "trial": kind,
+            "reward": evidence.reward,
+            "exception": evidence.exception_type,
+            "result": str(evidence.result.relative_to(directory)),
+            "provider_policy_blocked": policy_refused,
+        }, retry_record
+
+    # Complete the adversarial gate first; ordinary attempts have separate
+    # sandboxes and receipts, so their dispatch can overlap without shared state.
+    exploit = audit_attempt(("exploit", screen_model))
+    with ThreadPoolExecutor(max_workers=attempt_concurrency) as pool:
+        outcomes = [
+            exploit,
+            *pool.map(audit_attempt, [(f"solve-{i}", audit_model) for i in range(4)]),
+        ]
+    summaries = [summary for summary, _ in outcomes]
+    audit_retries = [retry for _, retry in outcomes if retry is not None]
     # Review only the pinned task and its own attempts. No credentials or other
     # campaign files are addressable through this inspection tool.
     index = evidence_index(task, directory)
@@ -479,49 +460,31 @@ def audit_task(
     screens = []
     screen_records = []
     if reviewed.solver_sound:
-        for index in range(screen_attempts):
+
+        def screen(index):
+            records = []
             for retry in range(2):
                 kind = f"screen-{index}" + ("-retry-1" if retry else "")
-                evidence = (
-                    completed_attempt(
-                        directory / kind,
-                        identity=identity,
-                        model=screen_model,
-                        mode="solve",
-                        worker=worker,
-                        ledger=budget,
-                    )
-                    if resume and (directory / kind / "trial.json").exists()
-                    else run_trial(
-                        worker,
-                        task,
-                        directory / kind,
-                        trial_id=f"{prefix}-{kind}",
-                        agent="responses",
-                        model=LLMSpec(provider="openai", model=screen_model),
-                        ledger=budget,
-                        reservation_usd="1.25",
-                        max_turns=18,
-                        max_tokens=4096,
-                        timeout_sec=900,
-                        python=runtime,
-                        resume=resume,
-                    )
-                )
-                screen_records.append(
+                evidence = attempt(kind, screen_model)
+                records.append(
                     {"trial": kind, "reward": evidence.reward, "exception": evidence.exception_type}
                 )
                 # Never repeat a valid failure or an unknown transport outcome.
                 if evidence.completed or evidence.exception_type != "ProviderOutputError":
                     break
-            screens.append(evidence.reward if evidence.completed else None)
+            return evidence.reward if evidence.completed else None, records
+
+        with ThreadPoolExecutor(max_workers=attempt_concurrency) as pool:
+            for reward, records in pool.map(screen, range(screen_attempts)):
+                screens.append(reward)
+                screen_records.extend(records)
     result = {
         "bundle_hash": identity,
         "method_sound": reviewed.sound,
         "solver_review_sound": reviewed.solver_sound,
         "adversarial_status": (
             "blocked"
-            if summaries[0]["exception"] in {"ProviderPolicyBlocked", "BadRequestError"}
+            if summaries[0].get("provider_policy_blocked")
             else "completed"
             if summaries[0]["exception"] is None
             else "incomplete"
@@ -535,6 +498,7 @@ def audit_task(
         "curriculum": curriculum(screens),
         "curriculum_selected": reviewed.sound and curriculum(screens) == "mixed",
         "paper_screen_count_unspecified": True,
+        "attempt_concurrency": attempt_concurrency,
         "controls": controls_data,
     }
     from repo2rlenv.pipelines.recipes.codemidas.retention import retain

@@ -146,6 +146,11 @@ repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
   --out workspace/codemidas/audits/TASK
 ```
 
+Independent solver attempts run two at a time by default. Set
+`--attempt-concurrency 1` for serial execution or up to `4` for a larger worker.
+Each attempt has its own learner environment, receipt and spend reservation;
+parallelism does not reduce the required four audited solutions or screen sample.
+
 Use `--resume` for unchanged attempts. If observation was interrupted after dispatch,
 the audit can retrieve the original completed remote job after checking its worker,
 command and cleanup receipt; it never launches another solve during recovery.
