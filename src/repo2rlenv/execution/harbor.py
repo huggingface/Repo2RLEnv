@@ -165,6 +165,35 @@ def recover_trial(worker: RemoteWorker, output: Path, *, ledger=None) -> TrialEv
     return evidence
 
 
+def abandon_undispatched_trial(worker: RemoteWorker, output: Path, *, ledger) -> dict:
+    """Release a reservation only when dispatch is disproven by both receipts.
+
+    Keep the failed attempt; a caller may create a separately named replacement.
+    Missing observations from a dispatched job never satisfy this check.
+    """
+    receipt = output / "trial.json"
+    record = json.loads(receipt.read_text())
+    if (
+        record.get("state") not in {"interrupted", "not_dispatched"}
+        or record.get("worker_id") != worker.id
+        or record.get("trial_dispatched") is not False
+        or record.get("command")
+        or not re.fullmatch(r"[a-z][a-z0-9-]{0,60}", record.get("trial_id", ""))
+    ):
+        raise ValueError("Only an explicitly undispatched interrupted trial can be abandoned")
+    remote = "/work/trials/" + record["trial_id"] + "/job.json"
+    retry_read(lambda: worker.exec(["test", "!", "-e", remote], timeout=30)).checked(
+        "Confirm no remote supervisor exists"
+    )
+    original = output / "interrupted-trial.json"
+    if not original.exists():
+        save_record(original, record)
+    record.update(state="not_dispatched", reconciled_at=now(), cost_usd=0)
+    save_record(receipt, record)
+    ledger.settle("trial:" + record["trial_id"], 0, evidence=str(receipt.resolve()))
+    return record
+
+
 def run_trial(
     worker: RemoteWorker,
     task: Path,

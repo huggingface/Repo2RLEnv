@@ -19,7 +19,12 @@ from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.emitter.bundle import inspect_bundle
 from repo2rlenv.execution.artifacts import check_runtime_wheel, install_runtime, runtime_python
 from repo2rlenv.execution.base import connect_worker
-from repo2rlenv.execution.harbor import read_trial, recover_trial, run_trial
+from repo2rlenv.execution.harbor import (
+    abandon_undispatched_trial,
+    read_trial,
+    recover_trial,
+    run_trial,
+)
 from repo2rlenv.execution.lifecycle import prepare_docker, save_record
 from repo2rlenv.pipelines.recipes.codemidas.models import Artifact
 from repo2rlenv.quality.loop.client import RunBudget
@@ -278,6 +283,23 @@ def audit_task(
     def attempt(kind, model, mode="solve"):
         output = directory / kind
         if resume and (output / "trial.json").exists():
+            receipt = json.loads((output / "trial.json").read_text())
+            if (
+                receipt.get("state") in {"interrupted", "not_dispatched"}
+                and receipt.get("trial_dispatched") is False
+            ):
+                receipt = abandon_undispatched_trial(worker, output, ledger=budget)
+            if receipt.get("state") == "not_dispatched":
+                if "/dispatch-1" in kind:
+                    raise ValueError(
+                        "The single undispatched replacement also needs reconciliation"
+                    )
+                evidence = attempt(kind + "/dispatch-1", model, mode)
+                save_record(
+                    output / "dispatch-recovery.json",
+                    {"original_was_dispatched": False, "replacement_result": str(evidence.result)},
+                )
+                return evidence
             return completed_attempt(
                 output, identity=identity, model=model, mode=mode, worker=worker, ledger=budget
             )

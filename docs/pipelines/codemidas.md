@@ -167,6 +167,10 @@ its context limit remains incomplete; it is never counted as a task failure or p
 Use `--resume` for unchanged attempts. If observation was interrupted after dispatch,
 the audit can retrieve the original completed remote job after checking its worker,
 command and cleanup receipt; it never launches another solve during recovery.
+If both the controller receipt and the remote supervisor check prove that a trial
+never launched, its reservation can be released and one separately identified
+replacement started. The abandoned receipt remains available. A timeout after a
+model request has an unknown billing outcome and retains its maximum reservation.
 Unknown provider outcomes retain their reservation; changing prompts, source,
 runtime or verifier requires a new run identity. Keep versioned runtime wheels.
 When developing during a campaign, run the controller from the same installed

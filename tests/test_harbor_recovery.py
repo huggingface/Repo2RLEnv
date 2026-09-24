@@ -7,7 +7,7 @@ import pytest
 
 from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.execution.base import CommandResult
-from repo2rlenv.execution.harbor import recover_trial
+from repo2rlenv.execution.harbor import abandon_undispatched_trial, recover_trial
 
 
 @pytest.fixture
@@ -88,3 +88,35 @@ def test_uncertain_or_different_remote_job_cannot_be_reconciled(interrupted, cha
     worker.download.assert_not_called()
     assert ledger.status()["reserved_usd"] == "1.000000"
     assert json.loads((output / "trial.json").read_text())["state"] == "interrupted"
+
+
+def test_unstarted_trial_can_release_hold_without_erasing_failed_attempt(interrupted):
+    worker, output, ledger, _ = interrupted
+    record = json.loads((output / "trial.json").read_text())
+    record.update(trial_dispatched=False)
+    record.pop("command")
+    (output / "trial.json").write_text(json.dumps(record))
+    worker.exec.side_effect = lambda *args, **kwargs: CommandResult(0, "")
+    for _ in range(2):
+        assert (
+            abandon_undispatched_trial(worker, output, ledger=ledger)["state"] == "not_dispatched"
+        )
+    assert ledger.status()["accounted_usd"] == "0.000000"
+    assert ledger.status()["reserved_usd"] == "0.000000"
+    assert json.loads((output / "interrupted-trial.json").read_text()) == record
+    assert all(call.args[0][:3] == ["test", "!", "-e"] for call in worker.exec.call_args_list)
+    worker.upload.assert_not_called()
+
+
+def test_dispatched_trial_or_existing_supervisor_keeps_its_hold(interrupted):
+    worker, output, ledger, _ = interrupted
+    with pytest.raises(ValueError, match="explicitly undispatched"):
+        abandon_undispatched_trial(worker, output, ledger=ledger)
+    record = json.loads((output / "trial.json").read_text())
+    record.update(trial_dispatched=False)
+    record.pop("command")
+    (output / "trial.json").write_text(json.dumps(record))
+    worker.exec.side_effect = lambda *args, **kwargs: CommandResult(1, "")
+    with pytest.raises(RuntimeError):
+        abandon_undispatched_trial(worker, output, ledger=ledger)
+    assert ledger.status()["reserved_usd"] == "1.000000"
