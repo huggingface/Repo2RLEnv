@@ -49,6 +49,51 @@ def test_all_verifier_requirements_are_visible_to_the_learner():
     assert task.rationale not in instruction
 
 
+def test_verifier_timeout_is_retained_repair_feedback_not_baseline_success(tmp_path, monkeypatch):
+    import subprocess
+
+    from repo2rlenv.pipelines.recipes.codemidas import worker
+    from repo2rlenv.spec.recipe_options import CodeMidasOptions
+
+    base = tmp_path / "generation/base/lib"
+    base.mkdir(parents=True)
+    (base / "core.py").write_text("def transform(x):\n    return sorted(set(x))\n")
+    verifier = Verifier(
+        test_code="\n".join(
+            f"def test_{i}():\n    assert True  # " + "context " * 10 for i in range(3)
+        ),
+        assertions=[
+            {
+                "test": f"test_{i}",
+                "requirements": [f"R{i + 1}"],
+                "observation": "Observed through a recorded public API execution.",
+            }
+            for i in range(3)
+        ],
+    )
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired("docker start", 90, output=b"started test")
+
+    monkeypatch.setattr(worker, "test_image", timeout)
+    output = tmp_path / "evaluation"
+    result = worker.evaluate(
+        {
+            "generation": str(tmp_path / "generation"),
+            "feature": feature().model_dump(),
+            "verifier": verifier.model_dump(),
+            "image_digest": "sha256:fixture",
+        },
+        CodeMidasOptions(source_paths=["lib"]),
+        output,
+    )
+    assert result["contrast"] is None
+    assert result["error_type"] == "test_timeout"
+    assert result["phase"] == "reference"
+    assert result["timeout_output"] == "started test"
+    assert json.loads((output / "evaluation.json").read_text()) == result
+
+
 def test_implementation_pair_refuses_traversal_and_restores_original(tmp_path):
     (tmp_path / "lib").mkdir()
     original = b"def transform(x):\n    return sorted(set(x))\n"
@@ -162,6 +207,54 @@ def test_unknown_provider_outcome_retains_reservation(tmp_path):
             )
         )
     assert ledger.status()["operations"][0]["status"] == "uncertain"
+
+
+def test_malformed_tool_arguments_get_feedback_without_executing_handler(tmp_path):
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1")
+    budget = AuthorBudget(RunBudget(ledger, "cm-test", "1"), tmp_path / "costs", "design")
+    calls = []
+
+    async def create(**kwargs):
+        turn = len(calls)
+        calls.append(kwargs)
+        if turn:
+            assert "Invalid tool arguments" in kwargs["input"][-1]["output"]
+        data = {
+            "status": "completed",
+            "usage": {"input_tokens": 100, "output_tokens": 20},
+            "output": [
+                {
+                    "type": "function_call",
+                    "name": "shell",
+                    "call_id": f"call-{turn}",
+                    "arguments": json.dumps({"patch": {}} if not turn else {"command": "done"}),
+                }
+            ],
+        }
+        return SimpleNamespace(model_dump=lambda **_: data)
+
+    executed = []
+
+    async def shell(command):
+        executed.append(command)
+        return "Artifact committed."
+
+    asyncio.run(
+        run_openai_agent(
+            model="openai/gpt-6-luna",
+            system="System",
+            prompt="Task",
+            budget=budget,
+            tools=[],
+            handlers={"shell": shell},
+            trace=tmp_path / "trace.jsonl",
+            max_turns=2,
+            client=SimpleNamespace(responses=SimpleNamespace(create=create)),
+        )
+    )
+    assert executed == ["done"]
+    assert ledger.status()["accounted_usd"] == "0.000040"
+    assert ledger.status()["reserved_usd"] == "0.000000"
 
 
 def test_cache_writes_are_billed_at_their_distinct_rate():

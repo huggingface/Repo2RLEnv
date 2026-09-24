@@ -8,6 +8,7 @@ import hashlib
 import json
 import random
 import shutil
+import subprocess
 from pathlib import Path
 
 from repo2rlenv.execution.lifecycle import save_record
@@ -158,6 +159,7 @@ def evaluate(config, options, destination):
     private.write_text(verifier.test_code)
     replacements = {private.name: private}
     result = {"contrast": None}
+    phase = "reference"
     try:
         healthy = test_image(
             config["image_digest"], options, destination / "reference", replacements=replacements
@@ -169,6 +171,7 @@ def evaluate(config, options, destination):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
             replacements[relative] = path
+        phase = "baseline"
         broken = test_image(
             config["image_digest"], options, destination / "baseline", replacements=replacements
         )
@@ -177,6 +180,16 @@ def evaluate(config, options, destination):
         result["contrast"] = execution_contrast(healthy, broken)
     except ValueError as exc:
         result["error"] = str(exc)
+    except subprocess.TimeoutExpired as exc:
+        # A bounded verifier hang is repair feedback, not a successful baseline
+        # failure. test_image has already removed its container in its finally.
+        result["error"] = f"{phase} test execution exceeded {options.test_timeout_sec} seconds"
+        result["error_type"] = "test_timeout"
+        result["phase"] = phase
+        output = exc.stdout or b""
+        result["timeout_output"] = (
+            output.decode(errors="replace") if isinstance(output, bytes) else output
+        )[-18000:]
     for stage in ("reference", "baseline"):
         stdout = destination / stage / "stdout.txt"
         result[stage + "_log"] = stdout.read_text()[-18000:] if stdout.exists() else ""

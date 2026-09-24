@@ -242,8 +242,9 @@ class CodeMidasPipeline(RepositoryGenerationPipeline):
                 resume=execution.resume,
             )
             if output is None:
-                raise RuntimeError(
-                    "CodeMidas remote test execution failed; inspect retained evidence"
+                raise ConstructionExhausted(
+                    "Remote construction failed with a recorded outcome; inspect "
+                    f"{directory / f'execution-{attempt}'}. This candidate is not exportable."
                 )
             evaluation = json.loads((output / "evaluation.json").read_text())
             evaluations.append(evaluation)

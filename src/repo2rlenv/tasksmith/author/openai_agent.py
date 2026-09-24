@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from inspect import signature
 
 from repo2rlenv.campaigns.budget import BudgetExceeded
 from repo2rlenv.execution.lifecycle import save_record
@@ -199,8 +200,16 @@ async def run_openai_agent(
                     except ValueError as exc:
                         result = f"Invalid arguments: {exc}"
                     else:
-                        record("tool_request", turn=turn, call=call)
-                        result = await handlers[call["name"]](**arguments)
+                        handler = handlers[call["name"]]
+                        try:
+                            signature(handler).bind(**arguments)
+                        except TypeError as exc:
+                            # Reject malformed calls before any handler effect.
+                            # Exceptions inside a handler remain real failures.
+                            result = f"Invalid tool arguments: {exc}. Follow the supplied schema."
+                        else:
+                            record("tool_request", turn=turn, call=call)
+                            result = await handler(**arguments)
                 result = str(result)
                 record("tool_result", call_id=call["call_id"], result=result)
                 messages.append(
