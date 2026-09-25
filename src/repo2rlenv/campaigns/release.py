@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import tarfile
 import tempfile
@@ -27,7 +28,21 @@ class ReleaseTask(BaseModel):
     task_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")
     bundle_hash: str
     evidence: dict = Field(default_factory=dict)
+    evidence_documents: dict[str, dict] = Field(default_factory=dict)
     diagnostics: list[str] = Field(default_factory=list)
+
+    @field_validator("evidence_documents")
+    @classmethod
+    def valid_evidence_documents(cls, value):
+        names = set()
+        for name in value:
+            if (
+                not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,120}\.json", name)
+                or name.casefold() in names
+            ):
+                raise ValueError("Evidence documents need distinct, portable JSON basenames")
+            names.add(name.casefold())
+        return value
 
     @field_validator("task_id")
     @classmethod
@@ -137,6 +152,14 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
                 if label.subject_bundle_hash not in {None, identity["bundle_hash"]}:
                     raise ValueError("Evaluation label belongs to a different task revision")
                 status = label.status
+            documents = {}
+            for filename, content in sorted(selected.evidence_documents.items()):
+                relative = Path("evidence") / name / filename
+                save_record(temporary / relative, content)
+                documents[filename] = {
+                    "path": relative.as_posix(),
+                    "sha256": hashlib.sha256((temporary / relative).read_bytes()).hexdigest(),
+                }
             rows.append(
                 {
                     "task_id": target.name,
@@ -147,6 +170,7 @@ def stage_release(plan: ReleasePlan, destination: Path) -> dict:
                     "evaluation_label_normalized": normalized,
                     "metadata": metadata,
                     "evidence": selected.evidence,
+                    "evidence_documents": documents,
                     "diagnostics": selected.diagnostics,
                 }
             )
@@ -266,6 +290,12 @@ Example: [task.toml]({example_file}/task.toml) ·
 archive below to run the environments. `manifest.json` records source identity,
 evidence, diagnostics and measured costs. The generic tabular Hub viewer is
 disabled so it does not present the index as the task dataset.
+
+When supplied, `evidence/<task_id>/*.json` contains portable validation summaries,
+linked and hashed in each manifest entry. They are separate from the executable
+task and its archive. Original task annotations can retain historical controller
+paths; use the manifest's evidence documents for the public validation summary.
+These summaries do not imply that raw model requests or complete traces are included.
 
 ## Generation
 

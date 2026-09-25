@@ -21,4 +21,8 @@ SHELL_TOOL = {
 
 
 async def run_agent(*, runtime, **kwargs):
+    if runtime == "openai":
+        from repo2rlenv.tasksmith.author.openai_agent import run_openai_agent
+
+        return await run_openai_agent(**kwargs)
     return await run_external_agent(engine=runtime, **kwargs)

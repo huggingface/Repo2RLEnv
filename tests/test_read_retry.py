@@ -18,6 +18,14 @@ def test_observation_retries_timeout_but_not_validation(monkeypatch):
     assert invalid.call_count == 1
 
 
+def test_daytona_connection_timeout_retries_observation(monkeypatch):
+    monkeypatch.setattr("repo2rlenv.execution.read_retry.time.sleep", lambda _: None)
+    error = type("DaytonaConnectionTimeoutError", (Exception,), {})()
+    operation = Mock(side_effect=[error, "completed"])
+    assert retry_read(operation) == "completed"
+    assert operation.call_count == 2
+
+
 @pytest.mark.parametrize("status,attempts", [(503, 3), (429, 3), (401, 1), (404, 1)])
 def test_read_retries_transient_http_status_only(monkeypatch, status, attempts):
     monkeypatch.setattr("repo2rlenv.execution.read_retry.time.sleep", lambda _: None)

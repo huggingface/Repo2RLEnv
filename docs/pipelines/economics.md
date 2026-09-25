@@ -32,7 +32,7 @@ TerminalWorld's yield includes recordings rejected as unsuitable; it is not the 
 
 SWE-smith, R2E, SWE-gen, SWE-Next, R2E-Gym and SCALER shared workers. Together their 476 new exports cost **$75.90, or $0.159 per task**, including estimated compute. Per-recipe compute was not allocated. SCALER uses no generation-model calls, but still incurs compute cost.
 
-The CLI-Gym cost sample has 5 new tasks; its published dataset contains 25. Earlier retained-task costs and interactive assistant usage are excluded throughout. Most recipe samples used CPU workers on Daytona; Tasksmith also used native Modal GPU execution. These measurements include development retries and do not establish unattended production cost.
+The CLI-Gym cost sample has 5 new tasks; its published dataset contains 25. Earlier retained-task costs and interactive assistant usage are excluded from these older generation samples. Most recipe samples used CPU workers on Daytona; Tasksmith also used native Modal GPU execution. These measurements include development retries and do not establish unattended production cost.
 
 The primary recipe author was `claude-sonnet-4-6`; TMax also includes a small unsuccessful `gpt-5.4-mini` comparison. SCALER used no generation model. Configured model identities are retained in the summary; these are not cross-model quality comparisons.
 
@@ -51,6 +51,24 @@ Tasksmith's measured expansion added **26 accepted PR tasks** and also repaired/
 | Total | $15.08 |
 
 A further $4.98 remains unresolved for this sample. The final published Tasksmith cohort has 50 verified tasks, including 19 full Sonnet solves. Solver success, generation yield and quality acceptance are separate measures. Comparable independent evaluation costs have not been established for the other full datasets.
+
+## CodeMidas generation and evaluation
+
+Measured **2026-09-25** using GPT-6 Luna/Sol and Daytona. This whole-campaign sample includes historical pilots, failed construction, independent review, rollouts and compute. It is **not comparable to generation-only prices** above; interactive assistant usage is excluded.
+
+| Measure | Result |
+|---|---:|
+| Construction yield | 128/213 (60.1%) |
+| Ordinary review yield | 101/128 (78.9%) |
+| Recorded API usage | $88.20 |
+| Conservative compute estimate | $11.71 |
+| Combined accounted | $99.91 |
+| Unknown API billing reserved | $1.47 |
+| Accounted per export | $0.78 |
+| Accounted per reviewed task | $0.99 |
+| Accounted per curated task | $1.00 |
+
+Compute is an estimate, not an invoice. The construction denominator includes two candidates stopped after the goal was met. The 100 curated tasks remain adversarial-blocked; there is no cost per fully accepted task. See [stage costs and limitations](codemidas.md#measured-economics).
 
 ## Native pipeline measurements
 

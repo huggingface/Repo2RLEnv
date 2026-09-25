@@ -15,6 +15,7 @@ SOURCE_URL = "https://github.com/huggingface/Repo2RLEnv/blob/main/"
 
 # Full call-site code includes dynamic additions, user-message construction and schemas.
 ASSEMBLY = {
+    "codemidas": ["codemidas/models.py", "codemidas/pipeline.py", "codemidas/audit.py"],
     "swe_smith": ["swe_smith/issue.py"],
     "seta_seed2synth": ["seta_seed2synth/recipe.py"],
     "seta_evol": ["seta_evol/recipe.py"],
@@ -31,6 +32,7 @@ ASSEMBLY = {
     "scaler": ["scaler/families.py"],
 }
 GUIDES = {
+    "codemidas": "codemidas",
     "swe_smith": "repo_mutate",
     "seta_seed2synth": "terminal_synth",
     "seta_evol": "task_evolve",
@@ -74,6 +76,10 @@ def block(path: Path, text: str | None = None, *, label: str | None = None) -> s
 def prompt_files(recipe: str) -> list[Path]:
     directory = RECIPES / recipe
     paths = list(directory.glob("*prompt.md")) + list(directory.glob("strategies/*.md"))
+    if recipe == "codemidas":
+        paths.extend(
+            directory / name for name in ("design.md", "tests.md", "review.md", "audit.md")
+        )
     for pattern in ("*demonstrations.json", "*examples.json", "strategies.json"):
         paths.extend(directory.glob(pattern))
     return sorted(paths)
@@ -98,6 +104,16 @@ def render(recipe: str, title: str) -> str:
             "programs executed remotely. The code below shows exactly how the concrete "
             "learner instruction is assembled; it is not a system prompt sent to a model. "
             f"See the [walkthrough](../{GUIDES[recipe]}.md).\n\n"
+        )
+    if recipe == "codemidas":
+        result = (
+            f"# {title}: complete prompt reference\n\n"
+            "Read the [pipeline walkthrough](../codemidas.md) first. The default author "
+            "and four audit solvers use GPT-6 Luna; independent reviewers, the adversarial "
+            "attempt and curriculum screening use GPT-6 Sol. Models are explicit, with "
+            "no provider fallback. Templates below are combined with typed artifacts, "
+            "remote observations and tool schemas at the shown call sites. Exact requests "
+            "and Responses outputs are retained outside learner-visible bundles.\n\n"
         )
     if recipe in TERMINAL:
         result += (
@@ -128,6 +144,9 @@ def render(recipe: str, title: str) -> str:
         )
     for relative in ASSEMBLY[recipe]:
         result += block(RECIPES / relative)
+    if recipe == "codemidas":
+        for relative in ("execution/responses_agent.py", "tasksmith/author/openai_agent.py"):
+            result += block(ROOT / "src/repo2rlenv" / relative)
     return result.rstrip() + "\n"
 
 

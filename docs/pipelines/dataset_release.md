@@ -49,6 +49,12 @@ rejected before any directories are created.
     "path": "workspace/campaign/generated/swe-smith/TASK_ID",
     "bundle_hash": "sha256:EXPECTED_HASH",
     "evidence": {"baseline_reference": "not assessed in this example"},
+    "evidence_documents": {
+      "validation.json": {
+        "scope": "Illustrative summary only; no execution performed",
+        "baseline_reference": "not assessed"
+      }
+    },
     "diagnostics": []
   }],
   "economics": {},
@@ -56,6 +62,21 @@ rejected before any directories are created.
   "limitations": ["Generation exports are not independently accepted tasks."]
 }
 ```
+
+`evidence_documents` optionally embeds JSON objects explicitly supplied in the
+plan. Staging writes them to `evidence/<task_id>/<filename>` and records each
+relative path and SHA-256 in the task's manifest entry. Names must be distinct
+JSON basenames, including on case-insensitive filesystems. Documents are covered
+by release integrity and upload-completeness checks, but remain outside the
+executable task and `tasks.tar.gz`; the original task bytes stay unchanged.
+
+Prepare public summaries deliberately: state their scope, bind them to the task
+identity and distinguish recorded execution from review. Staging does not follow
+local paths in evidence annotations or automatically redact document contents.
+Exclude secrets and private traces before adding documents. Historical paths in
+unchanged task annotations remain provenance; portable documents provide the
+readable public evidence. Supplemental source-license notices can use the same
+mechanism without replacing any bundled upstream notices.
 
 ```bash
 repo2rlenv release stage release-plan.json --out workspace/releases/swe-smith
@@ -86,6 +107,7 @@ Each dataset contains:
 | `tasks.tar.gz` | Same tasks with executable file modes preserved |
 | `data/tasks.jsonl` | Auxiliary task instruction and evidence index; not the executable task |
 | `manifest.json` | Provenance, quality labels, diagnostics, economics and citations |
+| `evidence/<task_id>/*.json` | Optional explicit validation summaries or supplementary source notices |
 | `bundle-files.json` | Original task file hashes and modes |
 | `release-files.json` | Staged release identity |
 | `registry.json` | Harbor task paths pinned to the artifact upload commit |

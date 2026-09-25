@@ -20,6 +20,7 @@ flowchart TD
   I --> N["Sampler or problem-family definition"]
   R --> SM["SWE-smith: introduce a source defect"]
   R --> SF["SWE-Flow / R2E: remove an implementation"]
+  R --> CM["CodeMidas: design a feature and observed verifier"]
   R --> CG["CLI-Gym: damage the environment"]
   P --> SG["SWE-gen: reverse supplied PR changes"]
   P --> HG["SWE-Next / R2E-Gym: mine historical changes"]
@@ -35,6 +36,7 @@ flowchart TD
 | [SWE-smith](repo_mutate.md) | `repo_mutate / swe_smith` | Healthy Python repo | Original source before mutation |
 | [SWE-gen](pr_to_env.md) | `pr_to_env / swe_gen` | Explicit merged PR URLs | PR-head implementation |
 | [SWE-Flow](repo_reconstruct.md) | `repo_reconstruct / swe_flow` | Healthy Python repo | Original scheduled functions |
+| [CodeMidas](codemidas.md) | `repo_reconstruct / codemidas` | Working repository or pinned Stack v3 row | Original selected implementation |
 | [R2E](r2e.md) | `equivalence_tests / r2e` | Documented repo functions | Original function in private verifier |
 | [SWE-Next](swe_next.md) | `pr_runtime / swe_next` | Repository PR history | Post-change source at merge revision |
 | [R2E-Gym](r2e_gym.md) | `commit_runtime / r2e_gym` | First-parent history | Post-change source |
@@ -49,7 +51,7 @@ flowchart TD
 
 `pipeline.name` describes the generation family; `recipe` selects its
 research-inspired implementation. Existing native behavior remains available
-without a recipe. These 14 recipes are experimental. SEC-bench is deferred and is not implemented.
+without a recipe. These 15 recipes are experimental. SEC-bench is deferred and is not implemented.
 
 ```bash
 repo2rlenv pipelines list
@@ -223,9 +225,9 @@ and [R2E](r2e.md), plus [TMax](tmax.md) and
 [Endless Terminals](endless_terminals.md), [TerminalWorld](terminalworld.md),
 [CLI-Gym](env_repair.md), [DataArc](dataarc.md), [SWE-Next](swe_next.md), and [R2E-Gym](r2e_gym.md).
 [SCALER](scaler.md) adds algorithmic reasoning instances from released families.
-The active campaign covers these 14 recipes. SEC-bench remains a deferred design
-and is excluded from this integration milestone. Campaigns are still collecting
-generated outputs.
+Those 14 recipes form the published research cohort. [CodeMidas](codemidas.md)
+adds source-driven reconstruction in a separate local campaign using Sol/Luna and
+Daytona. SEC-bench remains deferred and is not an implemented recipe.
 
 ## Contract references
 

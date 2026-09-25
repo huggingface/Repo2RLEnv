@@ -13,6 +13,7 @@ def transient_connection_error(error: Exception) -> bool:
         or type(error).__name__
         in {
             "DaytonaConnectionError",
+            "DaytonaConnectionTimeoutError",
             "DaytonaTimeoutError",
             "DaytonaRateLimitError",
             "ReadTimeout",

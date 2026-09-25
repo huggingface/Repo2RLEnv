@@ -328,3 +328,59 @@ def test_new_large_release_uses_bounded_commits_and_publishes_card_last(selectio
     assert all(len(c.kwargs["operations"]) <= 5 for c in batches)
     last_paths = [op.path_in_repo for op in batches[-1].kwargs["operations"]]
     assert last_paths[-2:] == ["README.md", "release-files.json"]
+
+
+def test_portable_evidence_is_separate_from_unchanged_task(selection, tmp_path):
+    import hashlib
+
+    from repo2rlenv.campaigns.release import ReleaseTask
+
+    source = selection.tasks[0].path
+    original = inspect_bundle(source)
+    config = (source / "task.toml").read_bytes()
+    selection.tasks[0] = ReleaseTask(
+        path=source,
+        bundle_hash=original["bundle_hash"],
+        evidence_documents={
+            "validation.json": {
+                "bundle_hash": original["bundle_hash"],
+                "oracle_rewards": [1, 1, 1, 1],
+            }
+        },
+    )
+    stage = tmp_path / "stage"
+    manifest = stage_release(selection, stage)
+    document = manifest["tasks"][0]["evidence_documents"]["validation.json"]
+    content = (stage / document["path"]).read_bytes()
+    assert hashlib.sha256(content).hexdigest() == document["sha256"]
+    assert json.loads(content)["oracle_rewards"] == [1, 1, 1, 1]
+    assert inspect_bundle(stage / "tasks/example") == original
+    assert (stage / "tasks/example/task.toml").read_bytes() == config
+    assert not (stage / "tasks/example/validation.json").exists()
+    verify_release(stage)
+    (stage / document["path"]).write_text("changed evidence")
+    with pytest.raises(ValueError, match="Staged release changed"):
+        verify_release(stage)
+
+
+@pytest.mark.parametrize(
+    "name", ["../outside.json", "/tmp/outside.json", "sub/path.json", "a\\b.json", "report.txt"]
+)
+def test_evidence_names_cannot_escape_release_directory(selection, name):
+    from repo2rlenv.campaigns.release import ReleaseTask
+
+    with pytest.raises(ValueError, match="JSON basenames"):
+        ReleaseTask(
+            path=selection.tasks[0].path, bundle_hash="fixture", evidence_documents={name: {}}
+        )
+
+
+def test_evidence_names_reject_case_collisions(selection):
+    from repo2rlenv.campaigns.release import ReleaseTask
+
+    with pytest.raises(ValueError, match="distinct"):
+        ReleaseTask(
+            path=selection.tasks[0].path,
+            bundle_hash="fixture",
+            evidence_documents={"Review.json": {}, "review.json": {}},
+        )

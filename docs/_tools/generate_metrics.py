@@ -79,6 +79,55 @@ def native_tables(history: dict) -> tuple[list[str], list[str]]:
     return releases, economics
 
 
+def codemidas_tables(row: dict) -> tuple[list[str], list[str]]:
+    """Keep the local, reviewed cohort out of published and generation-only totals."""
+    n = row["curated_tasks"]
+    if (
+        row["review_passed"] + row["review_defects"] + row["review_unresolved"]
+        != row["generated_tasks"]
+        or sum(row["repositories"].values()) != n
+        or sum(row["quality_counts"].values()) != n
+        or sum(row["curricula"].values()) != n
+        or not 0
+        < n
+        <= row["review_passed"]
+        <= row["generated_tasks"]
+        <= row["attempted_candidates"]
+        or Decimal(row["accounted_usd"])
+        != Decimal(row["api_usd"]) + Decimal(row["compute_estimate_usd"])
+    ):
+        raise ValueError("CodeMidas campaign counts or cost scopes disagree")
+    releases = [
+        "## Local collections awaiting publication",
+        "",
+        f"[CodeMidas](codemidas.md) has **{n} staged Harbor tasks**, separate from the published totals above. The {row['measured_on']} campaign generated {row['generated_tasks']} exports; {row['review_passed']} passed ordinary solver review, {row['review_defects']} had demonstrated verifier/instruction defects and {row['review_unresolved']} remained unresolved.",
+        "",
+        f"The curated collection has **{row['baseline_failures']} baseline failures and {row['oracle_passes']} oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All {n} retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release preparation and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).",
+        "",
+    ]
+    costs = [
+        "## CodeMidas generation and evaluation",
+        "",
+        f"Measured **{row['measured_on']}** using GPT-6 Luna/Sol and Daytona. This whole-campaign sample includes historical pilots, failed construction, independent review, rollouts and compute. It is **not comparable to generation-only prices** above; interactive assistant usage is excluded.",
+        "",
+        "| Measure | Result |",
+        "|---|---:|",
+        f"| Construction yield | {row['generated_tasks']}/{row['attempted_candidates']} ({100 * row['generated_tasks'] / row['attempted_candidates']:.1f}%) |",
+        f"| Ordinary review yield | {row['review_passed']}/{row['generated_tasks']} ({100 * row['review_passed'] / row['generated_tasks']:.1f}%) |",
+        f"| Recorded API usage | ${Decimal(row['api_usd']):.2f} |",
+        f"| Conservative compute estimate | ${Decimal(row['compute_estimate_usd']):.2f} |",
+        f"| Combined accounted | ${Decimal(row['accounted_usd']):.2f} |",
+        f"| Unknown API billing reserved | ${Decimal(row['unresolved_usd']):.2f} |",
+        f"| Accounted per export | ${Decimal(row['accounted_usd']) / row['generated_tasks']:.2f} |",
+        f"| Accounted per reviewed task | ${Decimal(row['accounted_usd']) / row['review_passed']:.2f} |",
+        f"| Accounted per curated task | ${Decimal(row['accounted_usd']) / n:.2f} |",
+        "",
+        "Compute is an estimate, not an invoice. The construction denominator includes two candidates stopped after the goal was met. The 100 curated tasks remain adversarial-blocked; there is no cost per fully accepted task. See [stage costs and limitations](codemidas.md#measured-economics).",
+        "",
+    ]
+    return releases, costs
+
+
 def render(data: dict) -> dict[str, str]:
     rows = data["pipelines"]
     by_name = {row["recipe"]: row for row in rows}
@@ -88,6 +137,7 @@ def render(data: dict) -> dict[str, str]:
     sample = tasksmith["evaluation_sample"]
     observed = data["tasksmith_observation"]
     native_releases, native_economics = native_tables(data["native_history"])
+    local_releases, local_economics = codemidas_tables(data["codemidas_campaign"])
     labels_total = {}
     for row in rows:
         if sum(row["quality_counts"].values()) != row["published_tasks"]:
@@ -113,7 +163,7 @@ def render(data: dict) -> dict[str, str]:
     releases = [
         "# Published Harbor datasets",
         "",
-        "Results cover the six native pipelines, Tasksmith and all 14 research recipes. Historical evidence and the newer publication checks are reported separately below.",
+        "Published results cover the six native pipelines, Tasksmith and 14 research recipes. The local CodeMidas collection is reported separately and is not included in published totals.",
         "",
         f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{data['collection']}). The native datasets retain their existing owners.",
         "",
@@ -154,7 +204,7 @@ def render(data: dict) -> dict[str, str]:
         "",
         f"SWE-smith, R2E, SWE-gen, SWE-Next, R2E-Gym and SCALER shared workers. Together their {shared['sample_exports']} new exports cost **${Decimal(shared['total_usd']):.2f}, or ${mean:.3f} per task**, including estimated compute. Per-recipe compute was not allocated. SCALER uses no generation-model calls, but still incurs compute cost.",
         "",
-        f"The CLI-Gym cost sample has {by_name['cli-gym']['sample_exports']} new tasks; its published dataset contains {by_name['cli-gym']['published_tasks']}. Earlier retained-task costs and interactive assistant usage are excluded throughout. Most recipe samples used CPU workers on Daytona; Tasksmith also used native Modal GPU execution. These measurements include development retries and do not establish unattended production cost.",
+        f"The CLI-Gym cost sample has {by_name['cli-gym']['sample_exports']} new tasks; its published dataset contains {by_name['cli-gym']['published_tasks']}. Earlier retained-task costs and interactive assistant usage are excluded from these older generation samples. Most recipe samples used CPU workers on Daytona; Tasksmith also used native Modal GPU execution. These measurements include development retries and do not establish unattended production cost.",
         "",
         "The primary recipe author was `claude-sonnet-4-6`; TMax also includes a small unsuccessful `gpt-5.4-mini` comparison. SCALER used no generation model. Configured model identities are retained in the summary; these are not cross-model quality comparisons.",
         "",
@@ -181,6 +231,7 @@ def render(data: dict) -> dict[str, str]:
         "",
         f"A further ${Decimal(sample['unresolved_usd']):.2f} remains unresolved for this sample. The final published Tasksmith cohort has {observed['verified']} verified tasks, including {observed['sonnet_solved']} full Sonnet solves. Solver success, generation yield and quality acceptance are separate measures. Comparable independent evaluation costs have not been established for the other full datasets.",
         "",
+        *local_economics,
         *native_economics,
         "## Measurement source",
         "",
@@ -194,6 +245,7 @@ def render(data: dict) -> dict[str, str]:
     ]
     releases += [
         "",
+        *local_releases,
         "## What the labels establish",
         "",
         f"The Tasksmith and research-recipe release contains **{labels_total['verified']:,} verified, {labels_total['needs_repair']:,} needing repair and {labels_total['unverified']:,} unverified** tasks. These totals exclude the historical native inventories above. Tasksmith's verified cohort came from an assisted campaign; this does not claim unattended conversion. Two SWE-flow instruction issues and three TerminalWorld verifier gaps remain explicitly diagnosed. Each dataset manifest supplies task-level labels, diagnostics and evidence scope.",

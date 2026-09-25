@@ -1,6 +1,6 @@
 # Published Harbor datasets
 
-Results cover the six native pipelines, Tasksmith and all 14 research recipes. Historical evidence and the newer publication checks are reported separately below.
+Published results cover the six native pipelines, Tasksmith and 14 research recipes. The local CodeMidas collection is reported separately and is not included in published totals.
 
 Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). The native datasets retain their existing owners.
 
@@ -40,6 +40,12 @@ These tasks have **historical evidence scopes**, not retrospectively assigned `v
 | [terminalworld](terminalworld.md) | 100 | 3 needs repair; 97 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld/resolve/9e6460a5e2a3bfe5a59b87512c3df95117160667/manifest.json) |
 | [dataarc](dataarc.md) | 100 | 100 unverified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc/resolve/eec33b1d7cafd420a2ad05eacabc2023e85bdd6c/manifest.json) |
 | [tasksmith](tasksmith.md) | 50 | 50 verified | [Dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) · [Manifest](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith/resolve/2961be38506e8990656a67a21b9d8d5dd6606ec5/manifest.json) |
+
+## Local collections awaiting publication
+
+[CodeMidas](codemidas.md) has **100 staged Harbor tasks**, separate from the published totals above. The 2026-09-25 campaign generated 128 exports; 101 passed ordinary solver review, 26 had demonstrated verifier/instruction defects and 1 remained unresolved.
+
+The curated collection has **200 baseline failures and 400 oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All 100 retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release preparation and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).
 
 ## What the labels establish
 

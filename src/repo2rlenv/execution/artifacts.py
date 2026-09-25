@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import tarfile
 import tempfile
+import uuid
 import zipfile
 from importlib.resources import files
 from pathlib import Path, PurePosixPath
@@ -33,35 +34,28 @@ def install_runtime(worker: RemoteWorker, wheel: Path, log_dir: Path) -> str:
     digest = check_runtime_wheel(wheel)
     remote_dir = "/work/runtime/" + digest
     worker.exec(["mkdir", "-p", remote_dir], timeout=30).checked("Runtime directory")
-    remote = remote_dir + "/" + wheel.name
     ready = worker.exec(["test", "-f", remote_dir + "/installed"], timeout=30)
     if ready.returncode == 0:
         return digest
+    upload_dir = remote_dir + "/upload-" + uuid.uuid4().hex
+    worker.exec(["mkdir", "-p", upload_dir], timeout=30).checked("Runtime upload directory")
+    remote = upload_dir + "/" + wheel.name
     worker.upload(wheel, remote)
-    worker.exec(
-        ["uv", "venv", "--python", "/opt/repo2rlenv/bin/python", remote_dir + "/venv"],
-        timeout=60,
-    ).checked("Create isolated runtime")
+    installer = files("repo2rlenv.execution").joinpath("runtime_install.py").read_text()
     result = worker.exec(
         [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            runtime_python(digest),
-            "--reinstall-package",
-            "repo2rlenv",
-            remote + "[mutation,harbor]",
+            "/opt/repo2rlenv/bin/python",
+            "-c",
+            installer,
+            remote_dir,
+            remote,
         ],
-        timeout=300,
+        timeout=600,
     )
     log_dir.mkdir(parents=True, exist_ok=True)
     (log_dir / "install.stdout").write_text(result.stdout)
     (log_dir / "install.stderr").write_text(result.stderr)
     result.checked("Install the owned runtime")
-    worker.exec(["touch", remote_dir + "/installed"], timeout=30).checked(
-        "Record runtime readiness"
-    )
     return digest
 
 
