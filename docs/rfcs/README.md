@@ -76,7 +76,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0029 | HF bootstrap and Tasksmith scale | recorded campaign; PR #109 | [0029-tasksmith-hf-scale.md](0029-tasksmith-hf-scale.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) |
 | 0030 | Campaign expansion and Harbor releases | implementation in PR #109 | [0030-campaign-expansion-and-release.md](0030-campaign-expansion-and-release.md) | [Release inventory](../pipelines/releases.md) |
 
-| 0031 | `repo_reconstruct` / `codemidas` | implementation in PR #165; 100 local tasks | [0031-codemidas-recipe.md](0031-codemidas-recipe.md) | Local campaign; no published release |
+| 0031 | `repo_reconstruct` / `codemidas` | implemented in 0.9.2; 100 local tasks | [0031-codemidas-recipe.md](0031-codemidas-recipe.md) | Local campaign; dataset unpublished |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 

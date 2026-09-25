@@ -17,7 +17,7 @@ execution:
   campaign_dir: workspace/seta
   run_id: seta-evol-first
   worker_receipt: workspace/seta/workers/seta-worker.json
-  runtime_wheel: dist/repo2rlenv-0.9.1-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.2-py3-none-any.whl
   timeout_sec: 7200
 output:
   destination: workspace/seta/evolved

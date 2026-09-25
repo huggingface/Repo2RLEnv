@@ -45,7 +45,7 @@ These tasks have **historical evidence scopes**, not retrospectively assigned `v
 
 [CodeMidas](codemidas.md) has **100 staged Harbor tasks**, separate from the published totals above. The 2026-09-25 campaign generated 128 exports; 101 passed ordinary solver review, 26 had demonstrated verifier/instruction defects and 1 remained unresolved.
 
-The curated collection has **200 baseline failures and 400 oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All 100 retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release preparation and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).
+The curated collection has **200 baseline failures and 400 oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All 100 retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release notes and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).
 
 ## What the labels establish
 

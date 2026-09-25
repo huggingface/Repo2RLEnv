@@ -148,7 +148,7 @@ output:
   dataset_name: CodeMidas
 execution:
   worker_receipt: workspace/codemidas/workers/worker.json
-  runtime_wheel: dist/repo2rlenv-0.9.1-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.2-py3-none-any.whl
   campaign_dir: workspace/codemidas
   run_id: library-pilot-01
   timeout_sec: 3600
@@ -161,7 +161,7 @@ repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
   --controls workspace/codemidas/runs/RUN/tasks/CANDIDATE \
   --campaign workspace/codemidas \
   --worker-receipt workspace/codemidas/workers/worker.json \
-  --runtime-wheel dist/repo2rlenv-0.9.1-py3-none-any.whl \
+  --runtime-wheel dist/repo2rlenv-0.9.2-py3-none-any.whl \
   --out workspace/codemidas/audits/TASK
 ```
 
@@ -339,7 +339,7 @@ measured summary belong in the PR. See [PR #165](https://github.com/huggingface/
 ## Release status and audit
 
 [Release notes and the pre-merge audit](../release_notes/codemidas.md) distinguish
-implementation readiness, local dataset readiness and the later package release.
+the 0.9.2 package release from the locally staged, unpublished dataset.
 The [central results](releases.md#local-collections-awaiting-publication) and
 [economics](economics.md#codemidas-generation-and-evaluation) include this cohort
 without changing existing published totals.

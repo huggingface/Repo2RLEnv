@@ -45,6 +45,9 @@ Repository / PR / task seed
 Generation methods have different checks. The shared quality workflow can review
 and repair emitted tasks; exporting a task alone does not establish its quality.
 
+**New in 0.9.2:** CodeMidas source reconstruction, portable validation evidence,
+and runtime/verifier fixes. See the [release notes](docs/release_notes/HISTORY.md#v092--codemidas-and-runtime-correctness).
+
 ## Quickstart
 
 Requires **Python 3.12+** and Git. This example generates PR-diff tasks without

@@ -6,12 +6,55 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
-## Unreleased — CodeMidas
+## v0.9.2 — CodeMidas and runtime correctness
 
-[CodeMidas release notes and audit](codemidas.md) cover the experimental source-to-task
-recipe, the 100-task local collection, validation limits and measured costs.
-PR #165 is prepared for review. No new version, tag or package release is included;
-release preparation continues after merge. The published package remains 0.9.1.
+Released September 26, 2026.
+
+Adds the experimental `codemidas` recipe under `repo_reconstruct`: reconstruct
+existing functionality from pinned GitHub source or inline Stack v3 repository
+rows, using Daytona execution and GPT-6 Luna/Sol authoring and review. Outputs are
+standard Harbor tasks with deterministic verifiers. Includes source provenance,
+bounded repairs, independent rollout review, difficulty screening, and portable
+JSON release evidence. [RFC 0031](../rfcs/0031-codemidas-recipe.md) and the
+[pipeline guide](../pipelines/codemidas.md) document the method and full prompts.
+
+The 100-task local collection passed 400 oracle and 200 failing-baseline controls.
+All tasks retain blocked labels because adversarial checks could not run; no
+full-method acceptance is claimed. Sol solved 94 tasks at least once across four
+attempts each. The collection remains unpublished. See the [dataset audit and
+release notes](codemidas.md) for sources, difficulty, costs and limitations.
+
+This release also includes fixes merged since 0.9.1:
+
+- PR-diff tasks deliver the oracle and verifier through Harbor's private mounts,
+  keeping reference artifacts out of learner images ([#145](https://github.com/huggingface/Repo2RLEnv/pull/145)).
+  Diff normalization ignores Git extended headers and mode-only lines
+  ([#137](https://github.com/huggingface/Repo2RLEnv/pull/137)); the judge supports
+  OpenAI-compatible endpoints ([#135](https://github.com/huggingface/Repo2RLEnv/pull/135)).
+- Runtime test parsing handles Go subtests, verbose Vitest, pytest-xdist output,
+  and Rust should-panic/doctest results ([#127](https://github.com/huggingface/Repo2RLEnv/pull/127),
+  [#143](https://github.com/huggingface/Repo2RLEnv/pull/143),
+  [#151](https://github.com/huggingface/Repo2RLEnv/pull/151),
+  [#139](https://github.com/huggingface/Repo2RLEnv/pull/139)).
+- Source links and forge blocking respect the repository's source host
+  ([#133](https://github.com/huggingface/Repo2RLEnv/pull/133),
+  [#153](https://github.com/huggingface/Repo2RLEnv/pull/153)). Windows fixes cover
+  ownership changes and CRLF patch application; TMax reads UTF-8 explicitly
+  ([#136](https://github.com/huggingface/Repo2RLEnv/pull/136),
+  [#141](https://github.com/huggingface/Repo2RLEnv/pull/141)).
+- Dependency and workflow updates include the patched AnyIO minimum, coding-agent
+  runtime updates and tighter GitHub Actions permissions
+  ([#154](https://github.com/huggingface/Repo2RLEnv/pull/154),
+  [#147](https://github.com/huggingface/Repo2RLEnv/pull/147),
+  [#131](https://github.com/huggingface/Repo2RLEnv/pull/131),
+  [#159](https://github.com/huggingface/Repo2RLEnv/pull/159)).
+
+Upgrade with `pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.2`,
+adding your required extras. Python 3.12–3.14 remain supported. Examples point to
+the 0.9.2 runtime wheel. Existing generated datasets are not rewritten: to adopt
+changed verifier, parser or image behavior, regenerate affected tasks and rerun
+baseline/oracle checks before publishing a new dataset revision. Full native
+Windows research-pipeline execution remains unsupported; use Linux, macOS or WSL.
 
 ## v0.9.1 — Windows CLI startup and release checks
 

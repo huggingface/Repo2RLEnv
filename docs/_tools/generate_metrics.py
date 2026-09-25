@@ -102,7 +102,7 @@ def codemidas_tables(row: dict) -> tuple[list[str], list[str]]:
         "",
         f"[CodeMidas](codemidas.md) has **{n} staged Harbor tasks**, separate from the published totals above. The {row['measured_on']} campaign generated {row['generated_tasks']} exports; {row['review_passed']} passed ordinary solver review, {row['review_defects']} had demonstrated verifier/instruction defects and {row['review_unresolved']} remained unresolved.",
         "",
-        f"The curated collection has **{row['baseline_failures']} baseline failures and {row['oracle_passes']} oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All {n} retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release preparation and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).",
+        f"The curated collection has **{row['baseline_failures']} baseline failures and {row['oracle_passes']} oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All {n} retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release notes and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).",
         "",
     ]
     costs = [

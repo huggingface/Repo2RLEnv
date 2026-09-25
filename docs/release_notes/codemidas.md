@@ -1,9 +1,10 @@
-# CodeMidas — release preparation
+# CodeMidas — v0.9.2 release notes and dataset audit
 
-**Unreleased.** [PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165)
-adds CodeMidas as an experimental recipe. The package remains **0.9.1**.
-Merge review comes first; a version, tag and package release will be prepared
-separately after merge. The 100-task dataset is staged locally, not published.
+[PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165) was merged at
+`8d3c2cf319b293611de1ba3823409353e77ff148`. CodeMidas ships as an experimental
+recipe in **0.9.2**. The package release is separate from the 100-task dataset,
+which remains staged locally and unpublished. See the [version history](HISTORY.md)
+for all changes since 0.9.1.
 
 ## What changes
 
@@ -124,18 +125,19 @@ identities are unchanged**. Nothing has been uploaded to the proposed
 `HuggingEnvs/Repo2rlenv-codemidas` destination. The existing published-task totals
 therefore remain unchanged.
 
-## After merge
+## Package release and dataset publication
 
-1. Select the package version and record the merge commit; finish the unreleased
-   history entry, versioned examples and lock metadata together. This PR does not
-   reserve a version number.
-2. Build the release from that commit and require all CI and Windows wheel gates.
-   Creating a GitHub Release or dispatching the release workflow can publish to
-   PyPI; neither action is part of this PR.
-3. Prepare the final Hub card with the actual publication status, verify the new
-   immutable staging, then publish through the receipt-backed release command.
-   Pin its registry to the confirmed upload commit and add it to the collection.
-4. Update the dataset inventory only after upload completeness is checked. Keep
+The package release uses tag `v0.9.2`, matching the project and lock metadata.
+The release workflow tests that tag on Python 3.12–3.14, checks Windows wheels
+and coding-agent runtimes, builds distributions, then publishes to PyPI and
+attaches the same artifacts to the GitHub release.
+
+Dataset publication remains a separate step:
+
+1. Prepare the final Hub card with the actual publication status and verify the
+   immutable staging. Publish through the receipt-backed release command, pin
+   its registry to the confirmed upload commit and add it to the collection.
+2. Update the dataset inventory only after upload completeness is checked. Keep
    adversarial-blocked labels and the measured difficulty breakdown visible.
 
 See [dataset publication](../pipelines/dataset_release.md) for staging and upload
