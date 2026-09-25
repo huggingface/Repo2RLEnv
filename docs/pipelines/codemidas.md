@@ -334,4 +334,17 @@ the blocked adversarial stage.
 The ignored local campaign directory contains the 100-task archive, retained
 `task.toml` labels, checksummed release manifest, source provenance, per-task trials,
 usage receipts and a detailed report. Only implementation, tests, prompts and this
-measured summary belong in the PR. See [draft PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165).
+measured summary belong in the PR. See [PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165).
+
+## Release status and audit
+
+[Release notes and the pre-merge audit](../release_notes/codemidas.md) distinguish
+implementation readiness, local dataset readiness and the later package release.
+The [central results](releases.md#local-collections-awaiting-publication) and
+[economics](economics.md#codemidas-generation-and-evaluation) include this cohort
+without changing existing published totals.
+
+Inconclusive or infrastructure-limited reviews retain `blocked` labels; only
+demonstrated false positives, false negatives or confirmed exploits produce
+`needs_repair`. This fixes the initial annotation of one unresolved task outside
+the selected 100. It changes no task instruction, verifier or oracle.

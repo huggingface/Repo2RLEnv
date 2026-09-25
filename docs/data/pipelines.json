@@ -1046,5 +1046,64 @@
         "sha256": "9fffb84909e1a16a7ddbf13b077a4f50ee807f0993b39c447aefcfbcdb3d4782"
       }
     }
+  },
+  "codemidas_campaign": {
+    "measured_on": "2026-09-25",
+    "publication_status": "local_staging_only",
+    "attempted_candidates": 213,
+    "generated_tasks": 128,
+    "review_passed": 101,
+    "review_defects": 26,
+    "review_unresolved": 1,
+    "curated_tasks": 100,
+    "quality_counts": {
+      "blocked": 100
+    },
+    "source_counts": {
+      "github": 98,
+      "stack_v3_inline": 2
+    },
+    "repositories": {
+      "https://github.com/GlobalFishingWatch/ShipDataProcess": 2,
+      "https://github.com/dgilland/pydash": 8,
+      "https://github.com/fsspec/filesystem_spec": 1,
+      "https://github.com/grantjenks/python-sortedcontainers": 2,
+      "https://github.com/huggingface/huggingface_hub": 3,
+      "https://github.com/mahmoud/boltons": 24,
+      "https://github.com/more-itertools/more-itertools": 27,
+      "https://github.com/networkx/networkx": 22,
+      "https://github.com/pypa/packaging": 4,
+      "https://github.com/pytoolz/toolz": 7
+    },
+    "multi_symbol_tasks": 17,
+    "multifile_tasks": 0,
+    "curricula": {
+      "all_fail": 6,
+      "all_pass": 90,
+      "mixed": 4
+    },
+    "solver_outcomes": {
+      "gpt-6-luna": {
+        "attempts": 400,
+        "successful_attempts": 358,
+        "tasks_solved_at_least_once": 92
+      },
+      "gpt-6-sol": {
+        "attempts": 400,
+        "successful_attempts": 370,
+        "tasks_solved_at_least_once": 94
+      }
+    },
+    "api_usd": "88.198885",
+    "compute_estimate_usd": "11.706568",
+    "accounted_usd": "99.905453",
+    "unresolved_usd": "1.474352",
+    "budget_usd": "300",
+    "cost_scope": "Includes generation, failed attempts, historical pilots, ordinary review, screening and estimated compute; excludes interactive assistant usage. Not generation-only or invoiced cost.",
+    "baseline_failures": 200,
+    "oracle_passes": 400,
+    "full_method_accepted": 0,
+    "paper": "https://arxiv.org/abs/2609.22068",
+    "pr": "https://github.com/huggingface/Repo2RLEnv/pull/165"
   }
 }

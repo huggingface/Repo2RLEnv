@@ -107,7 +107,7 @@ requirements and upstream credits are in the linked guides.
 | [**swe_smith**](pipelines/repo_mutate.md) | Repair a deliberately introduced source defect | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-smith) |
 | [**swe_gen**](pipelines/pr_to_env.md) | Implement the behavior of a supplied merged PR | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-gen) |
 | [**swe_flow**](pipelines/repo_reconstruct.md) | Reconstruct functions in dependency order | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow) |
-| [**codemidas**](pipelines/codemidas.md) | Reconstruct working functionality from source, with execution-grounded tests and independent rollout review | Private tests, 0/1 | Local campaign; not published |
+| [**codemidas**](pipelines/codemidas.md) | Reconstruct working functionality from source, with execution-grounded tests and independent rollout review | Private tests, 0/1 | 100 staged; adversarial checks blocked |
 | [**r2e**](pipelines/r2e.md) | Implement a function equivalent to a private reference | Equivalence tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e) |
 | [**swe_next**](pipelines/swe_next.md) | Repair a task mined from PR history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-next) |
 | [**r2e_gym**](pipelines/r2e_gym.md) | Repair a task mined from commit history | Private tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-r2e-gym) |

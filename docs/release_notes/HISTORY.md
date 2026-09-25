@@ -6,6 +6,13 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## Unreleased — CodeMidas
+
+[CodeMidas release notes and audit](codemidas.md) cover the experimental source-to-task
+recipe, the 100-task local collection, validation limits and measured costs.
+PR #165 is prepared for review. No new version, tag or package release is included;
+release preparation continues after merge. The published package remains 0.9.1.
+
 ## v0.9.1 — Windows CLI startup and release checks
 
 Released September 15, 2026.

@@ -188,6 +188,11 @@ campaign**. Research-recipe exports retain separate quality labels, including
 unverified and needs-repair. Consult the recorded evidence before using a cohort
 for training or evaluation.
 
+[CodeMidas](https://huggingface.github.io/Repo2RLEnv/pipelines/codemidas/) adds a
+local 100-task cohort with baseline/oracle controls and ordinary solver review.
+Adversarial checks remain blocked; the cohort is not included in published totals.
+See the [release notes and audit](https://huggingface.github.io/Repo2RLEnv/release_notes/codemidas/).
+
 ```bash
 hf auth login  # Or set HF_TOKEN with write access to your namespace
 repo2rlenv push ./workspace/click-tasks <your-org>/<dataset-name>

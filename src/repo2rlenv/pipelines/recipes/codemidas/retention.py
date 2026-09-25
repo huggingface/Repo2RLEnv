@@ -64,7 +64,19 @@ def retain(task: Path, destination: Path, controls: Path, *, audit: Path | None 
                 + ". The separate shared quality-loop profile has not run."
             )
         else:
-            if result.get("adversarial_status") == "blocked" and result.get("solver_review_sound"):
+            review = result["review"]
+            defect = review["exploit_confirmed"] or any(
+                item["outcome"] in {"false_positive", "false_negative"}
+                for item in review["judgments"]
+            )
+            if defect:
+                status, codes = "needs_repair", ["codemidas_audit_defect"]
+                detail = (
+                    "CodeMidas audit identified a material defect; inspect the linked evidence."
+                )
+            elif result.get("adversarial_status") == "blocked" and result.get(
+                "solver_review_sound"
+            ):
                 status, stage, codes = (
                     "blocked",
                     "probes",
@@ -75,9 +87,12 @@ def retain(task: Path, destination: Path, controls: Path, *, audit: Path | None 
                     "adversarial stage. Full CodeMidas soundness has not been established."
                 )
             else:
-                status, codes = "needs_repair", ["codemidas_audit_defect"]
+                status, codes = "blocked", ["codemidas_review_incomplete"]
+                if result.get("adversarial_status") == "blocked":
+                    codes.append("provider_policy_blocked")
                 detail = (
-                    "CodeMidas audit identified a material defect; inspect the linked evidence."
+                    "CodeMidas review is inconclusive or could not complete; no material "
+                    "defect or task soundness has been established. Inspect the linked evidence."
                 )
     label = EvaluationLabel(
         status=status,

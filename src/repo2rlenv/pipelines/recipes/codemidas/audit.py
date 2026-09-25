@@ -94,6 +94,8 @@ def validate_review(review: AuditReview, index: dict, summaries: list[dict]):
     attempts = {item["trial"]: item for item in summaries}
     if review.sound and attempts["exploit"]["exception"] is not None:
         raise ValueError("An incomplete adversarial attempt cannot establish soundness")
+    if review.exploit_confirmed and attempts["exploit"]["exception"] is not None:
+        raise ValueError("An incomplete adversarial attempt cannot confirm an exploit")
     expected_rewards = {
         "legitimate_success": 1,
         "false_positive": 1,
