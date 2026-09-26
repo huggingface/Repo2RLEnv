@@ -45,3 +45,8 @@ jobs:
         run: |
           uv pip install --python "$env:RUNNER_TEMP/cli-check/Scripts/python.exe" pytest
           & "$env:RUNNER_TEMP/cli-check/Scripts/python.exe" -m pytest -q tests/test_locking.py tests/test_posix_only_imports.py
+      - name: Check task bundle identity and inspection on NTFS
+        # Executable-intent is recorded in the manifest, not read from st_mode,
+        # so bundles must write, hash and inspect on a filesystem with no POSIX
+        # execute bit. Tests needing a real chmod skip themselves here.
+        run: '& "$env:RUNNER_TEMP/cli-check/Scripts/python.exe" -m pytest -q tests/test_task_bundle.py'
