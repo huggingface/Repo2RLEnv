@@ -441,33 +441,55 @@ def _write_old_style_pr_diff_task(
     repo_url: str = "https://github.com/x/y.git",
     base_commit: str = "deadbeef1234",
     oracle_diff: str = "diff --git a/x b/x\n+fix\n",
-    instruction: str = "# Issue\ndo it",
+    instruction: str | bytes = "# Issue\ndo it",
     content_hash: str | None = None,
+    clone_layout: str = "set_url",
+    baked_instruction: str | bytes | None = None,
 ) -> None:
     """Reconstruct a pre-#145 emitted task: the pattern from #144/#155, not the
     real old builder (removed) — just enough surface for migrate_pr_diff_task
     to detect and repair: the baked-oracle Dockerfile marker, the old test.sh
-    shim, and the task.toml fields the migration reads."""
+    shim, and the task.toml fields the migration reads.
+
+    ``clone_layout`` picks how the Dockerfile clones: ``"set_url"`` (clone, then
+    ``remote set-url origin``) or ``"plain"`` (a bare ``git clone``, as in the
+    earliest published datasets such as ``BurntSushi__ripgrep-3166``).
+    ``baked_instruction`` is what the Dockerfile bakes as ``/verifier/instruction.md``
+    when it differs from the visible ``instruction.md``. Files are written as
+    bytes so an instruction with embedded ``\\r\\n`` round-trips exactly.
+    """
     import base64
 
     import tomli_w
 
-    task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "instruction.md").write_text(instruction, encoding="utf-8")
-    (task_dir / "solution").mkdir(exist_ok=True)
-    (task_dir / "solution" / "patch.diff").write_text(oracle_diff, encoding="utf-8")
+    def raw(value: str | bytes) -> bytes:
+        return value if isinstance(value, bytes) else value.encode("utf-8")
 
-    encoded_oracle = base64.b64encode(oracle_diff.encode("utf-8")).decode("ascii")
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "instruction.md").write_bytes(raw(instruction))
+    (task_dir / "solution").mkdir(exist_ok=True)
+    (task_dir / "solution" / "patch.diff").write_bytes(raw(oracle_diff))
+
+    encoded_oracle = base64.b64encode(raw(oracle_diff)).decode("ascii")
+    encoded_instruction = base64.b64encode(
+        raw(instruction if baked_instruction is None else baked_instruction)
+    ).decode("ascii")
+    if clone_layout == "plain":
+        clone = f"RUN git clone --filter=blob:none {repo_url} /workspace\n"
+    else:
+        clone = (
+            f"RUN git clone --filter=blob:none {repo_url} /workspace \\\n"
+            f" && git -C /workspace remote set-url origin {repo_url}\n"
+        )
     env_dir = task_dir / "environment"
     env_dir.mkdir(exist_ok=True)
-    (env_dir / "Dockerfile").write_text(
-        "FROM python:3.12-slim\n"
-        f"RUN git clone --filter=blob:none {repo_url} /workspace \\\n"
-        f" && git -C /workspace remote set-url origin {repo_url}\n"
-        f"RUN git reset --hard {base_commit}\n"
-        "RUN mkdir -p /verifier\n"
-        f'RUN echo "{encoded_oracle}" | base64 -d > /verifier/oracle.patch\n',
-        encoding="utf-8",
+    (env_dir / "Dockerfile").write_bytes(
+        (
+            "FROM python:3.12-slim\n" + clone + f"RUN git reset --hard {base_commit}\n"
+            "RUN mkdir -p /verifier\n"
+            f'RUN echo "{encoded_oracle}" | base64 -d > /verifier/oracle.patch\n'
+            f'RUN echo "{encoded_instruction}" | base64 -d > /verifier/instruction.md\n'
+        ).encode("utf-8")
     )
     tests_dir = task_dir / "tests"
     tests_dir.mkdir(exist_ok=True)
@@ -593,7 +615,8 @@ def test_migrate_skips_non_pr_diff_task(tmp_path: Path) -> None:
 
 def test_migrate_already_safe_task_is_a_noop(tmp_path: Path) -> None:
     """A task already emitted by the fixed generator has no baked-oracle marker
-    in its Dockerfile — migrate must recognize that and touch nothing."""
+    in its Dockerfile and ships every grading asset — migrate must recognize
+    that and touch nothing."""
     task_dir = tmp_path / "x__y-1"
     task_dir.mkdir()
     env_dir = task_dir / "environment"
@@ -604,6 +627,12 @@ def test_migrate_already_safe_task_is_a_noop(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    (task_dir / "tests").mkdir()
+    (task_dir / "tests" / "test.sh").write_text(
+        build_pr_diff_eval_script(base_commit="deadbeef"), encoding="utf-8"
+    )
+    for relative, content in _pr_diff_aux_files(oracle_diff="d\n", instruction="i").items():
+        (task_dir / relative).write_text(content, encoding="utf-8")
 
     import tomli_w
 
@@ -645,3 +674,172 @@ def test_migrate_reports_error_for_missing_task_toml(tmp_path: Path) -> None:
     result = migrate_pr_diff_task(task_dir)
 
     assert result == {"task": "empty", "action": "error", "detail": "no task.toml"}
+
+
+# -- review regressions on #157 ---------------------------------------------
+
+
+def test_migrate_recovers_repo_url_from_plain_git_clone_layout(tmp_path: Path) -> None:
+    """The earliest published datasets (e.g. BurntSushi__ripgrep-3166) clone with a
+    bare ``git clone`` and never run ``remote set-url`` — the URL must still be
+    recovered from the clone line."""
+    task_dir = tmp_path / "BurntSushi__ripgrep-3166"
+    _write_old_style_pr_diff_task(
+        task_dir, repo_url="https://github.com/BurntSushi/ripgrep.git", clone_layout="plain"
+    )
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "migrated", result
+    dockerfile = (task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+    assert (
+        "git clone --filter=blob:none https://github.com/BurntSushi/ripgrep.git /workspace"
+        in dockerfile
+    )
+    assert "/verifier/" not in dockerfile
+
+
+def test_migrate_keeps_crlf_instruction_byte_exact(tmp_path: Path) -> None:
+    """Real instructions embed ``\\r\\n``. A universal-newline read rewrites them, which
+    fails the content_hash check on a healthy task and would corrupt the copy the
+    verifier reads. Everything is read and written as bytes."""
+    task_dir = tmp_path / "x__y-1"
+    instruction = b"# Issue\n\nThis finishes what I started in commit\r\na6e0be3c.\n"
+    _write_old_style_pr_diff_task(task_dir, instruction=instruction)
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "migrated", result
+    assert (task_dir / "tests" / "instruction.md").read_bytes() == instruction
+    assert (task_dir / "instruction.md").read_bytes() == instruction
+
+
+def test_migrate_reports_baked_vs_visible_instruction_mismatch(tmp_path: Path) -> None:
+    """When task.toml's hash matches the instruction baked into the image but not
+    the visible instruction.md, say so explicitly — and keep refusing to migrate."""
+    task_dir = tmp_path / "x__y-1"
+    oracle = "diff --git a/x b/x\n+fix\n"
+    _write_old_style_pr_diff_task(
+        task_dir,
+        oracle_diff=oracle,
+        instruction="# Issue\nnewer visible text",
+        baked_instruction="# Issue\nolder baked text",
+        content_hash=_harbor_content_hash("# Issue\nolder baked text", oracle),
+    )
+    original = (task_dir / "environment" / "Dockerfile").read_bytes()
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "error"
+    assert "content_hash mismatch" in result["detail"]
+    assert "baked into environment/Dockerfile" in result["detail"]
+    assert (task_dir / "environment" / "Dockerfile").read_bytes() == original
+
+
+def test_migrate_failed_write_leaves_task_unrepaired_and_retry_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write failing after the Dockerfile was rewritten used to leave a task that
+    a retry called ``already_safe`` with grading assets missing. The repair is now
+    staged and the Dockerfile swapped last, so a failure leaves it unrepaired."""
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir)
+    original = (task_dir / "environment" / "Dockerfile").read_bytes()
+    real_write_bytes = Path.write_bytes
+
+    def flaky_write_bytes(self: Path, data: bytes) -> int:
+        if self.name.startswith("verifier.py"):
+            raise OSError("disk full")
+        return real_write_bytes(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", flaky_write_bytes)
+    failed = migrate_pr_diff_task(task_dir)
+    monkeypatch.undo()
+
+    assert failed["action"] == "error"
+    assert "disk full" in failed["detail"]
+    assert (task_dir / "environment" / "Dockerfile").read_bytes() == original
+    assert not list(task_dir.rglob("*.migrate-tmp"))
+
+    retry = migrate_pr_diff_task(task_dir)
+
+    assert retry["action"] == "migrated", retry
+    assert (task_dir / "tests" / "verifier.py").is_file()
+
+
+def test_migrate_rebuilds_missing_assets_behind_an_already_safe_dockerfile(
+    tmp_path: Path,
+) -> None:
+    """A safe Dockerfile is not enough: tasks a previous run left half-repaired
+    (Dockerfile rewritten, ``tests/`` incomplete) must be finished, not skipped."""
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir)
+    migrate_pr_diff_task(task_dir)
+    safe_dockerfile = (task_dir / "environment" / "Dockerfile").read_bytes()
+    (task_dir / "tests" / "verifier.py").unlink()
+
+    dry = migrate_pr_diff_task(task_dir, dry_run=True)
+    result = migrate_pr_diff_task(task_dir)
+
+    assert dry["action"] == "would_migrate"
+    assert result["action"] == "migrated"
+    assert (task_dir / "tests" / "verifier.py").is_file()
+    assert (task_dir / "environment" / "Dockerfile").read_bytes() == safe_dockerfile
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this platform/user")
+
+
+def test_migrate_rejects_symlinked_tests_dir_without_writing_outside(tmp_path: Path) -> None:
+    task_dir = tmp_path / "x__y-1"
+    _write_old_style_pr_diff_task(task_dir)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (task_dir / "tests" / "test.sh").unlink()
+    (task_dir / "tests").rmdir()
+    _symlink_or_skip(task_dir / "tests", outside)
+    original = (task_dir / "environment" / "Dockerfile").read_bytes()
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "error"
+    assert "symlink" in result["detail"]
+    assert list(outside.iterdir()) == []
+    assert (task_dir / "environment" / "Dockerfile").read_bytes() == original
+
+
+def test_migrate_rejects_symlinked_task_toml_and_instruction(tmp_path: Path) -> None:
+    secret = tmp_path / "secret.txt"
+    secret.write_text("do not read", encoding="utf-8")
+
+    linked_instruction = tmp_path / "a__b-1"
+    _write_old_style_pr_diff_task(linked_instruction)
+    (linked_instruction / "instruction.md").unlink()
+    _symlink_or_skip(linked_instruction / "instruction.md", secret)
+    result = migrate_pr_diff_task(linked_instruction)
+    assert result["action"] == "error"
+    assert "instruction.md is a symlink" in result["detail"]
+
+    linked_toml = tmp_path / "c__d-1"
+    linked_toml.mkdir()
+    _symlink_or_skip(linked_toml / "task.toml", secret)
+    result = migrate_pr_diff_task(linked_toml)
+    assert result["action"] == "error"
+    assert "task.toml is a symlink" in result["detail"]
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFOs only")
+def test_migrate_rejects_non_regular_task_toml_without_opening_it(tmp_path: Path) -> None:
+    """Opening a FIFO blocks forever; the type check has to precede any read."""
+    task_dir = tmp_path / "x__y-1"
+    task_dir.mkdir()
+    os.mkfifo(task_dir / "task.toml")
+
+    result = migrate_pr_diff_task(task_dir)
+
+    assert result["action"] == "error"
+    assert "not a regular file" in result["detail"]
