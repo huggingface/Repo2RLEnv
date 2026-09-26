@@ -39,6 +39,7 @@ under Apache-2.0 along with the rest of Repo2RLEnv.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shlex
 from datetime import UTC, datetime
@@ -333,22 +334,122 @@ def _pr_diff_aux_files(*, oracle_diff: str, instruction: str) -> dict[str, str]:
 
 _BAKED_ORACLE_MARKER = "base64 -d > /verifier/oracle.patch"
 
+# Everything the fixed eval script reads from ``tests/`` at verify time. A task
+# whose Dockerfile is already safe but that lacks any of these is *not* repaired.
+_GRADING_ASSETS = (
+    "tests/test.sh",
+    "tests/verifier.py",
+    "tests/oracle.patch",
+    "tests/instruction.md",
+)
 
-def _harbor_content_hash(instruction: str, oracle_diff: str) -> str:
+# Every layout the pre-#145 builder emitted. Newest first: the clean URL that the
+# authenticated clone is reset to, then the plain ``git clone`` of the earliest
+# published datasets (which never ran ``remote set-url``). A URL carrying a
+# ``$`` is a build-arg placeholder, not a recoverable value.
+_REPO_URL_PATTERNS = (
+    re.compile(r"remote set-url origin (\S+)"),
+    re.compile(r"git clone(?:\s+--\S+)*\s+(\S+)\s+/workspace"),
+)
+
+_BAKED_INSTRUCTION_RE = re.compile(
+    r'echo "([A-Za-z0-9+/=]+)" \| base64 -d > /verifier/instruction\.md'
+)
+
+
+def _harbor_content_hash(instruction: str | bytes, oracle_diff: str | bytes) -> str:
     """Mirror ``emitter/harbor.py:_content_hash`` without needing a full HarborTask.
 
     ``content_hash`` only ever covers ``instruction.md`` + ``solution/patch.diff``
     (see that function) — the migration below never touches either file, so this
     is purely a sanity check that we're reading the same pair the task was
     originally hashed against, not a value the migration recomputes and writes.
+    Accepts ``bytes`` so callers can hash exactly what is on disk: some real
+    instructions embed ``\\r\\n``, which a universal-newline text read rewrites.
     """
     import hashlib
 
+    def raw(value: str | bytes) -> bytes:
+        return value if isinstance(value, bytes) else value.encode("utf-8")
+
     h = hashlib.sha256()
-    h.update(instruction.encode("utf-8"))
+    h.update(raw(instruction))
     h.update(b"\0")
-    h.update(oracle_diff.encode("utf-8"))
+    h.update(raw(oracle_diff))
     return f"sha256:{h.hexdigest()}"
+
+
+def _recover_repo_url(dockerfile: str) -> str | None:
+    for pattern in _REPO_URL_PATTERNS:
+        for match in pattern.finditer(dockerfile):
+            url = match.group(1).strip("'\"")
+            if url and "$" not in url:
+                return url
+    return None
+
+
+def _baked_instruction(dockerfile: str) -> bytes | None:
+    import base64
+    import binascii
+
+    match = _BAKED_INSTRUCTION_RE.search(dockerfile)
+    if not match:
+        return None
+    try:
+        return base64.b64decode(match.group(1), validate=True)
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _unsafe_path(task_dir: Path, relative: str, *, want: str) -> str | None:
+    """Why ``task_dir/relative`` must not be read or written, else ``None``.
+
+    Rejected without opening anything: a symlink anywhere on the path (a linked
+    ``tests/`` would otherwise redirect writes outside the task), a resolved
+    location outside the task, or an existing entry of the wrong type (a FIFO
+    where a file is expected would block ``open``). A missing entry is fine.
+    ``want`` is ``"file"`` or ``"dir"``.
+    """
+    current = task_dir
+    for part in Path(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            return f"{relative} is a symlink"
+    if not os.path.lexists(current):
+        return None
+    try:
+        current.resolve().relative_to(task_dir.resolve())
+    except ValueError:
+        return f"{relative} resolves outside the task directory"
+    if want == "file" and not current.is_file():
+        return f"{relative} is not a regular file"
+    if want == "dir" and not current.is_dir():
+        return f"{relative} is not a directory"
+    return None
+
+
+def _write_staged(writes: list[tuple[Path, bytes, int | None]]) -> None:
+    """Write every file next to its destination, then swap them all in.
+
+    Nothing live changes until every temp file exists, so a failure while
+    staging leaves the task exactly as it was. The caller orders ``writes`` so
+    that the Dockerfile — the file whose baked marker marks a task as unrepaired
+    — is swapped last: a failure midway through the swap leaves it unrepaired
+    and a retry finishes the job.
+    """
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for path, data, mode in writes:
+            tmp = path.with_name(path.name + ".migrate-tmp")
+            tmp.write_bytes(data)
+            if mode is not None:
+                tmp.chmod(mode)
+            staged.append((tmp, path))
+        for tmp, path in staged:
+            os.replace(tmp, path)
+    finally:
+        for tmp, _ in staged:
+            tmp.unlink(missing_ok=True)
 
 
 def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, str]:
@@ -366,10 +467,19 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     never modified, so ``content_hash`` — which only covers those two files
     (``emitter/harbor.py:_content_hash``) — is unaffected; a migrated task keeps
     its original identity. ``repo_url`` and ``base_commit`` are recovered from
-    the existing Dockerfile's ``remote set-url origin`` line and ``task.toml``'s
-    ``metadata.repo2env.ref`` respectively — both fields the pre-#145 builder
-    already wrote unchanged, so nothing about them needs to be guessed or
-    re-derived from an external source.
+    the existing Dockerfile (its ``remote set-url origin`` line, or the plain
+    ``git clone`` the earliest datasets used) and ``task.toml``'s
+    ``metadata.repo2env.ref`` — fields the pre-#145 builder already wrote
+    unchanged, so nothing about them is guessed or fetched. All files are read
+    and written as bytes, so ``\\r\\n`` inside an instruction survives intact.
+
+    The repair is staged in full before anything live changes, with the
+    Dockerfile swapped in last. A Dockerfile that is already safe is only
+    reported ``already_safe`` when every grading asset is present too; missing
+    ones are rebuilt.
+
+    A symlinked or non-regular path is refused before any read or write, so a
+    hostile dataset cannot redirect the repair outside its own directory.
 
     With ``dry_run=True``, every check runs identically (including the
     ``content_hash`` sanity check) but nothing is written — ``action`` reports
@@ -379,82 +489,126 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     ``action`` is one of:
 
     - ``"migrated"`` / ``"would_migrate"`` — rewritten in place / would be
-    - ``"already_safe"``   — no baked oracle found; nothing to do
+    - ``"already_safe"``   — no baked oracle and every grading asset present
     - ``"skipped"``        — not a pr_diff task (different pipeline, or malformed)
     - ``"error"``          — needs manual review; nothing was written
     """
     import tomllib
 
+    def error(detail: str) -> dict[str, str]:
+        return {"task": name, "action": "error", "detail": detail}
+
     name = task_dir.name
+    problem = _unsafe_path(task_dir, "task.toml", want="file")
+    if problem:
+        return error(problem)
     toml_path = task_dir / "task.toml"
     if not toml_path.exists():
-        return {"task": name, "action": "error", "detail": "no task.toml"}
+        return error("no task.toml")
     try:
         config = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
-        return {"task": name, "action": "error", "detail": f"cannot parse task.toml: {exc}"}
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        return error(f"cannot parse task.toml: {exc}")
     repo2env = config.get("metadata", {}).get("repo2env", {})
     if repo2env.get("pipeline") != "pr_diff":
         return {"task": name, "action": "skipped", "detail": "not a pr_diff task"}
 
-    dockerfile_path = task_dir / "environment" / "Dockerfile"
+    dockerfile_rel = "environment/Dockerfile"
+    problem = _unsafe_path(task_dir, dockerfile_rel, want="file")
+    if problem:
+        return error(problem)
+    dockerfile_path = task_dir / dockerfile_rel
     if not dockerfile_path.exists():
         return {"task": name, "action": "skipped", "detail": "text-only task, no environment/"}
-    dockerfile = dockerfile_path.read_text(encoding="utf-8")
-    if _BAKED_ORACLE_MARKER not in dockerfile:
+    for relative, want in (
+        ("environment", "dir"),
+        ("solution", "dir"),
+        ("tests", "dir"),
+        ("instruction.md", "file"),
+        ("solution/patch.diff", "file"),
+        *((asset, "file") for asset in _GRADING_ASSETS),
+    ):
+        problem = _unsafe_path(task_dir, relative, want=want)
+        if problem:
+            return error(problem)
+
+    try:
+        dockerfile = dockerfile_path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return error(f"cannot decode environment/Dockerfile: {exc}")
+    baked = _BAKED_ORACLE_MARKER in dockerfile
+    missing = [asset for asset in _GRADING_ASSETS if not (task_dir / asset).is_file()]
+    if not baked and not missing:
         return {"task": name, "action": "already_safe", "detail": ""}
 
     base_commit = repo2env.get("ref")
-    origin_match = re.search(r"remote set-url origin (\S+)\n", dockerfile)
-    if not base_commit or not origin_match:
-        return {
-            "task": name,
-            "action": "error",
-            "detail": "cannot recover repo_url/base_commit from task.toml/Dockerfile",
-        }
-    repo_url = origin_match.group(1).strip("'\"")
+    if not base_commit:
+        return error("cannot recover base_commit from task.toml")
+    repo_url = _recover_repo_url(dockerfile) if baked else None
+    if baked and not repo_url:
+        return error("cannot recover repo_url from environment/Dockerfile")
 
     instruction_path = task_dir / "instruction.md"
     oracle_path = task_dir / "solution" / "patch.diff"
-    if not instruction_path.exists() or not oracle_path.exists():
-        return {
-            "task": name,
-            "action": "error",
-            "detail": "missing instruction.md or solution/patch.diff",
-        }
-    instruction = instruction_path.read_text(encoding="utf-8")
-    oracle_diff = oracle_path.read_text(encoding="utf-8")
+    if not instruction_path.is_file() or not oracle_path.is_file():
+        return error("missing instruction.md or solution/patch.diff")
+    instruction_raw = instruction_path.read_bytes()
+    oracle_raw = oracle_path.read_bytes()
 
     claimed_hash = repo2env.get("content_hash")
-    recomputed_hash = _harbor_content_hash(instruction, oracle_diff)
+    recomputed_hash = _harbor_content_hash(instruction_raw, oracle_raw)
     if claimed_hash and claimed_hash != recomputed_hash:
-        return {
-            "task": name,
-            "action": "error",
-            "detail": (
-                f"content_hash mismatch: task.toml claims {claimed_hash}, "
-                f"instruction.md + solution/patch.diff hash to {recomputed_hash} — "
-                "needs manual review, not auto-migrated"
-            ),
-        }
+        baked_raw = _baked_instruction(dockerfile) if baked else None
+        if baked_raw is not None and claimed_hash == _harbor_content_hash(baked_raw, oracle_raw):
+            cause = (
+                "task.toml's hash matches the instruction baked into environment/Dockerfile, "
+                "but the visible instruction.md differs from it"
+            )
+        else:
+            cause = "instruction.md + solution/patch.diff do not hash to it"
+        return error(
+            f"content_hash mismatch: task.toml claims {claimed_hash}, visible files hash to "
+            f"{recomputed_hash} ({cause}) — needs manual review, not auto-migrated"
+        )
 
     if dry_run:
         return {"task": name, "action": "would_migrate", "detail": ""}
 
-    dockerfile_path.write_text(
-        build_pr_diff_environment_dockerfile(repo_url=repo_url, base_commit=base_commit),
-        encoding="utf-8",
-    )
-    tests_dir = task_dir / "tests"
-    tests_dir.mkdir(exist_ok=True)
-    (tests_dir / "test.sh").write_text(
-        build_pr_diff_eval_script(base_commit=base_commit), encoding="utf-8"
-    )
-    (tests_dir / "test.sh").chmod(0o755)
-    for relative, content in _pr_diff_aux_files(
-        oracle_diff=oracle_diff, instruction=instruction
-    ).items():
-        (task_dir / relative).write_text(content, encoding="utf-8")
+    try:
+        instruction = instruction_raw.decode("utf-8")
+        oracle_diff = oracle_raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return error(f"cannot decode instruction.md or solution/patch.diff: {exc}")
+
+    # Build every file up front, then write it in one staged swap.
+    writes: list[tuple[Path, bytes, int | None]] = [
+        (
+            task_dir / "tests" / "test.sh",
+            build_pr_diff_eval_script(base_commit=base_commit).encode("utf-8"),
+            0o755,
+        ),
+        *(
+            (task_dir / relative, content.encode("utf-8"), None)
+            for relative, content in _pr_diff_aux_files(
+                oracle_diff=oracle_diff, instruction=instruction
+            ).items()
+        ),
+    ]
+    if baked and repo_url:
+        writes.append(
+            (
+                dockerfile_path,
+                build_pr_diff_environment_dockerfile(
+                    repo_url=repo_url, base_commit=base_commit
+                ).encode("utf-8"),
+                None,
+            )
+        )
+    try:
+        (task_dir / "tests").mkdir(exist_ok=True)
+        _write_staged(writes)
+    except OSError as exc:
+        return error(f"could not write the repair, task left unrepaired: {exc}")
 
     return {"task": name, "action": "migrated", "detail": ""}
 
