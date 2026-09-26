@@ -79,8 +79,21 @@ def _build_stage_script(
     # a `:` no-op is traced to STDERR as `+ : MARKER`, while the test runner
     # writes to STDOUT. Slicing between stderr-only markers captured zero test
     # lines (the bug that silently zeroed F2P detection on any real suite).
+    #
+    # The test block also folds STDERR into STDOUT, because plenty of runners
+    # report there: unittest's TextTestRunner and jest write every result line
+    # to STDERR, and `truncated()` appends stderr AFTER the end marker, so
+    # `_slice_test_output` used to hand those suites an empty string. `set +x`
+    # around the block keeps bash's own trace out of the sliced region.
+    # The braces go on their own lines: inline `{ cmd; }` breaks a command that
+    # ends in a comment, ends in `;`, or carries a heredoc, all of which are
+    # valid entries in a bootstrap-recorded test_cmds list.
     parts.append("echo R2E_START_TEST_OUTPUT")
+    parts.append("set +x")
+    parts.append("{")
     parts.append(" && ".join(test_cmds) if test_cmds else "echo 'no test_cmds'")
+    parts.append("} 2>&1")
+    parts.append("set -x")
     parts.append("echo R2E_END_TEST_OUTPUT")
     return "\n".join(parts)
 
