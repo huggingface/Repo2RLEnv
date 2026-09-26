@@ -309,3 +309,110 @@ def test_duplicate_executable_files_entries_rejected(bundle, tmp_path):
     (path / "task.toml").write_bytes(tomli_w.dumps(config).encode())
     with pytest.raises(ValueError, match="duplicate"):
         inspect_bundle(path)
+
+
+# ---------------------------------------------------------------------------
+# Review regressions on #158: legacy resume, and file types checked before task.toml
+# ---------------------------------------------------------------------------
+
+
+def _write_legacy_export(bundle, destination):
+    """Materialize a bundle exactly as ``main`` did before tracked_files existed:
+    no tracked/executable fields, identity from the untouched legacy shape."""
+    configuration = bundle.configuration()
+    files = {"instruction.md": TaskFile.text(bundle.instruction), **bundle.files}
+    configuration["metadata"]["repo2env"]["bundle_hash"] = bundle_module._identity(
+        configuration, files
+    )
+    files["task.toml"] = TaskFile.text(tomli_w.dumps(configuration))
+    task_dir = destination / bundle.name
+    for relative, asset in files.items():
+        target = task_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(asset.content)
+        target.chmod(asset.mode)
+    return task_dir
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a legacy export needs a real POSIX chmod")
+def test_resume_accepts_an_unchanged_legacy_export(bundle, tmp_path):
+    """An export written by ``main`` inspects fine, so resuming it must too — the
+    comparison has to use the identity shape the export was written in."""
+    task_dir = _write_legacy_export(bundle, tmp_path)
+    assert inspect_bundle(task_dir)["integrity_passed"]
+
+    assert write_bundle(bundle, tmp_path, resume=True) == task_dir
+    # Resuming never rewrites the export, so it stays legacy-shaped.
+    assert "tracked_files" not in _read_toml(task_dir)["metadata"]["repo2env"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a legacy export needs a real POSIX chmod")
+def test_resume_still_rejects_a_changed_bundle_over_a_legacy_export(bundle, tmp_path):
+    _write_legacy_export(bundle, tmp_path)
+    bundle.instruction = "A different task must not reuse an existing export."
+    with pytest.raises(ValueError, match="does not match"):
+        write_bundle(bundle, tmp_path, resume=True)
+
+
+def test_inspect_result_keys_are_unchanged(bundle, tmp_path):
+    """Callers spread the result into their own records, so the legacy flag used
+    by resume must not leak into it."""
+    path = write_bundle(bundle, tmp_path)
+    assert set(inspect_bundle(path)) == {"bundle_hash", "claimed_hash", "integrity_passed"}
+
+
+def _symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this platform/user")
+
+
+def test_symlinked_task_toml_is_rejected_without_reading_its_target(bundle, tmp_path):
+    """The old order parsed task.toml first, so a link's target was read (and its
+    parse error surfaced) before the link was rejected."""
+    path = write_bundle(bundle, tmp_path)
+    outside = tmp_path / "outside.toml"
+    outside.write_text("this is [not valid toml", encoding="utf-8")
+    (path / "task.toml").unlink()
+    _symlink_or_skip(path / "task.toml", outside)
+
+    with pytest.raises(ValueError, match="symlink") as excinfo:
+        inspect_bundle(path)
+    assert "task.toml" in str(excinfo.value)
+
+
+def test_dangling_symlinked_task_toml_is_rejected_as_a_symlink(bundle, tmp_path):
+    path = write_bundle(bundle, tmp_path)
+    (path / "task.toml").unlink()
+    _symlink_or_skip(path / "task.toml", tmp_path / "does-not-exist")
+
+    with pytest.raises(ValueError, match="symlink"):
+        inspect_bundle(path)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFOs only")
+def test_fifo_task_toml_is_rejected_instead_of_hanging(bundle, tmp_path):
+    """Opening a FIFO blocks until a writer appears; the type check has to come
+    first. Run in a daemon thread so a regression fails instead of hanging."""
+    import threading
+
+    path = write_bundle(bundle, tmp_path)
+    (path / "task.toml").unlink()
+    os.mkfifo(path / "task.toml")
+    outcome: list[BaseException | None] = []
+
+    def inspect() -> None:
+        try:
+            inspect_bundle(path)
+            outcome.append(None)
+        except BaseException as exc:
+            outcome.append(exc)
+
+    worker = threading.Thread(target=inspect, daemon=True)
+    worker.start()
+    worker.join(timeout=10)
+
+    assert not worker.is_alive(), "inspect_bundle blocked opening a FIFO task.toml"
+    assert isinstance(outcome[0], ValueError)
+    assert "special file" in str(outcome[0])

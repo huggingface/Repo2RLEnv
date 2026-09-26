@@ -189,12 +189,43 @@ def _validated_asset_path_set(raw: object, *, field: str) -> set[str]:
     return set(raw)
 
 
+def _checked_entries(path: Path) -> list[Path]:
+    """List a bundle's files, refusing links and special files before any is opened.
+
+    ``task.toml`` is read to learn how to interpret the rest, so the type of
+    every entry — ``task.toml`` included — has to be settled first: opening a
+    symlink would read its target before it is rejected, and opening a FIFO
+    would block forever. Only ``lstat``/``stat`` calls happen here.
+    """
+    files: list[Path] = []
+    for item in sorted(path.rglob("*")):
+        if item.is_symlink():
+            raise ValueError(f"Task contains a symlink: {item.relative_to(path)}")
+        if item.is_file():
+            files.append(item)
+        elif not item.is_dir():
+            raise ValueError(f"Task contains a special file: {item.relative_to(path)}")
+    return files
+
+
 def inspect_bundle(path: Path) -> dict[str, Any]:
     """Read an emitted bundle without executing any task code or following links."""
+    return _inspect_bundle(path)[0]
+
+
+def _inspect_bundle(path: Path) -> tuple[dict[str, Any], bool]:
+    """``inspect_bundle`` plus whether the bundle is legacy-shaped.
+
+    A legacy bundle (emitted before ``tracked_files`` existed) is hashed in the
+    original shape, so ``write_bundle(resume=True)`` needs to know which shape to
+    compare against. The flag stays out of the public result, which callers
+    spread into their own records.
+    """
     import tomllib
 
     if path.is_symlink() or not path.is_dir():
         raise ValueError("Task directory must be a real directory")
+    entries = _checked_entries(path)
     configuration = tomllib.loads((path / "task.toml").read_text(encoding="utf-8"))
     repo2env = configuration.get("metadata", {}).get("repo2env", {})
     raw_tracked = repo2env.get(_TRACKED_FIELD)
@@ -209,13 +240,7 @@ def inspect_bundle(path: Path) -> dict[str, Any]:
             raise ValueError(f"{_EXECUTABLE_FIELD} contains a path outside {_TRACKED_FIELD}")
 
     files: dict[str, TaskFile] = {}
-    for item in sorted(path.rglob("*")):
-        if item.is_symlink():
-            raise ValueError(f"Task contains a symlink: {item.relative_to(path)}")
-        if not item.is_file():
-            if item.is_dir():
-                continue
-            raise ValueError(f"Task contains a special file: {item.relative_to(path)}")
+    for item in entries:
         relative = item.relative_to(path).as_posix()
         if relative not in {"instruction.md", "task.toml"}:
             relative_asset_path(relative)
@@ -252,7 +277,14 @@ def inspect_bundle(path: Path) -> dict[str, Any]:
             files[relative] = TaskFile(item.read_bytes(), is_executable)
     claimed = repo2env.get(_HASH_FIELD)
     actual = _identity(configuration, files)
-    return {"bundle_hash": actual, "claimed_hash": claimed, "integrity_passed": claimed == actual}
+    result = {"bundle_hash": actual, "claimed_hash": claimed, "integrity_passed": claimed == actual}
+    return result, tracked is None
+
+
+def _legacy_bundle_hash(bundle: TaskBundle) -> str:
+    """The identity ``bundle_hash`` produced before ``tracked_files`` existed."""
+    files = {"instruction.md": TaskFile.text(bundle.instruction), **bundle.files}
+    return _identity(bundle.configuration(), files)
 
 
 def write_bundle(bundle: TaskBundle, destination: Path, *, resume: bool = False) -> Path:
@@ -284,8 +316,12 @@ def write_bundle(bundle: TaskBundle, destination: Path, *, resume: bool = False)
         os.close(fd)
         if target.exists() or target.is_symlink():
             if resume:
-                existing = inspect_bundle(target)
-                if existing["integrity_passed"] and existing["bundle_hash"] == bundle_hash(bundle):
+                existing, legacy = _inspect_bundle(target)
+                # An export from before tracked_files existed carries the old
+                # identity; compare in the shape it was written in, or resuming
+                # an unchanged legacy export would be rejected as a mismatch.
+                expected = _legacy_bundle_hash(bundle) if legacy else bundle_hash(bundle)
+                if existing["integrity_passed"] and existing["bundle_hash"] == expected:
                     return target
                 raise ValueError("Existing task does not match the bundle being resumed")
             raise FileExistsError(target)
