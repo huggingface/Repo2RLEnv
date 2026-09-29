@@ -118,7 +118,7 @@ requirements and upstream credits are in the linked guides.
 | [**tmax**](pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
 | [**endless_terminals**](pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
 | [**terminalworld**](pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
-| [**frontiersmith**](pipelines/frontiersmith.md) | Optimize algorithmic solutions from mutated programming problems | Continuous deterministic score, [0,1] | 10 local tasks; construction checked, full quality pending |
+| [**frontiersmith**](pipelines/frontiersmith.md) | Optimize algorithmic solutions from mutated programming problems | Continuous deterministic score, [0,1] | 100 local tasks; construction checked, 21 completed blind rollouts, full quality pending |
 | [**scaler**](pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
 
 SCALER produces reasoning instances rather than repository coding tasks.

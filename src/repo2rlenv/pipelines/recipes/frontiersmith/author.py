@@ -104,8 +104,11 @@ def author(spec, schema, *, prompt, payload, path: Path, ledger, operation, max_
         else:
             ledger.mark_uncertain(operation, str(path.resolve()))
         raise
-    except BaseException:
+    except BaseException as exc:
         op = next(op for op in ledger.status()["operations"] if op["id"] == operation)
         if op["status"] != "settled":
+            if record["state"] == "dispatched":
+                record.update(state="uncertain", exception_type=type(exc).__name__)
+                save_record(path, record)
             ledger.mark_uncertain(operation, str(path.resolve()))
         raise

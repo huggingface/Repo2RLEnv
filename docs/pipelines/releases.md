@@ -47,7 +47,7 @@ These tasks have **historical evidence scopes**, not retrospectively assigned `v
 
 The curated collection has **200 baseline failures and 400 oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All 100 retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release notes and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).
 
-[FrontierSmith](frontiersmith.md#measured-local-pilot) has **10 local construction-checked Harbor tasks** from its 2026-09-29 pilot. All retain `unverified` labels; 1 final-bundle blind OpenAI rollout was completed. A further candidate is retained as `needs_repair`. These artifacts have not been published and are excluded from the totals above.
+[FrontierSmith](frontiersmith.md#measured-100-task-collection) has **100 local construction-checked Harbor tasks** across 20 problem families, measured 2026-09-29. All retain `unverified` labels; 21/100 final bundles have a completed blind OpenAI rollout. These artifacts have not been published and are excluded from the totals above.
 
 ## What the labels establish
 

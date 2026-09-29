@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from openai import APIConnectionError
 from pydantic import ValidationError
 
 from repo2rlenv.campaigns.budget import BudgetLedger
@@ -455,7 +456,7 @@ class FrontierSmithPipeline:
                             ledger=ledger,
                             reservation_usd="1.50",
                             max_turns=8,
-                            max_tokens=4096,
+                            max_tokens=options.max_tokens,
                             python=python,
                             resume=execution.resume,
                             timeout_sec=600,
@@ -477,6 +478,29 @@ class FrontierSmithPipeline:
                 if not success and seed.id not in record["skipped"]:
                     record["skipped"][seed.id] = "infrastructure_repair_exhausted"
                 save_record(receipt, record)
+            except APIConnectionError as exc:
+                # The author retains the uncertain reservation. Skip this candidate;
+                # never reissue a request whose response or billing outcome was lost.
+                prefix = f"frontiersmith:{execution.run_id}:{seed.id}:"
+                save_record(
+                    directory / "failure.json",
+                    {
+                        "reason": "provider_response_unavailable",
+                        "exception_type": type(exc).__name__,
+                        "uncertain_operations": [
+                            op["id"]
+                            for op in ledger.status()["operations"]
+                            if op["id"].startswith(prefix) and op["status"] == "uncertain"
+                        ],
+                    },
+                )
+                record["skipped"][seed.id] = "provider_response_unavailable"
+                save_record(receipt, record)
+                self.event(
+                    "candidate",
+                    "completed",
+                    f"{seed.title}: model response unavailable; reservation retained, candidate skipped",
+                )
             except (InvalidArtifact, ValidationError) as exc:
                 record["skipped"][seed.id] = "invalid_model_artifact"
                 save_record(run / "candidates" / seed.id / "failure.json", {"error": str(exc)})

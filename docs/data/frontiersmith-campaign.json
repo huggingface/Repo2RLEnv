@@ -1,0 +1,3556 @@
+{
+  "measured_on": "2026-09-29",
+  "measurement_kind": "pilot_and_expansion",
+  "recipe": "frontiersmith",
+  "pipeline": "optimization_synth",
+  "provider": "daytona",
+  "model": "gpt-6-sol",
+  "expansion_generation_source_commit": "6f6211d118c4665f6a99ca190375fb78fd9d8b26",
+  "expansion_runtime_wheel_sha256": "c22b55d951b960fcfe45142e7024073d3194fb98ecfcc06ce2fcbf1d78afa673",
+  "pilot_evidence_summary_sha256": "31ff4551c6130727ba17885cb55cefb50878f21dc0620351bec0ea35739dad06",
+  "expansion_seed_file_sha256": "a1bab384ed75997b9b0e9d997918fe3845aa4b16b239c0d013765ac6a0d07509",
+  "expansion_sharding": {
+    "shuffle_seed": 20260929,
+    "stride": 8,
+    "targets": [
+      12,
+      12,
+      11,
+      11,
+      11,
+      11,
+      11,
+      11
+    ]
+  },
+  "construction_profile": {
+    "samples": 3,
+    "max_repairs": 2,
+    "grading_seed": 42,
+    "generator_smoke_seeds": [
+      42,
+      43,
+      44
+    ],
+    "minimum_score_spread": 0.001,
+    "minimum_distinct_pair_fraction": 0.3
+  },
+  "scope": "Assisted collection: retained development pilot plus fixed-recipe expansion, independent static contract and diversity reviews, and evidence-bound post-construction repair. Construction checks are not full quality acceptance. Usage-based API costs and resource-duration compute estimates, not invoices. Interactive assistant usage excluded.",
+  "candidate_attempts": 153,
+  "distinct_seeds": 152,
+  "initial_exports": 101,
+  "selected_tasks": 100,
+  "full_quality_verified": 0,
+  "model_usd": "64.657250",
+  "estimated_compute_usd": "3.760347",
+  "total_usd": "68.417597",
+  "reserved_usd": "0.673513",
+  "unresolved_api_operations": 4,
+  "maximum_accounted_plus_reserved_usd": "69.091110",
+  "per_selected_task_usd": "0.68417597",
+  "cap_usd": "100",
+  "pricing_source": "https://www.daytona.io/pricing",
+  "all_workers_terminated": true,
+  "workers_terminated": 13,
+  "campaigns": [
+    {
+      "unresolved_api_usd": "0",
+      "name": "Development pilot",
+      "candidate_attempts": 15,
+      "initial_exports": 11,
+      "distinct_seeds": 14,
+      "selected_tasks": 10,
+      "model_usd": "5.271053",
+      "estimated_compute_usd": "0.335500",
+      "total_usd": "5.606553"
+    },
+    {
+      "unresolved_api_usd": "0.673513",
+      "name": "Expansion and collection review",
+      "candidate_attempts": 138,
+      "initial_exports": 90,
+      "distinct_seeds": 138,
+      "selected_tasks": 90,
+      "model_usd": "59.386197",
+      "estimated_compute_usd": "3.424847",
+      "total_usd": "62.811044"
+    }
+  ],
+  "model_costs_by_stage": {
+    "baseline_and_sampled_programs": "25.518412",
+    "blind_rollouts": "2.863963",
+    "collection_contract_review": "1.578164",
+    "collection_diversity_review": "0.511878",
+    "formulation_and_review": "5.695545",
+    "infrastructure_and_bounded_repair": "24.100499",
+    "other_development_calls": "0.556957",
+    "post_construction_repair": "0.145101",
+    "seed_authoring": "0.542278",
+    "semantic_diversity_review": "3.144453"
+  },
+  "families": {
+    "combinatorial-design": 4,
+    "communication": 4,
+    "compiler-optimization": 4,
+    "data-representation": 3,
+    "energy-systems": 4,
+    "geometric-layout": 9,
+    "image-grid-processing": 5,
+    "logic-constraints": 4,
+    "network-design": 6,
+    "numerical-approximation": 5,
+    "query-planning": 3,
+    "resource-allocation": 8,
+    "scheduling": 6,
+    "search-structures": 5,
+    "sequence-reordering": 4,
+    "software-testing": 7,
+    "state-space-planning": 5,
+    "storage-systems": 6,
+    "strings-compression": 4,
+    "transport-routing": 4
+  },
+  "generation_rejection_reasons": {
+    "formulation_rejected": 1,
+    "infrastructure_repair_exhausted": 4,
+    "insufficient_successful_programs": 6,
+    "low_execution_diversity_or_improvement": 13,
+    "low_semantic_divergence": 24,
+    "provider_response_unavailable": 4
+  },
+  "final_bundle_blind_rollouts": 21,
+  "final_bundle_tasks_with_rollout_attempts": 24,
+  "fully_feasible_blind_rollouts": 21,
+  "final_bundle_rollout_attempts": 26,
+  "families_with_rollout_attempts": [
+    "combinatorial-design",
+    "communication",
+    "compiler-optimization",
+    "data-representation",
+    "energy-systems",
+    "geometric-layout",
+    "image-grid-processing",
+    "logic-constraints",
+    "network-design",
+    "numerical-approximation",
+    "query-planning",
+    "resource-allocation",
+    "scheduling",
+    "search-structures",
+    "sequence-reordering",
+    "software-testing",
+    "state-space-planning",
+    "storage-systems",
+    "strings-compression",
+    "transport-routing"
+  ],
+  "families_with_completed_rollouts": [
+    "combinatorial-design",
+    "compiler-optimization",
+    "data-representation",
+    "energy-systems",
+    "geometric-layout",
+    "image-grid-processing",
+    "logic-constraints",
+    "network-design",
+    "numerical-approximation",
+    "query-planning",
+    "scheduling",
+    "search-structures",
+    "software-testing",
+    "state-space-planning",
+    "storage-systems",
+    "strings-compression",
+    "transport-routing"
+  ],
+  "post_construction_repaired_tasks": 2,
+  "static_contract_reviews": 100,
+  "exact_duplicate_bundles": 0,
+  "exact_duplicate_instructions": 0,
+  "collection_diversity_review": {
+    "scopes": 21,
+    "flagged_pairs": 0,
+    "kind": "model_assisted_static_review_not_proof"
+  },
+  "tasks": [
+    {
+      "task": "frontiersmith-bipartite-matching",
+      "bundle_hash": "sha256:b108cb05e3fd12136cfab08588a449ba8d1370282d7ab4e83595fec7d0f85d0c",
+      "phase": "pilot",
+      "family": "resource-allocation",
+      "baseline_reward": 0.8943583931614444,
+      "reference_reward": 0.9155688045662076,
+      "sample_rewards": [
+        0.9119678362560281,
+        0.9155688045662076,
+        0.9152906641938348
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "failed",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "aec4b314e770fbfd5bdd917be2d3f5966f322f93ba2d56da875ae94320a4b555",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-b108cb05e3fd",
+          "reward": null,
+          "exception_type": "RuntimeError",
+          "exception_message": "Command timed out after 60 seconds",
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "dba9b6159532847653b7659d5621b3171887312006edc4baa5966a410d01ea7d"
+        }
+      ],
+      "algorithmic_structure": "Choose up to k edges of a bipartite worker\u2013job graph, using each worker and job at most once. Maximize selected base values plus the bonus of each tag covered by at least one selected edge. Valid choices receive their value divided by an instance-specific upper bound computed from worker base maxima and available tag bonuses.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-cache-replacement",
+      "bundle_hash": "sha256:671db179e73f500382d0f7be96c2455723083d8eb1a7ff50f1fdb93a86fce8ab",
+      "phase": "pilot",
+      "family": "storage-systems",
+      "baseline_reward": 0.32769539666084824,
+      "reference_reward": 0.5765826528942969,
+      "sample_rewards": [
+        0.041666666666666664,
+        0.56004049732422,
+        0.5765826528942969
+      ],
+      "feasible_samples": 2,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "4ecc87c8f41f2794b15589b71fa95de14d50d2d3ee7246d47c91ce772d452aeb",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose, at each cache miss, which currently cached objects to evict so the requested object fits. Cache hits require no evictions; misses incur the requested object's reload cost. The objective minimizes total reload cost, with the score normalizing savings against loading on every request and loading each distinct object once.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-edit-distance",
+      "bundle_hash": "sha256:702caeacb861894c28110367e9f3f5dbc0e4c44e832434acad0fb0231af097c3",
+      "phase": "pilot",
+      "family": "strings-compression",
+      "baseline_reward": 0.10479852984065538,
+      "reference_reward": 0.8228177815797185,
+      "sample_rewards": [
+        0.8228177815797185,
+        0.7777250068596604,
+        0.8171847504125821
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.7806736382052247,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "95f5fe8d3d9b275af81b578b949dfc754e0f6dd8a9dc63cfbd9af3728b228765",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-702caeacb861",
+          "reward": 0.7806736382052247,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "b4f95213881c8698e9597ecfe5fcbf79ce6003062068acd8b0d81a55412d7b77"
+        }
+      ],
+      "algorithmic_structure": "The solution chooses a sequence of deletions, insertions, substitutions, and substring moves that transforms the source into the target. Each operation costs one; indices must be valid when used, and the sequence may contain at most the sum of the two string lengths. Feasible outputs score higher as their operation count decreases.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-load-balancing",
+      "bundle_hash": "sha256:c16ae4f23f2ef425d8a4e75c873365d2fb8287a46182aece6701ffe49c751a41",
+      "phase": "pilot",
+      "family": "resource-allocation",
+      "baseline_reward": 0.5829557413303806,
+      "reference_reward": 0.7971088093837767,
+      "sample_rewards": [
+        0.7966341035775523,
+        0.7971088093837767,
+        0.7944264554813105
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "abb1213169b11ee5d886cf3539a03da5697f37c608a343abd9ec1de4a934e608",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Assign each weighted job to one of m machines, using every machine. The objective balances machine loads through a normalized squared-deviation penalty and keeps connected jobs together through a weighted cut penalty; the per-instance reward is the nonnegative remainder.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-matrix-chain",
+      "bundle_hash": "sha256:f4dcf011dae5fb5b78f895298ba49b1736a1d66e1c4aa348d8393e0778ef2dfd",
+      "phase": "pilot",
+      "family": "compiler-optimization",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.9201658444557049,
+      "sample_rewards": [
+        0.9201658444557049,
+        0.9181700763212881,
+        0.9148391354034161
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.9173650256493253,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "49c490532af03afae6346232e3d641247e08adb8079a1875dea19943b4472157",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-f4dcf011dae5",
+          "reward": 0.9173650256493253,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "a5ba64d537da5fcf979f9d9ecbf2944bf948974d01338633023247e70b391a57"
+        }
+      ],
+      "algorithmic_structure": "Choose an order and parallel-round assignment for the n\u22121 matrix-chain boundaries. Each boundary merges its two current adjacent blocks exactly once; a round may contain at most p merges with no shared block. A merge costs the product of its three endpoint dimensions. The objective minimizes the sum of round maximum costs plus q times total merge cost, with score B/(B+C) against the stated sequential baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-rectangle-packing",
+      "bundle_hash": "sha256:36322cf6e367b8f9c32b2c6387877f239ed615833decac420f51fc4a5a202726",
+      "phase": "pilot",
+      "family": "geometric-layout",
+      "baseline_reward": 0.8526288934244508,
+      "reference_reward": 0.9124108882395614,
+      "sample_rewards": [
+        0.8986237722446547,
+        0.9040292755798557,
+        0.9124108882395614
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "c3c8d542336e8e4548dd09708314a018024746b4317816ce12476c1decca903e",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose nonoverlapping, axis-aligned square placements on positive-valued cells, subject to the supplied count for each tile size. Maximize the sum of covered cell values; each valid output receives that sum divided by the grid\u2019s total value.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-set-coverage",
+      "bundle_hash": "sha256:69f385863900800a6e27ef4fa7c37091918a1559de9cad6ec789a9ddf34c20c0",
+      "phase": "pilot",
+      "family": "geometric-layout",
+      "baseline_reward": 0.5123369773943293,
+      "reference_reward": 0.6279810461326308,
+      "sample_rewards": [
+        0.6271137621573502,
+        0.6242592034595369,
+        0.6279810461326308
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.6279810461326308,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "6d8d94cfcb798b9e7be6edb3b4a6c528ad9f439e57b96bc02bf9bbf96c6b2519",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 13,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-bdfd2c6fe90a520e-rollout",
+          "reward": 0.6279810461326308,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "28194224dd412b3d69020e7888bea8c39a104a62b398975895240fa1bcffc8b2"
+        }
+      ],
+      "algorithmic_structure": "Choose at most k distinct rectangles from the supplied candidates to maximize the weight of grid cells in their union. Overlaps count only once; the score is the covered weight divided by total grid weight. Rectangle coordinates and selection indices must satisfy the stated bounds.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-spanning-tree",
+      "bundle_hash": "sha256:63585ecfbd9d28be591443e3c63717a3ba9d15cb11bd336fb65e2941fef62e98",
+      "phase": "pilot",
+      "family": "network-design",
+      "baseline_reward": 0.1847808088667342,
+      "reference_reward": 0.5415383030905573,
+      "sample_rewards": [
+        0.5378672668237873,
+        0.5342329019840716,
+        0.5415383030905573
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "e6a93c8d8d547634d5ababc4e9bbaba4a040f18fc2ab32f04e8f2d1cc81619e8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose n\u22121 distinct input edges forming a spanning tree, with each vertex\u2019s degree at most the instance limit. Minimize their total cost C; a valid output scores L/C, where L is the unrestricted minimum-spanning-tree cost. The supplied backbone is a feasible path.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-string-compression",
+      "bundle_hash": "sha256:5db3466019d39bd1e275f4077f33df743302a5780b6569d85d994068b33c8cf5",
+      "phase": "pilot",
+      "family": "strings-compression",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.3689193019941663,
+      "sample_rewards": [
+        0.3689193019941663,
+        0.34897441084195807,
+        0.34298881632113387
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "388420c7d96351378b7fecfb50c027245d104b705e41f285a65493d1b5ce9c0d",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose distinct lowercase dictionary entries of length 3\u201332 under entry-count and character budgets, then partition the text into literal tokens and dictionary references that reconstruct it exactly. Minimize dictionary storage cost (length + 2 per entry) plus literal lengths and 2 per reference; the score is max(0, 1 \u2212 cost/text length).",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-topological-order",
+      "bundle_hash": "sha256:f7d4140e5791fc79e3e5844d8688e23043d7e76899b83d75bbf620fa339a0885",
+      "phase": "pilot",
+      "family": "scheduling",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.6382300718456796,
+      "sample_rewards": [
+        0.6142114427909249,
+        0.6382300718456796,
+        0.6171799507354055
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "auxiliary remote audit",
+      "instruction_sha256": "06d88e5ae36b33df5fc7794bb58e80f6b8c272bb10cfb7767ed201e99d80cc30",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of build steps satisfying all precedence edges. The objective is to minimize directed setup costs between consecutive categories, with no cost for the first step. A valid order scores relative to the lexicographically smallest topological order; invalid output scores zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-communication-directed-multicast-links",
+      "bundle_hash": "sha256:5d838d30e85769c7c561f27e2c9c6560b55539cf085d4dad5e97f8ba96da5b95",
+      "phase": "expansion",
+      "family": "communication",
+      "baseline_reward": 0.22442411387765174,
+      "reference_reward": 0.3128235363393706,
+      "sample_rewards": [
+        0.30234898011663397,
+        0.3128235363393706,
+        0.3081666560296717
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "16d2565763527bf50a2a8594b5154374952b857b7ba960beb7158fb6027ba22b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Select distinct directed edge indices so every terminal is reachable from the source, minimizing the sum of selected edge costs; shared edges are paid for once. Feasible outputs score the maximum full-graph shortest-path distance to a terminal divided by that sum.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-energy-systems-lossy-site-energy-link",
+      "bundle_hash": "sha256:ce3bb5be9ae2baa7264739990955651b4dc1df0fc859c784c37bc566ccc6117f",
+      "phase": "expansion",
+      "family": "energy-systems",
+      "baseline_reward": 0.2958656267453509,
+      "reference_reward": 0.4675442273698223,
+      "sample_rewards": [
+        0.4675442273698223,
+        0.46750751224735293,
+        0.46409429156536314
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "e7ddbd52180f2d42a1c213c5a49dc60108d99b94cea0a48ee4d9f683794e0ac3",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose which indivisible loads to serve, whether to transfer energy once per slot in either direction, and each site's end-of-slot charge. Each site's load energy, transfer cost, and retained charge cannot exceed its starting charge, renewable supply, and any received energy; unused energy may be curtailed. The objective is served load value divided by total input load value, with a score of 1 when total value is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-orthogonal-gallery-guards",
+      "bundle_hash": "sha256:9825845d71e88de3a520d82b9fe16b526440d1e5b1b3357b0b03d8335055f37e",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.8439390327139573,
+      "reference_reward": 0.8579418006692017,
+      "sample_rewards": [
+        0.8573931335477646,
+        0.8579418006692017,
+        0.8579418006692017
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.8583216677157354,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "5d8e0017a313dec1ce7b9cf68b54eb3534e2156d8694fc293cd3ca8450cecfbe",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 15,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-78bd2f2a7e768aad-rollout",
+          "reward": 0.8583216677157354,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "96b2a67cf1d9cd33026a278f4799dc2725a5ea670eaac522c290da79b94aac23"
+        }
+      ],
+      "algorithmic_structure": "Select up to the budgeted number of candidate guards, subject to pairwise minimum-distance constraints. A guard covers a mark when their connecting segment stays within or on the orthogonal polygon. Each mark contributes its weight in proportion to the number of guards covering it, capped at its demand; the score is the total contribution divided by total mark weight, with a score of 1 when there are no marks.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-image-grid-processing-minimum-vertical-seam",
+      "bundle_hash": "sha256:eb8eb2c79eea78dbdecdf21a59c96de495c16b4317b280639331bfd59438e01d",
+      "phase": "expansion",
+      "family": "image-grid-processing",
+      "baseline_reward": 0.5014505822662179,
+      "reference_reward": 0.6497610506755495,
+      "sample_rewards": [
+        0.649627011001579,
+        0.6472544812296892,
+        0.6497610506755495
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "e9949ff6b38780075f5a913829dfe3e9d6b35360d05432183ca27c9cc929525c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose k strictly ordered vertical paths through a cost grid, with each path moving at most one column per row. Minimize cell costs plus movement, turn, and pairwise crowding penalties. Each feasible output scores by comparing its cost with a fixed vertical-seam baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-search-structures-linear-probe-order",
+      "bundle_hash": "sha256:e83c4ac4223bbaee53ab45de788a65caabe82f4f709853cace93fb8ab4784334",
+      "phase": "expansion",
+      "family": "search-structures",
+      "baseline_reward": 0.2636663558189349,
+      "reference_reward": 0.31402642069896347,
+      "sample_rewards": [
+        0.2982243755990002,
+        0.3020342870892746,
+        0.31402642069896347
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "a756270307aabb8585a2829be4d9d135a4cabfa96c671feae53beaaaeda80c34",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of distinct keys for insertion into a circular linear-probing table. Each key\u2019s lookup cost is determined by its resulting probe distance. The objective combines weighted probe delays with pairwise penalties for unequal lookup costs; the score is the stated normalization divided by that normalization plus the total cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-adaptive-fault-queries",
+      "bundle_hash": "sha256:915112b65f2ee19c41a6347e6c8093456d586976bc17a5233c2908299fa5eaa2",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.5186098128465197,
+      "reference_reward": 0.8273457787410974,
+      "sample_rewards": [
+        0.8270548124026187,
+        0.7699839142737229,
+        0.8273457787410974
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "e14c07573e680dc242d6e1002cf1d8353457d09078b2680af9dc8ed10e9a59a9",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Construct a binary decision tree over distinct fault signatures. Each internal node selects a query that splits the remaining faults into nonempty zero and one groups; each leaf identifies its sole fault. Minimize the sum of fault weights times their root-to-leaf query costs. Valid trees score 1 \u2212 T/(W\u00b7U).",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-edit-impact-chains",
+      "bundle_hash": "sha256:828f473d8d3ad61e8d9a38db95806b2d49fe97bf1243179a0e11c3cad02685d5",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.5714285714285714,
+      "reference_reward": 0.6831964242887072,
+      "sample_rewards": [
+        0.6831964242887072,
+        0.6818233382294417,
+        0.682774229587773
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "abad6d08e6506b0daaa7cc5d31dbaa5a521ddb379fd1860306b5d809c201ca0c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose one simple directed path from each test that can reach an edited module, ending at its first edit within four edges of the shortest-path length. Minimize the sum of setup costs for distinct edges used plus total edge traversals. The score compares this cost with a deterministic shortest-path baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-state-space-planning-clear-block-relocation",
+      "bundle_hash": "sha256:506c41e7a54d16fe51203492f96cfb195072d0a8b7e3a3ccd98dcd8c49440f8a",
+      "phase": "expansion",
+      "family": "state-space-planning",
+      "baseline_reward": 0.5343576921611111,
+      "reference_reward": 0.6234944364553583,
+      "sample_rewards": [
+        0.620633872166718,
+        0.620633872166718,
+        0.6234944364553583
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.6234186558108071,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "6453162711a5ee04e2f1cb6a14929453b4686121f5c0eee81dfb86ed6964aa68",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 15,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-506c41e7a54d",
+          "reward": null,
+          "exception_type": "ProviderOutputError",
+          "exception_message": "Responses output incomplete: {'reason': 'max_output_tokens'}",
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "9da75b1e1ae7eb9569f14b22f3ea8bf479424328025bc5a8bca1317cdec95aa9"
+        },
+        {
+          "trial_id": "fs-family-506c41e7a54d-retry",
+          "reward": 0.6234186558108071,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 8192,
+          "max_turns": 8,
+          "result_sha256": "f87a86059b48e4baa364aa3d084466808be9a8005c0d45ec44bff32f70e6ca62"
+        }
+      ],
+      "algorithmic_structure": "Plan top-block relocations between unordered stacks, using at most 4n moves to reach the target arrangement. Each move has a positive energy cost determined by the block\u2019s weight, source and destination heights, singleton creation, and whether the new adjacency occurs in the target. The objective is to minimize total energy; valid plans receive a score relative to a fixed instance-specific baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-state-space-planning-maximal-tube-pours",
+      "bundle_hash": "sha256:8d70a34ccbb5ec02f89e293bb458ab55782f1084fc4ec4f77f69e624bd23aa29",
+      "phase": "expansion",
+      "family": "state-space-planning",
+      "baseline_reward": 0.4709175766655076,
+      "reference_reward": 0.7171350525852936,
+      "sample_rewards": [
+        0.7158136995197545,
+        0.7171350525852936,
+        0.7171350525852936
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "7891e798b9908f64a64bb2e5ad447626c7b5437c3599884038547cd04340539b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a sequence of maximal same-color pours between tubes, respecting capacity and destination-color compatibility, until every tube is empty or full of one color. Outputs are limited to 500 moves; a valid solution with L moves scores (k\u00b7h)/(k\u00b7h+L), so fewer moves score higher.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-storage-systems-snapshot-safe-log-pruning",
+      "bundle_hash": "sha256:486940dce6987bc2581faaf458b264b773689aefe417efbf29929ed6f1581865",
+      "phase": "expansion",
+      "family": "storage-systems",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.6609035396086308,
+      "sample_rewards": [
+        0.654125062532391,
+        0.6609035396086308,
+        0.6609035396086308
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "f5bf5df51d5f5d1251ad218c1d6f3eecda1967d46f3fd0c3f96c095f9a354f91",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a subsequence of log records whose replayed key\u2013value map matches the full log at every checkpoint. Minimize retained-record byte costs plus a fixed fee for each original-log page touched; a feasible output scores 1 \u2212 cost divided by the cost of retaining the entire log.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-storage-systems-weighted-extent-order",
+      "bundle_hash": "sha256:0c9c2490b6c97553a5edbaa4536b855f99f14cb653f0dc49f23050ca8d4e6bbb",
+      "phase": "expansion",
+      "family": "storage-systems",
+      "baseline_reward": 0.5833333333333334,
+      "reference_reward": 0.8201123198177295,
+      "sample_rewards": [
+        0.8201123198177295,
+        0.820025522821111,
+        0.8179713992753658
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "03e16ba77a03b69dcb8cffe43310d85249dd41e4ea91d62726a6c254319c7fbe",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of 1\u201364 files with fixed positive lengths. Files occupy contiguous, gap-free extents in that order. Minimize the sum of directed transition weights times the absolute difference between file starting blocks; each valid layout scores C0/(max(1,C0)+C), with C0 computed from the fixed index order.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-strings-compression-nested-repeat-expression",
+      "bundle_hash": "sha256:163137e80e843ca1e10b15163821ddf84c9af16a2db4a399d0b1af417a000f2f",
+      "phase": "expansion",
+      "family": "strings-compression",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.8103882814136737,
+      "sample_rewards": [
+        0.8061850254831665,
+        0.8103882814136737,
+        0.8086435231281275
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "cd74921b6aeb60c8914247be759fcd3dcd24d3441b44bcc33845ae11fc40d65c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "The solver chooses a concatenation of literal characters and potentially nested repeats whose expansion equals the input string. Repeat counts are 2\u20134096, and the printed expression cannot be longer than the input. Minimizing expression length maximizes the per-instance score n/(n+L); the final reward averages those scores.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-compiler-optimization-fused-tree-tiles",
+      "bundle_hash": "sha256:a10d0e79ca81d93d754c264f055bd99df9d7f8fd9f260898ab1806f7eaa4423e",
+      "phase": "expansion",
+      "family": "compiler-optimization",
+      "baseline_reward": 0.5739792727221517,
+      "reference_reward": 0.7164245220933702,
+      "sample_rewards": [
+        0.7045382564193431,
+        0.7164245220933702,
+        0.7035932127779417
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "a37be26220f65912cfaac8cca559f75005f6b1716a4251483e022a3fc09ab85c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose separate operator tiles or fuse an add with one direct mul child, then order the tiles so all required operands are available. Minimize tile costs plus costs for transitions between consecutive tile types and a penalty proportional to peak live operator values, subject to covering every operator exactly once.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-data-representation-sparse-differences",
+      "bundle_hash": "sha256:2008818e6fc471be61dcb9079fa7365161717aaa621cdf2ed2294e01adc9472a",
+      "phase": "expansion",
+      "family": "data-representation",
+      "baseline_reward": 0.6122734404179538,
+      "reference_reward": 0.9284547996699335,
+      "sample_rewards": [
+        0.9251550419294445,
+        0.9284547996699335,
+        0.1778846153846154
+      ],
+      "feasible_samples": 2,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "e5e22716aa157af1eca71425332b0e4ffa4c57fc2537ea7b1f73793960c9a515",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Compute the matrix\u2019s nonzero two-dimensional differences and each query\u2019s rectangle sum exactly. Choose at most rows \u00d7 columns valid, nonzero, bounded-value rectangle additions whose combined effect reconstructs the matrix. The only optimization decision is how to represent the matrix with as few updates as possible; valid outputs score 1 \u2212 k/(2 \u00d7 rows \u00d7 columns + 1).",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-image-grid-processing-single-rectangle-approximation",
+      "bundle_hash": "sha256:ee6dd51d6b575939217fffe21c71d91ec73faf23c0b2f06207dbea3c20bd79a9",
+      "phase": "expansion",
+      "family": "image-grid-processing",
+      "baseline_reward": 0.5524505471983081,
+      "reference_reward": 0.698944787308274,
+      "sample_rewards": [
+        0.6984182104494605,
+        0.698944787308274,
+        0.6987662158797027
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "779b294819221a3737eb20bf0d1e154c13276064f6623437fe0a5fc464b90263",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose at most max_rectangles pairwise cell-disjoint, axis-aligned rectangles whose total area is within ink_budget. The objective is to minimize the symmetric difference between their filled cells and the grid\u2019s '1' cells; the score is the fraction of cells that match.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-network-design-capacity-upgrades",
+      "bundle_hash": "sha256:4345ddc9c412b6f8c679c02677bf70758388ba74bdfa016a7390d68d362b97f5",
+      "phase": "expansion",
+      "family": "network-design",
+      "baseline_reward": 0.07692307692307693,
+      "reference_reward": 0.6229441956762068,
+      "sample_rewards": [
+        0.6203379284949079,
+        0.6183355920029711,
+        0.6229441956762068
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.6087531551672963,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "1600cf73b908dd5e7c0fdffb7aaa3d7be850d3b91371aadc98ce0d968cd50df2",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 13,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-a47e07ef25fb8633-rollout",
+          "reward": 0.6087531551672963,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "c6597f03cc8750d40ce3826c8fa4e5acc896cea5daf95a84734b434775cf2fb8"
+        }
+      ],
+      "algorithmic_structure": "Choose distinct capacity upgrades within a cost budget to maximize directed source-to-sink maximum flow. The scorer computes flow with no upgrades, with the chosen upgrades, and with all upgrades, then rewards the chosen flow improvement as a fraction of the all-upgrades improvement; it awards 1 when no upgrade can improve flow.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-query-planning-range-block-layout",
+      "bundle_hash": "sha256:df3586b531af0f644720fbfd5242f8b6a9eaef1d9258dde1594dc5b70ba8de51",
+      "phase": "expansion",
+      "family": "query-planning",
+      "baseline_reward": 0.5004124928285999,
+      "reference_reward": 0.8263064727354584,
+      "sample_rewards": [
+        0.824021476510288,
+        0.8263064727354584,
+        0.8263064727354584
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.8248782454816317,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "f6e1e58309d8b633a3a785f6c04d0c1a449bc386c2784f9054b0fb62b19a9de8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 13,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-df3586b531af",
+          "reward": 0.8248782454816317,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "377dc7c11fe91be221b7814b04301e6f8525c713de3da0ff6bba09462e3a423b"
+        }
+      ],
+      "algorithmic_structure": "Partition the sorted keys into consecutive blocks of bounded length, choosing each block\u2019s ending index. The objective combines a charge per block with, for each query, its weight times the square of the number of blocks whose key ranges intersect the query. Valid partitions receive the specified baseline-normalized score.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-capacity-calendar",
+      "bundle_hash": "sha256:ae59cf7697f9dab5fd78ae459dac9c0c997799234160535552f4f0a4d8e680b9",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.2851515161202507,
+      "reference_reward": 0.33966264821039005,
+      "sample_rewards": [
+        0.33791183628465493,
+        0.33966264821039005,
+        0.08918570843171307
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "7b4428595b8a8475e372c509b345ab2710f013e3515f0035a6531fdf56246271",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a subset of requests. Each accepted request adds its priority to the objective and its requirement to every slot in its interval; each slot\u2019s total load must stay within its capacity. Accepted IDs must be distinct and sorted. Valid outputs score the accepted priority divided by total input priority, or 1 when there are no requests.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-contiguous-cake-cuts",
+      "bundle_hash": "sha256:c319bd055d467a97abb978297c0beb32dfc30ab0ed4626feb81722945f22821f",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.08355760755597691,
+      "reference_reward": 0.8214947301415726,
+      "sample_rewards": [
+        0.8203576341824595,
+        0.8214947301415726,
+        0.8210315643407339
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "b6abcb168511cc6c3a4b976d7788a6cdbbfa1c98cd9c05518ccb6b1d1732ef2b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of agents and k\u22121 increasing cuts so each agent receives one nonempty contiguous segment. Maximize the minimum value an agent assigns to its segment; valid outputs score that minimum divided by the instance-only upper bound min(smallest row sum, floor(sum of column maxima / k)), with score 1 when the bound is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-dependency-test-order",
+      "bundle_hash": "sha256:61d9bfa4f8cdd00f6e72c39321385eb245c90c337381cb7c7196d89e3938779d",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.3020972181799634,
+      "reference_reward": 0.357053507771705,
+      "sample_rewards": [
+        0.356215703451956,
+        0.3554708321527702,
+        0.357053507771705
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.3559311083959688,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "8e2b17f8b3d8c9223ff499e8a2de003966471ad6c3539db09849669b4365864b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 15,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-61d9bfa4f8cd",
+          "reward": 0.3559311083959688,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "dd4599077ca3ea859fdc061a31a53ec85b65354fabe867f5d2020c24693f8e62"
+        }
+      ],
+      "algorithmic_structure": "Choose a permutation of up to 220 tests that places every prerequisite before its dependent test. Each test\u2019s completion time is the cumulative duration at its position; the objective is to minimize the sum of priority-weighted completion times. A feasible order scores the precedence-free duration-to-priority scheduling lower bound divided by its cost, with a defined score of 1 when the cost is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-reset-transition-tour",
+      "bundle_hash": "sha256:2a073660d9f2d5b0947c7eccf0622cf61b99306fb40661bece9d5514a1d26acf",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.2049399562383474,
+      "reference_reward": 0.8804798197081761,
+      "sample_rewards": [
+        0.8603126211167218,
+        0.8648192145257255,
+        0.8804798197081761
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "d52cb0f73e661d825ab0ebf3870e02d606f357cfa537a972ba26ca08031a5fa4",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a walk of at most B tokens through a deterministic state machine, using at most C resets to the start. Each distinct traversed transition earns its single-item weight once; each distinct adjacent pair of symbol transitions earns its pair-item weight once, unless a reset separates them. The objective is to maximize earned weight, with feasible outputs scored against a top-weight upper bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-state-space-planning-sliding-tiles",
+      "bundle_hash": "sha256:21bacbd9498bdcaf0afb30d115d7f12f00bfb2abc2d5d8443c6925aec9fa84c2",
+      "phase": "expansion",
+      "family": "state-space-planning",
+      "baseline_reward": 0.5894184478859483,
+      "reference_reward": 0.6026644691061075,
+      "sample_rewards": [
+        0.6026644691061075,
+        0.5848045051276757,
+        0.5994898198129904
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "aa976243d58fc3e97008446752f01c358b7271d7fe31fa200bc00961b5fd07d8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "The solver chooses legal blank moves on a 4\u00d74 or 5\u00d75 sliding-tile board to reach the row-major goal, using no more moves than the supplied witness. Valid solutions are rewarded for shortening the witness, with Manhattan distance as the scoring baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-storage-systems-deadline-write-batches",
+      "bundle_hash": "sha256:9c76ae37db640865af75ac588cfdff3a2b55f0995a17a11f579f7f1ccfbe6e2c",
+      "phase": "expansion",
+      "family": "storage-systems",
+      "baseline_reward": 0.7855433587576445,
+      "reference_reward": 0.9622218130012129,
+      "sample_rewards": [
+        0.9459302463683699,
+        0.9597712120540435,
+        0.9622218130012129
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "007c21f5b5c84830ecbbfdeaa88f53b8e3b63b8f11e51c8d21a7b071f7b66b73",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Partition writes into batches, assigning each write exactly once. Each batch is capacity-limited and flushes at its latest arrival, which must meet every member\u2019s deadline. Minimize the number of batches times the flush cost plus total waiting time; valid outputs receive a score derived from that cost and a capacity-based lower bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-transport-routing-two-van-parcel-relay",
+      "bundle_hash": "sha256:8ba09fc29b139a0601770839e08e974be72519388cd7117e76344a3371453207",
+      "phase": "expansion",
+      "family": "transport-routing",
+      "baseline_reward": 0.5955830998467067,
+      "reference_reward": 0.740329765536709,
+      "sample_rewards": [
+        0.7186254837497712,
+        0.7198308560798543,
+        0.740329765536709
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "fdc3e71ff59904e5db6836bb0b64fb6f973761de1480a86887ae3d1382654f6f",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose one directed-road-or-wait route per van and ordered parcel handoffs when the vans meet. Parcels start with A, have unlimited carrying capacity, and are delivered automatically when their carrier reaches their target. The objective maximizes weight times remaining horizon at delivery, normalized by total possible weighted value; infeasible outputs score zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-communication-priced-frame-slots",
+      "bundle_hash": "sha256:9c43c92a5f92494b907ab8fb2f23bc08c75e1d93cfe406e03467162a97778fae",
+      "phase": "expansion",
+      "family": "communication",
+      "baseline_reward": 0.025861792815137695,
+      "reference_reward": 0.2215124806968371,
+      "sample_rewards": [
+        0.20489737517125478,
+        0.2215124806968371,
+        0.036930338430752226
+      ],
+      "feasible_samples": 2,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "failed",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "47fcdc26812bf09acbdbcf621b0405b4f5cf12d7747b348d08667eddddb2e9f5",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-9c43c92a5f92",
+          "reward": null,
+          "exception_type": "RuntimeError",
+          "exception_message": "Command timed out after 40 seconds",
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "bedcee1cb60548f56203d00922e3caa018be700e13c81b60b333abe051a5f7e4"
+        }
+      ],
+      "algorithmic_structure": "Assign each packet\u2019s bytes to one or more distinct, ordered slots. Each used slot carries a positive integer payload from one packet, must fit that payload plus the header, and incurs price times transmitted bytes. All packet lengths must be delivered; the objective is to minimize total cost, with feasible solutions scored against a valid lower bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-data-representation-palette-escapes",
+      "bundle_hash": "sha256:7689a08ea304c3a2c21a284f2efe9aeefcad8c1a74737d81f1d8b8413b5be41b",
+      "phase": "expansion",
+      "family": "data-representation",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.49146783734885047,
+      "sample_rewards": [
+        0.49146783734885047,
+        0.4897535480009156,
+        0.4899745826524004
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.4907435497860987,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "cd2d0b25ce724b4fb03dee9871a6bf0bbe55c4d741769c36f2321d49201d53cd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-7689a08ea304",
+          "reward": 0.4907435497860987,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "c3b7c8c0801da60723494fe5e5dfc3acd9dc6ba15bfaa8169ce8c5716ee4d746"
+        }
+      ],
+      "algorithmic_structure": "Choose up to max_banks distinct, sorted palettes of observed pixel values, each within the palette-size limit, and assign one palette to each clipped square tile. Pixel indices and escapes are then fixed by those choices. Minimize palette-entry bits, tile-bank identifier bits, pixel-index bits, and eight bits per escaped pixel; valid outputs receive a score based on that cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-query-planning-single-join-method",
+      "bundle_hash": "sha256:d077bf1a7bc9dfe0c792b4386d2d1e0c37b813dd08bd9dcfa6bc6548b6234223",
+      "phase": "expansion",
+      "family": "query-planning",
+      "baseline_reward": 0.5365514709281964,
+      "reference_reward": 0.8090128379690567,
+      "sample_rewards": [
+        0.8072560765023966,
+        0.8090128379690567,
+        0.8061557142532684
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "b0a801019970b3195f86048cdad81ea3f244388bc4c39a3573b4721fd4975e7d",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of tables and a join method for each successive right-hand table. Row multiplicities determine each intermediate result; method-dependent costs depend on input and output row counts, sortedness, and right-hand indexing. Minimize total cost, with each valid plan scored against the input-order all-loop baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-scheduling-changeover-windows",
+      "bundle_hash": "sha256:3b3ec415497fdb661be943d0146211c819adc104186fdc387f57f181a21205e8",
+      "phase": "expansion",
+      "family": "scheduling",
+      "baseline_reward": 0.29091170976174147,
+      "reference_reward": 0.5000392655258491,
+      "sample_rewards": [
+        0.5000392655258491,
+        0.4955345139449927,
+        0.4858435725945891
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.4976323160624636,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "c22f95ee5e06fe187af5d1fa5470379096c740b5832010dfcc8308547a7a3234",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 12,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-d3b68faabdeec857-rollout",
+          "reward": 0.4976323160624636,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "94129d703e1a7e8073cb564ace7757ae13755d8e164658ece84855308fff37b5"
+        }
+      ],
+      "algorithmic_structure": "Choose an ordered subset of up to 60 jobs. Start times follow release times, initial setup and directed changeovers; every nonpreemptive job must finish by its deadline. The objective is weighted earnings that increase with remaining deadline slack, plus bonuses for consecutive jobs, divided by an instance-specific upper bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-search-structures-single-skip-lane",
+      "bundle_hash": "sha256:c0a4c4fd511118d2439e5e9f5783a0d8f22772fcfc8b98282a477964fc51f738",
+      "phase": "expansion",
+      "family": "search-structures",
+      "baseline_reward": 0.16666666666666666,
+      "reference_reward": 0.8744970061768989,
+      "sample_rewards": [
+        0.8744970061768989,
+        0.8662999037675793,
+        0.8012773948445687
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "15e5213cd5fd467bc6c3d1a1b83fbe7d2f0b2fadeba3dbe36b03592ce825627d",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose up to s increasing indices for a single express lane. Each workload\u2019s weighted search cost depends on the number of express nodes passed and the ordinary-chain distance after the last one. Minimize the maximum cost relative to that workload\u2019s no-express cost; the score normalizes improvement against an elementary lower bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-sequence-reordering-triple-rotation-sort",
+      "bundle_hash": "sha256:2ee4af172d080d5ed8497cc7385945c3803e66c8dbb9c2d61b4098b593379caa",
+      "phase": "expansion",
+      "family": "sequence-reordering",
+      "baseline_reward": 0.9177289080039776,
+      "reference_reward": 0.9598563993258148,
+      "sample_rewards": [
+        0.9598563993258148,
+        0.9477573790332615,
+        0.9469441595579333
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "aea7eb453051be1dbe5d65dc4e401dc724e6366869be8d29a9333b19b54c5383",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose at most n(n\u22121)/2 indexed left or right rotations of adjacent triples to sort an even permutation. Each move has a position- and direction-dependent cost; valid outputs score 1 minus total cost divided by the move limit times the largest move cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-decision-independence-pairs",
+      "bundle_hash": "sha256:3c664fdb7f5f6522731352024fe83c992de26f2919b45e6684acd6ebfbb54d6e",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.7749149659863945,
+      "reference_reward": 0.9469387755102041,
+      "sample_rewards": [
+        0.9469387755102041,
+        0.9418367346938775,
+        0.8755102040816327
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "0b60f815a33f6671aa5affc2a7e41b753eeba80642f5c480bbef2218c0731adf",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Evaluate a Boolean expression over the listed variables and identify which variables are relevant. Choose a lexicographically sorted set of assignments containing a result-changing pair for every relevant variable, using at most twice the number of relevant variables. The objective is to minimize the number of assignments; a constant function requires an empty set.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-failure-trace-shrinking",
+      "bundle_hash": "sha256:3752f11faccb1c5870442971debfcaf0d1c459ba7ddb4593f8cc1a790c82b080",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.06666666666666667,
+      "reference_reward": 0.6374633444354713,
+      "sample_rewards": [
+        0.5392832678071188,
+        0.6374633444354713,
+        0.5269932589653858
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "a38332c63384a79c98e479b102e14409b8ac0d2e0b442298760f1b9682f9aeda",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an increasing subsequence of trace positions whose symbols drive every deterministic machine from its start state to a failure state. Minimize the number of retained positions; a feasible subsequence scores 1 \u2212 k/n for nonempty traces, and 1 for an empty trace.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-state-space-planning-domino-flip-distance",
+      "bundle_hash": "sha256:d864ead0c63306787477bd1eda5087bda48284f0bfc18bed54e39c611e743391",
+      "phase": "expansion",
+      "family": "state-space-planning",
+      "baseline_reward": 0.20065793637079501,
+      "reference_reward": 0.4278253735857721,
+      "sample_rewards": [
+        0.4278253735857721,
+        0.42202954091105616,
+        0.4278253735857721
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "c4ef516ddb24ba6464c15de8540b9af540838093e3c3a4020dcd2ab9be57fd6e",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "The task is to choose an ordered sequence of legal 2-by-2 domino flips that transforms the start tiling into the target tiling, subject to a 6000-flip limit. Cost sums the weight of each flip and adds a proximity penalty for consecutive flips at sites within Chebyshev distance one. A supplied legal guide establishes reachability; scoring compares the sequence\u2019s cost with a baseline derived from changed dominoes and the minimum weight.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-storage-systems-single-hole-defragmentation",
+      "bundle_hash": "sha256:6deb378f2b200f47b196a26228bc81aab099b67857c47b710b447730e982c53f",
+      "phase": "expansion",
+      "family": "storage-systems",
+      "baseline_reward": 0.47530417749454035,
+      "reference_reward": 0.5325381660142874,
+      "sample_rewards": [
+        0.5244366084563202,
+        0.22100398290655804,
+        0.5325381660142874
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "14ef2d14300dd65d4f18e7a528098c6244f47712bbdbd87db14f4c493d19e0fb",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a sequence of occupied source indices that moves blocks through one empty slot, transforms the current arrangement into the target, and uses at most 2n moves. Each move incurs head-seek and block-transfer distance; the objective is to minimize total cost C, yielding score (D+n)/(C+n), where D is the fixed sum of block displacements.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-transport-routing-marked-arc-inspection",
+      "bundle_hash": "sha256:d2d2b75900382ce02234b53b15f22afc0fb39958596188d08149eae3259b98ce",
+      "phase": "expansion",
+      "family": "transport-routing",
+      "baseline_reward": 0.5416666666666666,
+      "reference_reward": 0.7869990667951323,
+      "sample_rewards": [
+        0.783481977945817,
+        0.7830640295068516,
+        0.7869990667951323
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "9d66b19eb26a00b017fc04962cd5459bf1456fde5d95b5434fb0b296bd350270",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an ordered closed directed walk from the depot that traverses every marked arc, allowing repeated arcs, or return -1 if none exists. Among valid walks of at most 16,000 arcs, lower total traversal length C earns a higher score U/(U+C), where U is computed from shortest depot-to-marked-arc and marked-arc-to-depot paths.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-combinatorial-design-cyclic-difference-balance",
+      "bundle_hash": "sha256:47d0de5556a5b113b048f993c2c2ab63c1a38b545e9dec502dec8cbf88d4e791",
+      "phase": "expansion",
+      "family": "combinatorial-design",
+      "baseline_reward": 0.53125,
+      "reference_reward": 0.9797199543578671,
+      "sample_rewards": [
+        0.9797199543578671,
+        0.9792513049878837,
+        0.9782070221571985
+      ],
+      "feasible_samples": 3,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "4127cc3005527c6a5c5d3118c6019760c34c21d183a03ee58ac0b283425c1185",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a strictly increasing k-element subset of residues modulo v. For each nonzero residue, count ordered-pair differences, then minimize the sum of squared deviations from equal difference counts. Valid sets receive the stated baseline-normalized score; invalid sets receive zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-energy-systems-battery-tariff-dispatch",
+      "bundle_hash": "sha256:ada90ff88d0747cfdccea085c5f2c8f497fda603827111f987308300eb2c79eb",
+      "phase": "expansion",
+      "family": "energy-systems",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.5976686152938068,
+      "sample_rewards": [
+        0.5975146605100584,
+        0.5976686152938068,
+        0.5946075665909503
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "38fd92f9c1cb3442d2d0288a3364792830d06b01d9c4a2a50fd0d8f84576ec3e",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose one integer charge or discharge action per slot for all tariff scenarios, respecting power and battery-capacity limits. Profit in each scenario is sale revenue minus purchase cost; the objective is to maximize the minimum scenario profit, with valid outputs scored using the stated instance-only bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-energy-systems-two-slot-electrolyzer-runs",
+      "bundle_hash": "sha256:3fb11ee1fd7f2a036de9de0a0b000a739ac2a377dbb62f8b300846bb17b9d795",
+      "phase": "expansion",
+      "family": "energy-systems",
+      "baseline_reward": 0.08333333333333333,
+      "reference_reward": 0.42597186266389103,
+      "sample_rewards": [
+        0.41977839734671174,
+        0.42597186266389103,
+        0.4227656632404588
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.4204143470195873,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "1f20732dd151993ca3451cedfc713a9034c09e772c3692ac240ebcc0d8226910",
+      "post_construction_repaired": true,
+      "repair_parent_bundle_hash": "sha256:a625214613ab215c8424df84c926bb12f7fedde25b5cd0d57135865adfda23dc",
+      "rollout_feasible_cases": 12,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-3fb11ee1fd7f",
+          "reward": 0.4204143470195873,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "005a2c657edf7ab62e1bd38c4dce2972496f38645b256942f036d32025bb07d7"
+        }
+      ],
+      "algorithmic_structure": "Choose O, E, or F for each store and slot to maximize the weight of served demand. Decisions are coupled by a per-slot surplus limit on E operations; each store must respect its inventory bounds, F may occur only at demand positions, and every consecutive E run must last at least two slots. Valid plans receive the served-weight fraction, or 1 when total demand weight is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-blocked-grid-route",
+      "bundle_hash": "sha256:bc8e3e2d9ab479c09decc78c70ba027d49ad2ec5a3169bef643743d370b960e1",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.3674403380747911,
+      "reference_reward": 0.7623828689779014,
+      "sample_rewards": [
+        0.7296832148363251,
+        0.719278403151432,
+        0.7623828689779014
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "85b946ac21da3970792a218ea9586a8cd8b3ea1f1dcccddd86535677021606d3",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a walk on a blocked grid from start to goal using at most the step budget; revisits are allowed, but each prize contributes value only once. Feasible routes receive a normalized reward based on collected value, while correctly reporting that no budget-feasible route exists receives full reward.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-logic-constraints-two-literal-backbone",
+      "bundle_hash": "sha256:a75f4c795f2dac6897fec7b6585ecd203ae9ef7f404d7d09c894e0ac2769cf7a",
+      "phase": "expansion",
+      "family": "logic-constraints",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.3994200684047117,
+      "sample_rewards": [
+        0.3994200684047117,
+        0.39907656957976817,
+        0.0
+      ],
+      "feasible_samples": 2,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "c0101b6bd6da04e735095c6e71cb5f9a9379e5d2ee075f0beb1caee0e2b99ae3",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose which variables to flip from a satisfying reference assignment, maximizing their total weight. Each two-literal clause constrains the choices; the generated clauses include pairwise conflicts, implications, forced unflipped variables, and tautologies. The output must satisfy every clause, and its score is the weight of flipped variables divided by total weight.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-network-design-diameter-shortcut",
+      "bundle_hash": "sha256:1448d3b82612df2ee9c19ccb81af5b7cbfd6fe1982c417f4e930ee32e836ad59",
+      "phase": "expansion",
+      "family": "network-design",
+      "baseline_reward": 0.6902745169425201,
+      "reference_reward": 0.8566370854755461,
+      "sample_rewards": [
+        0.23076923076923078,
+        0.8507937998909892,
+        0.8566370854755461
+      ],
+      "feasible_samples": 2,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "8a56ec9f6a7fb7775a4b0d40ec1f075b7859112b190e3d6b9bf9a0290eea172f",
+      "post_construction_repaired": true,
+      "repair_parent_bundle_hash": "sha256:db6b5e95719e5807423b5258863397360396929052a334a1a0a0635796912901",
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose exactly k distinct candidate edges to add to a connected, positively weighted undirected graph, minimizing its all-pairs shortest-path diameter. The scorer compares the resulting diameter with the original-graph diameter and the diameter obtained by adding every candidate, awarding a normalized improvement.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-network-design-relay-activation",
+      "bundle_hash": "sha256:54dca652b9c38b241f5c7e5f9924cac7839908ffeece659132c37dd3927ce0ec",
+      "phase": "expansion",
+      "family": "network-design",
+      "baseline_reward": 0.1043956043956044,
+      "reference_reward": 0.6004283856671798,
+      "sample_rewards": [
+        0.6001045383675261,
+        0.6003542886172764,
+        0.6004283856671798
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "cc440029e909ae168ac31f7223a1d5a7ce9eb19a6a96364f1745b470c4921fa0",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a cost-bounded set of relay vertices to activate in a directed graph. Each terminal earns its weight for one source path and again for two arc-disjoint source paths; the objective is the sum of those awards divided by twice the total terminal weight.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-numerical-approximation-bounded-quadrature-weights",
+      "bundle_hash": "sha256:5a5a90fdf103c3f5cc64bfb8e636f7192ba0023aded26110088b9eb3c967aece",
+      "phase": "expansion",
+      "family": "numerical-approximation",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.9381248828316978,
+      "sample_rewards": [
+        0.9381248828316978,
+        0.8595620867480788,
+        0.9372869694481774
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.9382456790644976,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "6df61652520d03ae0ec1d98c4eb8dde9317c4bde52e0bf6b6311599415e48916",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-5a5a90fdf103",
+          "reward": 0.9382456790644976,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "caced3f53c36d5eace34954e631225f786305981e2e4cc7a50704728951adbb8"
+        }
+      ],
+      "algorithmic_structure": "Choose nonnegative integer weights on fixed grid nodes that sum to D, minimizing the maximum absolute quadrature error over monomials of degrees 1 through K. Each feasible output receives a score based on its error relative to the error from placing all weight on the node closest to 1/2.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-search-structures-two-home-placement",
+      "bundle_hash": "sha256:772b9bba1981bb50f6aa0055b3ccfc8f5b7249fe7b155c2c0b34a0d9a711b5af",
+      "phase": "expansion",
+      "family": "search-structures",
+      "baseline_reward": 0.29700459467407075,
+      "reference_reward": 0.4666108099631367,
+      "sample_rewards": [
+        0.4653236342350798,
+        0.4666108099631367,
+        0.46475496322548177
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "247f118bebd050d9231176d413259dcb77188f7b2ef9c9a2d2bc8cdcb6484eff",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose each key\u2019s primary or alternate slot, with no collisions. Minimize the sum of weighted successful-lookup costs and weighted circular probe lengths to the next empty slot for misses. Valid placements receive the instance lower bound divided by their total cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-storage-systems-time-varying-tier-placement",
+      "bundle_hash": "sha256:7cd2b9bfd97268e28e90a169bf0d2151a06f2449da7bfc68a4587ba3e3dfd7d8",
+      "phase": "expansion",
+      "family": "storage-systems",
+      "baseline_reward": 0.08333333333333333,
+      "reference_reward": 0.29889532889058534,
+      "sample_rewards": [
+        0.29889532889058534,
+        0.285575903722513,
+        0.2889003102549953
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.3053033605102731,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "022cdaebafff838ac6aba5cd4fda37fce450703434f1fcaa5d5b1dfd088defc8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 12,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-f5c5a3c2f1d89722-rollout",
+          "reward": 0.3053033605102731,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "8a2ffae944eb0b7adb70c43e2c6de3e28c88ccaca95f212ffb584da166603e71"
+        }
+      ],
+      "algorithmic_structure": "Choose a binary hot/cold tier for each object in each period, subject to per-period hot-capacity limits. Minimize service costs, pair penalties incurred unless both endpoints are hot, and tier-change costs from the initial state and between periods. Feasible outputs are rewarded by their cost reduction relative to the all-cold baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-transport-routing-priced-fuel-route",
+      "bundle_hash": "sha256:a6c538a867e029e4f47cca941e032c054c3a9629ac512cf7f8ebfadc8d06bb97",
+      "phase": "expansion",
+      "family": "transport-routing",
+      "baseline_reward": 0.14151313909431656,
+      "reference_reward": 0.8684783716126643,
+      "sample_rewards": [
+        0.8342777791698134,
+        0.8684783716126643,
+        0.7915066976212718
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "4c3cc4eb1c5a3f878e87e4ca3298c65da6a0d297c22edcef2fca934444a06071",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an ordered route of at most 250 directed roads and a fuel purchase before each traversal. Fuel is bounded by tank capacity, purchases by the monetary budget, and the route must end at n\u22121. The objective is the sum of rewards at distinct visited vertices, divided by the sum of all rewards.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-combinatorial-design-cyclic-window-variety",
+      "bundle_hash": "sha256:b8aac45ca334db389aefe3df740ebb78b5a201fe2d9c17a65e1b861b13ea569a",
+      "phase": "expansion",
+      "family": "combinatorial-design",
+      "baseline_reward": 0.06981979480551141,
+      "reference_reward": 0.6400048625703952,
+      "sample_rewards": [
+        0.6321906023708662,
+        0.6400048625703952,
+        0.536864890293019
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "be5d623c36a78ee1db3992a2fc52a6599b026316b1e0cd3fd75e56d88a5afed2",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a binary cycle of length L. Each listed motif earns its weight once if it appears in any cyclic window; maximize total covered weight. The score divides that total by the sum, for each motif length, of its largest min(L, group size) weights. Invalid cycles score zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-combinatorial-design-partial-latin-completion",
+      "bundle_hash": "sha256:89e0a044001a70525338b64fb35acb4cd1f30257525bde3bedd411bb9b09218b",
+      "phase": "expansion",
+      "family": "combinatorial-design",
+      "baseline_reward": 0.2880774973071953,
+      "reference_reward": 0.8808102932430871,
+      "sample_rewards": [
+        0.8795139129496847,
+        0.8770906172382987,
+        0.8808102932430871
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "48c15ed6351f6ba0773dfe6ef07b49470623e72740e2b13cb3cb365f1d5919b1",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an n\u00d7n Latin square, assigning each symbol once per row and column, to maximize the weight of cells matching nonzero preferences. The score divides earned weight by the minimum of total preference weight and row- and column-based upper bounds; when that bound is zero, every valid square scores 1.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-data-representation-run-order",
+      "bundle_hash": "sha256:d486607a4e2d98da78d4dcea3fc5df76f999634addbb9b15b2ffa400c4d3df0a",
+      "phase": "expansion",
+      "family": "data-representation",
+      "baseline_reward": 0.5860602984419461,
+      "reference_reward": 0.7900385600870639,
+      "sample_rewards": [
+        0.20512820512820512,
+        0.7900385600870639,
+        0.7589518201530046
+      ],
+      "feasible_samples": 2,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "ff9e00edb02a0d19e0347491778bfe7cfbbaaf458b385b76f61e587686d21928",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a Hamiltonian path through the rectangular grid starting at (0, 0), then report the maximal run-length encoding of the values visited. The path must visit every cell once using orthogonal steps. The objective minimizes the number of runs; valid outputs receive a score based on their run count relative to the number of cells and distinct values.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-segment-arrangement-faces",
+      "bundle_hash": "sha256:19ff211ee202ebe602cdd6f5e65e6dcfa8cff416fbad3a2e769c7d7ec15ec6da",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.3260025323417478,
+      "reference_reward": 0.9706712669901995,
+      "sample_rewards": [
+        0.795711154986629,
+        0.9706712669901995,
+        0.9668651555270126
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "092a0ffe099d23f39b9c6091ac924be56c9705dd688fad8b9bbec0e2873e4fa7",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "The solution chooses a perfect matching of the 2n endpoints, producing n straight segments. Every endpoint must be used exactly once. The objective is to maximize bounded faces, computed from distinct interior intersection points, the number of segments meeting at each point, and the number of connected components; the score divides this count by an instance-only upper bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-image-grid-processing-region-adjacency",
+      "bundle_hash": "sha256:02a5c5386be9c7f6a1241a44d8b362501e7c69a95f3a2f803f2d38202296cbc5",
+      "phase": "expansion",
+      "family": "image-grid-processing",
+      "baseline_reward": 0.6844141452073877,
+      "reference_reward": 0.8712690404744269,
+      "sample_rewards": [
+        0.8709953724979308,
+        0.870624027521707,
+        0.8712690404744269
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.8742884034625372,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "01dc47e98ae4703c472fc3e5eac1db34b4ca33952968b184d07e2018f219042d",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 15,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-02a5c5386be9",
+          "reward": 0.8742884034625372,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "41013d988e25efe529e9d4583dc4b33d7c9f0bb181cc8f6a153ce970a81737e7"
+        }
+      ],
+      "algorithmic_structure": "Reassign A, B, and C cells on a rectangular grid while preserving each symbol\u2019s total count and the first cell of every original region of size at least three. The objective is to minimize the number of output regions plus the number of distinct adjacent-region pairs; the score is one minus that sum divided by the number of cells plus grid edges.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-network-design-router-separator",
+      "bundle_hash": "sha256:c017e247b151dd73e7f386e810c5415a2572e17abe1fb75dda521a76af211eab",
+      "phase": "expansion",
+      "family": "network-design",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.6014405654677751,
+      "sample_rewards": [
+        0.6013041907722995,
+        0.6014405654677751,
+        0.5999022159637168
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "8f23ba4e26ddba9b38cc26e134ec2dc9b17045b926536ccb2e18b721a4da52c6",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a strictly increasing set of nonterminal vertices to delete so that each terminal lies in a different connected component. The deletion cost is the sum of their vertex costs; the objective is to minimize that cost, with score 1 \u2212 cost divided by the total nonterminal cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-numerical-approximation-bounded-rational-surrogate",
+      "bundle_hash": "sha256:7324a9216621c08576147afff1799470fb0261c199d100b581c02de864e645dd",
+      "phase": "expansion",
+      "family": "numerical-approximation",
+      "baseline_reward": 0.5711967107048623,
+      "reference_reward": 0.7670895512611496,
+      "sample_rewards": [
+        0.7281075566219728,
+        0.7670895512611496,
+        0.7613305217133776
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "19a48d7147b19d23d64d2f430926ad6b97789dc10d049c06e26f3d0387595ec1",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a bounded integer numerator and positive integer denominator for each target under two global sum budgets. The objective is a weighted sum of absolute approximation errors and weighted absolute differences between errors on graph edges; scores normalize this error against the all-zero approximation.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-scheduling-conflicting-meeting-slots",
+      "bundle_hash": "sha256:29311440eb745eacc816b44bead3c0761e4383a8975dc269b762c549da078f9b",
+      "phase": "expansion",
+      "family": "scheduling",
+      "baseline_reward": 0.5044273004308856,
+      "reference_reward": 0.6921014947565566,
+      "sample_rewards": [
+        0.6779944437462895,
+        0.6828859394764196,
+        0.6921014947565566
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "bb19f9069e03aebebd2a8d52bb2a964c8e55844a93b67bdb7954b5079558d41c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a listed slot or defer each meeting. Conflicting meetings cannot share a nonzero slot. Maximize the sum of assigned meeting values and option bonuses minus a one-time cost for each used slot; the score divides that gain by the sum of each meeting\u2019s best available value and bonus.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-scheduling-two-stage-permutation-line",
+      "bundle_hash": "sha256:605bbfd33880266dfa0f3406ebaa7f13955fd32f517e093426942bf57ccdd5ea",
+      "phase": "expansion",
+      "family": "scheduling",
+      "baseline_reward": 0.781882139214319,
+      "reference_reward": 0.9146652888388909,
+      "sample_rewards": [
+        0.9146652888388909,
+        0.9079147586413567,
+        0.9135097485474666
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.9110588628668427,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "9f10e076583fa863e5dd5801ca261fc70144f96af579592e37d81c4b65a5c736",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 12,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-de6801484c7bf8d3-rollout",
+          "reward": 0.9110588628668427,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "bd43f1f175589df9579504176bd88b7470aa14bb52c0a108dfde94169dcfb47f"
+        }
+      ],
+      "algorithmic_structure": "Choose a permutation of jobs for two sequential stages. Each stage processes one job at a time, with directed setup times between consecutive jobs; stage B cannot process a job before it finishes stage A. The objective is to minimize the last stage-B completion time, scored against specified lower and upper bounds.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-sequence-reordering-alternating-swap-times",
+      "bundle_hash": "sha256:d578c8aadc6516a1a08633ee095d208550ad7da732946b7bf940f6729e97ee4d",
+      "phase": "expansion",
+      "family": "sequence-reordering",
+      "baseline_reward": 0.4441177515860731,
+      "reference_reward": 0.7344031115248971,
+      "sample_rewards": [
+        0.7192309218443612,
+        0.7344031115248971,
+        0.7240502678208594
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "4870df16c9e462896fb81020dbb39744e75bd61eaed86d63defee91f7370f12f",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose up to B adjacent swaps, with swap positions alternating odd and even by turn. Each swap changes the permutation; the objective is to reduce its weighted inversion cost, scored as the nonnegative fraction of initial cost removed. An empty sequence is feasible.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-software-testing-bounded-invariant-trace",
+      "bundle_hash": "sha256:67865609ba21e7158a9d75771c0ebe48f3b042a35849d2aee2fe4b6820c694a6",
+      "phase": "expansion",
+      "family": "software-testing",
+      "baseline_reward": 0.25069605113036597,
+      "reference_reward": 0.5332289896896414,
+      "sample_rewards": [
+        0.528264433588397,
+        0.5315221392845033,
+        0.5332289896896414
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "032841e13e6bd08d374fc2b82615f6d1bc2847e7b875652b5554a5a694c0c890",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose up to T defined traces from the start state, each of length at most K and with total length at most B. Maximize the sum of weights for distinct transitions, consecutive transition pairs, and visited bad states covered by the suite. The score divides that sum by an instance-only reachability upper bound, with a specified zero-denominator rule.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-communication-crossbar-active-slots",
+      "bundle_hash": "sha256:6af42af4638c67760c03cc65d82477d7dc21a6f6da27a7aa416b93586dbfc31b",
+      "phase": "expansion",
+      "family": "communication",
+      "baseline_reward": 0.5780028704721795,
+      "reference_reward": 0.7032082424583387,
+      "sample_rewards": [
+        0.7032082424583387,
+        0.695857720647839,
+        0.6959552965851737
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "017f26639dea2d01e924dfa3474eb58a25c43afa52a99b48a4e2c3efd105d253",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a slot or drop each packet. Transmissions must fall within their inclusive windows, and packets sharing a slot must have distinct input and output ports. A slot incurs its cost if any packet uses it. The objective is to maximize delivered packet value minus active-slot costs; valid outputs receive the nonnegative net value divided by total packet value, with a score of 1 when there are no packets.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-compiler-optimization-addition-chain-multiply",
+      "bundle_hash": "sha256:42e7048f733a589c78d69740f0f4620a6685e685904098b093ca055d08aac1a2",
+      "phase": "expansion",
+      "family": "compiler-optimization",
+      "baseline_reward": 0.612467328007215,
+      "reference_reward": 0.6262926871880465,
+      "sample_rewards": [
+        0.5934566655465586,
+        0.6262926871880465,
+        0.508746594601788
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "5db071d78b0e5d6a2ab12aad5cdde975f0c311a618ecc80e24a6ef5b23471fb1",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Construct a bounded addition chain starting from 1: each instruction adds two already available coefficients, possibly equal, and must produce a value at most the largest target. All distinct targets must be reached within 1500 instructions. The objective is to minimize instruction count; a feasible output scores max(number of targets, ceil(log2 of the largest target)) divided by that count.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-grid-steiner-conduits",
+      "bundle_hash": "sha256:69cf72c220ee95a1626b67627ec84c8e50646fb404cd02db6281d0bb6e087852",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.3556815332053736,
+      "reference_reward": 0.521038335136304,
+      "sample_rewards": [
+        0.5203878564995165,
+        0.5198138391928525,
+        0.521038335136304
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "7954a2dbef7caf94fe77e5cbc9e511dbd6176ad8a0ee373cade4aea04006f758",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose distinct, unit-length edges of the rectangular grid to form one connected network containing every terminal; nonterminal junctions are allowed. Minimize the edge count E. A valid network scores (L + 1) / (E + 1), where L is the maximum of the terminal row span plus column span and the number of terminals minus one.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-logic-constraints-binary-constraint-pruning",
+      "bundle_hash": "sha256:5c45cd82cbc9daf7a77259cbae1b09008b32eb8bea2fb4a5ffff40d77e4828c1",
+      "phase": "expansion",
+      "family": "logic-constraints",
+      "baseline_reward": 0.08333333333333333,
+      "reference_reward": 0.8062428769613268,
+      "sample_rewards": [
+        0.8040498945051864,
+        0.8062428769613268,
+        0.8062428769613268
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "05aad8f8ef4f171f20769933c75971339c5391e1fc12d6bc3688702fc3a028bd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose up to the budgeted number of variable indices to pin to their witness values. Binary allowed-pair constraints then prune unsupported domain values to arc consistency. The objective is the number of additional values removed relative to the unpinned closure, normalized by the number removable from that closure.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-logic-constraints-parity-freedom",
+      "bundle_hash": "sha256:8cf8725885992e746ef5e077db2a049a660ff505d6df71a32bab231a6580fbc2",
+      "phase": "expansion",
+      "family": "logic-constraints",
+      "baseline_reward": 0.455426599495815,
+      "reference_reward": 0.6744416512288128,
+      "sample_rewards": [
+        0.6671744199524008,
+        0.6744416512288128,
+        0.6656393749205123
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.6792289708680848,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "9282eba6d5468539424eeaac989f7ee382257375fdf81df683949bfa074e54be",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 13,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-ce84d9ae19f77312-rollout",
+          "reward": 0.6792289708680848,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "2a2d7fab2b1b75e05c9e11cc09997d705f6f4e0d360f06aa37bef8326a3628dd"
+        }
+      ],
+      "algorithmic_structure": "Choose n binary assignment bits, starting from a supplied hard-feasible assignment. Each hard constraint fixes the XOR of 1\u20138 selected bits; each soft constraint pays its weight when its XOR matches its specified bit. The objective is to maximize satisfied soft weight, with a valid assignment scored as that weight divided by total soft weight.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-numerical-approximation-rounded-sum-parentheses",
+      "bundle_hash": "sha256:d400353351c84c9fe1f3fea2ad8346b47c85175717bb3a15661adc5c1cf07c42",
+      "phase": "expansion",
+      "family": "numerical-approximation",
+      "baseline_reward": 0.5659835564031955,
+      "reference_reward": 0.9842505665364454,
+      "sample_rewards": [
+        0.9842505665364454,
+        0.982959094433874,
+        0.9841811004151017
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "23cd55520fcc2b0fbdf076dbccd09eb5f1360f354775a29cb2a97878a49e9a1b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an ordered full binary tree over the input leaves. Each internal node adds its children\u2019s evaluated rational values and floors the sum to that interval\u2019s grid. The objective is the weighted sum of squared differences between each node\u2019s rounded value and its interval\u2019s exact input sum; the score scales this cost against a positive instance-specific baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-query-planning-group-key-order",
+      "bundle_hash": "sha256:0d5732ec949a7e55e2bc3e398d3372db34fbdb18db7ce1d6e3d89c5dddf022a0",
+      "phase": "expansion",
+      "family": "query-planning",
+      "baseline_reward": 0.4384545262292744,
+      "reference_reward": 0.6731688371267658,
+      "sample_rewards": [
+        0.6731688371267658,
+        0.6725500078066806,
+        0.6716712347712465
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "8ad124ffa63a902eaf45399059168ae4add10ea8cd933176c77b2fc37c5793b8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation of the input columns. Lexicographically sort the rows under that order, then minimize the sum of fields examined for each adjacent pair through its first difference (or all fields for identical rows). Every column must appear exactly once; the score normalizes the resulting cost between the stated bounds.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-envy-free-room-rent",
+      "bundle_hash": "sha256:26f6290ff3a0066c06160888b5d7877b3bd7ba3c7f2e4aa8b1db0b0c67baab61",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.55921577034258,
+      "reference_reward": 0.9273251204839017,
+      "sample_rewards": [
+        0.9270077751508173,
+        0.9273251204839017,
+        0.9246671588795474
+      ],
+      "feasible_samples": 3,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "48738c39117ed44f50578265813707b5579099000dd395c4616ff044a7690494",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a permutation assigning each tenant one room and nonnegative integer room prices summing to rent. The objective minimizes n times the gap between the maximum valuation and the lowest assigned utility, plus total envy measured against each tenant\u2019s best room at those prices. Valid outputs receive the stated normalized score.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-integer-dominant-shares",
+      "bundle_hash": "sha256:cee592d99ce060c424cd54bb0ffd2931f4c4079a18f1ed30cf4789b3dc2e7fdc",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.17669982951150803,
+      "reference_reward": 0.198920124937177,
+      "sample_rewards": [
+        0.1976479251114773,
+        0.19785711966930172,
+        0.198920124937177
+      ],
+      "feasible_samples": 3,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "3442f7ae38f75edd128e144cf1dbd59b58c7775effccddff98a446a38db395cd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a bounded nonnegative integer job count for each agent, subject to resource-capacity constraints. Each agent\u2019s dominant share is its largest fraction of any resource\u2019s capacity consumed. Maximize a weighted sum of the sorted shares, with larger weights on smaller shares; the score divides this value by a bound computed from each agent\u2019s individual maximum feasible job count.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-scheduling-unequal-parallel-machines",
+      "bundle_hash": "sha256:58d11f5f9d776a02ad6de3e832caaf28203c8ea791fe3e55a3fe9be2e147496e",
+      "phase": "expansion",
+      "family": "scheduling",
+      "baseline_reward": 0.5333333333333333,
+      "reference_reward": 0.8412556156256018,
+      "sample_rewards": [
+        0.8399611957690928,
+        0.8390738220367976,
+        0.8412556156256018
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "2696e7b8173992d44d7feec21c7868fe80cfab03073c5f9865d690ebaae8320b",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Assign each job to exactly one of two parallel machines and choose an order on each. A route\u2019s completion time is its first-job start cost plus processing times and directed setup costs between consecutive jobs. The objective is to minimize the larger completion time; the score compares that makespan with the input-defined, increasing-index machine-A baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-search-structures-rectangle-kd-layout",
+      "bundle_hash": "sha256:6ad7eb5b44fb57d9a70ff8bf995e10a6f829ce5a90e12d68e9a55df930a6c308",
+      "phase": "expansion",
+      "family": "search-structures",
+      "baseline_reward": 0.6073421872075839,
+      "reference_reward": 0.6540954781641994,
+      "sample_rewards": [
+        0.5998896314861925,
+        0.6540954781641994,
+        0.5018338829827251
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "6c738fd0c98e885f36047c6c0a336a222a7477253403f01becdca44eeb5974cf",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a binary spatial tree whose leaves contain each input point exactly once. Each internal node splits its points by an attained x- or y-coordinate cut, with nonempty children. The objective is to minimize the weighted number of nodes loaded by inclusive rectangle queries; valid trees receive the specified lower-bound cost divided by their actual cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-communication-bounded-queue-peak",
+      "bundle_hash": "sha256:3b5522d96be4b07c9128d0e82319becf458e268a026ab42718c77b9a2fc9d4ce",
+      "phase": "expansion",
+      "family": "communication",
+      "baseline_reward": 0.3530430424469934,
+      "reference_reward": 0.4992273865133181,
+      "sample_rewards": [
+        0.4957921456941906,
+        0.49814566004874145,
+        0.4992273865133181
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "6d2627a801fc04b2c7242d548a47c76b58cf82ff6803233612e030988aa50954",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose at most one eligible packet per slot, with each packet sent at most once. Scheduled packets occupy the queue from arrival through their transmission slot. The objective trades delivered weight against peak pre-transmission queue occupancy through 6V/((6+P)W), with a special score of 1 for empty traffic.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-diagonal-mirror-trace",
+      "bundle_hash": "sha256:02d66474a6e666b6fe93ae5c845a553a420613ab427048ff96a06f9d93dae910",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.3751353911623563,
+      "reference_reward": 0.42083685306338126,
+      "sample_rewards": [
+        0.42083685306338126,
+        0.41729819820627745,
+        0.4178036199074887
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "55668b90fb02bcef6e84f14673f128a1cb9e1c809c6a5069a4a813fb975b5882",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose a + or \u2212 orientation for each weighted mirror. Each boundary ray follows the nearest mirror strictly ahead, reflects according to its orientation, and stops on escape or after the hit limit. A mirror contributes its weight only on its first hit by each ray. The objective is the total contribution divided by the stated per-ray upper bound, with a score of 1 when that bound is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-l-tromino-workshop",
+      "bundle_hash": "sha256:704b9f8b862885815d5348b5fb16f86579242901cf4c0c6134fa84720adbd41e",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.5817833430663532,
+      "reference_reward": 0.7395896406654971,
+      "sample_rewards": [
+        0.26071428571428573,
+        0.7296458168651343,
+        0.7395896406654971
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.7411375652774399,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "5e1be2497d340156d6c472b686f4e1f1f6605ebcd1f2eefa0d7696033f114329",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-40b2720e74de0284-rollout",
+          "reward": 0.7411375652774399,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "fdd7ce8bc50f2e8e12ee4c96e25fdaa9b9179ea225a598a2e62138735f6fbdf9"
+        }
+      ],
+      "algorithmic_structure": "Choose nonoverlapping L-tromino placements on usable cells of a grid. Each placement earns one plus its occupied-cell weights and missing-corner bonus. Maximize total value; the score divides that value by a deliberately loose upper bound formed from the highest-valued individually feasible placements.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-image-grid-processing-seeded-binary-labels",
+      "bundle_hash": "sha256:688154ad5672d6d26d0e5a0c3ca1a35e429b6ebfc9cae2d0c7920e3a34175376",
+      "phase": "expansion",
+      "family": "image-grid-processing",
+      "baseline_reward": 0.8137047770117989,
+      "reference_reward": 0.8895180443999124,
+      "sample_rewards": [
+        0.889507984887839,
+        0.8895180443999124,
+        0.8875721149537446
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "b179aefc830e55ad5855915b1bffe7e3dae2fe68240fa51d32dc5f8283daed67",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Assign one of k labels to each grid cell, respecting pinned labels. Minimize the sum of chosen cell costs and weights on adjacent cells with different labels. Valid solutions are scored by linearly normalizing their energy between the stated lower and upper bounds.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-image-grid-processing-smallest-repeating-tile",
+      "bundle_hash": "sha256:0110532b09cebe368d83a620e61f90e62b49bebd4bbc9836ded7a5ce6aed4529",
+      "phase": "expansion",
+      "family": "image-grid-processing",
+      "baseline_reward": 0.6422366643841926,
+      "reference_reward": 0.75689911307191,
+      "sample_rewards": [
+        0.7553208384294743,
+        0.75689911307191,
+        0.7553983397272843
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "74210a5536d9dea6f8aea5303c13e3d252b76a6ba83a684a29a3ccca755e3082",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose positive divisors h of H and w of W, then assign a permitted letter to each cell of an h-by-w tile. Repeating the tile determines the full image. The objective minimizes weighted disagreement with the input, penalties for differing horizontally or vertically adjacent image cells, and a penalty proportional to tile area.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-numerical-approximation-binary-prefix-tracking",
+      "bundle_hash": "sha256:02911973ed6def518c10c57d76a244834057f544c0e2ac58d18dcbd51a0cb075",
+      "phase": "expansion",
+      "family": "numerical-approximation",
+      "baseline_reward": 0.2631735554123306,
+      "reference_reward": 0.7152159203609627,
+      "sample_rewards": [
+        0.7149073783156399,
+        0.10573473248142891,
+        0.7152159203609627
+      ],
+      "feasible_samples": 2,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "f17a6d37875f99c88e5d8deda95a66fcd8e3e69f7f404254c15b938c1648b581",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose exactly B binary pulses. Each pulse contributes its position\u2019s weight to the cumulative output, while the cumulative target gains that weight times its fraction divided by 1000. The objective is to minimize the largest absolute prefix discrepancy; feasible outputs receive a score that decreases with that discrepancy, scaled by the maximum weight.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-fallback-service-bundles",
+      "bundle_hash": "sha256:c19bd1974172abf6cce2993e0c10fc3b12e1a5cbcb7f13fe548843121615dc4a",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.2887642556100195,
+      "reference_reward": 0.35997596306941904,
+      "sample_rewards": [
+        0.35997596306941904,
+        0.3529927853556979,
+        0.2161254429275399
+      ],
+      "feasible_samples": 2,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "544a781b4efcb1fb382c3245bd428cc4d72dd0ab8159daffab43ada0199dcc6e",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose reject, fallback, or full service for each customer under two or three resource-capacity constraints. Maximize chosen service values plus bonuses for pairs whose customers are both served; each valid instance scores that value divided by the stated upper bound, except when the bound is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-resource-allocation-shared-reservation-cost",
+      "bundle_hash": "sha256:beefb568bc56986c176952a09670d36c7cccbcd007593edb8be6543ae6c695e8",
+      "phase": "expansion",
+      "family": "resource-allocation",
+      "baseline_reward": 0.07692307692307693,
+      "reference_reward": 0.5728293432719607,
+      "sample_rewards": [
+        0.5718553353340202,
+        0.5688045209829249,
+        0.5728293432719607
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "4a4f626b141ff00838690b3be9e9ae217dc846be61dbcbb91d62e0051e169b38",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Partition customers into groups of at most K, subject to a capacity constraint for each resource in each group. Minimize the sum of resource startup and peak-demand charges across groups. Valid solutions are scored by savings relative to singleton groups, normalized against the unconstrained all-in-one cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-sequence-reordering-interval-reversal-distance",
+      "bundle_hash": "sha256:c4ecde2731364aa1bc5b7a946c83674357da40c8459bff36aad1c11ca767467b",
+      "phase": "expansion",
+      "family": "sequence-reordering",
+      "baseline_reward": 0.2149744452068758,
+      "reference_reward": 0.5315741490477118,
+      "sample_rewards": [
+        0.5315741490477118,
+        0.528668124753316,
+        0.5265100218350653
+      ],
+      "feasible_samples": 3,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "27bbd0a45d213163d8d8512512bf0ea0e7f5ba9a445d271418193ef52a91c958",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose up to K reversals of inclusive intervals of length at least two in a permutation of 1 through n. The objective is the resulting number of correctly positioned elements plus twice the number of increasing-by-one adjacent pairs, divided by 3n \u2212 2. The empty sequence is legal.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-state-space-planning-two-gripper-delivery",
+      "bundle_hash": "sha256:040135b4aa9ab6be06b851f65c31f54a570f0d2bc5a4a867367c8a2ee911ef0e",
+      "phase": "expansion",
+      "family": "state-space-planning",
+      "baseline_reward": 0.07142857142857142,
+      "reference_reward": 0.6335526948720954,
+      "sample_rewards": [
+        0.631987901348527,
+        0.6335526948720954,
+        0.21428571428571427
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "41346304ed969fd3b3421409f0d2ff2cdfcca5c175d1cfdf348ffbfff4a8fbf9",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an ordered sequence of pickup and drop events for objects needing delivery. Each pickup must precede its matching drop; the robot can carry at most two small objects or one bulky object. Minimize event actions plus walking distance along the station line. Feasible routes are scored against an input-order baseline and an instance-only lower bound.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-transport-routing-capacity-courier",
+      "bundle_hash": "sha256:22df180eb17d63a78cb822c528d7f419dbef5f0bb432ae53630fd5a0335ef35f",
+      "phase": "expansion",
+      "family": "transport-routing",
+      "baseline_reward": 0.6453994027122872,
+      "reference_reward": 0.7796350421056351,
+      "sample_rewards": [
+        0.773962989081379,
+        0.7796350421056351,
+        0.24000111094597049
+      ],
+      "feasible_samples": 2,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.7804416922611148,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "c7bff87674faca54a2c4432872b5952f85bc2f75a99d8f85bc6e9f7c320d644c",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-22df180eb17d",
+          "reward": 0.7804416922611148,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "ee23dc77839d597e9e0706ef621d32f49b0da055d2428f24da75e9aac54f1a3e"
+        }
+      ],
+      "algorithmic_structure": "Choose a depot-to-depot sequence of directed road traversals and pickup/drop actions. Each labeled request must be picked up before delivery, with no more than the vehicle capacity carried at once. Minimize total road length; feasible tours receive an instance-normalized score based on directed shortest-path distances.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-combinatorial-design-parity-kernel-distance",
+      "bundle_hash": "sha256:65c50e4262dc4052b18d568160548d07081e6e30d90cc3b14b60104cdab3e33b",
+      "phase": "expansion",
+      "family": "combinatorial-design",
+      "baseline_reward": 0.2770966351338707,
+      "reference_reward": 0.739028020246072,
+      "sample_rewards": [
+        0.739028020246072,
+        0.7377258810217183,
+        0.7365088664803101
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.7404656550940085,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "a8d17b797acb18f882d45c820fe539c168aed8510b9fe0f809aef85c6b584af2",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 14,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-65c50e4262dc",
+          "reward": null,
+          "exception_type": "ProviderOutputError",
+          "exception_message": "Responses output incomplete: {'reason': 'max_output_tokens'}",
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "a577ce869b1333a63c1332432284fbb99afc988ed01693bcd671e16bf9cc599a"
+        },
+        {
+          "trial_id": "fs-family-65c50e4262dc-retry",
+          "reward": 0.7404656550940085,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 8192,
+          "max_turns": 8,
+          "result_sha256": "e906657449db1f2e8c4471c21ebce94a81819e451a62ea48e71dbaf56592aac5"
+        }
+      ],
+      "algorithmic_structure": "Choose a nonzero binary vector in the kernel of H over GF(2). Maximize the sum of unary rewards for its chosen bits and weights of edges crossing between opposite bits. Valid vectors receive that value divided by the sum of per-vertex maximum unary rewards and all edge weights, with a score of 1 when this bound is zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-compiler-optimization-weighted-interval-spills",
+      "bundle_hash": "sha256:705fbf462179e3089ff87c70f0943433845b8c8dc4346dfb234de19949697319",
+      "phase": "expansion",
+      "family": "compiler-optimization",
+      "baseline_reward": 0.43213605074899514,
+      "reference_reward": 0.5784570226482393,
+      "sample_rewards": [
+        0.5734049580047841,
+        0.5768599251877559,
+        0.5784570226482393
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "8bd8317f4f1e79c1bf0a39b2f2fe24bfa2f25c9b19040bc60603e666fdfb30fd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Assign each value either one of R registers or a spill. Intersecting inclusive intervals cannot share a register. The objective is to maximize earned spill costs for unspilled values plus bonuses for affinity pairs whose assigned registers satisfy their specified same/different relation; the score divides that total by the sum of all available costs and bonuses.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-energy-systems-head-dependent-hydro",
+      "bundle_hash": "sha256:7ce0b2e463749233df2303a9bfe8e1ded23700e3566ba3d4addd8b9c5cf8b121",
+      "phase": "expansion",
+      "family": "energy-systems",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.3819893372483853,
+      "sample_rewards": [
+        0.37915202070858456,
+        0.3819893372483853,
+        0.3810562232560549
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "afdb84ad1e9c04ad815450c5e2f3cfa0831b3a36027c14d5a188c724f218c558",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose one idle, pump, or release action per slot across all reservoirs, respecting level bounds and restoring every initial level at the end. Maximize release earnings minus pumping costs; the score divides nonnegative net earnings by a fixed upper bound computed from separate per-reservoir dynamic programs.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-geometric-layout-convex-triangulation-cost",
+      "bundle_hash": "sha256:5e82c3994a186680b84fca3ecf4cef2cf5e856d64382894740ed2442aae2ff85",
+      "phase": "expansion",
+      "family": "geometric-layout",
+      "baseline_reward": 0.4842098375670148,
+      "reference_reward": 0.8833758746660907,
+      "sample_rewards": [
+        0.8818889426868098,
+        0.8816860758426494,
+        0.8833758746660907
+      ],
+      "feasible_samples": 3,
+      "cases": 16,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.8827876963652929,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "be41c04e77526b3fc854e5a24e96c5c30ad84b744e012186c2978291e31891f8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 16,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-763455e448a5d0bf-rollout",
+          "reward": 0.8827876963652929,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "ad4b9c1281e5febfec945b06ac06e4a9a7735b69bc36acda638897236fc75357"
+        }
+      ],
+      "algorithmic_structure": "Choose exactly n\u22123 distinct, noncrossing diagonals of a strictly convex polygon. Minimize the sum of squared diagonal lengths and a weighted squared penalty for deviations between each vertex\u2019s diagonal degree and its target. Feasible triangulations receive a score scaled by the cheapest fan triangulation\u2019s cost.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-logic-constraints-nearest-circuit-input",
+      "bundle_hash": "sha256:1a7aba0d5768a467a63b60343eedc564aff751121936811dc86f9418b50206a3",
+      "phase": "expansion",
+      "family": "logic-constraints",
+      "baseline_reward": 0.13204241695852892,
+      "reference_reward": 0.6183855885429271,
+      "sample_rewards": [
+        0.6183855885429271,
+        0.5581559955004319,
+        0.6179433354981756
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "21fa2f894e6bd0c58e03366de758905e45790bd1b356776b1de624d487b69c61",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose an n-bit assignment that makes an ordered Boolean circuit\u2019s output equal the target, minimizing Hamming distance from the baseline. The supplied witness guarantees feasibility. Each valid assignment earns a score determined by its distance relative to the witness\u2019s distance; invalid assignments earn zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-network-design-outgoing-cut",
+      "bundle_hash": "sha256:a85081e5f8821ea1571f030fb551055d97fd5d6e8dd11241fbf4edfaa86a6c46",
+      "phase": "expansion",
+      "family": "network-design",
+      "baseline_reward": 0.7673659823437696,
+      "reference_reward": 0.878817248294646,
+      "sample_rewards": [
+        0.8557227220163849,
+        0.878817248294646,
+        0.8787443043720513
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "b80279f266043b0ee3c98af7121e8a5e089cb833236bd110c45096c8eeb41420",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose exactly q vertices, including s and excluding t, to minimize the capacity of directed arcs leaving the chosen set. The score is 1 minus that cut cost divided by the capacity of eligible arcs, with score 1 when the denominator is zero. Outputs must list the chosen vertices in ascending order.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-numerical-approximation-weighted-scalar-bins",
+      "bundle_hash": "sha256:84c0d3639e4c8a3776506a935002165b24fc5b331d684c89e840dcb2dd34d659",
+      "phase": "expansion",
+      "family": "numerical-approximation",
+      "baseline_reward": 0.5833333333333334,
+      "reference_reward": 0.8151448892830122,
+      "sample_rewards": [
+        0.8136477953513044,
+        0.8145985653509767,
+        0.8151448892830122
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "124f8326ec33a9ddc6137f627ab618dda41d8ee94d7d298cf99f441b230986db",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose exactly k nonempty contiguous bins independently for each of m sequences and an integer level from 0 to 63 for each bin. Minimize weighted squared reconstruction error plus weighted penalties for failing to preserve linked differences between sequences at the same position. The score compares that error with a fixed, input-derived equal-width-bin reference.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-scheduling-preemptive-deadline-rewards",
+      "bundle_hash": "sha256:afcc1a10a528cd4085797943755d2c69c15b7600e97bd33797cdebf283116d30",
+      "phase": "expansion",
+      "family": "scheduling",
+      "baseline_reward": 0.09106665571542805,
+      "reference_reward": 0.2931469697370104,
+      "sample_rewards": [
+        0.2855387583093936,
+        0.2931469697370104,
+        0.28920488810085365
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "646568c7a92e6f0fa1ca8fc3f62b101e03ae799775dc72bf59c6157c6dd78f63",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose at most one job per time slot within its release\u2013deadline window, with no job receiving more than its processing requirement. Jobs may be preempted; only fully processed jobs earn rewards. Maximize earned rewards minus a cost for each change between consecutive non-idle job assignments, with idle slots preserving the previous job\u2019s identity.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-search-structures-bit-test-membership",
+      "bundle_hash": "sha256:601342c75397f9385b33ac00743d0a076636ac39788834a333a112296ef91832",
+      "phase": "expansion",
+      "family": "search-structures",
+      "baseline_reward": 0.08333333333333333,
+      "reference_reward": 0.7440452307825008,
+      "sample_rewards": [
+        0.7282786600366863,
+        0.7254916563198353,
+        0.7440452307825008
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.7348217297827789,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "a509cdd3c6279711d33adf45aa783e28c1ce8e79af7258d54841f4a731e0fdfd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "rollout_feasible_cases": 12,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-601342c75397",
+          "reward": 0.7348217297827789,
+          "exception_type": null,
+          "exception_message": null,
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "aa5239e95f8651c3a57afe851e8e5e8bfa7d2cc2ccca15c6082fd46036187591"
+        }
+      ],
+      "algorithmic_structure": "Construct a binary decision tree that tests bit positions and correctly labels every listed string. Both children must exist at each test, with at most L tests per path and a bounded total node count. The objective is to minimize the sum of item weights times their test depths; the score normalizes this cost by L times total weight, or is 1 when all weights are zero.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-sequence-reordering-parallel-swap-rounds",
+      "bundle_hash": "sha256:d9f4154872f61ee4573e51c1fd65a2b5a3e4800eeeb52c6ca3ac90ba17e8da42",
+      "phase": "expansion",
+      "family": "sequence-reordering",
+      "baseline_reward": 0.2726440663939235,
+      "reference_reward": 0.3984796954080066,
+      "sample_rewards": [
+        0.3984796954080066,
+        0.3981574462755745,
+        0.39717552821314317
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "failed",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "f88a1ffd2004e608ed124df0474a897a6644661fad1cfa5beac22fdf8dfcede8",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [
+        {
+          "trial_id": "fs-family-d9f4154872f6",
+          "reward": null,
+          "exception_type": "RuntimeError",
+          "exception_message": "Command timed out after 5 seconds",
+          "max_output_tokens": 4096,
+          "max_turns": 8,
+          "result_sha256": "14ac05e8af70a718268940065fa4a31984d5b6b79696a588c667feeea067a6e9"
+        }
+      ],
+      "algorithmic_structure": "Choose rounds of nonoverlapping adjacent swaps, each inverted when performed, to sort a permutation. Each round costs the setup fee plus its maximum selected toll plus the sum of selected tolls. The score divides an instance-only lower bound on total cost by the cost of a valid schedule; a sorted input scores 1.",
+      "contract_review": "no_concrete_blocker_found"
+    },
+    {
+      "task": "frontiersmith-strings-compression-bounded-prefix-code",
+      "bundle_hash": "sha256:7a31344ba6f9efb963e16a6e19932c66c4389ccfd707c00f2fb47f7a150645c2",
+      "phase": "expansion",
+      "family": "strings-compression",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.6916683542388249,
+      "sample_rewards": [
+        0.6916683542388249,
+        0.6395787284283867,
+        0.6126128096429262
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run",
+      "rollout_reward": null,
+      "generator_seeds_checked": [
+        42,
+        43,
+        44
+      ],
+      "generator_smoke_scope": "construction verifier",
+      "instruction_sha256": "58f85202d15c91e2b8be12f20ff1a6e9f372dde18a1c352f7ae6ff5ae38e49cd",
+      "post_construction_repaired": false,
+      "repair_parent_bundle_hash": null,
+      "blind_rollout_attempts": [],
+      "algorithmic_structure": "Choose one bounded-length binary codeword per symbol so that the code is prefix-free. Minimize frequency-weighted length, one-bit and internal-flip costs, plus a directed pair-weighted cost when one codeword\u2019s last bit differs from the next codeword\u2019s first bit. Valid solutions receive a score relative to a fixed-width baseline.",
+      "contract_review": "no_concrete_blocker_found"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # RFC 0032: FrontierSmith optimization synthesis
 
-**Status:** experimental implementation; ten-task local pilot completed
+**Status:** experimental implementation; 100-task local collection completed
 
 **Author:** adithya-s-k
 
@@ -65,11 +65,12 @@ flowchart TD
    Baseline and at least two samples must be feasible on every case, including
    valid zero-reward outputs. A reference is best among samples, not necessarily optimal. Errors do not count
    as evidence of task difficulty.
-7. **Export:** use the shared content-bound Harbor emitter. Preserve raw diagnostics,
+7. **Rollout:** optionally run the shared Responses coding agent. Report its score
+   independently; do not edit the task to make that agent succeed. A failed rollout
+   remains recorded and does not discard a construction-checked task.
+8. **Export:** use the shared content-bound Harbor emitter. Preserve raw diagnostics,
    request/response receipts and scores outside learner-visible task files.
-8. **Rollout:** optionally run the shared Responses coding agent. Report its score
-   independently; do not edit the task to make that agent succeed. Construction
-   checks alone do not imply the repository's full `verified` quality label.
+   Construction checks alone do not imply the repository's full `verified` label.
 
 ## Reproduction boundaries
 
@@ -85,6 +86,12 @@ The paper's default baseline-improvement normalization is one possible formula.
 The implementation requires each task to publish its exact bounded score formula;
 the checker must match that formula. No-op always scores zero; a feasible baseline
 may have positive reward. No generic oracle-equals-one assertion is used.
+
+The shared quality/repair loop still expects both the oracle and valid-alternative
+probes to reach a fixed `success_reward`. It is not the acceptance path for this
+recipe: changing the constant alone cannot represent graded feasible alternatives.
+An optimization-aware full-quality profile remains outside this implementation.
+The recipe's construction evidence must not be promoted using the binary profile.
 
 ## Isolation and reliability
 
@@ -112,11 +119,28 @@ Unit tests cover schema rejection, discovery, Harbor parsing, private asset
 placement, immutable resume, score-vector alignment, nonfinite rewards and durable
 budget reservations. The cloud pilot must demonstrate actual task execution and
 record yield, reasons for rejection, token costs and worker cost separately.
-The pilot produced ten selected construction-checked environments from fifteen
-candidate attempts; one further export needs repair. One final-bundle blind
-rollout completed. All ten retain unverified quality labels. Full quality
-acceptance and publication are separate decisions. See the walkthrough for scores,
-measured cost, failures and the development-campaign limitations.
+The collection produced 100 selected construction-checked environments from
+153 candidate attempts across 152 distinct original seeds. It combines
+ten retained development-pilot tasks with ninety exports from the fixed expansion
+recipe, covering twenty problem families. All received a separate static contract
+review; two generators required evidence-bound post-construction repair. Collection
+diversity review found no unresolved duplicate formulations.
+
+Twenty-four final bundles had blind rollout attempts; twenty-one completed and were
+feasible on every graded case, while three stopped on agent-command timeouts.
+Two truncated responses needed fresh attempts with larger output allowances. The
+remaining seventy-six tasks have construction evidence only. All one hundred retain
+unverified labels. Full quality acceptance and publication are separate decisions.
+See the [measured collection](../pipelines/frontiersmith.md#measured-100-task-collection)
+for costs, failures, exact bundle identities and assisted-campaign limitations.
+
+Post-campaign implementation fixes make optional rollouts respect the configured
+output allowance and record the exception type for uncertain author requests.
+Live connection errors now skip the affected candidate while retaining its
+reservation and diagnosis; they never redispatch that request. Previously unresolved
+receipts still block resume until reconciled.
+The collection manifest preserves the earlier generation revision and wheel hash;
+these fixes do not rewrite the tested task bundles.
 
 ## Implementation
 

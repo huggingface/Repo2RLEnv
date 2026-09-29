@@ -81,7 +81,8 @@ def test_generator_rejects_invalid_or_unstable_case_sets():
         generated_cases(SimpleNamespace(generate=lambda seed: next(values)), 42)
 
 
-def test_exhausted_artifact_repairs_do_not_abort_other_seeds(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure_mode", ["artifact", "connection", "timeout"])
+def test_candidate_failures_continue_to_other_seeds(tmp_path, monkeypatch, failure_mode):
     from datetime import UTC, datetime
 
     from repo2rlenv.pipelines.recipes.frontiersmith import pipeline
@@ -147,15 +148,56 @@ def test_exhausted_artifact_repairs_do_not_abort_other_seeds(tmp_path, monkeypat
     monkeypatch.setattr(pipeline, "connect_worker", lambda *args: object())
     monkeypatch.setattr(pipeline, "prepare_docker", lambda worker: None)
     monkeypatch.setattr(pipeline, "install_runtime", lambda *args: "a" * 64)
-    monkeypatch.setattr(pipeline, "author", invalid)
+    if failure_mode == "artifact":
+        monkeypatch.setattr(pipeline, "author", invalid)
+    else:
+        import httpx
+        from openai import APIConnectionError, APITimeoutError
+
+        class Client:
+            def __init__(self, **kwargs):
+                self.responses = self
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def create(self, **kwargs):
+                calls.append(kwargs)
+                error = APITimeoutError if failure_mode == "timeout" else APIConnectionError
+                raise error(request=httpx.Request("POST", "https://api.openai.com/v1/responses"))
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-not-a-real-key")
+        monkeypatch.setattr("openai.OpenAI", Client)
     options = parse_options(
         "optimization_synth", {"target": 1, "max_candidates": 2}, recipe="frontiersmith"
     )
     pipeline.FrontierSmithPipeline(spec, options).run(tmp_path / "tasks")
     record = json.loads((campaign / "runs/fixture/run.json").read_text())
     assert record["state"] == "completed"
-    assert record["skipped"] == {"one": "invalid_model_artifact", "two": "invalid_model_artifact"}
-    assert len(calls) == 6
+    reason = (
+        "invalid_model_artifact" if failure_mode == "artifact" else "provider_response_unavailable"
+    )
+    assert record["skipped"] == {"one": reason, "two": reason}
+    assert len(calls) == (6 if failure_mode == "artifact" else 2)
+    if failure_mode != "artifact":
+        status = ledger.status()
+        assert len(status["operations"]) == 2
+        assert all(op["status"] == "uncertain" for op in status["operations"])
+        assert status["reserved_usd"] != "0.000000"
+        for seed in ("one", "two"):
+            failure = json.loads(
+                (campaign / "runs/fixture/candidates" / seed / "failure.json").read_text()
+            )
+            assert failure["reason"] == reason
+            assert failure["exception_type"] == (
+                "APITimeoutError" if failure_mode == "timeout" else "APIConnectionError"
+            )
+            assert failure["uncertain_operations"] == [
+                f"frontiersmith:fixture:{seed}:mutate-0-format-0"
+            ]
 
 
 def test_export_is_parseable_private_and_content_bound(tmp_path):
@@ -243,6 +285,8 @@ def test_model_receipt_resume_never_redispatches(tmp_path, monkeypatch):
 
 
 def test_transport_error_preserves_reservation(tmp_path, monkeypatch):
+    calls = []
+
     class Client:
         def __init__(self, **kwargs):
             self.responses = self
@@ -254,6 +298,7 @@ def test_transport_error_preserves_reservation(tmp_path, monkeypatch):
             return False
 
         def create(self, **kwargs):
+            calls.append(kwargs)
             raise TimeoutError("lost response")
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-not-a-real-key")
@@ -273,7 +318,11 @@ def test_transport_error_preserves_reservation(tmp_path, monkeypatch):
     assert ledger.status()["operations"][0]["status"] == "uncertain"
     with pytest.raises(ValueError, match="Reconcile"):
         author(spec, Review, resume=True, **kwargs)
-    assert json.loads((tmp_path / "call.json").read_text())["state"] == "dispatched"
+    receipt = json.loads((tmp_path / "call.json").read_text())
+    assert receipt["state"] == "uncertain"
+    assert receipt["exception_type"] == "TimeoutError"
+    assert ledger.status()["reserved_usd"] != "0.000000"
+    assert len(calls) == 1
 
 
 def test_invalid_received_output_is_charged_and_not_redispatched(tmp_path, monkeypatch):

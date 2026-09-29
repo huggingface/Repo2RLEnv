@@ -147,8 +147,9 @@ def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
         raise ValueError("FrontierSmith counts, labels or costs disagree")
     rollouts = sum(task["rollout_status"] == "completed" for task in row["tasks"])
     if row.get("measurement_kind") == "pilot_and_expansion":
-        if Decimal(row["reserved_usd"]) != 0 or not row["all_workers_terminated"]:
-            raise ValueError("The final campaign report still has live workers or reservations")
+        if not row["all_workers_terminated"]:
+            raise ValueError("The final campaign report still has live workers")
+        unknown = Decimal(row["reserved_usd"])
         releases = [
             f"[FrontierSmith](frontiersmith.md#measured-100-task-collection) has **{n} local construction-checked Harbor tasks** across {len(row['families'])} problem families, measured {row['measured_on']}. All retain `unverified` labels; {rollouts}/{n} final bundles have a completed blind OpenAI rollout. These artifacts have not been published and are excluded from the totals above.",
             "",
@@ -162,7 +163,8 @@ def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
             "|---|---:|---:|",
             f"| Recorded API usage | ${model:.2f} | ${model / n:.3f} |",
             f"| Estimated compute | ${compute:.2f} | ${compute / n:.3f} |",
-            f"| Combined | ${total:.2f} | ${total / n:.3f} |",
+            f"| Accounted combined | ${total:.2f} | ${total / n:.3f} |",
+            f"| Unknown API charges reserved separately | ${unknown:.2f} | ${unknown / n:.3f} |",
             "",
             "| Measurement scope | Attempts | Initial exports | Selected | Combined cost |",
             "|---|---:|---:|---:|---:|",
@@ -171,12 +173,35 @@ def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
             costs.append(
                 f"| {phase['name']} | {phase['candidate_attempts']} | {phase['initial_exports']} | {phase['selected_tasks']} | ${Decimal(phase['total_usd']):.2f} |"
             )
+        stage_names = {
+            "seed_authoring": "Original seed descriptions",
+            "formulation_and_review": "Task formulation and review",
+            "baseline_and_sampled_programs": "Baseline and sampled programs",
+            "semantic_diversity_review": "Sample algorithm diversity review",
+            "infrastructure_and_bounded_repair": "Test infrastructure and bounded repair",
+            "blind_rollouts": "Blind agent rollouts",
+            "collection_contract_review": "Finished-task contract review",
+            "collection_diversity_review": "Collection diversity review",
+            "post_construction_repair": "Post-construction generator repair",
+            "other_development_calls": "Other development calls",
+        }
+        costs.extend(
+            [
+                "",
+                "| Model-call stage | Recorded API cost |",
+                "|---|---:|",
+                *[
+                    f"| {stage_names.get(stage, stage)} | ${Decimal(amount):.2f} |"
+                    for stage, amount in row["model_costs_by_stage"].items()
+                ],
+            ]
+        )
         costs.extend(
             [
                 "",
                 f"Costs include original seed authoring, failed candidates, bounded repair, construction trials, collection reviews and sample rollouts. The ten-task development pilot used evolving checks; the expansion used the recorded fixed recipe. This is a measured assisted campaign, not a guarantee of future yield. {rollouts}/{n} selected bundles have blind rollout evidence; full quality acceptance remains pending.",
                 "",
-                "Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated and reservations settled. See the [collection audit](frontiersmith.md#measured-100-task-collection) and [machine-readable results](../data/frontiersmith-campaign.json).",
+                "Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated. Lost API responses retain their conservative reservations rather than being counted as free or silently retried. See the [collection audit](frontiersmith.md#measured-100-task-collection) and [machine-readable results](../data/frontiersmith-campaign.json).",
                 "",
             ]
         )
