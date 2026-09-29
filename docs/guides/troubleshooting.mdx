@@ -206,9 +206,9 @@ These apply to research recipes, Tasksmith and the quality loop. [Remote executi
 
 ### Variables in `.env` aren't picked up
 
-**Cause.** The CLI looks for `.env` starting from the directory of the installed package, not your working directory. With a global tool install (`uv tool install`, `pipx`), a `.env` in your project isn't found.
+**Cause.** The CLI looks for `.env` in the directory you run it from and its parents, so a `.env` in a sibling or child directory isn't found. A variable that is already set in your shell, even to an empty value, wins over the file, and `PYTHON_DOTENV_DISABLED=1` turns loading off.
 
-**Fix.** Export the variables in your shell (`set -a; . ./.env; set +a`), run from a source checkout with `uv run`, or pass `--env-file` where the command supports it. See [`.env` files](../reference/ENV.md#env-files).
+**Fix.** Run the command from the directory that holds `.env` (or one below it), unset the conflicting shell variable, or pass `--env-file` where the command supports it. See [`.env` files](../reference/ENV.md#env-files).
 
 ### Windows
 

@@ -121,14 +121,8 @@ Standard cross-tool env vars, honored automatically.
 
 Every `repo2rlenv` command loads a `.env` file at startup, using `python-dotenv`. Variables that are already set in your environment win: the file only fills in the ones that are missing. Start from the template in the repository with `cp .env.example .env`.
 
-The search for `.env` starts in the directory of the **installed `repo2rlenv` package** and walks up through its parents. It does not start from your current working directory, so which file is found depends on how you installed the tool:
+The search for `.env` starts in the **directory you run the command from** and walks up through its parents; the first `.env` found is the one loaded. This works the same however you installed the tool (a source checkout, a project virtual environment, `uv tool install` or `pipx`), so run commands from your project directory, or from any directory below it.
 
-| Installation | `.env` that is found |
-|---|---|
-| Source checkout (`uv run repo2rlenv …`, or an editable install) | The one at the checkout root. |
-| Into a virtual environment inside your project (`./.venv`) | The one in your project directory, found on the way up out of `.venv`. |
-| As a global tool (`uv tool install`, `pipx`) or into a shared environment | Only a `.env` in a parent directory of that environment, such as your home directory. A `.env` in the directory you run the command from is **not** loaded. |
-
-If your `.env` isn't picked up, export the variables in your shell (`set -a; . ./.env; set +a`) or use your CI runner's secret manager. `tasksmith run`, `tasksmith batch`, `tasksmith bootstrap` and `quality run` also accept `--env-file PATH`, which loads that exact file, again without overriding variables that are already set.
+If your `.env` isn't picked up, check that you're running from that directory, export the variables in your shell (`set -a; . ./.env; set +a`), or use your CI runner's secret manager. `tasksmith run`, `tasksmith batch`, `tasksmith bootstrap` and `quality run` also accept `--env-file PATH`, which loads that exact file, again without overriding variables that are already set.
 
 Set `PYTHON_DOTENV_DISABLED=1` to turn automatic loading off, for example in CI jobs that must see only their own secrets.

@@ -25,11 +25,16 @@ logger = logging.getLogger("repo2rlenv")
 
 
 def _load_dotenv_if_present() -> None:
-    """Load .env so OPENAI_API_KEY / ANTHROPIC_API_KEY / HF_TOKEN are available."""
-    try:
-        from dotenv import load_dotenv
+    """Load .env so OPENAI_API_KEY / ANTHROPIC_API_KEY / HF_TOKEN are available.
 
-        load_dotenv()
+    The search starts in the working directory: a bare `load_dotenv()` starts from
+    this module's install location, which misses the user's `.env` under
+    `uv tool install` or any venv outside the project.
+    """
+    try:
+        from dotenv import find_dotenv, load_dotenv
+
+        load_dotenv(find_dotenv(usecwd=True))
     except ImportError:
         pass
 

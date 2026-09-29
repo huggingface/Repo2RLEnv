@@ -43,9 +43,6 @@ def cmd_campaign(args: argparse.Namespace) -> int:
 
 
 def cmd_workers(args: argparse.Namespace) -> int:
-    from dotenv import load_dotenv
-
-    load_dotenv()
     if args.worker_action == "start":
         ledger = BudgetLedger(args.campaign / "budget.sqlite3")
         spec = WorkerSpec(

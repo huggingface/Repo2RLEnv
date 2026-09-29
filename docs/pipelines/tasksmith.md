@@ -60,7 +60,7 @@ Read the exact author prompts for [investigation](prompts/tasksmith.md#investiga
 
 ## Run one PR
 
-You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent runtime), and `gh` on `PATH` and signed in, since intake reads PRs through it. You also need Modal or Daytona credentials and `ANTHROPIC_API_KEY`. Put the keys in `.env` at the checkout root; the CLI loads it automatically. See [Remote execution](../guides/remote-execution.mdx#connect-a-provider) and [Authentication](../reference/AUTH.md).
+You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent runtime), and `gh` on `PATH` and signed in, since intake reads PRs through it. You also need Modal or Daytona credentials and `ANTHROPIC_API_KEY`. Put the keys in `.env` in the directory you run the CLI from; the CLI loads it automatically. See [Remote execution](../guides/remote-execution.mdx#connect-a-provider) and [Authentication](../reference/AUTH.md).
 
 1. Install from a checkout with the Tasksmith, provider and Harbor extras. Use `--extra modal` instead of `--extra daytona` for Modal, which GPU tasks require.
 
