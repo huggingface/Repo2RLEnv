@@ -132,13 +132,13 @@ That's a structured task with its own walkthrough — see [**`docs/contributing/
 
 Releases are tag-driven and handled by `.github/workflows/release.yml`. The flow:
 
-1. Bump `version` in `pyproject.toml` (e.g. `0.3.0` → `0.4.0`), run `uv lock` to update the lock's project version, and update the release notes. The `__version__` and `repo2rlenv --version` output read from package metadata, so no separate version constant needs editing.
+1. Bump `version` in `pyproject.toml` (default: a patch increment, e.g. `0.9.2` → `0.9.3`; use a minor or major bump only when explicitly requested), run `uv lock` to update the lock's project version, and update the release notes. The `__version__` and `repo2rlenv --version` output read from package metadata, so no separate version constant needs editing.
 2. Commit + push to `main`. CI confirms tests still pass.
-3. Tag: `git tag v0.4.0 && git push origin v0.4.0`.
-4. Create a GitHub Release pointing at the tag: `gh release create v0.4.0 --generate-notes` (or use the web UI).
+3. Tag: `git tag v0.9.3 && git push origin v0.9.3`.
+4. Create a GitHub Release pointing at the tag: `gh release create v0.9.3 --generate-notes` (or use the web UI).
 5. The `Release` workflow auto-fires on publication, runs the test matrix one more time against the tag, builds sdist + wheel, publishes to PyPI via `PYPI_API_TOKEN`, and attaches the dist files to the GitHub Release.
 
-If the publish step fails (auth, network, etc.), you can re-trigger it manually via `gh workflow run Release --ref v0.4.0 -f tag=v0.4.0` without needing to retag. PyPI's `skip-existing: true` flag means a partial-success rerun won't double-publish.
+If the publish step fails (auth, network, etc.), you can re-trigger it manually via `gh workflow run Release --ref v0.9.3 -f tag=v0.9.3` without needing to retag. PyPI's `skip-existing: true` flag means a partial-success rerun won't double-publish.
 
 ## Acknowledging external work
 

@@ -45,8 +45,8 @@ Repository / PR / task seed
 Generation methods have different checks. The shared quality workflow can review
 and repair emitted tasks; exporting a task alone does not establish its quality.
 
-**New in 0.9.2:** CodeMidas source reconstruction, portable validation evidence,
-and runtime/verifier fixes. See the [release notes](docs/release_notes/HISTORY.md#v092--codemidas-and-runtime-correctness).
+**New in 0.9.3:** FrontierSmith optimization synthesis, a documented 100-task
+collection, and runtime test-parser fixes. See the [release notes](docs/release_notes/HISTORY.md#v093--frontiersmith-optimization-synthesis).
 
 ## Quickstart
 

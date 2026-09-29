@@ -1,6 +1,6 @@
 # RFC 0032: FrontierSmith optimization synthesis
 
-**Status:** experimental implementation; 100-task local collection completed
+**Status:** implemented for 0.9.3; experimental; 100-task local collection completed
 
 **Author:** adithya-s-k
 

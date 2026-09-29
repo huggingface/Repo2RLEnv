@@ -18,7 +18,7 @@ execution:
   campaign_dir: workspace/frontiersmith
   run_id: pilot
   worker_receipt: workspace/frontiersmith/workers/frontiersmith-pilot.json
-  runtime_wheel: dist/repo2rlenv-0.9.2-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.3-py3-none-any.whl
   timeout_sec: 14400
 output:
   destination: workspace/frontiersmith/tasks
