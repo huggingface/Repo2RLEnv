@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 
@@ -50,3 +51,33 @@ def test_dotenv_loading_can_be_disabled(project, monkeypatch):
     monkeypatch.chdir(project)
     _run_cli()
     assert PROBE not in os.environ
+
+
+def test_undecodable_dotenv_warns_instead_of_failing(project, monkeypatch, capsys):
+    (project / ".env").write_bytes(f"{PROBE}=caf\xe9\n".encode("latin-1"))
+    monkeypatch.chdir(project)
+    _run_cli()
+    result = capsys.readouterr()
+    assert result.out.startswith("repo2rlenv ")
+    assert "could not load" in result.err
+    assert PROBE not in os.environ
+
+
+def test_unreadable_dotenv_warns_instead_of_failing(project, monkeypatch, capsys):
+    dotenv = project / ".env"
+    dotenv.chmod(0)
+    if os.access(dotenv, os.R_OK):
+        pytest.skip("permissions are not enforced for this user or platform")
+    monkeypatch.chdir(project)
+    try:
+        _run_cli()
+    finally:
+        dotenv.chmod(0o600)
+    assert "could not load" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows cannot remove the working directory")
+def test_deleted_working_directory_is_not_fatal(project, monkeypatch):
+    monkeypatch.chdir(project / "nested")
+    (project / "nested").rmdir()
+    _run_cli()

@@ -33,10 +33,18 @@ def _load_dotenv_if_present() -> None:
     """
     try:
         from dotenv import find_dotenv, load_dotenv
-
-        load_dotenv(find_dotenv(usecwd=True))
     except ImportError:
-        pass
+        return
+    try:
+        path = find_dotenv(usecwd=True)
+    except OSError:  # the working directory no longer exists
+        return
+    # Any parent of the working directory can supply the file, so a bad one must
+    # not take down every command, --help and --version included.
+    try:
+        load_dotenv(path)
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("could not load %s: %s", path, exc, extra={"markup": False})
 
 
 def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
