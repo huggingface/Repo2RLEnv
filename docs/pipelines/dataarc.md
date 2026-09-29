@@ -1,4 +1,6 @@
-# `terminal_synth / dataarc`
+---
+title: "dataarc"
+---
 
 This DataArc-inspired recipe augments complete Harbor tasks with few-shot,
 self-instruct, in-depth evolution and in-breadth evolution. Recipe version 2

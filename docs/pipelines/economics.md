@@ -1,4 +1,6 @@
-# Yield and cost per task
+---
+title: "Yield and cost per task"
+---
 
 Observed samples measured on **2026-09-14**. Use these as measured examples, not price guarantees. A task is one exported Harbor environment; an export is not independent quality acceptance.
 

@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from frontmatter import with_title
+
 ROOT = Path(__file__).resolve().parents[2]
 RECIPES = ROOT / "src/repo2rlenv/pipelines/recipes"
 OUTPUT = ROOT / "docs/pipelines/prompts"
@@ -227,7 +229,7 @@ def pages() -> dict[str, str]:
     expected["shared_terminal.md"] = shared()
     expected["quality_loop.md"] = quality_loop()
     expected["tasksmith.md"] = tasksmith()
-    return expected
+    return {name: with_title(text) for name, text in expected.items()}
 
 
 def generate(output: Path = OUTPUT, *, check: bool = False) -> int:

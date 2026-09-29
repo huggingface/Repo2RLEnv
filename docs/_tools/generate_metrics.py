@@ -7,6 +7,8 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+from frontmatter import with_title
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -356,7 +358,10 @@ def render(data: dict, frontiersmith: dict | None = None) -> dict[str, str]:
         "Publication checks for those 15 datasets compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).",
         "",
     ]
-    return {"economics.md": "\n".join(economics), "releases.md": "\n".join(releases)}
+    return {
+        "economics.md": with_title("\n".join(economics)),
+        "releases.md": with_title("\n".join(releases), nav_title="Published datasets"),
+    }
 
 
 def main() -> None:

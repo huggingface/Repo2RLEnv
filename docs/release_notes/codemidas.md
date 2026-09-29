@@ -1,4 +1,7 @@
-# CodeMidas — v0.9.2 release notes and dataset audit
+---
+title: "CodeMidas — v0.9.2 release notes and dataset audit"
+navTitle: "CodeMidas (0.9.2)"
+---
 
 [PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165) was merged at
 `8d3c2cf319b293611de1ba3823409353e77ff148`. CodeMidas ships as an experimental

@@ -1,198 +1,240 @@
-# `cve_patches`
+---
+title: "cve_patches"
+description: "Turn published security advisories into tasks where the agent patches a real vulnerability and a regression test decides the reward."
+film: cve-patches
+---
 
-Map OSV vulnerability records to fixing commits in the target repo,
-replay the pre-fix state in a sandbox, and emit a Harbor task whose
-oracle is the upstream security patch.
+Each task is a published vulnerability in the target repository: the agent gets
+the advisory with every pointer to the fix removed and patches the code at the
+commit before the fix. The reward comes from a regression test that fails on the
+vulnerable code and passes on the fixed code: the fix commit's own test when it
+ships one, otherwise a proof-of-concept (PoC) test that an LLM agent writes in the
+vulnerable sandbox. Advisories come from [OSV](https://osv.dev), which links each
+one to its fixing commit.
+
+## At a glance
 
 | | |
 |---|---|
-| Status | **experimental** — Python ecosystem |
-| Sandbox required at gen | Yes |
-| LLM required at gen | For bootstrap always; the pipeline also calls the LLM to synthesize a PoC regression test when a CVE ships no test (`synthesize_poc_test`, default on) |
-| Reward kinds emitted | `test_execution`, `diff_similarity` |
-| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) — 19 tasks in the cached manifest; [cohort validation evidence unavailable](native_results.md#cve-patches) |
-| Inspiration | [PatchSeeker](https://github.com/hungkien05/PatchSeeker), CVE-Bench (NAACL '25) |
+| Input | A GitHub repository whose package has advisories in OSV that link fix commits in that repository |
+| Task | Patch the vulnerability described by a stripped advisory, starting from the parent of the fix commit |
+| Reward | Graded `f2p_rate × p2p_rate`, plus strict `resolved` and `command_resolved` flags (the [`pr_runtime`](pr_runtime.md#reward) verifier) |
+| Needs an LLM | Yes: the one-time bootstrap (cached), and PoC test synthesis when a fix ships no test |
+| Needs Docker | Yes, for bootstrap, validation, PoC synthesis and running tasks |
+| Hosts | GitHub only |
+| Languages | Any test runner `pr_runtime` supports when the fix commit ships a test. PoC synthesis is Python only |
+| Status | Experimental |
+| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches): 19 tasks from six repositories |
 
-## Why this pipeline matters
-
-Lots of *datasets* of CVE-fix pairs exist (PatchSeeker covers 5K CVEs;
-PATCHEVAL has 1K). What didn't exist before v0.7: a **reusable pipeline**
-that takes a repo + the OSV vuln database and turns the pair into
-Repo2RLEnv-shaped tasks. Plenty of paper-only artifacts; no library —
-until now.
-
-## Algorithm
-
-```mermaid
-flowchart TD
-    A[Repo URL] --> B[OSV API:<br/>POST /v1/query]
-    B --> C[Filter by severity + must have<br/>github commit in references]
-    C --> D{For each vuln}
-    D --> E[gh api: fetch parent SHA + commit diff]
-    E --> F[Split into patch + test_patch]
-    F --> G{Has test_patch?}
-    G -- yes --> H[Reuse pr_runtime_validate<br/>F2P/P2P inside bootstrap]
-    G -- no --> P[Synthesize a PoC regression test<br/>agentic LLM in the sandbox]
-    P --> H
-    H --> K{F2P oracle?}
-    K -- yes --> J[Emit Harbor task<br/>instruction=leak-stripped CVE symptom;<br/>oracle=fix diff]
-    K -- no --> X[Skip: no_verifiable_oracle]
-```
-
-## Data source: OSV (Open Source Vulnerabilities)
-
-We hit OSV's public `/v1/query` endpoint with `{"package": {"name": <pkg>,
-"ecosystem": <eco>}}`. The response includes vulns for the target package
-across CVE / GHSA / PYSEC identifiers, with structured `references[]`
-that often link directly to fix commits.
-
-Why OSV (vs NVD or GitHub Security Advisories):
-- No auth required (free, no API key)
-- Pre-resolves CVE → fix-commit URLs in `references[]` (saves us from
-  building a PatchSeeker-style LLM mapper)
-- Covers PyPI / npm / crates.io / Go / Maven / Debian / Alpine / ...
-- Records are cross-linked (a single OSV id often carries CVE + GHSA + PYSEC aliases)
-
-## Filters
-
-1. Severity ≥ `min_severity` (default `low`; CVSS-like ranks)
-2. At least one `references[].url` of the form
-   `https://github.com/<owner>/<repo>/commit/<sha>` matching the
-   target repo (handles fork URLs gracefully — they're rejected)
-3. `gh api commits/<sha>` resolves to a parent (skip root commits)
-4. Source patch must be non-empty (some "fix" commits are CI-only)
-5. `len(source_files) ≤ max_source_files_per_fix` (default 50)
-
-## Validation + PoC synthesis
-
-Reuses `pipelines/pr_runtime_validate.py` verbatim for the two-stage F2P/P2P
-check, with a graded reward (`f2p_rate × p2p_rate`, same as `pr_runtime`).
-
-The catch: most CVE fixes ship **no regression test in the fixing commit**, so
-the diff alone gives a 0-reward env. So when `test_patch` is empty and
-`synthesize_poc_test` is on (the default), an **LLM agent with shell access in
-the vulnerable sandbox** (`poc_agent`, default on) explores the repo, writes a
-regression test, runs it, and iterates until it fails for the vulnerability's
-reason. The pipeline then validates that synthesized test fail-pre / pass-post
-on a clean checkout. A CVE that yields no fail→pass oracle (shipped or
-synthesized) is **dropped** as `no_verifiable_oracle` rather than emitted as a
-dead 0-reward task.
-
-Anti-contamination (a published CVE fix is reachable many ways, so the
-environment enforces, it does not ask):
-- **Instruction is leak-stripped** — the CVE/GHSA id, fixing PR/commit URLs, and
-  "fixed in version X" lines are removed; the agent sees only the symptom + CWE.
-- **Git history is scrubbed** to the base commit (remove the remote, prune every
-  ref/commit past base) so `git diff origin/main` can't read the fix offline.
-- **Egress guard** — the emitted task ships an `environment/docker-compose.yaml`
-  that blackholes the package index + code host, so `pip download <pkg>==<fixed>`
-  / `git fetch github.com` / web fetches fail while the model API stays reachable.
-
-These ship with every emitted task; see `pipelines/_env_guard.py` and
-`docs/pipelines/README.md`.
-
-## Options
-
-See `CVEPatchesOptions` in `src/repo2rlenv/spec/options.py`.
-
-| Field | Default | Notes |
-|---|---|---|
-| `osv_ecosystem` | `None` (auto from owner) | `PyPI` / `npm` / `crates.io` / ... |
-| `osv_package` | `None` (= repo name lowercased) | package identifier in the ecosystem |
-| `min_severity` | `"low"` | `low` / `medium` / `moderate` / `high` / `critical` |
-| `limit` | 50 | max emitted tasks |
-| `synthesize_poc_test` | **True** | LLM-write a PoC regression test when the CVE ships none |
-| `poc_agent` | **True** | agentic synth (shell in the sandbox) vs one-shot prompt |
-| `poc_agent_max_spend_usd` | 1.5 | per-CVE budget for the agentic synthesizer |
-| `require_fail_to_pass` | **True** | with PoC synthesis we demand a real F2P oracle; CVEs without one are dropped |
-| `min_fail_to_pass` | 1 | minimum fail→pass tests |
-| `max_pass_to_pass` | 50 | cap the regression set (bounds flaky reward + runtime) |
-| `max_source_files_per_fix` | 50 | reject sprawling fixes |
-| `require_new_test_funcs` | False | security commits often don't add new tests |
-| `skip_validation` | False | emit raw without sandbox run (debug) |
-| `validation_timeout_sec` | 600 | per-candidate cap |
-
-## Yield
-
-**Yield = emitted tasks ÷ in-scope CVEs (those with a fix commit).** Expect
-**~5–25%** — the **lowest** of any pipeline, and the most repo-sensitive. A CVE
-becomes a task only if it has a **verifiable oracle**: either the fix commit
-shipped a regression test that flips fail→pass, *or* the agentic PoC synthesizer
-writes one that does. CVEs that resist a deterministic test (timing/network/
-environment-dependent) are dropped.
-
-| Knob | Default | Effect on yield |
-|---|:-:|---|
-| repo test health | — | **the dominant factor.** If the suite won't collect/run green in a slim container, yield ≈ 0. (Real pilot: `urllib3` → 0/16, tests need network; `sqlparse` → 2/4, suite clean.) |
-| `synthesize_poc_test` | True | the multiplier for no-test CVEs — off, those become 0-reward dead envs and are dropped |
-| `poc_agent` | True | agentic synth (shell in the sandbox) lands far more PoCs than the one-shot prompt fallback |
-| `require_fail_to_pass` | True | drops CVEs with no verifiable oracle (keeps the dataset honest) |
-| `min_severity` | low | ↑ shrinks the candidate pool to higher-severity CVEs |
-| `max_source_files_per_fix` | 50 | ↓ excludes sprawling fixes |
-
-Two further realities: most repos have a **bounded** number of fix-commit-bearing
-CVEs (often single digits), so you must mine **many** repos; and a published CVE
-is a contamination magnet — the emitted instruction is **leak-stripped** (no
-CVE/GHSA id, PR/commit URLs, or "fixed in vX.Y"), and solvability checks should
-run with the agent's web tools disabled.
-
-**Worked example:** at ~15% yield, 100 tasks ≈ ~670 in-scope CVEs spread over
-**15–20** CVE-rich, test-clean repos (≈5–8 emitted each). Use
-[`plans/cve_repo_scout.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/cve_repo_scout.py) to rank repos by
-fix-commit-bearing CVE count straight from the OSV dump.
-
-## `[metadata.repo2env.cve_patches]` schema
-
-```toml
-[metadata.repo2env.cve_patches]
-cve_id = "CVE-2024-49767"
-osv_id = "GHSA-q34m-jh98-gwm2"
-aliases = ["CVE-2024-49767"]
-cwe_ids = ["CWE-407"]
-severity = "HIGH"
-published = "2024-10-25T00:00:00Z"
-fix_commit = "50cfeebcb0727e18cc52ffbeb125f4a66551179b"
-parent_commit = "f8c2a3a..."
-fail_to_pass = []
-pass_to_pass = []
-validation_status = "no_test_patch"  # or "verified" when F2P is non-empty
-```
-
-## End-to-end smoke
+## Quickstart
 
 ```bash
 repo2rlenv generate \
   --repo pallets/werkzeug \
   --pipeline cve_patches \
-  --pipeline-opt limit=1 \
-  --pipeline-opt min_severity=high \
+  --pipeline-opt limit=2 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out ./datasets/werkzeug-cve
-
-harbor run -a oracle -p ./datasets/werkzeug-cve/<task-id>
-# Mean reward 1.000
+  --out ./tasks/werkzeug-cve
 ```
 
-## v0.7 trade-offs (to revisit)
+The example uses `pallets/werkzeug` because OSV lists advisories with fix commits
+for it; most repositories have only a handful. `limit` is the number of tasks to
+emit. The first run bootstraps the repository (capped by `--max-spend-usd`,
+default 5.0, and cached), and each advisory without a shipped test can spend up to
+`poc_agent_max_spend_usd` (default 1.5) on PoC synthesis. Each task lands in
+`./tasks/werkzeug-cve/pallets__werkzeug-cve-<CVE id>/`. Run the oracle, which
+should score 1.0:
 
-- **No PoC synthesis.** When `test_patch` is empty, the verifier signal
-  is weak (just "suite passes with fix applied"). A future v0.8 mode
-  can LLM-synthesize a PoC test that exercises the vulnerability —
-  with a gate around that (security implications of distributing PoCs).
-- **No NVD-direct path.** We rely on OSV's pre-resolved fix URLs. For
-  CVEs OSV hasn't curated, we miss them. A PatchSeeker-style
-  LLM+embedding fallback is on the roadmap.
-- **Single ecosystem auto-guess per owner.** Repos owned by users not
-  in our table (Pallets / PSF / Django / etc.) default to PyPI; the
-  user can always override with `--pipeline-opt osv_ecosystem=npm`.
+```bash
+harbor run -p ./tasks/werkzeug-cve -a oracle --env docker
+```
 
-## What we adapted from inspiration projects
+## How it works
 
-| What | Where | How we apply it |
+```mermaid
+flowchart TD
+  A["OSV advisories for the package"] --> B{"Severity at least min_severity,<br/>fix commit in this repo?"}
+  B -- no --> Z["Out of scope"]
+  B -- yes --> C["Fetch fix diff and parent;<br/>split source and test patches"]
+  C --> D{"Fix ships a test?"}
+  D -- yes --> V["Validate F2P/P2P at the parent"]
+  D -- no --> P["PoC agent writes a test<br/>in the vulnerable sandbox"]
+  P --> V
+  V --> E{"F2P found?"}
+  E -- no --> X["Skip: no_verifiable_oracle"]
+  E -- yes --> F["Harbor task: stripped advisory,<br/>fix as oracle"]
+```
+
+1. **Bootstrap** the repository once. See [Bootstrap](../reference/BOOTSTRAP.md).
+2. **Query OSV** (`/v1/query`) for the package: `osv_package`, or the repository
+   name in lower case, in `osv_ecosystem`, or an ecosystem guessed from the owner
+   (PyPI unless the owner is a known npm or crates.io organization).
+3. **Scope the advisories.** Keep those at or above `min_severity` that reference a
+   `github.com/<owner>/<repo>/commit/<sha>` URL for this repository. Links to forks
+   are ignored; when an advisory lists several commits, the first is used.
+4. **Fetch the fix** and its parent commit through the GitHub API, and split the
+   diff into source and test patches. Skip empty source patches and fixes that
+   touch more than `max_source_files_per_fix` source files.
+5. **Build the oracle test.** If the fix ships a test, validate it as `pr_runtime`
+   does: tests at the parent with only the test patch, then with the whole fix.
+   Otherwise, if the repository is Python, `synthesize_poc_test` is on and `--llm`
+   is set, synthesize a PoC test and validate it the same way on a clean checkout.
+6. **Require an oracle.** With `require_fail_to_pass` on, advisories that end with
+   fewer than `min_fail_to_pass` F2P tests are dropped as `no_verifiable_oracle`
+   instead of becoming tasks nobody can score. The P2P set is capped at
+   `max_pass_to_pass`.
+7. **Write the instruction** from the advisory's summary, severity, CWE tags and
+   details, with fix pointers removed, plus a request to work the fix out from the
+   code rather than fetch the upstream patch.
+8. **Emit the task**, with the fix's source changes as the oracle and the shipped or
+   synthesized test hidden inside `tests/test.sh`.
+
+### PoC synthesis
+
+By default (`poc_agent`), an LLM gets a shell in the sandbox, reset to the
+vulnerable parent commit, plus the advisory and the fix diff, which it may study
+but not apply. It replies with one command per turn: it explores how existing
+tests import the package, writes `test_cve_poc.py` in the test directory, runs
+pytest, and finishes only after seeing the test fail for the vulnerability's
+reason. It stops after 14 turns or when it has spent `poc_agent_max_spend_usd`.
+With `poc_agent=false`, a one-shot prompt that includes the vulnerable source of up
+to two changed files writes the test instead, retried up to `poc_max_attempts`
+times. Either way, the test counts only if validation shows it failing before the
+fix and passing after it.
+
+## Options
+
+Pass each option with `--pipeline-opt key=value`.
+
+| Key | Default | What it does |
 |---|---|---|
-| OSV `/v1/query` API | osv.dev (Google public service) | Direct HTTPS POST, stdlib only |
-| Severity rank ordering | CVSS conventions | `_SEVERITY_RANK` constant |
-| CVE-→commit reference pattern | PatchSeeker recipe | `OSVVuln.fix_commits` regex on `references[].url` |
-| F2P/P2P validation harness | SWE-bench / pr_runtime | Reused verbatim (no new code) |
+| `limit` | `50` | Number of tasks to emit |
+| `osv_ecosystem` | guessed | OSV ecosystem, such as `PyPI`, `npm`, `crates.io`, `Go` or `Maven` |
+| `osv_package` | repository name | Package name in that ecosystem |
+| `min_severity` | `low` | Lowest severity to keep: `low`, `medium`, `moderate`, `high` or `critical` |
+| `max_source_files_per_fix` | `50` | Skip fixes that touch more source files |
+| `synthesize_poc_test` | `true` | Synthesize a PoC test when the fix ships none (Python only) |
+| `poc_agent` | `true` | Use the agent with a shell in the sandbox; `false` uses the one-shot prompt |
+| `poc_agent_max_spend_usd` | `1.5` | Model budget per advisory for the PoC agent |
+| `poc_max_attempts` | `2` | Attempts for the one-shot prompt |
+| `llm_temperature` | `0.3` | Sampling temperature for the one-shot prompt |
+| `max_llm_tokens` | `4096` | Output token limit for the one-shot prompt |
+| `require_fail_to_pass` | `true` | Drop advisories without at least `min_fail_to_pass` F2P tests. With `false`, they're emitted with a pass/fail exit-code reward |
+| `min_fail_to_pass` | `1` | Minimum number of F2P tests |
+| `max_pass_to_pass` | `50` | Cap on the P2P set. `0` keeps all of them |
+| `validation_timeout_sec` | `600` | Timeout for each validation test run |
+| `skip_validation` | `false` | Skip validation and PoC synthesis. For debugging; pair it with `require_fail_to_pass=false`, or every advisory is dropped |
+| `require_new_test_funcs` | `false` | Accepted but not used by the current pipeline |
 
-No code is copied from inspiration projects. The pipeline is original Python stdlib + reuses pr_runtime's emission helpers.
+## Output
+
+```files
+pallets__werkzeug-cve-<CVE id>
+├── task.toml
+├── instruction.md
+├── environment
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    ├── verifier.py
+    ├── f2p.json
+    └── p2p.json
+```
+
+The files match [`pr_runtime`'s output](pr_runtime.md#output): an environment
+`FROM` the bootstrap image at the parent commit with history scrubbed and an
+egress guard, the fix's source changes as `solution/patch.diff`, and the hidden
+test patch plus graded verifier under `tests/`. `task.toml` has
+`difficulty = "hard"`, `category = "security"`, the fix commit URL as `reference`,
+and `[metadata.repo2env.cve_patches]`: CVE and OSV ids, aliases, CWE ids, severity,
+publication date, fix and parent commits, F2P and P2P lists, `validation_status`
+(`verified` for a shipped test, `poc_synthesized` for a synthesized one),
+`poc_synthesized`, the bootstrap image and `llm_cost_usd`. The
+[evaluation label](task_evaluation_labels.md) starts as `unverified`.
+
+## Reward
+
+Identical to [`pr_runtime`](pr_runtime.md#reward): `f2p_rate × p2p_rate` in
+`reward.txt`, and `resolved` and `command_resolved` in `reward-details.json`. The
+test files are restored and the hidden test patch re-applied before scoring, so
+editing or deleting the PoC test doesn't help.
+
+## Yield and cost
+
+The reference dataset lists 19 tasks from six repositories: waitress 8,
+werkzeug 3, requests 3, mistune 2, flask 2 and sqlparse 1. Its cached manifest has
+no per-task validation results or F2P/P2P counts, and no candidate count or cost
+ledger was recovered, so yield is unmeasured. See
+[native results](native_results.md#cve-patches).
+
+What drives yield:
+
+- **Advisory supply.** Most repositories have few advisories that link a fix
+  commit, so building many tasks means mining many repositories.
+- **Repository health.** The suite has to collect and run in the bootstrap
+  container; suites that need network access yield nothing.
+- **Oracle tests.** Few fixes ship a regression test. PoC synthesis supplies one
+  for Python repositories, but vulnerabilities that depend on timing, network or
+  environment rarely get a deterministic test and are dropped.
+
+Cost is one bootstrap per repository, up to `poc_agent_max_spend_usd` per advisory
+that needs a PoC test, and two test runs per validated test.
+
+## Limits
+
+- **A generated task isn't a verified environment.** Run the controls: the oracle
+  should score 1.0 and a no-op agent (`-a nop`) 0. Record the outcome as an
+  evaluation label; see [Quality](../concepts/quality.mdx). For the 19 published
+  tasks, validation evidence is unavailable.
+- **PoC tests are model-written.** Validation proves a test flips with the fix,
+  not that it exercises the vulnerability rather than an incidental behavior
+  change. Review each synthesized test.
+- **Known fixes are easy to find.** The instruction drops advisory ids, links and
+  fixed versions, and the egress guard blocks PyPI and GitHub, but the fix is
+  public and the agent's own model may know it. The guard also doesn't block the
+  Go module proxy or crates.io ([#160](https://github.com/huggingface/Repo2RLEnv/issues/160)).
+  For evaluation, run without network access.
+- **GitHub and OSV only.** Advisories need a fix-commit link in this repository.
+  Records without a `database_specific.severity` label (for example, those with
+  only a CVSS vector) are skipped, even at `min_severity=low`.
+- **The ecosystem guess defaults to PyPI.** Set `osv_ecosystem` and `osv_package`
+  for other packages.
+- **Runtime limits carry over from `pr_runtime`**, including the pytest-only Python
+  parser ([#167](https://github.com/huggingface/Repo2RLEnv/issues/167)).
+- **`llm_cost_usd` is cumulative for the run**, not the cost of that task.
+
+## Related
+
+- [RFC 0006: cve_patches](../rfcs/0006-cve-patches.md)
+- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) and its [inventory](native_results.md#cve-patches)
+- [`pr_runtime`](pr_runtime.md): the validation harness and verifier this pipeline reuses
+- [SEC-bench recipe proposal](../rfcs/0025-sec-bench-recipe.md), which is deferred
+- [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
+- Inspired by [PatchSeeker](https://github.com/hungkien05/PatchSeeker) and CVE-Bench (Zhu et al., 2025). OSV's structured fix-commit references replace an LLM-based CVE-to-commit mapper. No code is copied.
+
+## Implementation notes
+
+Source: [`pipelines/cve_patches.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/cve_patches.py),
+[`pipelines/_poc_agent.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_poc_agent.py)
+and [`osv.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/osv.py).
+
+The advisory strip runs in three passes:
+
+| Pass | Removes |
+|---|---|
+| Sections | Headings such as Workarounds, Remediation, Mitigation, References, Fix, Patches, Solutions, Credits, Resources, Links and See also, with their bodies |
+| Lines | Lines that say to apply, see, backport or cherry-pick something, that say the issue was fixed or patched in a version, or that say to upgrade |
+| Tokens | URLs, CVE and GHSA ids, PR, pull, commit and issue references, `#NN` references, and 7–40 character hex strings |
+
+- The ecosystem guess maps owners such as `pallets`, `pypa`, `psf`, `django` and
+  `encode` to PyPI, `nodejs`, `expressjs` and `facebook` to npm, and `rust-lang` and
+  `tokio-rs` to crates.io. Every other owner defaults to PyPI.
+- Severity ranks are `LOW` 1, `MEDIUM` and `MODERATE` 2, `HIGH` 3 and `CRITICAL` 4.
+- The PoC agent's test path is converted to a repository-relative new-file diff,
+  which becomes the task's test patch.
+- Task IDs are `<owner>__<repo>-cve-<CVE id>`, falling back to the OSV id when the
+  advisory has no CVE alias.

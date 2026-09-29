@@ -1,4 +1,7 @@
-# Follow a task through its prompts
+---
+title: "Follow a task through its prompts"
+navTitle: "Prompt stages"
+---
 
 Each recipe guide numbers its actual model calls `P1`, `P2`, and so on. A role
 such as “test author” is a stage in the controller, not necessarily a different

@@ -1,4 +1,7 @@
-# RFC 0009: `test_synthesis`
+---
+title: "RFC 0009: test_synthesis"
+navTitle: "0009 \u00b7 test_synthesis"
+---
 
 **Status:** draft
 **Author:** `@adithya-s-k`

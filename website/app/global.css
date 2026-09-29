@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/*
+ * Monochrome chrome — ink, white and neutral greys — with one accent:
+ * emerald, the explainer films' "verified" colour. It marks where you are
+ * (active nav, links, labels) and never fills large areas. Red means failure
+ * only. Primary buttons stay ink.
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-brand: #047857;
+  --color-brand-soft: #ecfdf5;
+  --color-status-failure: #e11d48;
+  --color-grid: #f0f0f0;
+
+  --color-fd-background: #ffffff;
+  --color-fd-foreground: #171717;
+  --color-fd-muted: #f7f7f7;
+  --color-fd-muted-foreground: #6b6b6b;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #171717;
+  --color-fd-card: #ffffff;
+  --color-fd-card-foreground: #171717;
+  --color-fd-border: #ebebeb;
+  --color-fd-primary: #047857;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #f5f5f5;
+  --color-fd-secondary-foreground: #0a0a0a;
+  --color-fd-accent: #f2f2f2;
+  --color-fd-accent-foreground: #0a0a0a;
+  --color-fd-ring: #6ee7b7;
+}
+
+.dark {
+  --color-brand: #34d399;
+  --color-brand-soft: #0c1f18;
+  --color-status-failure: #f43f5e;
+  --color-grid: #161616;
+
+  --color-fd-background: #0a0a0a;
+  --color-fd-foreground: #ededed;
+  --color-fd-muted: #141414;
+  --color-fd-muted-foreground: #a1a1a1;
+  --color-fd-popover: #111111;
+  --color-fd-popover-foreground: #ededed;
+  --color-fd-card: #111111;
+  --color-fd-card-foreground: #ededed;
+  --color-fd-border: #262626;
+  --color-fd-primary: #34d399;
+  --color-fd-primary-foreground: #04120c;
+  --color-fd-secondary: #171717;
+  --color-fd-secondary-foreground: #fafafa;
+  --color-fd-accent: #1c1c1c;
+  --color-fd-accent-foreground: #fafafa;
+  --color-fd-ring: #065f46;
+}
+
+.dark #nd-sidebar {
+  --color-fd-muted: #141414;
+  --color-fd-secondary: #171717;
+  --color-fd-muted-foreground: #a1a1a1;
+}
+
+/* Callouts: neutral by default; colour only where it carries status. */
+@theme static {
+  --color-fd-info: #737373;
+  --color-fd-idea: #737373;
+  --color-fd-warning: #737373;
+  --color-fd-success: #059669;
+  --color-fd-error: #e11d48;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* ---------- films ---------- */
+
+.r2r-film__frame {
+  overflow: hidden;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 12px;
+  background: var(--color-fd-card);
+}
+
+.r2r-film__caption {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+/* ---------- a faint grid behind the hero, faded at the edges ---------- */
+
+.hero-grid {
+  background-image:
+    linear-gradient(var(--color-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 70%);
+}
+
+/* Small mono labels above headings. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-brand);
+}
+
+/* ---------- diagrams: a framed figure on a faint dot grid ---------- */
+
+.r2r-mermaid {
+  margin: 1.75rem 0;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 12px;
+  background-color: var(--color-fd-card);
+  background-image: radial-gradient(var(--color-grid) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.r2r-mermaid__canvas {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  padding: 1.5rem 1rem;
+}
+
+.r2r-mermaid__canvas svg {
+  height: auto;
+  max-width: min(100%, 44rem);
+}
+
+/* ---------- key–value tables ("At a glance") ---------- */
+
+/* A Markdown table with an empty header row is a key–value table: drop the
+   blank header and style the first column as labels. */
+.prose table:has(thead th:empty:first-child) thead {
+  display: none;
+}
+.prose table:has(thead th:empty:first-child) td:first-child {
+  width: 10.5rem;
+  white-space: nowrap;
+  color: var(--color-fd-muted-foreground);
+  font-weight: 500;
+}

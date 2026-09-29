@@ -1,4 +1,7 @@
-# RFC 0023: `swe_next` recipe for `pr_runtime`
+---
+title: "RFC 0023: swe_next recipe for pr_runtime"
+navTitle: "0023 \u00b7 swe_next recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

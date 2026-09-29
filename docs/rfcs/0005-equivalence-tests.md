@@ -1,4 +1,7 @@
-# RFC 0005: `equivalence_tests`
+---
+title: "RFC 0005: equivalence_tests"
+navTitle: "0005 \u00b7 equivalence_tests"
+---
 
 **Status:** implemented (experimental) — hardened v0.8.7 (leak fix, retry, gates, purity + importability filters)
 **Author:** `@adithya-s-k`

@@ -1,4 +1,7 @@
-# RFC 0007: `pr_to_env`
+---
+title: "RFC 0007: pr_to_env"
+navTitle: "0007 \u00b7 pr_to_env"
+---
 
 **Status:** draft
 **Author:** `@adithya-s-k`

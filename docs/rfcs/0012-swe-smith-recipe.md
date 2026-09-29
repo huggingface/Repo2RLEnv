@@ -1,4 +1,7 @@
-# RFC 0012: `swe_smith` recipe for `repo_mutate`
+---
+title: "RFC 0012: swe_smith recipe for repo_mutate"
+navTitle: "0012 \u00b7 swe_smith recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

@@ -1,0 +1,8 @@
+{
+  "title": "Contributing",
+  "pages": [
+    "ADDING_A_PIPELINE",
+    "DOCUMENTATION",
+    "../pipelines/learner_runtime"
+  ]
+}

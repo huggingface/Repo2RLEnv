@@ -1,4 +1,7 @@
-# RFC 0004: `code_instruct`
+---
+title: "RFC 0004: code_instruct"
+navTitle: "0004 \u00b7 code_instruct"
+---
 
 **Status:** implemented (experimental) — hardened v0.8.6 with repo-anchoring gate + delivery contract
 **Author:** `@adithya-s-k`

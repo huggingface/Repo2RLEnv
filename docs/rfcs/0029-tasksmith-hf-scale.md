@@ -1,4 +1,7 @@
-# RFC 0029: Tasksmith repository bootstrap and resource profiles
+---
+title: "RFC 0029: Tasksmith repository bootstrap and resource profiles"
+navTitle: "0029 \u00b7 Tasksmith repository bootstrap and resource profiles"
+---
 
 **Status:** implemented for the profiles described in the [Tasksmith guide](../pipelines/tasksmith.md).
 

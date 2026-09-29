@@ -1,4 +1,7 @@
-# Related Work & Provenance
+---
+title: "Related Work & Provenance"
+navTitle: "Related work"
+---
 
 Repo2RLEnv stands on a growing body of research into turning real software
 repositories into executable, verifiable environments for training and

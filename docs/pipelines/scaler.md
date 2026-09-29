@@ -1,4 +1,6 @@
-# `reasoning_synth / scaler`
+---
+title: "scaler"
+---
 
 SCALER expands released parameterized problem families into concrete reasoning
 tasks. It uses the supplied generator and reference programs without an LLM call.

@@ -1,4 +1,7 @@
-# RFC 0015: `swe_gen` recipe for `pr_to_env`
+---
+title: "RFC 0015: swe_gen recipe for pr_to_env"
+navTitle: "0015 \u00b7 swe_gen recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

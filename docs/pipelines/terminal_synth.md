@@ -1,4 +1,6 @@
-# `terminal_synth` — owned terminal task generation
+---
+title: "seta_seed2synth"
+---
 
 The first implemented recipe is **`seta_seed2synth`**, adapted from
 [SETA](https://github.com/camel-ai/seta/tree/e4715b01174e6c9503fc46120d81dd692ced75e6).

@@ -1,4 +1,6 @@
-# `equivalence_tests / r2e`
+---
+title: "r2e"
+---
 
 The owned R2E recipe generates differential tests from real repository functions,
 repairs them using execution and coverage feedback, then refines the task's

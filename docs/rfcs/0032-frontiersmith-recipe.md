@@ -1,4 +1,7 @@
-# RFC 0032: FrontierSmith optimization synthesis
+---
+title: "RFC 0032: FrontierSmith optimization synthesis"
+navTitle: "0032 \u00b7 FrontierSmith optimization synthesis"
+---
 
 **Status:** implemented for 0.9.3; experimental; 100-task local collection completed
 

@@ -1,4 +1,7 @@
-# Releasing Harbor task collections
+---
+title: "Releasing Harbor task collections"
+navTitle: "Publish a dataset"
+---
 
 Use an explicit selection to publish a recipe's retained and newly generated tasks
 as one dataset. The default preserves task files and existing labels. An explicit

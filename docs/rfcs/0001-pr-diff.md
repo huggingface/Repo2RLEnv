@@ -1,4 +1,7 @@
-# RFC 0001: `pr_diff`
+---
+title: "RFC 0001: pr_diff"
+navTitle: "0001 \u00b7 pr_diff"
+---
 
 **Status:** implemented
 **Author:** `@adithya-s-k`

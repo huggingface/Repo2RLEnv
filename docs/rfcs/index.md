@@ -1,4 +1,6 @@
-# Pipeline RFCs
+---
+title: "Pipeline RFCs"
+---
 
 Design docs for new synthesis pipelines. One RFC per pipeline. Written **before** the code lands; kept in the repo after the pipeline ships as a permanent record of *why* the pipeline exists in the shape it does.
 

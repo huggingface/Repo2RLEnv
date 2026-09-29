@@ -1,8 +1,11 @@
-# Cookbook: adding a new pipeline
+---
+title: "Cookbook: adding a new pipeline"
+navTitle: "Add a pipeline"
+---
 
 Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) as the canonical reference implementation throughout.
 
-> **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/README.md). The RFC captures *why* the pipeline exists in the shape it does — motivation, verification approach, contamination story, LLM use, yield expectations — and lets the design be reviewed without the implementation blur. Small reshapes of an existing pipeline don't need one; new `PipelineName` entries always do. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md` and land the RFC first, then follow this cookbook.
+> **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/index.md). The RFC captures *why* the pipeline exists in the shape it does — motivation, verification approach, contamination story, LLM use, yield expectations — and lets the design be reviewed without the implementation blur. Small reshapes of an existing pipeline don't need one; new `PipelineName` entries always do. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md` and land the RFC first, then follow this cookbook.
 
 ## What you're building
 
@@ -265,7 +268,7 @@ Add `docs/pipelines/your_pipeline.md`. Mirror the structure of [`pr_diff.md`](..
 - CLI + Python example invocations
 - "Limitations" section
 
-Then update [`docs/pipelines/README.md`](../pipelines/README.md): add a row for your pipeline in the status table + a row in the reward-kinds table.
+Then add an entry for your pipeline to `website/lib/catalog.ts` (it drives the [pipeline catalogue](../pipelines/index.mdx), the landing page and the summary strip on your page), add the page under its task-type group in `docs/pipelines/meta.json` so it appears in the sidebar, and, if it introduces a new reward kind, describe it in [`docs/concepts/rewards.mdx`](../concepts/rewards.mdx).
 
 ### 8. (Optional) acknowledgments
 

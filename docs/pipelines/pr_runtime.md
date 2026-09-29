@@ -1,231 +1,285 @@
-# `pr_runtime`
+---
+title: "pr_runtime"
+description: "Turn merged pull requests that ship tests into SWE-bench-style tasks graded by the tests the fix makes pass."
+film: pr-runtime
+---
 
-SWE-bench-style PR mining with sandbox-verified oracles. Each task carries a `FAIL_TO_PASS` set (the tests that prove the bug existed) and a `PASS_TO_PASS` set (regression guard).
+Each task is a merged pull request that fixed a bug and added a test for it. The
+agent gets the linked issue and changes the source; the PR's own tests, hidden
+until verification, decide the reward. The pipeline runs every candidate's tests
+twice in a Docker image built for the repository and keeps a PR only if some tests
+fail before the fix and pass after it.
 
-**As of v0.8.3 the reward is graded, not binary** (see [findings-pr_runtime](../release_notes/v0.8.3/findings-pr_runtime.md)): an in-container verifier scores `reward = f2p_rate × p2p_rate` to `/logs/verifier/reward.txt` (the dense training signal Harbor reads) and writes a full breakdown to `/logs/verifier/reward.json`. The eval signal is split into two booleans:
-
-- **`resolved`** — SWE-bench *tracked* resolution: all `FAIL_TO_PASS` + `PASS_TO_PASS` tests pass. The oracle (gold) patch satisfies it for every task (the oracle invariant), so use this for SWE-bench-style scoring and training.
-- **`command_resolved`** — stricter: `resolved` **and** the selected test command produced zero failures outside the F2P/P2P sets **and** exited 0. The gap is tasks whose whole-file test command pulls in pre-existing/flaky failures unrelated to the PR; they stay valid for training but are flagged out of strict eval. The reward.json also records `exit_code` + `untracked_failed_count` so the distinction is auditable.
-
-The oracle patch still scores `reward = 1.0`. The problem statement is sourced from the linked **issue** (not the PR body) and run through a solution-leak strip; backport/release/revert PRs are filtered out. **Reference dataset: [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime)** — 100 oracle-verified envs (63 Python / 37 Go, 13 repos); 100 `resolved`, 88 `command_resolved`, 87 `eval_grade` (`command_resolved` + a non-empty P2P regression guard). The published `manifest.json` carries per-task build/oracle status, exit code, parser status, runtime, and artifact checksums; filter to `eval_grade == true` for a benchmark-grade subset.
+## At a glance
 
 | | |
 |---|---|
-| Status | **shipped (v0.3)** |
-| Sandbox required at gen | Yes — Docker via the [bootstrap phase](../reference/BOOTSTRAP.md) |
-| LLM required at gen | Optional (instruction polish, QA judge) |
-| Reward kinds emitted | `test_execution` (primary), `diff_similarity` (fallback) |
-| Inspiration | [SWE-bench](https://github.com/SWE-bench/SWE-bench) (Princeton) + [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) (Microsoft) |
-| Reference clones | `references/SWE-bench/` · `references/SWE-bench-Live/` |
+| Input | A GitHub or GitLab repository with merged PRs that add tests |
+| Task | Resolve the issue a merged PR fixed, starting from its base commit |
+| Reward | Graded `f2p_rate × p2p_rate`, plus strict `resolved` and `command_resolved` flags |
+| Needs an LLM | Yes, for the one-time repository [bootstrap](../concepts/glossary.mdx#bootstrap) (cached) |
+| Needs Docker | Yes, for bootstrap, validation and running tasks |
+| Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
+| Languages | Any repository the bootstrap can build whose tests run under pytest, `go test`, `cargo test`, Jest, Mocha or Vitest. The reference dataset has 63 Python and 37 Go tasks |
+| Status | Stable |
+| Reference dataset | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime): 100 tasks from 13 repositories |
 
-## What we produce per PR
+Two test sets define each task ([F2P and P2P](../concepts/glossary.mdx#f2p-and-p2p)). **FAIL_TO_PASS** (F2P) tests fail or error at the
+base commit and pass once the fix is applied: they prove the bug existed.
+**PASS_TO_PASS** (P2P) tests pass both before and after: they guard against
+regressions.
 
-For each merged PR that has both a source-file diff (`patch`) and a test-file diff (`test_patch`), we emit a Harbor task with:
+## Quickstart
 
-```
-<owner>__<repo>-<pr_number>/
-├── task.toml                 # Harbor metadata + [metadata.repo2env.pr_runtime]
-├── instruction.md            # PR title + body, "Closes #N" stripped
-├── environment/Dockerfile    # FROM <bootstrap_image>; the env is already built
-├── tests/test.sh             # the eval script (see "Eval script" below)
-└── solution/patch.diff       # the gold patch (source files only)
-```
-
-The `task.toml.metadata.repo2env.pr_runtime` carries the validation outcome:
-
-```toml
-[metadata.repo2env.pr_runtime]
-pr_url            = "https://github.com/owner/repo/pull/123"
-pr_merged_at      = "2026-03-12T08:15:22Z"
-base_commit       = "a1b2c3d4..."
-linked_issues     = ["https://github.com/owner/repo/issues/118"]
-fail_to_pass      = ["tests/test_foo.py::test_a", "tests/test_foo.py::test_b"]
-pass_to_pass      = ["tests/test_bar.py::test_legacy"]
-test_patch_sha    = "sha256:..."
-validation_status = "verified"   # verified | partial | failed
+```bash
+repo2rlenv generate \
+  --repo pallets/click \
+  --pipeline pr_runtime \
+  --pipeline-opt limit=20 \
+  --llm anthropic/claude-sonnet-4-6 \
+  --out ./tasks/click-pr-runtime
 ```
 
-## How we mine (close to SWE-bench's recipe)
+The first run bootstraps the repository: an LLM agent builds a Docker image in
+which the test suite runs, capped by `--max-spend-usd` (default 5.0). The image is
+cached, so later runs go straight to mining. `limit` counts PRs listed, not tasks
+emitted; PRs without a test that flips from failing to passing are skipped, so
+expect fewer tasks than `limit`. Each task lands in
+`./tasks/click-pr-runtime/pallets__click-<pr>/`. Run the oracle, which should
+score 1.0:
 
-1. **List merged PRs.** Same `gh pr list` path as `pr_diff`. Filter: merged, has at least one linked issue (`Closes/Fixes/Resolves #N`), within `--since/--until`.
-2. **Split the diff.** Walk `PatchSet(diff_url)`. Hunks whose paths contain `test`, `tests`, `e2e`, or `testing` go into `test_patch`; everything else into `patch`. PRs with empty `test_patch` are filtered out (no test signal ⇒ unverifiable).
-3. **Validate.** This is the new work vs `pr_diff` — see next section.
-4. **Emit + QA.** Tasks that pass validation become Harbor tasks; the rest are logged with a skip reason.
+```bash
+harbor run -p ./tasks/click-pr-runtime -a oracle --env docker
+```
 
-### Validation flow (the load-bearing step)
+Each task's Dockerfile starts `FROM` the local bootstrap image, so tasks run on
+the machine that generated them until you publish them with `repo2rlenv push`,
+which pushes or inlines the image.
 
-For each candidate PR, inside the bootstrapped Docker image at `base_commit`:
+## How it works
 
 ```mermaid
 flowchart TD
-    A["Container at<br/>base_commit"] --> B["Apply test_patch only<br/>via 'git apply --reject'"]
-    B --> C["Run test suite<br/>parse status per test"]
-    C --> D["F2P_pre = tests<br/>that FAILED here"]
-    D --> E["Apply gold patch<br/>'git apply --reject'"]
-    E --> F["Run test suite again"]
-    F --> G["F2P_post = tests<br/>that PASS here"]
-    G --> H["FAIL_TO_PASS = F2P_pre ∩ F2P_post<br/>PASS_TO_PASS = passed_both_runs"]
-    H --> I{"len(F2P) ≥ 1<br/>and patch<br/>applies cleanly?"}
-    I -- yes --> J["Emit Harbor task"]
-    I -- no --> K["Skip + record reason"]
+  A["Merged PR"] --> B["Split diff into source patch<br/>and test patch"]
+  B --> C["Base commit + test patch:<br/>run the PR's tests"]
+  C --> D["Base commit + fix + test patch:<br/>run them again"]
+  D --> E{"Any test fails before<br/>and passes after?"}
+  E -- no --> Z["Skip: no_fail_to_pass"]
+  E -- yes --> F["F2P: failed or errored → passed<br/>P2P: passed → passed"]
+  F --> G["Harbor task: bootstrap image,<br/>hidden tests, graded verifier"]
 ```
 
-A few invariants we inherit from SWE-bench's harness (see `references/SWE-bench/swebench/harness/test_spec/utils.py:make_eval_script_list_common`):
-
-- The test files are **always reset to `base_commit`** before applying `test_patch`. This prevents stale test artifacts from contaminating runs.
-- The eval script is wrapped between `: 'START_TEST_OUTPUT'` and `: 'END_TEST_OUTPUT'` markers so the log parser knows where tests start.
-- After the run, test files are reset again so the container is back to a known state if we reuse it.
-
-### How we determine pass/fail per test
-
-Per-language log parsers map raw test output to `{PASSED, FAILED, SKIPPED, ERROR}` per test name. We start with the same parsers SWE-bench ships (`references/SWE-bench/swebench/harness/log_parsers/`):
-
-| Language | Parser | Notes |
-|---|---|---|
-| Python (pytest) | `log_parsers/python.py` | Handles `PASSED tests/foo.py::test_x` lines |
-| Python (django) | same module, django variant | Django runs are slightly different |
-| JS / TS (mocha, jest) | `log_parsers/javascript.py` | From SWE-bench-Live multi-language |
-| Go (`go test`) | new (we write it) | `--- PASS:` / `--- FAIL:` |
-| Rust (`cargo test`) | new | `test foo ... ok` / `FAILED` |
-
-## Eval script + task artifacts
-
-The graded task ships **plain, inspectable artifacts** in `tests/` (Harbor
-mounts the task's `tests/` at `/tests` in the container):
-
-- `tests/verifier.py` — the standalone graded F2P/P2P verifier
-- `tests/f2p.json` / `tests/p2p.json` — the oracle test-name lists
-- `tests/test.sh` — a thin orchestrator that reads the above (no base64 blobs)
-
-```bash
-#!/bin/bash
-set -uxo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"   # /tests in the container
-cd /workspace
-git config --global --add safe.directory /workspace
-mkdir -p /logs/verifier
-
-# 1. Reset test files to base, then apply the hidden test_patch.
-git checkout {base_commit} {test_files} || true
-git apply --verbose --reject - <<'EOF_R2E_TEST_PATCH'
-{test_patch_content}
-EOF_R2E_TEST_PATCH
-# Fail CLOSED if the test_patch doesn't apply — never score against
-# stale/native tests.
-if [ "$?" -ne 0 ]; then echo "0.000000" > /logs/verifier/reward.txt; ...; exit 0; fi
-
-# 2. Run tests, capture the log.
-( {test_cmds} ) > /logs/verifier/test_output.log 2>&1
-TEST_EXIT_CODE=$?
-
-# 3. Score: graded reward = f2p_rate*p2p_rate -> reward.txt; `resolved`
-#    (tracked) + `command_resolved` (strict) + breakdown -> reward.json.
-#    Falls back to the exit code only if python3 is unavailable.
-python3 "$SCRIPT_DIR/verifier.py" --log /logs/verifier/test_output.log \
-  --f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" \
-  --exit-code "$TEST_EXIT_CODE" --out-dir /logs/verifier
-exit 0   # reward.txt is the verdict, not the bash exit code
-```
-
-Harbor applies the model's predicted patch *before* running `test.sh`, so the model only ever sees source files — never the gold patch or the test_patch. The test files are reset to `base_commit` + the test_patch re-applied each run, so an agent can't pass by editing the tests.
-
-## Prerequisite: bootstrap
-
-Before this pipeline can run, the bootstrap phase must have produced a working Docker image where `test_cmds` succeed against a base commit. `cmd_generate` triggers `ensure_bootstrap()` automatically when `Pipeline.requires_bootstrap = True`; the cache means subsequent runs are free. Explicit flow:
-
-```bash
-repo2rlenv bootstrap --repo owner/name --ref main
-repo2rlenv generate --pipeline pr_runtime --repo owner/name ...
-```
-
-See [`reference/BOOTSTRAP.md`](../reference/BOOTSTRAP.md) for the bootstrap design.
+1. **Bootstrap** the repository once. An LLM agent iterates in Docker until the
+   test suite runs, and records the image and test commands. Results are cached.
+   See [Bootstrap](../reference/BOOTSTRAP.md).
+2. **List merged PRs**, newest first, exactly as [`pr_diff`](pr_diff.md) does.
+3. **Filter on metadata.** Skip drafts, unmerged PRs, PRs with no files, and titles
+   that mark chores rather than fixes: backports, cherry-picks, reverts, version
+   bumps, releases, changelogs and branch merges or syncs. Optionally require a
+   minimum description length (`min_problem_statement_words`).
+4. **Split the diff** into a source patch and a test patch by file path. Skip the
+   PR if either is empty.
+5. **Filter on structure.** Skip PRs whose source changes are all under `.github/`
+   (`skip_ci_only`), whose test patch adds no test function or class
+   (`require_new_test_funcs`), or that touch more than `max_source_files_per_pr`
+   source files. `lite_filter` adds SWE-bench Lite-style constraints.
+6. **Validate twice** in one container started from the bootstrap image. Reset to
+   the base commit, apply the test patch and run the tests that patch touches; then
+   reset, apply the fix and the test patch, and run them again. Keep the PR if at
+   least `min_fail_to_pass` tests move from failed or errored to passed.
+7. **Write the instruction** from the linked issue (`Fixes #123`, including the
+   `[#123](url)` form) when there is one, otherwise from the PR title and
+   description. Solution pointers and template sections are stripped.
+8. **Emit the task** with the fix as the oracle and the test patch hidden inside
+   `tests/test.sh`.
 
 ## Options
 
-```python
-class PRRuntimeOptions(_BaseOptions):
-    # Mining
-    limit: int = 100
-    since: date | None = None
-    until: date | None = None
-    require_linked_issue: bool = True
-    languages: list[str] = ["python"]
-    # Validation
-    require_fail_to_pass: bool = True       # skip PRs with no F2P after validation
-    min_fail_to_pass: int = 1
-    validation_timeout_sec: int = 600       # per-PR cap on the two test runs
-    # Quality (SWE-bench Lite-style sampling)
-    lite_filter: bool = False               # require single-source-file diff + ≥40-word problem statement
-    max_files_per_pr: int | None = None     # None = no cap; Lite ≈ 1
-    min_problem_statement_words: int = 0    # Lite ≈ 40
+Pass each option with `--pipeline-opt key=value`.
+
+| Key | Default | What it does |
+|---|---|---|
+| `limit` | `50` | Maximum merged PRs to list. You get at most this many tasks |
+| `since` / `until` | none | ISO dates (`2026-01-31`) bounding the merge date |
+| `skip_drafts` | `true` | Skip draft PRs |
+| `require_fail_to_pass` | `true` | Skip PRs with fewer than `min_fail_to_pass` F2P tests after validation |
+| `min_fail_to_pass` | `1` | Minimum number of F2P tests |
+| `validation_timeout_sec` | `600` | Timeout for each of the two validation test runs |
+| `skip_validation` | `false` | Emit candidates without running tests. Tasks then have no F2P/P2P lists and a pass/fail exit-code reward. For debugging |
+| `require_new_test_funcs` | `true` | Require the test patch to add at least one test function or class |
+| `skip_ci_only` | `true` | Skip PRs whose source changes are all under `.github/` |
+| `max_source_files_per_pr` | `50` | Skip PRs that touch more source files than this |
+| `min_problem_statement_words` | `0` | Minimum word count of the PR description. `0` disables the check |
+| `lite_filter` | `false` | SWE-bench Lite-style sampling: exactly one source file, a description of at least 40 words, and no images, non-GitHub links or commit hashes in it |
+| `state` | `merged` | Only `merged` is accepted |
+| `require_linked_issue` | `true` | Accepted but not enforced: PRs without a linked issue use the PR description |
+| `languages` | `["python"]` | Accepted but not enforced: the language comes from the bootstrap |
+
+## Output
+
+```files
+pallets__click-<pr>
+├── task.toml
+├── instruction.md
+├── environment
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    ├── verifier.py
+    ├── f2p.json
+    └── p2p.json
 ```
 
-## Yield
+- `task.toml`: Harbor 1.0 task with `[metadata.repo2env.pr_runtime]` (PR URL, merge time, base commit, F2P and P2P lists, `validation_status`, bootstrap image digest), `reward_calibration` (`f2p_count`, `p2p_count`, `source_files`, `loc_changed`, `difficulty`) and an [evaluation label](task_evaluation_labels.md) that starts as `unverified`.
+- `instruction.md`: the issue (or PR) title and description with solution pointers removed.
+- `environment/Dockerfile`: `FROM` the bootstrap image, reset to the base commit, with git history past it removed.
+- `environment/docker-compose.yaml`: an egress guard that points PyPI and GitHub hosts (plus `gitlab.com` for GitLab sources) at `0.0.0.0`, so the agent can't download the fixed release or the merged PR. See [contamination defenses](../concepts/tasks.mdx#contamination-defenses).
+- `solution/patch.diff`: the PR's source changes only (the [oracle](../concepts/glossary.mdx#oracle)); `solve.sh` applies it.
+- `tests/test.sh`: resets the PR's test files to the base commit, applies the hidden test patch, runs the targeted test commands and calls the verifier.
+- `tests/verifier.py`: the standalone graded verifier (Python standard library only).
+- `tests/f2p.json`, `tests/p2p.json`: the F2P and P2P test names.
 
-**Yield = emitted tasks ÷ merged PRs examined.** Expect **~15–40%**. Unlike
-`pr_diff`, every candidate must clear a real execution gate — a PR only survives
-if it ships a *new* test that flips fail→pass when the gold patch is applied, and
-the suite runs green in the bootstrap container.
+## Reward
 
-| Knob | Default | Effect on yield |
-|---|:-:|---|
-| `require_fail_to_pass` | True | the dominant gate — PRs with no fail→pass test are dropped. False keeps them (much higher yield, weaker oracle) |
-| `require_new_test_funcs` | True | ↑ drops PRs that don't add a test function (lower yield, cleaner F2P) |
-| `lite_filter` | False | True applies SWE-bench-Lite sampling → lower yield, higher quality |
-| `min_problem_statement_words` | 0 | ↑ drops thin issue/PR text (Lite ≈ 40) |
-| `max_source_files_per_pr` | 50 | ↓ excludes sprawling PRs |
-| `skip_ci_only` | True | drops PRs that only touch `.github/` |
+The verifier parses the test log into a status per test and scores:
 
-**The hidden multiplier is repo health.** If the suite needs network, GPUs, or
-flaky services, it won't run green in a slim container and yield collapses toward
-0 *regardless* of options — the same failure you'd see in `cve_patches`. ML repos
-often need `GPU helpful?` handling; pick CPU-only, pytest-clean repos for the
-highest yield.
+```text
+f2p_rate = F2P tests now passing / F2P tests
+p2p_rate = P2P tests still passing / P2P tests   (1.0 when there are none)
+reward   = f2p_rate × p2p_rate                    → /logs/verifier/reward.txt
+```
 
-**Worked example:** at ~25% yield, 100 tasks ≈ 400 candidate PRs. Spread over
-~8 repos at `limit=60` (one cached bootstrap each) you examine ~480 PRs → ~120
-pass → cap at 100. Tightening `lite_filter`/`require_new_test_funcs` lowers the
-count but raises per-task quality.
+The graded reward is the training signal: fixing four of five failing tests
+earns 0.8 instead of 0. Two booleans in `/logs/verifier/reward-details.json` are
+the evaluation signals:
 
-## SWE-bench Lite-style filter
+- **`resolved`**: every F2P and P2P test passes. This is SWE-bench resolution;
+  the oracle satisfies it on every task.
+- **`command_resolved`**: `resolved`, no failing test outside the F2P and P2P
+  sets, and a test command that exits 0. Tasks whose test command also runs
+  unrelated failing or flaky tests stay usable for training but miss this flag.
 
-When `lite_filter=True`, we apply the same heuristics SWE-bench Lite uses to subsample 300 self-contained instances from the original 2,294:
+The details file also records per-set totals and rates, `regressions`,
+`untracked_failed_count`, the first 20 `untracked_failed` names, `runner`,
+`tests_parsed`, `exit_code` and `parse_status`. The published manifest adds
+`eval_grade` (`command_resolved` and a non-empty P2P set); filter on it for a
+benchmark-grade subset.
 
-- Single source file modified (PR `patch` touches exactly one non-test file)
-- Problem statement ≥ 40 words
-- No images / external hyperlinks / commit-SHA references / cross-PR references in the issue/PR body
-- Runtime validation must succeed (no install/runtime errors)
+The agent can't pass by editing tests: `test.sh` restores the PR's test files and
+re-applies the hidden test patch before running them. If the patch doesn't apply,
+the task fails closed with reward 0 and `parse_status` set to
+`test_patch_apply_failed`. If the log can't be parsed, the verifier falls back to
+1.0 for a zero exit code and 0.0 otherwise, marks `parse_status` as
+`fallback_exitcode`, and never reports `resolved` for a task with an F2P list.
 
-This gives smaller, more focused tasks — most usable for trainers that need a tight feedback loop.
+`task.toml` also lists `diff_similarity` as a secondary reward kind. Trainers that
+can't run code can score a patch against `solution/patch.diff` with
+`repo2rlenv.reward.calculate_diff_similarity_reward`. See
+[Rewards](../concepts/rewards.mdx#graded-test-execution).
 
-## Reward kinds
+## Yield and cost
 
-| Kind | When emitted | What the trainer/agent sees |
+No generation denominator or cost ledger was recovered for the reference dataset,
+so yield is unmeasured. What drives it:
+
+- **Test signal.** A PR must add a test function whose test fails before the fix
+  and passes after it. Many merged PRs ship no test, or only change existing ones.
+- **Repository health.** The suite must run inside the bootstrap container. Suites
+  that need network access, GPUs or external services yield little whatever the
+  options.
+- **Filters.** `lite_filter`, `min_problem_statement_words` and
+  `max_source_files_per_pr` trade count for focus.
+
+Cost is one bootstrap per repository (LLM calls, capped and cached) and then two
+test runs per candidate; mining itself makes no model calls. The run summary counts
+each skip reason.
+
+For the reference dataset, the gold patch scores 1.0 with every tracked test
+passing on all 100 tasks; 88 are also `command_resolved` and 87 are `eval_grade`.
+The release report describes roughly 55–60% solved in an approximately 20-task
+Claude Sonnet pilot, but the raw sample wasn't recovered. See
+[native results](native_results.md#pr-runtime).
+
+## Limits
+
+- **A generated task isn't a verified environment.** Run the controls: the oracle
+  should score 1.0 and a no-op agent (`-a nop`) 0. Record the outcome as an
+  evaluation label; see [Quality](../concepts/quality.mdx).
+- **Python means pytest.** Logs from `unittest` and Django's test runner produce no
+  oracle ([#167](https://github.com/huggingface/Repo2RLEnv/issues/167)), and
+  neither does `cargo nextest` ([#172](https://github.com/huggingface/Repo2RLEnv/issues/172)).
+- **The egress guard is a denylist.** It blocks PyPI and the code host; general
+  internet stays up so hosted agents can run. The Go module proxy and crates.io
+  still serve fixed releases ([#160](https://github.com/huggingface/Repo2RLEnv/issues/160)).
+  For trustworthy evaluation numbers, run without network access.
+- **Instructions without an issue come from the fixer.** When a PR links no issue,
+  the PR description is used, and it can describe the fix in prose.
+- **One validation run per stage.** Flaky tests can land in the F2P or P2P sets,
+  and `pr_runtime` doesn't cap the P2P set.
+- **Tasks depend on a local image** until you publish them with `repo2rlenv push`.
+- **GitLab listing sees at most the newest 100 merged MRs.**
+
+## Related
+
+- [RFC 0002: pr_runtime](../rfcs/0002-pr-runtime.md)
+- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) and its [validation evidence](native_results.md#pr-runtime)
+- [`commit_runtime`](commit_runtime.md): the same verifier on commits instead of PRs
+- [`pr_diff`](pr_diff.md): the same PRs, scored by diff similarity without running tests
+- [Bootstrap](../reference/BOOTSTRAP.md), [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
+- Adapted from the [SWE-bench](https://github.com/SWE-bench/SWE-bench) and [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) collection and grading approach. No code is copied, and the `swebench` package isn't a dependency.
+
+## Implementation notes
+
+Source: [`pipelines/pr_runtime.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_runtime.py),
+[`pipelines/pr_runtime_validate.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_runtime_validate.py),
+[`pipelines/_pr_runtime_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_runtime_verifier.py)
+and [`log_parsers/`](https://github.com/huggingface/Repo2RLEnv/tree/main/src/repo2rlenv/log_parsers).
+
+### Test file classification
+
+A file is a test file if any directory in its path is `test`, `tests`, `testing`,
+`e2e` or `__tests__`, or if its name matches `test_*.py`/`.js`/`.ts`, `*_test.py`,
+`*_test.go`, `*.test.ts`/`.js` or `*.spec.ts`/`.js`. Files under `docs/`, `doc/`,
+`documentation/`, `examples/` or `example/` never count, so `src/click/testing.py`
+and `docs/testing.md` stay in the source patch. A rename counts as a test if either
+path does.
+
+### Test commands
+
+The bootstrap records fast, tolerant commands; before each run the pipeline
+adapts them so they emit per-test lines, then targets them at the PR's test files:
+
+| Runner | Adjustment | Targeting |
 |---|---|---|
-| `test_execution` | Always (this is the point of `pr_runtime`) | **Graded** `reward = f2p_rate × p2p_rate` in `reward.txt` (dense training signal); `resolved` (tracked) + `command_resolved` (strict, requires exit 0 and no untracked failures) bools + breakdown in `reward.json` (eval signals). Oracle = 1.0. |
-| `diff_similarity` | Always (cheap fallback for trainers that can't run code) | Float 0..1 vs the gold patch |
+| pytest | Drop `--collect-only`, `--co`, `-q`; add `-v` | Append the changed `.py` test files |
+| `go test` | Add `-v` | Replace `./...` with the changed test packages |
+| `cargo test` | Drop `-q` | Whole suite (Rust filters by name, not file) |
+| Jest, Mocha | Drop `--silent`; add `--verbose` | Append the changed JS/TS test files |
+| Vitest | Use `--reporter=verbose` | Append the changed JS/TS test files |
 
-Resolution status (matches SWE-bench):
-- **FULL**: F2P rate == 1 AND P2P rate == 1
-- **PARTIAL**: 0 < F2P rate < 1 AND P2P rate == 1
-- **NO**: anything else
+Trailing `| head`/`| tail`, `2>&1` and `> /dev/null` are stripped first. The runner
+is detected from the command; the bootstrap's language is the fallback. `test.sh`
+prepends the usual Go, Rust, Node and Java toolchain directories to `PATH`, because
+bootstrap agents don't always persist them.
 
-## What we reuse from `references/SWE-bench/`
+### Validation and emission details
 
-Studied, not vendored — see `bootstrap/__init__.py` for our acknowledgment posture:
-
-| Their module | Our equivalent |
-|---|---|
-| `collect/build_dataset.py` (PR-to-instance, `extract_patches`) | `pipelines/pr_runtime.py` — same patch/test_patch split, same `is_valid_pull` filter |
-| `harness/test_spec/utils.py:make_eval_script_list_common` | `pipelines/pr_runtime.py:_build_eval_script` |
-| `harness/log_parsers/python.py` | `reward/log_parsers/python.py` (new module) |
-| `harness/grading.py:get_resolution_status` | `reward.py:resolution_status` (extends our existing reward.py) |
-
-We **don't** depend on the `swebench` PyPI package — its harness is tightly coupled to their dataset format and assumes their conda-managed envs.
-
-## Open questions
-
-- **Polyglot.** v0.3 ships Python only. JS/Go/Rust/Java in v0.4+ (each needs its own log parser + maybe special test-file path heuristics). SWE-bench-Live's multi-language extension is the obvious starting point.
-- **Validation cost.** Each candidate PR triggers two full test runs. A 10-PR mining run could be 30+ minutes wall clock. Need a `--skip-validation` mode for fast iteration that emits the task without `fail_to_pass` (then re-validate later).
-- **Flaky tests.** SWE-bench solves this by re-running 3× and majority voting. We should adopt the same when we add the QA gate.
-- **Tasks where the test_patch adds new test files that don't exist at base_commit.** `git checkout base_commit <file>` fails. SWE-bench handles this; our reset step needs the same fallback.
+- Validation reuses one container for all candidates and fetches each base commit
+  on demand, since the bootstrap image holds a shallow clone.
+- `git clean` keeps dependency and build directories (`node_modules`, `target`,
+  `vendor`, `.venv`, `.tox`, `.gradle`, …), so a reset doesn't break the suite.
+- Test output is fenced by `R2E_START_TEST_OUTPUT` and `R2E_END_TEST_OUTPUT`
+  markers on stdout, with stderr folded in, because unittest and Jest report there.
+- F2P includes tests that error at the base commit, such as a new test importing a
+  symbol the fix introduces.
+- For Go, a failing subtest whose parent test also failed isn't counted again as an
+  untracked failure.
+- The task Dockerfile installs `git`, CA certificates and `python3` when the
+  bootstrap image lacks them, since the verifier is Python.
+- The instruction builder drops HTML comments and everything from the first
+  checklist, changelog, test-plan or "tests added" heading, which would otherwise
+  name the grading tests. The body is capped at 4,000 characters.

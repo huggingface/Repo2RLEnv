@@ -1,4 +1,7 @@
-# RFC 0026: `scaler` recipe for `reasoning_synth`
+---
+title: "RFC 0026: scaler recipe for reasoning_synth"
+navTitle: "0026 \u00b7 scaler recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

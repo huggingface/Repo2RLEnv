@@ -1,4 +1,6 @@
-# FrontierSmith: optimization tasks
+---
+title: "frontiersmith"
+---
 
 `optimization_synth / frontiersmith` turns a closed-ended programming problem into
 an optimization challenge. Agents submit a reusable Python program; deterministic

@@ -1,4 +1,7 @@
-# Authentication
+---
+title: "Authentication"
+navTitle: "Auth"
+---
 
 GitHub auth is the only thing Repo2RLEnv really *cares* about — every pipeline starts by cloning a repo or hitting the GitHub API. The other tokens (HF, LLM, E2B) are passthroughs to upstream SDKs that already auto-resolve them.
 

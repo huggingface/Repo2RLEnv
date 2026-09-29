@@ -1,4 +1,6 @@
-# `terminal_synth / endless_terminals`
+---
+title: "endless_terminals"
+---
 
 Endless Terminals generates terminal tasks from a category, complexity and
 scenario. Its native category list covers files, text, databases, configuration,

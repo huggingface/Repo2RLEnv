@@ -1,4 +1,6 @@
-# `pr_runtime / swe_next`
+---
+title: "swe_next"
+---
 
 SWE-Next turns real historical code changes into repository repair tasks.
 

@@ -1,4 +1,6 @@
-# `pr_to_env / swe_gen`
+---
+title: "swe_gen"
+---
 
 The owned SWE-gen recipe turns explicit public GitHub PR URLs into standalone
 Harbor tasks. It retains the upstream substantiality/instruction prompt and

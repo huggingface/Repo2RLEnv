@@ -1,0 +1,197 @@
+---
+title: "Run tasks with Harbor"
+description: "Download a Repo2RLEnv dataset, check it with the oracle and nop controls, score real agents locally or in cloud sandboxes, and read the rewards."
+---
+
+Repo2RLEnv writes [Harbor tasks](../concepts/glossary.mdx#harbor-task); [Harbor](https://github.com/harbor-framework/harbor) runs them. Use this guide to evaluate an agent on a published dataset or on tasks you generated yourself: check that each task is sound, run an agent, and read the reward of every trial.
+
+## Before you start
+
+- **Docker**, running, for local runs (`--env docker`). Cloud sandboxes don't need it.
+- **Repo2RLEnv**, to download datasets: `pip install repo2rlenv`.
+- **An API key** for the model your agent uses, such as `ANTHROPIC_API_KEY` for Claude Code.
+
+## Install Harbor
+
+```bash
+uv tool install harbor
+```
+
+Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.22.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.22.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+
+## Download a dataset
+
+Pull a published dataset from the Hugging Face Hub. `pull` flattens the published `tasks/` layout into one directory per task, which is what `harbor run -p` expects.
+
+```bash
+repo2rlenv pull AdithyaSK/repo2rlenv-pr-runtime ./pr-runtime
+```
+
+```files
+pr-runtime
+├── README.md
+├── registry.json
+├── encode__httpx-3367
+│   ├── task.toml
+│   ├── instruction.md
+│   ├── environment
+│   ├── solution
+│   └── tests
+└── …
+```
+
+The [release index](../pipelines/releases.md) lists every published dataset. To try a single task first, add `--task encode__httpx-3367`. Tasks you generated yourself need no download: point `-p` at your `--out` directory.
+
+Datasets published with `repo2rlenv release` (the research recipes and Tasksmith) also ship `tasks.tar.gz`. It preserves executable file modes and each task's [bundle hash](../concepts/glossary.mdx#bundle-hash), so their dataset cards download it instead:
+
+```bash
+hf download HuggingEnvs/repo2rlenv-swe-smith tasks.tar.gz --repo-type dataset --local-dir ./swe-smith
+tar -xzf ./swe-smith/tasks.tar.gz -C ./swe-smith
+```
+
+The tasks land in `./swe-smith/tasks/`. Those cards run them on Daytona; see [Run in a cloud sandbox](#run-in-a-cloud-sandbox).
+
+## Check the tasks with the controls
+
+Before you score an agent, run the two controls. The [oracle](../concepts/glossary.mdx#oracle) agent applies the reference solution, so every task should score 1.0. The [nop](../concepts/glossary.mdx#nop) agent changes nothing, so every task should score 0.0.
+
+```bash
+harbor run -p ./pr-runtime -a oracle --env docker
+harbor run -p ./pr-runtime -a nop --env docker
+```
+
+A task where the oracle scores below 1.0, or nop scores above 0.0, can't tell a correct solution from an absent one. Leave it out of your evaluation. [Troubleshooting](troubleshooting.mdx#the-oracle-doesnt-score-10) covers the usual causes.
+
+The first run of a test-based dataset pulls or builds each task's image, so expect it to take longer than later runs.
+
+## Run a real agent
+
+This runs Claude Code with Sonnet, capped at $2 of agent spend per task:
+
+```bash
+harbor run -p ./pr-runtime \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+```
+
+| Flag | What it does |
+|---|---|
+| `-p PATH` | A dataset directory, or a single task directory. |
+| `-a AGENT` | The agent harness. `oracle` and `nop` are the controls. |
+| `-m PROVIDER/MODEL` | The model the harness uses. |
+| `--ak KEY=VALUE` | An agent option. `max_budget_usd` is Claude Code's spend cap. |
+| `--ae KEY=VALUE` | An environment variable for the agent's container. |
+| `--ve KEY=VALUE` | An environment variable for the verifier. See [Pass API keys](#pass-api-keys). |
+| `--env ENV` | Where trials run: `docker` (default) or a cloud sandbox. |
+
+Every flag that takes `KEY=VALUE` can be repeated.
+
+### Other agent harnesses
+
+Swap `-a` and `-m` to run another harness, and pass that harness's own provider key with `--ae`. Harbor ships, among others: `codex`, `gemini-cli`, `copilot-cli`, `cursor-cli`, `aider`, `goose`, `openhands`, `openhands-sdk`, `opencode`, `mini-swe-agent`, `swe-agent`, `qwen-coder`, `kimi-cli`, `trae-agent` and its reference agents `terminus-1` and `terminus-2`. `harbor run --help` lists every harness in your Harbor version. [Agent harnesses](../reference/AGENTS.md) explains what each one accepts and how rollout traces leave the sandbox for RL training.
+
+```bash
+harbor run -p ./pr-runtime \
+  -a openhands -m openai/gpt-4o \
+  --ae OPENAI_API_KEY=$OPENAI_API_KEY \
+  --env docker
+```
+
+## Pass API keys
+
+Harbor runs the agent and the verifier in separate phases, and each gets only the variables you pass to it.
+
+- **`--ae` (agent env)** carries the model key the harness needs: `ANTHROPIC_API_KEY` for `claude-code`, `OPENAI_API_KEY` for OpenAI models, and so on.
+- **`--ve` (verifier env)** matters only for `pr_diff` tasks. Their reward includes an optional LLM judge, which runs at verification time:
+
+```bash
+harbor run -p ./pr-diff \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+```
+
+Without a judge key, the `pr_diff` verifier still scores: it records `judge_status = "no_api_key"` and renormalizes the weights of the other components. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
+
+Test-based tasks (`pr_runtime`, `commit_runtime`, `cve_patches`, the research recipes and Tasksmith) grade by running tests and need no verifier keys.
+
+## Run a subset
+
+Filters apply to task directory names, and `-l` is applied after them.
+
+| Flag | Effect |
+|---|---|
+| `-l N` | Run at most N tasks: the first N after the other filters, not a random sample. |
+| `-i GLOB` | Include only matching tasks, such as `-i 'encode__httpx-*'`. Repeatable. |
+| `-x GLOB` | Exclude matching tasks. Repeatable. |
+| `-n N` | Run N trials at a time (default 4). |
+| `-k N` | Run each task N times, for pass@k and variance. |
+
+```bash
+harbor run -p ./pr-runtime -i 'pallets__*' -l 10 -a oracle --env docker
+```
+
+To evaluate only tasks whose quality has been established, list them by [evaluation label](../concepts/glossary.mdx#evaluation-label) first: `repo2rlenv tasks list ./pr-runtime --status verified`.
+
+## Run in a cloud sandbox
+
+Replace `--env docker` with a hosted sandbox provider to run many trials in parallel without local Docker. Install Harbor with that provider's extra and set its credentials in your shell:
+
+| `--env` | Install | Credentials |
+|---|---|---|
+| `modal` | `uv tool install 'harbor[modal]'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
+| `daytona` | `uv tool install 'harbor[daytona]'` | `DAYTONA_API_KEY` |
+| `e2b` | `uv tool install 'harbor[e2b]'` | `E2B_API_KEY` |
+| `runloop` | `uv tool install 'harbor[runloop]'` | `RUNLOOP_API_KEY` |
+
+```bash
+harbor run -p ./swe-smith/tasks -a oracle --env daytona -n 16
+```
+
+These sandboxes run Linux containers. Harbor's own [environment docs](https://www.harborframework.com/docs) list further providers.
+
+## Read the results
+
+Each `harbor run` is a job. Harbor writes it to `./jobs/<timestamp>/` (set `--job-name` to name it and `-o` to change the parent directory), with one directory per trial:
+
+```files
+jobs/my-run
+├── result.json                  # job summary: mean reward, reward counts, errors
+├── encode__httpx-3367__a1b2c3d
+│   ├── result.json              # trial result, including the reward
+│   ├── agent                    # agent logs and trajectory
+│   └── verifier
+│       ├── reward.txt           # the scalar reward Harbor reads
+│       ├── reward-details.json  # native tasks: the reward breakdown
+│       ├── result.json          # recipe and Tasksmith tasks: the grader's outcome
+│       └── test-stdout.txt      # verifier output
+└── …
+```
+
+The job's `result.json` groups statistics by agent, model and dataset. Its `metrics` hold the mean reward, and `reward_stats` maps each reward value to the trials that earned it. For one reward per task, read the trial files:
+
+```bash
+jq -r '[.task_name, (.verifier_result.rewards.reward // "error")] | @tsv' jobs/my-run/*/result.json
+```
+
+A trial with no reward failed before verification. Its `exception_info` says why. To browse trajectories in a web UI, run `harbor view jobs`.
+
+What a reward means depends on the pipeline:
+
+| Tasks | `reward.txt` | Details |
+|---|---|---|
+| `pr_diff` | Weighted diff similarity in [0, 1] | `reward-details.json`: each component's score, the weights and the judge status |
+| `pr_runtime`, `commit_runtime`, `cve_patches` | `f2p_rate × p2p_rate` in [0, 1] | `reward-details.json`: strict `resolved` (every fail-to-pass test passes and no pass-to-pass test regresses), pass counts, regressions |
+| `code_instruct`, `equivalence_tests` | 1 or 0 (the test command's exit status) | None |
+| Research recipes (except SCALER) and Tasksmith | 1 or 0 | `result.json`: whether the required tests passed, with per-test statuses. CLI-Gym writes `reason.txt` when protected source was changed. |
+| SCALER recipe | −1 or +1 | `result.json`: the score and answer accuracy |
+
+[Rewards](../concepts/rewards.mdx) explains each design, and the [reward schema](../reference/REWARD_SCHEMA.md) documents every field.
+
+## Limits
+
+A score says something about an agent only when the task itself is sound. An exported task is a generation result: its quality is established by its controls (the oracle scores 1, nop scores 0) and by the review-and-repair loop, which records the outcome as an evaluation label. Run the controls on every dataset you evaluate, and prefer tasks labeled `verified` when a result will be reported. See [Quality](../concepts/quality.mdx).

@@ -1,0 +1,24 @@
+{
+  "title": "Full prompts (generated)",
+  "pages": [
+    "shared_terminal",
+    "quality_loop",
+    "tasksmith",
+    "codemidas",
+    "swe_smith",
+    "r2e",
+    "swe_gen",
+    "swe_next",
+    "r2e_gym",
+    "scaler",
+    "endless_terminals",
+    "cli_gym",
+    "swe_flow",
+    "seta_seed2synth",
+    "seta_evol",
+    "tmax",
+    "terminalworld",
+    "dataarc",
+    "frontiersmith"
+  ]
+}

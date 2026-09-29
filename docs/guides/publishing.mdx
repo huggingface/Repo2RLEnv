@@ -1,0 +1,149 @@
+---
+title: "Publish to the Hub"
+description: "Share a dataset directory quickly with repo2rlenv push, or cut an immutable, hash-checked release with repo2rlenv release, then pull either one back."
+---
+
+Two commands publish tasks to a Hugging Face dataset repository. `repo2rlenv push` uploads a directory you generated, which is the quick way to share native pipeline output. `repo2rlenv release` publishes an explicit selection of tasks whose bytes are checked against their [bundle hashes](../concepts/glossary.mdx#bundle-hash); the published research-recipe and Tasksmith datasets are built this way.
+
+## Choose a command
+
+| | `repo2rlenv push` | `repo2rlenv release stage`, `verify`, `publish` |
+|---|---|---|
+| Input | A local dataset directory, such as the `--out` of `generate` | A release plan: task paths and the bundle hash each must have |
+| Built for | Native pipeline output (Harbor 1.0 tasks) | Research-recipe and Tasksmith output (schema 1.3 bundles) |
+| Your task files | Rewritten in place for tasks that ship a Dockerfile, to record how their image is reproduced | Never modified; staged copies are checked against the plan |
+| Container images | Pushes bootstrap images to a registry, or inlines their build recipe | Not involved: each bundle carries its own build context |
+| Publishing again | Replaces the dataset's `tasks/` with the directory's current contents | Produces a new release; a completed publication never uploads twice |
+| Published files | Tasks, dataset card, `manifest.json`, `registry.json` | The same, plus `tasks.tar.gz`, a task index, file-hash manifests, `LICENSES.md` and optional evidence |
+
+Use `push` to share native output. Use `release` for recipe and Tasksmith output, or whenever you need to show exactly which task bytes were published.
+
+Both need a Hub token with write access to the target namespace: run `hf auth login`, or set `HF_TOKEN`.
+
+## Push a dataset directory
+
+```bash
+repo2rlenv push ./tasks my-org/click-pr-runtime
+```
+
+Pass a bare name (`click-pr-runtime`) to publish under your own account, and `--private` to create a private repository. `push` then:
+
+1. Prepares the container image of every task that ships an `environment/Dockerfile` (see [Container images](#container-images)).
+2. Stages the tasks under `tasks/` and writes a dataset card (`README.md`) and a `manifest.json` with each task's repository, PR, base commit, test counts and reward kind. A `manifest.json` already in your directory is kept if it carries a `validation` block.
+3. Uploads everything in one commit. `tasks/` is synced: a task you deleted locally is deleted from the Hub on the next push.
+4. Uploads a Harbor `registry.json` pinned to that commit, so `harbor download --registry-url …` resolves the exact revision.
+
+Generate to a local directory and push it as a separate step. `generate --out hf://…` still works but is deprecated.
+
+### Container images
+
+Test-based native tasks (`pr_runtime`, `commit_runtime`, …) start from a bootstrap image that exists only on the machine that generated them. `push` makes each such task reproducible elsewhere, and records the result in its `[metadata.repo2env.reproducibility]` table:
+
+| Mode | How the task gets its image | Reproducibility |
+|---|---|---|
+| `registry` | `push` uploads the image to a container registry and rewrites the Dockerfile's `FROM` to its digest. | Bit-exact. |
+| `inline_dockerfile` | The bootstrap build steps are written into `environment/Dockerfile`, which rebuilds on every `harbor run`. Tasks that already start from a public base image, like `pr_diff`'s `python:3.12-slim`, use this mode without any image step. | Recipe-level: depends on package mirrors staying stable. |
+| `local_only` | Set at generation time: the image is still local. | Not reproducible on another machine. `push` replaces this mode. |
+
+By default, `push` probes every registry you're logged in to in `~/.docker/config.json`, prefers GHCR, and uses the first one that passes. Docker Hub is used only when you name it with `--image-registry`. If no registry passes, `push` warns and falls back to `inline_dockerfile`.
+
+| To | Use |
+|---|---|
+| Check your credentials without pushing anything | `repo2rlenv push --check-auth` (add `--fast` or `--json`) |
+| Pick the registry yourself | `--image-registry ghcr.io/my-org` |
+| Fail instead of falling back to inline mode (CI, launch datasets) | `--require-registry` |
+| Skip images entirely | `--inline-dockerfile` |
+| Reuse images already at the registry | `--skip-image-push` |
+| Set image visibility | `--image-visibility public`, `private` or `inherit` (default: match the dataset) |
+
+[Registry authentication](../reference/REGISTRY_AUTH.md) shows how to log in to GHCR, ECR, ACR, Artifact Registry and Docker Hub, and what each `--check-auth` level probes.
+
+> [!WARNING]
+> `push` edits `environment/Dockerfile` and `task.toml` of Dockerfile-bearing tasks in your local directory. Keep a copy if you need the unpublished form. For schema 1.3 bundles, the edit changes the bundle hash, so publish recipe and Tasksmith output with `release` instead.
+
+## Cut a release
+
+A release publishes exactly the tasks you list, after checking that each one still has the bundle hash you expect. It works on research-recipe and Tasksmith bundles, which record a `bundle_hash` and a `recipe` in `[metadata.repo2env]`. Native output records only a `content_hash`, so `release stage` refuses it; publish native tasks with `push`. The full guide, including evidence documents and label normalization, is [Releasing Harbor task collections](../pipelines/dataset_release.md).
+
+<Steps>
+<Step>
+
+### Write a release plan
+
+Each task's current hash is its `metadata.repo2env.bundle_hash` in `task.toml`.
+
+```json title="release-plan.json"
+{
+  "repo_id": "my-org/repo2rlenv-swe-smith",
+  "recipe": "swe_smith",
+  "title": "Repo2RLEnv SWE-smith",
+  "description": "Coding tasks produced by owned procedural mutation.",
+  "methodology": "Mutate real repository functions, verify test contrast, then write an issue.",
+  "code_revision": "COMMIT_SHA",
+  "tasks": [
+    { "path": "workspace/smith/tasks/TASK_ID", "bundle_hash": "sha256:EXPECTED_HASH" }
+  ],
+  "limitations": ["Generation exports are not independently accepted tasks."]
+}
+```
+
+</Step>
+<Step>
+
+### Stage it
+
+```bash
+repo2rlenv release stage release-plan.json --out workspace/releases/swe-smith
+```
+
+`stage` refuses any task whose content no longer matches its expected hash, parses each task with Harbor (install the `harbor` extra), and builds the release directory: `tasks/`, `tasks.tar.gz`, `manifest.json`, `data/tasks.jsonl`, the dataset card and license notes. The staging directory must not already exist.
+
+</Step>
+<Step>
+
+### Verify it
+
+```bash
+repo2rlenv release verify workspace/releases/swe-smith
+```
+
+`verify` rehashes every staged file and its mode. Nothing is built or run.
+
+</Step>
+<Step>
+
+### Publish it
+
+```bash
+repo2rlenv release publish workspace/releases/swe-smith \
+  --receipt workspace/releases/swe-smith-publication.json \
+  --collection my-org/COLLECTION_SLUG
+```
+
+`publish` verifies the staging again, uploads it, confirms that every staged file exists at the uploaded revision, pins `registry.json` to that commit and adds the dataset to the collection. The receipt records each step. Rerunning with a completed receipt returns it without uploading; an incomplete receipt stops for you to reconcile.
+
+</Step>
+</Steps>
+
+For a large new dataset, add `--batch-size 500` to upload into an empty repository in bounded commits. If a large upload timed out before creating any commit, rerun with `--recover-empty` and the original receipt.
+
+## Pull a dataset back
+
+```bash
+repo2rlenv pull my-org/click-pr-runtime
+```
+
+This downloads to `./datasets/my-org__click-pr-runtime/`, one directory per task, ready for `harbor run -p`. Append `@REVISION` to the name for a specific branch, tag or commit, pass a second argument to choose the directory, and add `--task NAME` to fetch a single task. `pull` also accepts `harbor://name[@tag]` for a Harbor registry and `gh://owner/repo[@ref]` for a dataset kept in a GitHub repository.
+
+For a released dataset, download `tasks.tar.gz` when you need the exact bundles. The archive preserves executable file modes, which are part of each bundle hash:
+
+```bash
+hf download my-org/repo2rlenv-swe-smith tasks.tar.gz --repo-type dataset --local-dir ./swe-smith
+tar -xzf ./swe-smith/tasks.tar.gz -C ./swe-smith
+```
+
+[Run tasks with Harbor](run-with-harbor.mdx) picks up from here.
+
+## Limits
+
+Publishing checks format and integrity, not quality. `push` can't run an oracle, and `release` confirms that the bytes you selected are the bytes on the Hub. An exported task is a generation result: its quality is established by its controls (the oracle scores 1, nop scores 0) and the review-and-repair loop, recorded as an [evaluation label](../concepts/glossary.mdx#evaluation-label). Run the controls before you publish, and state in the dataset card which labels your tasks carry.

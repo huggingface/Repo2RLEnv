@@ -1,4 +1,6 @@
-# `env_repair / cli_gym`
+---
+title: "cli_gym"
+---
 
 CLI-Gym derives repair tasks by deliberately breaking a healthy development
 environment and verifying that a recovery restores its existing tests.

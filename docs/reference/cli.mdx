@@ -1,0 +1,723 @@
+---
+title: "CLI reference"
+description: "Every repo2rlenv command, subcommand and flag with its default, read from the argparse definitions."
+---
+
+`repo2rlenv` is one executable with thirteen commands. This page lists every flag and its default as defined in the v0.9.3 argparse code. Run `repo2rlenv COMMAND --help` (or `repo2rlenv COMMAND SUBCOMMAND --help`) for the same information in your terminal.
+
+## Global flags
+
+```bash
+repo2rlenv [--version] [-v] [--no-ui] COMMAND ...
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--version` | — | Print `repo2rlenv <version>` and exit. |
+| `-v`, `--verbose` | off | Debug logging. On an error, also print the traceback to stderr. |
+| `--no-ui` | off | Disable Rich live displays and print plain log lines. |
+| `-h`, `--help` | — | Show help for the command it follows. |
+
+Global flags go **before** the command: `repo2rlenv --no-ui generate …`. Placed after the command, they fail with `unrecognized arguments`.
+
+### Conventions
+
+- **Credentials.** At startup the CLI loads a `.env` file without overriding variables you already set. See [`.env` files](ENV.md#env-files) for where it looks.
+- **Exit codes.** `0` means success. `1` means the command finished but produced nothing usable (for example `generate` emitted no tasks or `validate` found a failing task). `2` means invalid arguments or a setup error.
+- **Errors.** Printed to stderr as `ErrorType: message`. Commands that accept `--json` print `{"error": "ErrorType", "message": "…"}` to stdout instead.
+- **Live displays.** They turn off automatically when stdout isn't a terminal, when `NO_COLOR` or `CI` is set, or when `TERM=dumb`.
+
+## generate
+
+Run a pipeline against a source and write Harbor tasks to a local directory.
+
+```bash
+repo2rlenv generate [--config FILE] [--repo REPO] [--pipeline NAME] [--recipe NAME]
+                    [--pipeline-opt KEY=VALUE ...] [--llm PROVIDER/MODEL] [--out DIR] ...
+```
+
+`generate` routes on `--recipe`:
+
+- **Native** (no `--recipe`, or `--recipe native`) runs on your machine. `pr_diff` needs neither Docker nor an LLM. Every other native pipeline needs `--llm` and Docker, because it first [bootstraps](../concepts/glossary.mdx#bootstrap) a container image for the repository.
+- **Research recipes** (`--recipe swe_smith`, …) and non-repository sources need a `--config` file with an `execution:` block and a running remote worker. There is no local fallback. See [Remote execution](../guides/remote-execution.mdx).
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config FILE` | — | Generation input as YAML (`.yaml`, `.yml`), TOML or JSON. Flags on the command line override its values. |
+| `--repo REPO` | — | GitHub `owner/name`, a GitHub or GitLab URL, or a local path. |
+| `--ref REF` | `HEAD` | Branch, tag or commit. Applied together with `--repo`. |
+| `--access` | `auto` | `public`, `private` or `auto`. Applied together with `--repo`. |
+| `--pipeline NAME` | — | Pipeline name, such as `pr_diff`. `repo2rlenv pipelines list` shows them all. |
+| `--recipe NAME` | `native` | Research recipe to run for the pipeline, such as `swe_smith`. |
+| `--pipeline-opt KEY=VALUE` | none | Pipeline option. Repeatable. `true`/`false` become booleans, JSON values (numbers, lists) are parsed, and anything else stays a string. Overrides options from `--config`. |
+| `--llm PROVIDER/MODEL` | — | Model for synthesis and bootstrap, such as `anthropic/claude-sonnet-4-6`. |
+| `--llm-fallback PROVIDER/MODEL` | — | Model to switch to when the primary returns 5xx, rate-limit or network errors. |
+| `--llm-endpoint URL` | — | Base URL of a self-hosted OpenAI-compatible server for the primary model, such as `http://localhost:8000/v1`. The provider's default key is never sent there. |
+| `--llm-key-env VAR` | provider default | Environment variable that holds the primary model's API key. |
+| `--out DIR` | — | Output directory. |
+| `--org ORG` | `default` | Task namespace: task names become `ORG/<slug>`. Applied together with `--out`. |
+| `--dataset-name NAME` | name of `--out` | Dataset name recorded in the output spec. Applied together with `--out`. |
+| `--visibility` | `public` | `public` or `private`. Applied together with `--out`. |
+| `--max-spend-usd N` | `5.0` | **Native only.** Caps the bootstrap agent's LLM spend; `0` removes the cap. Research recipes reject it, because their spend comes from a [campaign](#campaign) budget. |
+| `--language LANG` | auto-detect | Bootstrap language: `python`, `node`, `go`, `rust`, `java` or `c_cpp`. |
+| `--base-image IMAGE` | per language | Bootstrap base image, such as `ubuntu:24.04` or `python:3.11-slim`. |
+| `--force-bootstrap` | off | Ignore the bootstrap cache and rebuild the image. |
+| `--bootstrap-opt KEY=VALUE` | none | Set any bootstrap field, such as `cache_dir`, `max_iterations`, `max_seconds` or `user_dockerfile`. Repeatable. |
+| `--force-language` | off | Skip the check that the repository's primary language is one the pipeline supports. |
+| `--resume` | off | **Recipes only.** Continue a run without redispatching completed work. |
+| `--json` | off | **Recipes only.** Stream progress as JSON Lines. Native generation rejects it. |
+
+`--llm-fallback`, `--llm-endpoint` and `--llm-key-env` need `--llm` or an `llm:` block in `--config`. The bootstrap flags (`--language` through `--force-language`) only affect native pipelines that bootstrap.
+
+The pipeline option `limit` counts candidates listed (for PR pipelines, merged PRs), not tasks emitted. Filters usually drop some, so `generate` can finish with fewer tasks than the limit. It exits `1` when it emits none.
+
+```bash
+repo2rlenv generate \
+  --repo pallets/click \
+  --pipeline pr_diff \
+  --pipeline-opt limit=10 \
+  --out ./tasks
+```
+
+A research recipe takes its source, options and `execution:` block from the config file:
+
+```bash
+repo2rlenv --no-ui generate --config examples/owned-swe-smith.yaml
+```
+
+## validate
+
+Statically check a dataset or task directory. Nothing is built or run.
+
+```bash
+repo2rlenv validate [--deep] [--oracle] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Dataset or single task directory. Every `task.toml` below it is checked. |
+| `--deep` | off | Also check each task's assets and metadata: instruction, environment definition, `tests/test.sh`, graded verifier files and the reproducibility table. |
+| `--oracle` | off | Implies `--deep`. Also require `solution/solve.sh` and, for native pipelines, a non-empty `solution/patch.diff`. |
+
+Without flags, `validate` confirms each `task.toml` parses and has a `[task]` name. It exits `1` if any task fails or if no `task.toml` is found. [Deep validation](SPEC.md#deep-validation) lists every check.
+
+> [!WARNING]
+> `validate` currently rejects research-recipe and Tasksmith output (schema 1.3 bundles) with `missing top-level ['version']`, because it still requires the Harbor 1.0 `version` key. A fix is in progress. Until then, use it on native pipeline output.
+
+```bash
+repo2rlenv validate ./tasks --oracle
+```
+
+## push
+
+Upload a local dataset directory to a Hugging Face dataset repository.
+
+```bash
+repo2rlenv push [--private] [-m MESSAGE] [--image-registry PREFIX] [--inline-dockerfile]
+                [--require-registry] [--skip-image-push] [--image-visibility VIS]
+                [LOCAL_DIR] [DATASET]
+repo2rlenv push --check-auth [--fast] [--json]
+```
+
+`push` stages the tasks under `tasks/`, writes a dataset card and `manifest.json`, uploads them, then uploads a `registry.json` pinned to that commit. For tasks whose Dockerfile starts from a locally built bootstrap image, it first pushes the image to a container registry, or inlines the build recipe. It rewrites `environment/Dockerfile` and `task.toml` in place to record the choice. See [Publishing](../guides/publishing.mdx).
+
+| Flag | Default | Description |
+|---|---|---|
+| `LOCAL_DIR` | `.` | Dataset directory, as written by `generate`. |
+| `DATASET` | — | Target as `owner/name` or `hf://owner/name`. Required unless `--check-auth`. `harbor://` and GitHub targets print the equivalent `harbor publish` or `git push` command instead. |
+| `--private` | off | Create the dataset repository as private. |
+| `-m`, `--message TEXT` | `Repo2RLEnv: add N tasks` | Commit message. |
+| `--image-registry PREFIX` | auto-detect | Force a registry prefix, such as `ghcr.io/my-org`. It's probed for write access first. |
+| `--inline-dockerfile` | off | Don't push images; write the bootstrap recipe into each `environment/Dockerfile`. Rebuilds from the recipe, not bit-exact. |
+| `--require-registry` | off | Fail if no verified registry is available instead of falling back to inline mode. |
+| `--skip-image-push` | off | Rewrite tasks against an image that already exists at the registry; don't run `docker push`. |
+| `--image-visibility` | `inherit` | `public`, `private` or `inherit` (match the dataset's visibility). |
+| `--check-auth` | off | Probe every registry you're logged in to, report, and exit. Uploads nothing. |
+| `--fast` | off | With `--check-auth`: stop after the reachability and authentication levels. |
+| `--json` | off | With `--check-auth`: print the probe results as JSON. |
+
+```bash
+repo2rlenv push ./tasks my-org/click-pr-diff
+```
+
+## pull
+
+Download a dataset from the Hugging Face Hub, a Harbor registry or GitHub.
+
+```bash
+repo2rlenv pull [--task NAME] [--registry-url URL] [--force] DATASET [LOCAL_DIR]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `DATASET` | required | `owner/name`, `owner/name@rev`, `hf://owner/name`, or a bare `name` (owner resolved from your Hub login) for the Hub. `harbor://name[@tag]` for a Harbor registry. `gh://owner/repo[@ref]` or a `https://github.com/owner/repo` URL for GitHub. |
+| `LOCAL_DIR` | `./datasets/<owner>__<name>` | Destination directory. |
+| `--task NAME` | — | Hub only: download one task, such as `encode__httpx-3367`. |
+| `--registry-url URL` | Harbor's public registry | Harbor only: a custom registry. Requires the `harbor` CLI on your `PATH`. |
+| `--force` | off | Delete the local copy and download again. |
+
+A Hub pull flattens the published `tasks/<id>/` layout back to `LOCAL_DIR/<id>/`, ready for `harbor run -p`. A GitHub pull is a shallow `git clone`.
+
+```bash
+repo2rlenv pull AdithyaSK/repo2rlenv-pr-runtime ./pr-runtime --task encode__httpx-3367
+```
+
+## bootstrap
+
+Build and cache a working Docker image for a repository with an LLM agent, without generating tasks. A later `generate` against the same repository and commit reuses the cached image.
+
+```bash
+repo2rlenv bootstrap --repo REPO --llm PROVIDER/MODEL [--ref REF] [--max-spend-usd N] ...
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--repo REPO` | required | GitHub `owner/name` or URL. |
+| `--ref REF` | `HEAD` | Branch, tag or commit. |
+| `--access` | `auto` | `public`, `private` or `auto`. |
+| `--llm PROVIDER/MODEL` | required | Model that drives the build agent. |
+| `--llm-endpoint URL` | — | Self-hosted OpenAI-compatible server for `--llm`. |
+| `--llm-key-env VAR` | provider default | Environment variable that holds the API key. |
+| `--max-iterations N` | `25` | Maximum agent turns. |
+| `--max-seconds N` | `1800` | Wall-clock limit. |
+| `--cache-dir DIR` | `$R2E_CACHE_DIR`, else `./workspace/bootstrap` | Image cache root. |
+| `--image-registry PREFIX` | — | Push the built image here, such as `ghcr.io/my-org/r2e`. |
+| `--platform` | `linux/amd64` | `linux/amd64` or `linux/arm64`. |
+| `--language LANG` | auto-detect | `python`, `node`, `go`, `rust`, `java` or `c_cpp`. |
+| `--base-image IMAGE` | per language | Base image, such as `ubuntu:24.04`. |
+| `--max-spend-usd N` | `5.0` | Abort when cumulative LLM cost passes this; `0` removes the cap. |
+| `--force` | off | Ignore the cache and rebuild. |
+
+The agent's turn limit comes from `--max-iterations` here. Inside `generate`, it comes from the bootstrap spec (default `20`; set it with `--bootstrap-opt max_iterations=N`). [Bootstrap](BOOTSTRAP.md) explains the cache and the agent loop.
+
+```bash
+repo2rlenv bootstrap --repo pallets/click --llm anthropic/claude-sonnet-4-6
+```
+
+## pipelines
+
+Discover native pipelines and research recipes. Makes no network calls and needs no credentials.
+
+### pipelines list
+
+List every native pipeline and research recipe with its status (`stable`, `experimental` or `planned`) and source kind.
+
+```bash
+repo2rlenv pipelines list [--json]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` | off | Print `{"native": […], "recipes": […]}`. |
+
+```bash
+repo2rlenv pipelines list --json
+```
+
+### pipelines describe
+
+Show one recipe's input, scope, upstream source pin and RFC.
+
+```bash
+repo2rlenv pipelines describe --recipe RECIPE [--json] PIPELINE
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PIPELINE` | required | Pipeline the recipe belongs to, such as `repo_mutate`. |
+| `--recipe RECIPE` | required | Recipe id, such as `swe_smith`. |
+| `--json` | off | Print the description as JSON. |
+
+```bash
+repo2rlenv pipelines describe repo_mutate --recipe swe_smith
+```
+
+## tasksmith
+
+Build Harbor tasks from merged PRs with a remote coding agent (Pi or OpenCode). Needs the `tasksmith` extra plus `modal` or `daytona`, a [campaign](#campaign) and a runtime wheel. See [Tasksmith](../pipelines/tasksmith.md).
+
+### tasksmith run
+
+Run or resume a fixed PR panel.
+
+```bash
+repo2rlenv tasksmith run PANEL --campaign DIR --output DIR --runtime-wheel WHEEL [options]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PANEL` | required | JSON panel of PRs, such as `examples/tasksmith-pr.json`. |
+| `--campaign DIR` | required | Existing campaign directory. |
+| `--output DIR` | required | Run directory. Rerunning the same command reuses matching completed work. |
+| `--runtime-wheel WHEEL` | required | Wheel built from the installed version (`uv build --wheel`). |
+| `--options FILE` | — | Options JSON, including quality models and spending limits, such as `examples/tasksmith-options.json`. |
+| `--provider` | `modal` | `modal` or `daytona`. Used when `--options` is absent; must agree with it otherwise. |
+| `--author` | `pi` | `pi` or `opencode`. Used when `--options` is absent; must agree with it otherwise. |
+| `--stop-after N` | — | Process only the first N inputs. The report's denominator stays the full panel. |
+| `--sources FILE` | — | Frozen PR source records, in panel order. |
+| `--prepared-task DIR` | — | Recover one task matching `--sources` with fresh quality checks; the input is preserved. |
+| `--generation-run DIR` | — | Reuse verified generation artifacts from an identical panel and rerun only the current quality policy. |
+| `--reuse-evidence` | off | With `--generation-run`: also reuse matching baseline, reference and solver evidence. Semantic probes still rerun. |
+| `--bootstrap-report FILE` | — | Reuse the snapshot and dependency hints from a completed CPU bootstrap report. |
+| `--env-file FILE` | — | Load credentials from this file, without overriding variables already set. |
+| `--json` | off | Print the report as JSON. |
+
+Exits `0` only when every input produced a usable task.
+
+```bash
+repo2rlenv tasksmith run examples/tasksmith-pr.json \
+  --options examples/tasksmith-options.json \
+  --campaign workspace/tasksmith \
+  --output workspace/tasksmith/run \
+  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+```
+
+### tasksmith batch
+
+Run a bounded parallel campaign over many PRs, retaining every generated task. The plan format is in [Run Tasksmith on many PRs](../pipelines/tasksmith_parallel_campaigns.md).
+
+```bash
+repo2rlenv tasksmith batch PLAN --campaign DIR --output DIR --runtime-wheel WHEEL [--env-file FILE] [--json]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PLAN` | required | Batch plan JSON (target, parallelism, spending cap, candidates). |
+| `--campaign DIR` | required | Existing campaign directory. |
+| `--output DIR` | required | Batch directory. |
+| `--runtime-wheel WHEEL` | required | Runtime wheel. |
+| `--env-file FILE` | — | Credentials file. |
+| `--json` | off | Print the batch report as JSON. |
+
+Exits `0` when the plan's verified target was reached.
+
+```bash
+repo2rlenv tasksmith batch plan.json --campaign workspace/campaign \
+  --output workspace/tasksmith-batch --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+```
+
+### tasksmith bootstrap
+
+Build and smoke-test pinned repositories on remote CPU and GPU workers before a campaign.
+
+```bash
+repo2rlenv tasksmith bootstrap MATRIX --campaign DIR --output DIR --runtime-wheel WHEEL
+                               [--resource cpu|gpu|both] [--env-file FILE] [--json]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `MATRIX` | required | JSON list of distinct repository bootstrap specs. |
+| `--resource` | `both` | `cpu`, `gpu` or `both`. The GPU pass stops at the first repository that isn't ready. |
+| `--campaign DIR` | required | Existing campaign directory. |
+| `--output DIR` | required | Receipts, logs and compute estimates. |
+| `--runtime-wheel WHEEL` | required | Runtime wheel. |
+| `--env-file FILE` | — | Credentials file. |
+| `--json` | off | Print the reports as JSON. |
+
+```bash
+repo2rlenv tasksmith bootstrap matrix.json --resource cpu --campaign workspace/campaign \
+  --output workspace/bootstrap-matrix --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+```
+
+### tasksmith install-runtime
+
+Install the pinned Pi and OpenCode libraries into your user cache. Takes no flags.
+
+```bash
+repo2rlenv tasksmith install-runtime
+```
+
+### tasksmith show
+
+Read a saved run or batch report. Makes no paid calls.
+
+```bash
+repo2rlenv tasksmith show [--json] OUTPUT
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `OUTPUT` | required | Run or batch directory containing `report.json`. |
+| `--json` | off | Print the report as JSON. |
+
+```bash
+repo2rlenv tasksmith show workspace/tasksmith/run --json
+```
+
+## campaign
+
+Create and inspect the budget ledger (`budget.sqlite3`) that research recipes, Tasksmith, workers and the quality loop reserve spend against. See [Remote execution](../guides/remote-execution.mdx#set-a-budget).
+
+### campaign init
+
+Create a campaign directory with a fixed spending limit. Running it again with the same amount is harmless; a different amount is refused.
+
+```bash
+repo2rlenv campaign init --budget-usd N [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Campaign directory. |
+| `--budget-usd N` | required | Spending limit in USD. |
+| `--json` | off | Print the budget as JSON. |
+
+```bash
+repo2rlenv campaign init workspace/my-campaign --budget-usd 25
+```
+
+### campaign status
+
+Show the limit, accounted spend, open reservations and remaining allowance. Warns when operations are waiting for reconciliation.
+
+```bash
+repo2rlenv campaign status [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Campaign directory created with `campaign init`. |
+| `--json` | off | Also list every operation with its status (`reserved`, `uncertain` or `settled`). |
+
+```bash
+repo2rlenv campaign status workspace/my-campaign --json
+```
+
+### campaign settle
+
+Close a reservation with its actual cost and an evidence file. The ledger records the file's path and SHA-256.
+
+```bash
+repo2rlenv campaign settle --operation ID --cost-usd N --evidence FILE [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Campaign directory. |
+| `--operation ID` | required | Operation id from `campaign status --json`. Workers use `worker:<provider>:<name>`. |
+| `--cost-usd N` | required | Actual cost in USD. |
+| `--evidence FILE` | required | Usage or billing receipt, or a clearly labeled conservative estimate. |
+| `--json` | off | Print the budget as JSON. |
+
+```bash
+repo2rlenv campaign settle workspace/my-campaign --operation worker:modal:my-worker \
+  --cost-usd 0.30 --evidence workspace/my-campaign/worker-usage.json
+```
+
+## workers
+
+Create, check and terminate remote Modal or Daytona workers. Each worker has a JSON receipt at `CAMPAIGN/workers/NAME.json` that later commands take as input. Needs the `modal` or `daytona` extra.
+
+### workers start
+
+Reserve spend in the campaign, create the worker and write its receipt.
+
+```bash
+repo2rlenv workers start --campaign DIR --provider modal|daytona --name NAME --reserve-usd N
+                         [--cpus N] [--memory-mb N] [--timeout-sec N] [--json]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--campaign DIR` | required | Existing campaign directory. |
+| `--provider` | required | `modal` or `daytona`. |
+| `--name NAME` | required | Lowercase letters, digits and hyphens, starting with a letter. Also the receipt's file name, so it can't be reused in the same campaign. |
+| `--reserve-usd N` | required | Amount to reserve for the worker's lifetime. |
+| `--cpus N` | `2` | CPUs (1–16). |
+| `--memory-mb N` | `4096` | Memory in MB (1024–65536). |
+| `--timeout-sec N` | `3600` | Lifetime in seconds (60–14400). On Daytona this becomes an idle auto-stop. |
+| `--json` | off | Print the receipt as JSON. |
+
+```bash
+repo2rlenv workers start --campaign workspace/my-campaign --provider modal \
+  --name my-worker --reserve-usd 3 --timeout-sec 3600
+```
+
+### workers probe
+
+Check a running worker: Docker daemon readiness, byte-exact file transfer, an image build and an isolated container run with no network access.
+
+```bash
+repo2rlenv workers probe --out DIR [--json] RECEIPT
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `RECEIPT` | required | Receipt of a running worker. |
+| `--out DIR` | required | New directory for `probe.json` and command logs. It must not exist. |
+| `--json` | off | Print the result as JSON. |
+
+```bash
+repo2rlenv workers probe workspace/my-campaign/workers/my-worker.json \
+  --out workspace/my-campaign/probes/first
+```
+
+### workers stop
+
+Terminate the worker and mark its reservation for reconciliation. Stopping confirms cleanup; it doesn't record a cost. Settle it with [`campaign settle`](#campaign-settle).
+
+```bash
+repo2rlenv workers stop [--json] RECEIPT
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `RECEIPT` | required | Worker receipt. Stopping an already terminated worker is a no-op. |
+| `--json` | off | Print the receipt as JSON. |
+
+```bash
+repo2rlenv workers stop workspace/my-campaign/workers/my-worker.json
+```
+
+## release
+
+Publish an explicit, immutable selection of tasks as a Hub dataset, checked against each task's [bundle hash](../concepts/glossary.mdx#bundle-hash). Only research-recipe and Tasksmith bundles record a `bundle_hash` (and the `recipe` the plan names); native output doesn't, so publish it with [`push`](#push). See [Releasing Harbor task collections](../pipelines/dataset_release.md).
+
+### release stage
+
+Check each selected task against its expected bundle hash, then build the release directory: tasks, `tasks.tar.gz`, manifests, index and dataset card. Needs the `harbor` extra, which parses every task.
+
+```bash
+repo2rlenv release stage --out DIR [--json] PLAN
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PLAN` | required | Release plan JSON. |
+| `--out DIR` | required | New staging directory. It must not exist or sit inside a selected task. |
+| `--json` | off | Print the result as JSON. |
+
+```bash
+repo2rlenv release stage release-plan.json --out workspace/releases/swe-smith
+```
+
+### release verify
+
+Check that every staged file still matches its recorded hash and mode. Runs nothing.
+
+```bash
+repo2rlenv release verify [--json] DIRECTORY
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `DIRECTORY` | required | Staging directory. |
+| `--json` | off | Print the result as JSON. |
+
+```bash
+repo2rlenv release verify workspace/releases/swe-smith
+```
+
+### release publish
+
+Upload a verified release, pin `registry.json` to the upload commit and optionally add the dataset to a collection. Needs `HF_TOKEN` or a Hub login.
+
+```bash
+repo2rlenv release publish --receipt FILE [--collection SLUG] [--batch-size N | --recover-empty] [--json] DIRECTORY
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `DIRECTORY` | required | Verified staging directory. |
+| `--receipt FILE` | required | Publication receipt. A completed receipt returns without uploading again; an incomplete one stops for reconciliation. |
+| `--collection SLUG` | — | Collection to add the dataset to. |
+| `--batch-size N` | — | Upload to a new, empty repository in commits of N files (1–500) instead of one large commit. |
+| `--recover-empty` | off | Recover an upload that timed out before creating a commit. Confirms the repository is still empty, then uploads in bounded commits. |
+| `--json` | off | Print the receipt as JSON. |
+
+```bash
+repo2rlenv release publish workspace/releases/swe-smith \
+  --receipt workspace/releases/swe-smith-publication.json
+```
+
+## quality
+
+Review a Harbor task against evidence, and optionally run controls, probes and a blind solver remotely and repair the task. See [Review and repair](../pipelines/quality_loop.md).
+
+### quality run
+
+```bash
+repo2rlenv quality run TASK --campaign DIR --out DIR [--repair] [--run-rollout] [options]
+```
+
+A run without `--repair` or `--run-rollout` makes model calls but creates no worker. Those two flags need a remote worker: `--runtime-wheel` for CPU tasks, or native Modal for tasks that request GPUs. They also accept only single-container tasks with `network_mode = "no-network"`, such as research-recipe and Tasksmith bundles. Native pipeline output stops with `Remote validation currently requires a single-container no-network Dockerfile task`.
+
+| Flag | Default | Description |
+|---|---|---|
+| `TASK` | required | Harbor task directory. |
+| `--campaign DIR` | required | Existing campaign directory. |
+| `--out DIR` | required | Run directory for `result.json`, revisions, trials and receipts. |
+| `--env-file FILE` | — | Load credentials from this file. They're never copied into task artifacts. |
+| `--baseline PATH` | — | Existing trial evidence: an owned trial receipt, a Harbor trial `result.json`, or a single-trial directory. |
+| `--oracle PATH` | — | Same, for the reference solution. |
+| `--rollout PATH` | — | Same, for a solver rollout. |
+| `--probes FILE` | — | Task-bound JSON manifest of known counterexamples and valid alternatives. |
+| `--review-model PROVIDER/MODEL` | `anthropic/claude-sonnet-4-6` | Reviewer. Only `openai/` and `anthropic/` routes are accepted, for this and the other model flags. |
+| `--repair-model PROVIDER/MODEL` | the reviewer | Repair author. |
+| `--escalation-model PROVIDER/MODEL` | none | One stronger attempt when a review stays unresolved. |
+| `--solver-model PROVIDER/MODEL` | `anthropic/claude-sonnet-4-6` | Blind solver. |
+| `--repair` | off | Author repairs and validate each new revision remotely. |
+| `--run-rollout` | off | Run missing controls, probes and a blind solver remotely, without editing. |
+| `--max-repairs N` | `3` | Repair rounds (0–5). |
+| `--max-read-rounds N` | `2` | Extra file-reading rounds (0–4). |
+| `--max-probes N` | `2` | Semantic probes (0–4). |
+| `--context-chars N` | `100000` | Document context per call (16000–250000). |
+| `--model-tokens N` | `6000` | Output tokens per review or repair call (1024–16000). |
+| `--max-turns N` | `24` | Solver turns (1–100). |
+| `--solver-tokens N` | `4096` | Solver output tokens per call (256–8192). |
+| `--trial-timeout-sec N` | `900` | Timeout per trial (30–3600). |
+| `--model-reservation-usd N` | `1.00` | Reservation per model call. |
+| `--solver-reservation-usd N` | `4.00` | Reservation per solver rollout. |
+| `--max-spend-usd N` | `15.00` | Spending limit for this run, inside the campaign limit. |
+| `--success-reward N` | `1.0` | Reward that counts as a solver success. |
+| `--provider` | `modal` | `modal` or `daytona` for CPU workers. GPU tasks always use native Modal. |
+| `--runtime-wheel WHEEL` | — | Required for CPU `--repair` and `--run-rollout`. |
+| `--worker-receipt RECEIPT` | — | Reuse a running worker from the same campaign. You stay responsible for stopping it. |
+| `--worker-reservation-usd N` | `3.00` | Reservation for a worker the run creates. |
+| `--resume` | off | Reuse completed, identical model requests and trial evidence. |
+| `--json` | off | Print the result as JSON. |
+
+Exits `0` for `usable` and `reviewed`, `1` for other dispositions. Automation that needs validated tasks should check `status == "usable"`, not the exit code.
+
+```bash
+repo2rlenv quality run ./tasks/example \
+  --campaign workspace/my-campaign \
+  --out workspace/reviews/example \
+  --run-rollout --provider modal \
+  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+```
+
+### quality show
+
+Read a completed quality result. Makes no paid calls.
+
+```bash
+repo2rlenv quality show [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | `result.json`, or a run directory containing it. |
+| `--json` | off | Print the result as JSON. |
+
+```bash
+repo2rlenv quality show workspace/reviews/example
+```
+
+## tasks
+
+Inspect and set the advisory [evaluation label](../concepts/glossary.mdx#evaluation-label) stored in each task's `[metadata.repo2env.evaluation]`. See [Evaluation labels](../pipelines/task_evaluation_labels.md).
+
+### tasks show
+
+Show one task's label.
+
+```bash
+repo2rlenv tasks show [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Task directory. |
+| `--json` | off | Print the label as JSON. |
+
+```bash
+repo2rlenv tasks show ./tasks/example
+```
+
+### tasks list
+
+List the labels of every task under a directory.
+
+```bash
+repo2rlenv tasks list [--status STATUS] [--json] PATH
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `PATH` | required | Dataset directory. |
+| `--status` | all | Keep only `unverified`, `verified`, `needs_repair` or `blocked`. |
+| `--json` | off | Print the labels as JSON. |
+
+```bash
+repo2rlenv tasks list ./tasks --status needs_repair
+```
+
+### tasks label
+
+Write a labeled copy of a task to a new directory. The original is left untouched.
+
+```bash
+repo2rlenv tasks label --out DIR [--quality-result FILE | --status STATUS] [--stage STAGE]
+                       [--reason-code CODE ...] [--detail TEXT] [--provenance P] [--json] TASK
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `TASK` | required | Task directory. |
+| `--out DIR` | required | New task directory. |
+| `--quality-result FILE` | — | Derive the label from a saved quality `result.json`. This is the only way to set `verified`. |
+| `--status` | `unverified` | `unverified`, `needs_repair` or `blocked`. Can't be combined with `--quality-result`. |
+| `--stage` | `generation` | `generation`, `bootstrap`, `construction`, `review`, `controls`, `probes`, `rollout`, `repair`, `complete` or `unknown`. |
+| `--reason-code CODE` | `validation_not_run` | Repeatable snake_case diagnosis. `needs_repair` and `blocked` require at least one, plus `--detail`. |
+| `--detail TEXT` | — | Human-readable reason and next diagnostic step. |
+| `--provenance` | `unknown` | `unknown`, `assisted` or `unattended`. |
+| `--json` | off | Print the new label as JSON. |
+
+```bash
+repo2rlenv tasks label ./tasks/example --out ./labeled/example \
+  --quality-result workspace/reviews/example/result.json
+```
+
+## codemidas
+
+Commands specific to the [CodeMidas](../pipelines/codemidas.md) recipe. Both print JSON.
+
+### codemidas source
+
+Validate a pinned Stack v3 repository manifest and print its provenance. Executes nothing.
+
+```bash
+repo2rlenv codemidas source [--materialization inline|hydrated] MANIFEST
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `MANIFEST` | required | Stack v3 row manifest JSON. |
+| `--materialization` | `inline` | `inline` uses the row's files; `hydrated` restores the GitHub checkout at the same commit. |
+
+```bash
+repo2rlenv codemidas source workspace/stack-row.json --materialization inline
+```
+
+### codemidas audit
+
+Run adversarial and solver audits on a generated CodeMidas task, plus a separate curriculum screen.
+
+```bash
+repo2rlenv codemidas audit TASK --controls DIR --out DIR --campaign DIR
+                           --worker-receipt RECEIPT --runtime-wheel WHEEL [options]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `TASK` | required | Generated task directory. |
+| `--controls DIR` | required | The candidate's generation directory, whose control receipts are reused. |
+| `--out DIR` | required | Audit directory. |
+| `--campaign DIR` | required | Campaign directory. |
+| `--worker-receipt RECEIPT` | required | Running worker receipt. |
+| `--runtime-wheel WHEEL` | required | Runtime wheel. |
+| `--screen-attempts N` | `4` | Curriculum screening attempts. |
+| `--attempt-concurrency N` | `2` | Independent solver attempts in parallel (1–4). |
+| `--max-cost N` | `6` | Trial allowance in USD. Independent review has its own maximum of $1.25. |
+| `--resume` | off | Reuse unchanged attempts. |
+
+```bash
+repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
+  --controls workspace/codemidas/runs/RUN/tasks/CANDIDATE \
+  --campaign workspace/codemidas \
+  --worker-receipt workspace/codemidas/workers/worker.json \
+  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl \
+  --out workspace/codemidas/audits/TASK
+```

@@ -1,4 +1,7 @@
-# Environment Bootstrap
+---
+title: "Environment Bootstrap"
+navTitle: "Bootstrap"
+---
 
 ## What is bootstrapping?
 
@@ -322,5 +325,5 @@ The `max_llm_spend_usd` cap aborts the agent loop the moment the running total c
 ## See also
 
 - [SPEC.md](./SPEC.md) — input/output contract
-- [pipelines/](../pipelines/README.md) — per-pipeline docs
+- [pipelines/](../pipelines/index.mdx) — per-pipeline docs
 - [SWE-bench-Live paper](https://arxiv.org/abs/2505.23419) — broader context for live, automated dataset curation
