@@ -18,8 +18,9 @@ Two shapes need care:
     after the ellipsis with no status at all. Subtests are recorded under
     the parent's identity, and the worst status wins, because the repaired
     run prints only `parent ... ok`: keeping the parameters would leave
-    FAIL_TO_PASS with a name that never appears again. Parameters can nest
-    parentheses (`(value=(1, 2))`), so they are matched loosely.
+    FAIL_TO_PASS with a name that never appears again. Named subtests add a
+    message before their parameters (`[edge case] (value=(1, 2))`), so the
+    whole suffix is matched loosely and discarded.
 
 Test names are canonicalized to the dotted id you could re-run, so the key
 is stable across Python versions: 3.11+ prints the full path inside the
@@ -42,10 +43,10 @@ import re
 
 from repo2rlenv.log_parsers.pytest_parser import TestStatus
 
-# `test_add (pkg.mod.Class.test_add)` plus any subtest parameters, e.g.
-# ` (i=2)` or ` (value=(1, 2))`, which are matched but not kept.
+# `test_add (pkg.mod.Class.test_add)` plus any subtest description, e.g.
+# ` [edge case] (i=2)` or ` (value=(1, 2))`, which is matched but not kept.
 _NAME_RE = re.compile(
-    r"^(?P<method>[^\s()]+) \((?P<dotted>[\w.]+)\)(?P<params> \(.*\))?$",
+    r"^(?P<method>[^\s()]+) \((?P<dotted>[\w.]+)\)(?: .+)?$",
 )
 
 _STATUS_WORDS: dict[str, TestStatus] = {
@@ -109,7 +110,9 @@ def parse_unittest(log: str) -> dict[str, TestStatus]:
         if not line.strip():
             continue
 
-        head, sep, tail = line.strip().partition(" ... ")
+        # A named subtest message may itself contain ` ... `, so split at the
+        # final separator before the result word.
+        head, sep, tail = line.strip().rpartition(" ... ")
         if sep:
             m = _NAME_RE.match(head)
             if m:

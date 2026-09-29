@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 
 import pytest
@@ -414,6 +416,29 @@ def test_subtests_can_transition_from_failing_to_passing():
 def test_subtest_parameters_are_matched_but_not_kept(parser, params):
     log = f"  test_x (pkg.mod.Case.test_x) {params} ... FAIL\n"
     assert parser(log) == {"pkg.mod.Case.test_x": "FAILED"}
+
+
+def test_named_subtests_from_text_test_runner(parser):
+    def run_named_subtests(case):
+        with case.subTest("edge ... case", i=1):
+            case.assertEqual(1, 2)
+        with case.subTest("message only"):
+            case.assertEqual(1, 2)
+
+    case_type = type(
+        "NamedSubTests",
+        (unittest.TestCase,),
+        {"__module__": "pkg", "test_named": run_named_subtests},
+    )
+    stream = io.StringIO()
+    unittest.TextTestRunner(stream=stream, verbosity=2).run(
+        unittest.defaultTestLoader.loadTestsFromTestCase(case_type)
+    )
+    log = stream.getvalue()
+
+    assert "[edge ... case] (i=1) ... FAIL" in log
+    assert "[message only] ... FAIL" in log
+    assert parser(log) == {"pkg.NamedSubTests.test_named": "FAILED"}
 
 
 @pytest.mark.parametrize(

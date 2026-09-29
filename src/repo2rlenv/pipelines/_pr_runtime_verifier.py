@@ -130,7 +130,7 @@ def parse_pytest(log: str) -> dict[str, str]:
 
 
 # Keep these patterns in sync with log_parsers/unittest_parser.py.
-_UT_NAME_RE = re.compile(r"^(?P<method>[^\s()]+) \((?P<dotted>[\w.]+)\)(?P<params> \(.*\))?$")
+_UT_NAME_RE = re.compile(r"^(?P<method>[^\s()]+) \((?P<dotted>[\w.]+)\)(?: .+)?$")
 _UT_BLOCK_RE = re.compile(r"^(?P<status>FAIL|ERROR):\s+(?P<name>.+?)\s*$")
 _UT_STATUS = {
     "ok": PASSED,
@@ -180,7 +180,7 @@ def parse_unittest(log: str) -> dict[str, str]:
         claimed, pending = pending, None
         if not line.strip():
             continue
-        head, sep, tail = line.strip().partition(" ... ")
+        head, sep, tail = line.strip().rpartition(" ... ")
         if sep:
             m = _UT_NAME_RE.match(head)
             if m:
