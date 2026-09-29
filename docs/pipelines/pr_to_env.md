@@ -2,9 +2,10 @@
 title: "swe_gen"
 ---
 
-The owned SWE-gen recipe turns explicit public GitHub PR URLs into standalone
-Harbor tasks. It retains the upstream substantiality/instruction prompt and
-healthy-head reverse-patch workflow, with an explicit Python environment profile.
+The SWE-gen recipe turns public GitHub PR URLs that you list into standalone
+Harbor tasks. It keeps two things from upstream: the prompt that decides whether
+a change is substantial and writes the instruction, and the workflow of
+reverse-patching a healthy PR head. The Python environment profile is explicit.
 
 ## Pipeline, step by step
 
@@ -21,33 +22,33 @@ flowchart TD
   R -->|"0 / 1"| O["Export task"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Recover the change.** The caller supplies PR URLs. The recipe fetches metadata and a bounded source diff; it does not mine arbitrary history.
+**Recover the change.** You supply the PR URLs. The recipe fetches their metadata and a bounded source diff. It doesn't mine arbitrary history.
 
-**Create the problem state.** Bootstrap the PR head, then reverse only implementation edits in an otherwise healthy head snapshot. Head tests remain the private behavioral specification.
+**Create the problem state.** The recipe bootstraps the PR head, then reverses only the implementation edits and leaves the rest of the healthy head snapshot alone. The head's tests stay private and act as the behavioral specification.
 
-**Describe and package.** The author sees title, body, linked issue and test evidence, plus a source-file count. The solution patch is not sent to this call. The oracle restores the known head files.
+**Describe and package.** The author sees the title, body, linked issue and test evidence, plus a count of source files. It isn't sent the solution patch. The oracle restores the known head files.
 
 ## Every prompt and its data
 
-One combined substantiality-and-instruction call after successful execution contrast.
+After the execution contrast succeeds, one call decides whether the change is substantial and writes the instruction.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
 | P1 · Instruction | instruction_prompt.md + /workspace and JSON adaptations | title, body, linked_issue, test_evidence, source_file_count. | TaskInstruction: is_substantial, reason, instruction, three tags | force_generate_instruction changes only the substantiality instruction; it never bypasses execution checks. |
 
-Read the [complete swe_gen prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_gen/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete swe_gen prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_gen/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: a PR adds an option to a parser. Reversing the implementation while retaining its new tests gives a concrete unsolved state; the task asks for the option’s behavior, and the merged implementation supplies the reference.
+Say a PR adds an option to a parser. Reversing the implementation but keeping the new tests gives a concrete unsolved state. The task asks for the option's behavior, and the merged implementation is the reference.
 
 ## What repeats, what is checked
 
-Unsupported sources, unsuccessful reversal, unhealthy head tests and ineffective contrasts are recorded skips. This recipe has no iterative instruction-repair loop. Fresh Harbor failures reject the candidate rather than triggering an unbounded rewrite.
+Unsupported sources, a failed reversal, unhealthy head tests and a contrast that shows no real difference are all recorded as skips. There's no loop that repairs the instruction. A fresh Harbor failure rejects the candidate instead of triggering an open-ended rewrite.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -59,29 +60,32 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Run and supported profile
 
-Run `repo2rlenv generate --config examples/owned-swe-gen.yaml` after creating a
-campaign ledger, a Modal or Daytona worker receipt, and a wheel of this checkout.
-These use the same [owned recipe commands](owned_recipes.md) as SWE-smith and SETA.
-The default UI shows source, bootstrap, instruction, Harbor and export stages;
-`--no-ui` and `--json` provide durable machine-readable progress.
+Run `repo2rlenv generate --config examples/owned-swe-gen.yaml` once you have a
+campaign ledger, a Modal or Daytona worker receipt, and a wheel built from this
+checkout. These are the same [recipe commands](owned_recipes.md) that SWE-smith
+and SETA use. The default UI shows the source, bootstrap, instruction, Harbor and
+export stages; `--no-ui` and `--json` give durable, machine-readable progress.
 
-Inputs are merged public GitHub PRs and an explicit Python source/test profile.
-All target code and image builds run remotely. Dependencies are installed during
-build; task execution is offline. Source paths must identify existing Python
-files or directories. Added/deleted source files and other languages need another
-artifact collection profile and currently produce a recorded skip.
+Inputs are merged public GitHub PRs and an explicit Python source and test
+profile. All target code and image builds run remotely. Dependencies are
+installed at build time, and the task runs offline. Source paths must point to
+existing Python files or directories. Added or deleted source files, and other
+languages, need a different artifact collection profile; for now they're
+recorded as skips.
 
 The reference restores the PR head's changed source files. The learner starts at
 the head with those changes reversed, without Git history or the private tests.
-It submits allowed Python source files into a fresh verifier environment.
+Its allowed Python source files are then submitted to a fresh verifier
+environment.
 
-`force_generate_instruction` is the upstream option for bypassing its complexity
-filter. It does not bypass healthy-head, contrast or Harbor execution checks. The
-20-task campaign may use it to measure generation from small functional changes.
-An exported task is a generated artifact, **not quality acceptance**. Independent
-reviews, attack checks and model rollouts are deferred until all recipe campaigns
-reach 20 generated tasks. The current integration has not completed that review.
+`force_generate_instruction` is the upstream option for skipping its complexity
+filter. It doesn't skip the healthy-head, contrast or Harbor execution checks.
+The 20-task campaign may use it to measure generation from small functional
+changes. An exported task is a generated artifact, **not quality acceptance**.
+Independent reviews, attack checks and model rollouts wait until every recipe
+campaign reaches 20 generated tasks, and this integration hasn't been through
+that review yet.
 
-Credit: [SWE-gen](https://github.com/abundant-ai/SWE-gen), Apache-2.0, commit
+Credit: [SWE-gen](https://github.com/abundant-ai/SWE-gen) (Apache-2.0), commit
 `14e185f413f7bff03f8f9fec6fb246681bf61d74`. See [RFC 0015](../rfcs/0015-swe-gen-recipe.md)
 and the packaged `recipes/swe_gen/provenance.md` for the source map and deviations.

@@ -200,8 +200,8 @@ each skip reason.
 
 For the reference dataset, the gold patch scores 1.0 with every tracked test
 passing on all 100 tasks; 88 are also `command_resolved` and 87 are `eval_grade`.
-The release report describes roughly 55–60% solved in an approximately 20-task
-Claude Sonnet pilot, but the raw sample wasn't recovered. See
+The release report describes roughly 55–60% solved in a Claude Sonnet pilot of
+about 20 tasks, but the raw sample wasn't recovered. See
 [native results](native_results.md#pr-runtime).
 
 ## Limits

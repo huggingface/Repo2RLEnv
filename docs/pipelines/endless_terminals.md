@@ -2,8 +2,8 @@
 title: "endless_terminals"
 ---
 
-Endless Terminals generates terminal tasks from a category, complexity and
-scenario. Its native category list covers files, text, databases, configuration,
+Endless Terminals generates terminal tasks from a sampled category, complexity
+and scenario. Its native category list covers files, text, databases, configuration,
 software tools and other terminal workflows.
 
 ## Pipeline, step by step
@@ -25,22 +25,22 @@ flowchart TD
   R -->|"0 / 1"| H["Export sampled terminal task"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Sample without a repository.** Category, complexity and scenario are independent uniform draws from retained native lists. The seed contains the request constructed from those choices.
+**Sample without a repository.** Category, complexity and scenario are each drawn uniformly and independently from the native lists, kept as they were. The seed holds the request built from those choices.
 
-**Generate the task and tests.** The description/truth call is followed by separate initial-state and completion-test calls. The final-test author sees the initial tests.
+**Generate the task and tests.** A call for the description and truth is followed by separate calls for the initial-state tests and the completion tests. The final-test author sees the initial tests.
 
-**Construct a runnable environment.** The fourth call writes starting text fixtures and a reference solution. The same remote preflight and bounded builder-repair machinery as TMax executes the result.
+**Construct a runnable environment.** The fourth call writes the starting text fixtures and a reference solution. The result runs through the same remote preflight and bounded builder repair that TMax uses.
 
 ## Every prompt and its data
 
-With `review_drafts: true`, the shared runner adds
+The first successful attempt makes four calls, and the environment builder is
+the stage that repeats during repair. With `review_drafts: true`, the shared
+runner adds a
 [Q1 consistency review](prompt_reference.md#optional-review-before-execution)
-after P4 and before the initial-state check. Each repaired draft gets a new
-review. The default is false; existing run configurations record whether it ran.
-
-Four calls on the first successful attempt; the environment builder is the stage repeated during repair.
+after P4 and before the initial-state check, and each repaired draft is reviewed
+again. The default is false, and run configurations record whether it ran.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -49,17 +49,17 @@ Four calls on the first successful attempt; the environment builder is the stage
 | P3 · Final tests | final_prompt.md + shared adaptation | Description, truth and initial_tests. | TestProgram: code | One separate call. |
 | P4 · Build / repair | environment_prompt.md + templates.builder_prompt additions + common materialization | TemplateDesign and actual failures. | TerminalDraft | Initial call plus max_repairs. |
 
-Read the [complete endless_terminals prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/endless_terminals/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete endless_terminals prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/endless_terminals/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: the SQLite category and a backup scenario become a database export task with supplied records and a precise archive format. The initial checks assert that inputs exist; final checks inspect the requested archive.
+Say the SQLite category and a backup scenario become a database export task, with supplied records and a precise archive format. The initial checks assert that the inputs exist, and the final checks inspect the requested archive.
 
 ## What repeats, what is checked
 
-This shares execution machinery with TMax, but not TMax’s taxonomy or weighted language sampling. No training, adaptive sampler or blind-agent acceptance step is part of this generation recipe.
+This recipe shares execution machinery with TMax, but not TMax's taxonomy or weighted language sampling. It has no training, no adaptive sampler and no blind-agent acceptance step.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -78,28 +78,28 @@ The input is a sampler JSON file:
 {"count":40,"seed":24,"categories":["text processing and manipulation","backup and archiving","SQLite database operations via CLI"]}
 ```
 
-Omit `categories` to sample the full native list. All three axes use uniform
-sampling, preserving the original method. TMax's separate recipe uses its own
-domain/skill taxonomy and language weights. They share the metered authoring
-and remote execution stages.
+Omit `categories` to sample from the full native list. All three axes are
+sampled uniformly, as in the original method. TMax is a separate recipe with its
+own domain and skill taxonomy and language weights; the two share the metered
+authoring and remote execution stages.
 
 The first profile uses text fixtures in an offline CPU Docker container. The
-solver runs as `user`; dependencies are installed at build time. Initial tests
-execute on a fresh environment before the final baseline/reference pair.
+solver runs as `user`, and dependencies are installed at build time. Initial
+tests run on a fresh environment before the final baseline and reference pair.
 The builder can repair inconsistent fixtures or a failing reference within
-`max_repairs`. Every attempted input and execution outcome remains in the run.
+`max_repairs`. Every attempted input and execution outcome stays in the run.
 
-The [measured generation sample](economics.md)
-completed **100 tasks**, now published as
+The [measured generation sample](economics.md) completed **100 tasks**, published
+as
 [FineEnvs/repo2rlenv-endless-terminals](https://huggingface.co/datasets/FineEnvs/repo2rlenv-endless-terminals).
-All 80 newly generated tasks have hash-matched baseline-0/reference-1 controls;
-independent semantic quality evaluation and blind rollouts remain separate.
-Upstream's sampled solutions and training run are
-outside this generation milestone. Options and cloud setup follow the
-[shared interface](owned_recipes.md); the configuration records the actual
-author model rather than claiming the original Qwen settings.
+All 80 newly generated tasks have baseline-0 and reference-1 controls matched to
+their hashes. Independent semantic quality evaluation and blind rollouts are
+separate. Upstream's sampled solutions and training run are outside this
+milestone. Options and cloud setup follow the [shared interface](owned_recipes.md).
+The configuration records the author model actually used; it doesn't claim the
+original Qwen settings.
 
-Credit: [Endless Terminals](https://github.com/kanishkg/endless-terminals),
-Apache-2.0, commit `99f4c74b75faacf21e53d3dc01df170902e924cb`.
-See [RFC 0020](../rfcs/0020-endless-terminals-recipe.md) and packaged
+Credit: [Endless Terminals](https://github.com/kanishkg/endless-terminals)
+(Apache-2.0), commit `99f4c74b75faacf21e53d3dc01df170902e924cb`.
+See [RFC 0020](../rfcs/0020-endless-terminals-recipe.md) and the packaged
 `recipes/endless_terminals/provenance.md` for the source map and adaptations.

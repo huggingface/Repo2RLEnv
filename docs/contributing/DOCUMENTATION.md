@@ -12,7 +12,7 @@ approvals and one-off input selections in ignored `workspace/` directories.
 
 The site is a [Fumadocs](https://fumadocs.dev) app (Next.js, static export) in
 `website/`. Content stays in `docs/`, so every page is also readable on GitHub and
-paths such as `docs/pipelines/pr_runtime.md` stay stable — published dataset cards
+paths such as `docs/pipelines/pr_runtime.md` stay stable. Published dataset cards
 link to them.
 
 ```files

@@ -11,7 +11,7 @@ Repo2RLEnv is a Python package with one CLI, `repo2rlenv`. The base install cove
 |---|---|
 | Python 3.12 or later | Everything. |
 | Git | Cloning source repositories. |
-| [GitHub CLI](https://cli.github.com) (`gh`) | Every GitHub API call during generation — listing PRs and fetching diffs, issues and commits — even when you authenticate with `GITHUB_TOKEN`. |
+| [GitHub CLI](https://cli.github.com) (`gh`) | Every GitHub API call during generation (listing PRs, fetching diffs, issues and commits), even when you authenticate with `GITHUB_TOKEN`. |
 | Docker | Native runtime pipelines (`pr_runtime`, `commit_runtime`, `code_instruct`, `equivalence_tests`, `cve_patches`), which build and check environments locally, and running any task locally with `harbor run --env docker`. Generating `pr_diff` tasks doesn't need it. |
 | A [Modal](https://modal.com) or [Daytona](https://www.daytona.io) account | Research recipes, Tasksmith and the quality loop. They build and execute on remote workers; there's no local Docker fallback. |
 | Node.js 22.19 or later | Tasksmith's Pi and OpenCode adapters. |
@@ -85,7 +85,7 @@ Set only what your route needs. Repo2RLEnv reads secrets from the environment an
 | Daytona | `DAYTONA_API_KEY` | `workers start --provider daytona`, `quality run --provider daytona`, `tasksmith run --provider daytona` |
 | Container registry | `GHCR_TOKEN` or `GITHUB_TOKEN` for GHCR; `DOCKER_USERNAME` and `DOCKER_TOKEN` for Docker Hub | `push` of runtime datasets whose bootstrap images you distribute; without one, `push` falls back to inline Dockerfiles |
 
-Agents and verifiers that run under Harbor get their keys from `harbor run --ae` and `--ve` instead — see the [Quickstart](quickstart.mdx#run-the-tasks-with-harbor). [Authentication](reference/AUTH.md) covers the GitHub resolution order and private repositories; [Registry authentication](reference/REGISTRY_AUTH.md) covers image distribution.
+Agents and verifiers that run under Harbor get their keys from `harbor run --ae` and `--ve` instead. The [Quickstart](quickstart.mdx#run-the-tasks-with-harbor) shows how. [Authentication](reference/AUTH.md) covers the GitHub resolution order and private repositories; [Registry authentication](reference/REGISTRY_AUTH.md) covers image distribution.
 
 ### Using a `.env` file
 

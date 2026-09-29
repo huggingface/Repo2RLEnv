@@ -5,7 +5,7 @@ navTitle: "Bootstrap"
 
 ## What is bootstrapping?
 
-Everything here is **local-first**. Bootstrap runs against your machine's Docker daemon, and the tasks it emits also run locally by default (`harbor run -a oracle -p ./task`). The same task directory is portable to cloud sandboxes (E2B / Modal / Daytona / Runloop) when you opt in via `harbor run --env <name>` — but you never have to leave your laptop to use any of this.
+Everything here is **local-first**. Bootstrap runs against your machine's Docker daemon, and the tasks it emits also run locally by default (`harbor run -a oracle -p ./task`). The same task directory also runs on cloud sandboxes (E2B / Modal / Daytona / Runloop) if you opt in with `harbor run --env <name>`, but you never have to leave your laptop to use any of this.
 
 To turn a GitHub repo into a verifiable RL task, you need a **Docker image where that repo builds cleanly and its test suite runs**. That image is what the synthesized tasks check out into, apply patches against, and verify with `pytest` / `go test` / `cargo test` / etc.
 
@@ -24,7 +24,7 @@ You only need bootstrap for pipelines that actually run code (`pr_runtime`, `com
 
 ### Supported languages
 
-The bootstrap agent has built-in presets for these languages — base images, install hints, sanity checks, and known pitfalls are injected into the system prompt automatically:
+The bootstrap agent has built-in presets for these languages. Base images, install hints, sanity checks and known pitfalls go into its system prompt automatically:
 
 | Language | Base image | Detected from |
 |---|---|---|
@@ -35,7 +35,7 @@ The bootstrap agent has built-in presets for these languages — base images, in
 | Java / Kotlin / Scala | `eclipse-temurin:21-jdk` | `pom.xml`, `build.gradle`, `build.gradle.kts` |
 | C / C++ | `ubuntu:24.04` | `CMakeLists.txt`, `configure.ac`, `Makefile`, `meson.build` |
 
-Other languages still work, they just don't get language-specific hints — the agent falls back to a generic Ubuntu base image and figures it out from `README.md` + repo files.
+Other languages still work; they just don't get language-specific hints. The agent falls back to a generic Ubuntu base image and works things out from `README.md` and the repo files.
 
 Override the auto-detected language with `--language <name>` or `--base-image <image>` if you need a specific toolchain (e.g. Python 3.11 instead of 3.12, or a CUDA-enabled base).
 
@@ -48,14 +48,14 @@ Some pipelines work on any language (they operate on diffs, PRs, commits); other
 | `pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches` | any |
 | `code_instruct`, `equivalence_tests` | Python only |
 
-The CLI runs a pre-flight check: if you point a Python-only pipeline at a non-Python repo, generation aborts before bootstrap even starts so you don't burn 5+ minutes finding out. Pass `--force-language` to skip the check and proceed anyway (the pipeline will likely emit zero tasks; explicit user choice).
+The CLI runs a pre-flight check: if you point a Python-only pipeline at a non-Python repo, generation aborts before bootstrap even starts so you don't burn 5+ minutes finding out. Pass `--force-language` to skip the check and carry on anyway. The pipeline will probably emit zero tasks, but that's your call.
 
 ## Choosing an LLM
 
 The bootstrap agent works with any LLM that LiteLLM supports. In practice:
 
 - A strong **code-focused** model (e.g. a recent Qwen-Coder via Hugging Face Inference Providers) handles clean libraries and CLI tools at the lowest cost.
-- A strong **general-purpose** model (e.g. a recent Claude Sonnet) handles moderately complex repos — compiled extensions, monorepos, non-trivial build systems.
+- A strong **general-purpose** model (e.g. a recent Claude Sonnet) handles moderately complex repos: compiled extensions, monorepos, non-trivial build systems.
 - A **flagship reasoning** model (e.g. Claude Opus or a frontier GPT) helps with full-stack apps or repos with unusual toolchain choices where the agent needs to debug across multiple layers.
 
 You don't have to pick perfectly. A weaker model will iterate more turns; a stronger model will finish faster but cost more per turn. The cost cap (below) bounds the worst case either way.
@@ -67,7 +67,7 @@ The `--llm` flag accepts a LiteLLM-format string. Some examples:
 | Anthropic | `anthropic/<model-name>` |
 | OpenAI | `openai/<model-name>` |
 | Hugging Face Inference Providers | `huggingface/<repo>:<provider>` (e.g. `huggingface/<org>/<model>:together`) |
-| Self-hosted vLLM / Ollama / any OpenAI-compatible server | `hosted_vllm/<model>` or `openai/<model>` with `--llm-endpoint http://host:8000/v1` — no API key needed |
+| Self-hosted vLLM / Ollama / any OpenAI-compatible server | `hosted_vllm/<model>` or `openai/<model>` with `--llm-endpoint http://host:8000/v1` (no API key needed) |
 
 Anything LiteLLM supports works, including Bedrock, Vertex, Mistral, and others.
 
@@ -80,22 +80,22 @@ Set the provider's default environment variable; the CLI picks it up automatical
 | Anthropic | `ANTHROPIC_API_KEY` |
 | OpenAI | `OPENAI_API_KEY` |
 | Hugging Face | `HF_TOKEN` |
-| Self-hosted (`--llm-endpoint`) | none — the provider-default key is never sent to a custom endpoint. If your server enforces one: `HOSTED_VLLM_API_KEY` for `hosted_vllm/`, or `--llm-key-env VAR` for any route |
+| Self-hosted (`--llm-endpoint`) | None. The provider-default key is never sent to a custom endpoint. If your server enforces one: `HOSTED_VLLM_API_KEY` for `hosted_vllm/`, or `--llm-key-env VAR` for any route |
 | Other | override via `--llm-key-env` or YAML config; otherwise LiteLLM's own per-provider lookup applies (Bedrock, Vertex, OpenRouter, …) |
 
 ### Cost guardrail
 
-Every bootstrap run is bounded by `max_llm_spend_usd` (default `$5.0`). When the running cost reaches the cap, the agent loop aborts cleanly. Set lower for tighter control:
-
-> Self-hosted models are not in LiteLLM's price table, so their calls count as `$0` and the cap never trips. `max_iterations` / `max_seconds` remain the bounds there.
+Every bootstrap run is bounded by `max_llm_spend_usd` (default `$5.0`). When the running cost reaches the cap, the agent loop aborts cleanly. Set it lower for tighter control:
 
 ```bash
 repo2rlenv generate ... --bootstrap-opt max_llm_spend_usd=1.0
 ```
 
+> Self-hosted models are not in LiteLLM's price table, so their calls count as `$0` and the cap never trips. `max_iterations` / `max_seconds` remain the bounds there.
+
 ### Provider fallback
 
-When the primary LLM returns a 5xx, rate-limit, network, or timeout error, the agent loop automatically retries with `--llm-fallback`. 4xx errors (wrong model id, auth) are NOT retried — those are config bugs you want to see immediately.
+When the primary LLM returns a 5xx, rate-limit, network, or timeout error, the agent loop automatically retries with `--llm-fallback`. 4xx errors (wrong model id, auth) are NOT retried, because those are config bugs you want to see immediately.
 
 ```bash
 repo2rlenv generate \
@@ -107,9 +107,9 @@ repo2rlenv generate \
 
 Fallback chains are capped at 3 levels deep so misconfigured loops don't run forever.
 
-## CLI cheatsheet — switching LLMs
+## CLI cheatsheet: switching LLMs
 
-The `--llm` flag drives both the bootstrap phase AND any LLM-synthesized pipeline steps. Pick whichever model fits your repo + budget:
+The `--llm` flag drives both the bootstrap phase and any LLM-synthesized pipeline steps. Pick whichever model fits your repo and budget:
 
 ```bash
 # Code-focused open model via Hugging Face Inference Providers
@@ -146,7 +146,7 @@ repo2rlenv generate \
 
 ### Bootstrap-only (no synthesis)
 
-To build + cache the image without running a pipeline:
+To build and cache the image without running a pipeline:
 
 ```bash
 repo2rlenv bootstrap \
@@ -187,7 +187,7 @@ Bootstrap is a separate phase, run **once per `(repo, commit)` and cached**. Inl
 
 ```mermaid
 flowchart TD
-    subgraph "Phase 1 — Bootstrap (once per repo+ref, cached)"
+    subgraph "Phase 1: Bootstrap (once per repo+ref, cached)"
         A[Repo URL + ref] --> B[Read CI files,<br/>README, setup.py,<br/>package.json, ...]
         B --> C[LLM agent: propose a<br/>shell command]
         C --> D[Run inside Docker sandbox]
@@ -198,7 +198,7 @@ flowchart TD
         G --> H[Cache result.json +<br/>transcript + Dockerfile]
     end
 
-    subgraph "Phase 2 — Synthesis (per task, reuses Phase 1)"
+    subgraph "Phase 2: Synthesis (per task, reuses Phase 1)"
         H --> K[For each candidate PR/commit]
         K --> L[Fork from bootstrap image]
         L --> M[git checkout base commit]
@@ -227,15 +227,15 @@ A successful bootstrap writes to `./workspace/bootstrap/<owner>__<name>/<short_c
 └── (Dockerfile generated from the transcript, for reproducibility)
 ```
 
-Subsequent calls against the same `(repo, commit)` hit this cache and skip the agent entirely. If you push the image to a registry via `--image-registry`, the cache directory is enough for collaborators to pull and reuse — they don't need to re-run bootstrap.
+Subsequent calls against the same `(repo, commit)` hit this cache and skip the agent entirely. If you push the image to a registry via `--image-registry`, the cache directory is enough for collaborators to pull and reuse it, so they don't need to re-run bootstrap.
 
 ## When bootstrap fires
 
 There are two invocation patterns:
 
-1. **Implicit (the default)** — `repo2rlenv generate` notices the pipeline needs a sandbox image and triggers `ensure_bootstrap()` itself. Subsequent runs hit the cache and skip the agent. This is the path the CLI examples above use.
+1. **Implicit (the default).** `repo2rlenv generate` notices the pipeline needs a sandbox image and triggers `ensure_bootstrap()` itself. Subsequent runs hit the cache and skip the agent. This is the path the CLI examples above use.
 
-2. **Explicit** — call `repo2rlenv bootstrap ...` to pre-warm an image without running synthesis, or to debug a repeatedly-failing build. The cached image is then picked up by any later `generate` call against the same repo+ref.
+2. **Explicit.** Call `repo2rlenv bootstrap ...` to pre-warm an image without running synthesis, or to debug a repeatedly-failing build. The cached image is then picked up by any later `generate` call against the same repo+ref.
 
 Use the explicit form when:
 - Debugging a build that fails repeatedly (full transcript at `./workspace/bootstrap/<repo>/<sha>/transcript.jsonl`)
@@ -283,7 +283,7 @@ iterations = 3
 build_time_sec = 247
 ```
 
-That's enough for a consumer to rebuild the environment from scratch — the agent's full transcript is stored in the cache directory and the reconstructed Dockerfile lives alongside the image digest.
+That's enough for a consumer to rebuild the environment from scratch. The agent's full transcript is stored in the cache directory, and the reconstructed Dockerfile lives alongside the image digest.
 
 ## Edge cases to know about
 
@@ -297,15 +297,15 @@ The agent couldn't make the repo build within budget. You'll see `BootstrapError
 
 ### Repo requires docker-compose (Postgres / Redis / a web service)
 
-Bootstrap currently produces a single image. Multi-container apps need a docker-compose setup, which isn't yet supported — for now, supply a `user_dockerfile` that includes the auxiliary services, or pin to a Harbor backend that supports compose (e.g. Daytona).
+Bootstrap currently produces a single image. Multi-container apps need a docker-compose setup, which isn't supported yet. For now, supply a `user_dockerfile` that includes the auxiliary services, or pin to a Harbor backend that supports compose (e.g. Daytona).
 
 ### Repo requires GPU at build time
 
-Some ML kernels (e.g. CUDA extensions) can't build on a CPU sandbox. Run on a GPU-enabled Harbor backend (Modal A100 / H100) — the bootstrap inherits GPU access from `SandboxSpec.gpu`.
+Some ML kernels (e.g. CUDA extensions) can't build on a CPU sandbox. Run on a GPU-enabled Harbor backend (Modal A100 / H100); the bootstrap inherits GPU access from `SandboxSpec.gpu`.
 
 ### PR introduces a new dependency
 
-Each pipeline that generates per-PR tasks defaults to **re-installing dependencies after `git checkout`**. So an additive dep introduced by a PR is captured automatically; you don't need to re-bootstrap. If a PR replaces the build system entirely, you'll want a fresh bootstrap for that commit — pass `--force-bootstrap`.
+Each pipeline that generates per-PR tasks defaults to **re-installing dependencies after `git checkout`**. So an additive dep introduced by a PR is captured automatically; you don't need to re-bootstrap. If a PR replaces the build system entirely, you'll want a fresh bootstrap for that commit, so pass `--force-bootstrap`.
 
 ### Stale cached image
 
@@ -319,11 +319,11 @@ The `max_llm_spend_usd` cap aborts the agent loop the moment the running total c
 
 - The bootstrap agent + sandbox primitives live under `src/repo2rlenv/bootstrap/`. Entry point: `ensure_bootstrap(repo, spec, llm)`.
 - The agent loop is a ReAct-style Thought / Action / Input parser; tools are `BASH`, `READ_FILE`, `LIST_DIR`, `SAVE_SETUP`, `GIVE_UP`.
-- Per-language hints live in `bootstrap/presets.py` and get injected into the agent's system prompt — that's where to add new languages or fix common mistakes the agent makes for a given ecosystem.
+- Per-language hints live in `bootstrap/presets.py` and get injected into the agent's system prompt. That's where to add new languages or fix common mistakes the agent makes for a given ecosystem.
 - See [`CONTRIBUTING.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/CONTRIBUTING.md) for how to add tests + the lint/format flow.
 
 ## See also
 
-- [SPEC.md](./SPEC.md) — input/output contract
-- [pipelines/](../pipelines/index.mdx) — per-pipeline docs
-- [SWE-bench-Live paper](https://arxiv.org/abs/2505.23419) — broader context for live, automated dataset curation
+- [SPEC.md](./SPEC.md): input/output contract
+- [pipelines/](../pipelines/index.mdx): per-pipeline docs
+- [SWE-bench-Live paper](https://arxiv.org/abs/2505.23419): broader context for live, automated dataset curation

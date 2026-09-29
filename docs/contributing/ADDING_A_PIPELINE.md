@@ -3,9 +3,9 @@ title: "Cookbook: adding a new pipeline"
 navTitle: "Add a pipeline"
 ---
 
-Step-by-step walkthrough for shipping a new synthesis pipeline. Use [`pr_diff`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) as the canonical reference implementation throughout.
+This page walks you through shipping a new synthesis pipeline. Keep [`pr_diff`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) open as you go: it's the reference implementation.
 
-> **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/index.md). The RFC captures *why* the pipeline exists in the shape it does — motivation, verification approach, contamination story, LLM use, yield expectations — and lets the design be reviewed without the implementation blur. Small reshapes of an existing pipeline don't need one; new `PipelineName` entries always do. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md` and land the RFC first, then follow this cookbook.
+> **Before you code an entirely new pipeline**, write an RFC in [`docs/rfcs/`](../rfcs/index.md). The RFC explains *why* the pipeline has the shape it does: its motivation, verification approach, contamination story, LLM use and expected yield. It lets people review the design before there's code to argue about. Small reshapes of an existing pipeline don't need one; a new `PipelineName` entry always does. Copy [`docs/rfcs/TEMPLATE.md`](../rfcs/TEMPLATE.md) to `docs/rfcs/NNNN-<name>.md`, land the RFC, then follow this cookbook.
 
 ## What you're building
 
@@ -18,7 +18,7 @@ A class that:
 - Emits Harbor task directories at `out_dir`
 - Returns a `PipelineResult` with candidate / emitted / skipped counters
 
-The whole thing is typically 100–300 LOC. Lite (text-only) pipelines are at the smaller end; sandbox-required ones with LLM verification are at the larger end.
+Most pipelines come in at 100–300 lines. Lite (text-only) pipelines sit at the low end, and sandbox-required ones with LLM verification at the high end.
 
 ## Prerequisites
 
@@ -62,7 +62,7 @@ OPTIONS_REGISTRY: dict[str, type[_BaseOptions]] = {
 
 **Conventions** (lifted from `pr_diff`):
 
-- `limit: int` — default 50–100; over-fetch ~3× internally so filtering doesn't shrink to zero
+- `limit: int`, defaulting to 50–100. Over-fetch ~3× internally so filtering doesn't shrink the batch to zero
 - Date filters: `since: date | None` and `until: date | None`
 - Booleans default to the safer choice (e.g. `skip_drafts: bool = True`)
 - Caps to avoid pathological inputs (e.g. `max_files_per_pr: int = 5`)
@@ -181,14 +181,14 @@ class YourPipeline:
 
 **Key invariants** (the contract test enforces these):
 
-- `name: ClassVar[PipelineName] = PipelineName.YOUR_PIPELINE` — typed and matches the enum value
+- `name: ClassVar[PipelineName] = PipelineName.YOUR_PIPELINE`, typed and matching the enum value
 - `__init__(input, options)` accepts the GenerationInput + your specific Options
 - `run(out_dir)` returns a `PipelineResult`
 - Per-task failures go into `skip_reasons` and **don't halt the pipeline**
 
 ### 4. Wire helpers you need
 
-Use what already exists — don't re-invent:
+Reuse what already exists:
 
 | Need | Module |
 |---|---|
@@ -225,11 +225,11 @@ def test_your_pipeline_options_strict():
         YourPipelineOptions(unknown_field=42)
 ```
 
-The contract test (`tests/test_pipeline_contract.py`) will automatically pick up your new entry — if you forgot any of the conformance steps, it fails there with a clear message.
+The contract test (`tests/test_pipeline_contract.py`) picks up your new entry automatically. If you missed a conformance step, it fails there with a clear message.
 
 #### Live e2e test (recommended)
 
-Mirror `tests/test_e2e_public.py` — point the pipeline at a small public repo, assert at least one task is emitted, and confirm the oracle round-trips through the diff-similarity reward (oracle vs oracle = 1.0):
+Mirror `tests/test_e2e_public.py`: point the pipeline at a small public repo, assert that at least one task is emitted, and confirm the oracle round-trips through the diff-similarity reward (oracle vs oracle = 1.0):
 
 ```python
 @pytest.mark.skipif(not _gh_authenticated(), reason="gh not authenticated")
@@ -261,18 +261,18 @@ uv run repo2rlenv generate \
 Add `docs/pipelines/your_pipeline.md`. Mirror the structure of [`pr_diff.md`](../pipelines/pr_diff.md):
 
 - A 1-row metadata table (status, sandbox required, LLM required, reward kinds, inspiration, reference clone, implementation file, options model)
-- A Mermaid `flowchart TD` showing the algorithm — including skip/fail edges, not just the happy path
-- An "Options" section with the Pydantic class signature + a per-field table
+- A Mermaid `flowchart TD` of the algorithm, with the skip and fail edges as well as the happy path
+- An "Options" section with the Pydantic class signature and a per-field table
 - The `[metadata.repo2env.<name>]` schema
-- Skip-reasons table (what reasons does your pipeline emit?)
-- CLI + Python example invocations
-- "Limitations" section
+- A table of the skip reasons your pipeline emits
+- Example CLI and Python invocations
+- A "Limitations" section
 
 Then add an entry for your pipeline to `website/lib/catalog.ts` (it drives the [pipeline catalogue](../pipelines/index.mdx), the landing page and the summary strip on your page), add the page under its task-type group in `docs/pipelines/meta.json` so it appears in the sidebar, and, if it introduces a new reward kind, describe it in [`docs/concepts/rewards.mdx`](../concepts/rewards.mdx).
 
 ### 8. (Optional) acknowledgments
 
-If your pipeline draws code or algorithms from external work, add an "Acknowledgment" block at the top of your `.py` file matching the format in `reward.py` / `pr_diff.py`. Be explicit about:
+If your pipeline draws code or algorithms from external work, add an "Acknowledgment" block at the top of your `.py` file in the format `reward.py` and `pr_diff.py` use. Be explicit about:
 
 - Which paper/repo inspired the approach
 - Their license
@@ -281,7 +281,7 @@ If your pipeline draws code or algorithms from external work, add an "Acknowledg
 
 ## Mental model
 
-Think of a pipeline as a generator function over candidates, gated by filters and QA, materializing as Harbor task dirs:
+A pipeline is a generator over candidates. Filters and optional QA gate each one, and the survivors become Harbor task directories:
 
 ```
 discover() ─▶ filter ─▶ build_task() ─▶ (optional QA) ─▶ write_harbor_task()
@@ -290,21 +290,23 @@ discover() ─▶ filter ─▶ build_task() ─▶ (optional QA) ─▶ write_h
         skip_reasons                               PipelineResult
 ```
 
-Each stage is independently testable. Keep `_discover` pure (network IO only), `_should_skip` pure (deterministic predicates), `_build_task` pure (no side effects), `write_harbor_task` is the only filesystem write.
+You can test each stage on its own. `_discover` should do network IO only, `_should_skip` should be a deterministic predicate, and `_build_task` should have no side effects. `write_harbor_task` is the only filesystem write.
 
 ## Common patterns from `pr_diff`
 
-- **Over-fetch then filter client-side** — `gh pr list --limit (limit*3)`, then trim after applying `since`/`until`/`max_files_per_pr`. GitHub's API doesn't always honor compound filters cleanly.
-- **Stable task IDs** — `<owner>__<repo>-<number>`. Same input ⇒ same output ⇒ idempotent re-runs.
-- **Strip `Closes #N` boilerplate** when synthesizing instructions from PR bodies — it leaks the answer.
-- **Don't log secrets** — never put a token in an exception message or a log line. The token-injection helper in `auth.auth_clone_url` exists specifically so you don't have to handle it manually.
+- **Over-fetch, then filter client-side.** Run `gh pr list --limit (limit*3)`, then trim after applying `since`/`until`/`max_files_per_pr`. GitHub's API doesn't always honor compound filters cleanly.
+- **Keep task IDs stable**, as in `<owner>__<repo>-<number>`. The same input gives the same output, so re-runs are idempotent.
+- **Strip `Closes #N` boilerplate** when you build instructions from PR bodies. It leaks the answer.
+- **Don't log secrets.** Never put a token in an exception message or a log line. The token-injection helper in `auth.auth_clone_url` exists so you never have to handle one yourself.
 
 ## Failure modes to design for
 
-- Network blip while fetching a single candidate ⇒ log + add to `skip_reasons`, continue
-- Network failure on the *initial* repo discovery (e.g. `gh pr list` 401) ⇒ raise; pipeline can't proceed
-- Empty results (no PRs match filters) ⇒ return `PipelineResult(emitted=0)` rather than raising — the CLI exits 1 if `emitted == 0`
-- Output directory exists with prior tasks ⇒ overwrite is fine; `write_harbor_task` is idempotent in practice
+| Situation | What to do |
+|---|---|
+| A network blip while fetching one candidate | Log it, add it to `skip_reasons` and continue |
+| A network failure during the *initial* repo discovery (for example, a `gh pr list` 401) | Raise. The pipeline can't proceed |
+| No results (no PRs match the filters) | Return `PipelineResult(emitted=0)` rather than raising. The CLI exits 1 when `emitted == 0` |
+| The output directory already holds tasks | Overwrite them. `write_harbor_task` is idempotent in practice |
 
 ## Reward-kind decision
 
@@ -315,17 +317,17 @@ Every pipeline declares which reward kinds its tasks support. Set this in the `r
 | `diff_similarity` | You ship a `solution/patch.diff` that's compared via sequence similarity |
 | `test_execution` | You ship `environment/Dockerfile` + `tests/test.sh` that produce a binary reward |
 
-A task may emit both. The lite path emits `diff_similarity` only; full sandbox-required pipelines typically emit both.
+A task may emit both. Lite pipelines emit only `diff_similarity`; full, sandbox-required pipelines usually emit both.
 
-The `write_harbor_task` helper auto-fills `reward_kinds = ["diff_similarity"]` if you don't override — set explicitly in `repo2env["reward_kinds"]` when you ship something else.
+If you don't override it, `write_harbor_task` fills in `reward_kinds = ["diff_similarity"]`. Set `repo2env["reward_kinds"]` explicitly when you ship something else.
 
 ## Submitting
 
-When everything passes:
+Before you open a PR, check that:
 
-1. `uv run pytest -q` — all tests green (including the contract test that picks up your new entry)
-2. The doc page exists and the index README links to it
-3. The pipeline runs end-to-end against a real public repo
-4. (If targeting a private repo path) the e2e test against a private repo also passes locally
+1. `uv run pytest -q` passes, including the contract test that picks up your new entry.
+2. The doc page exists and the pipeline catalogue lists it.
+3. The pipeline runs end to end against a real public repo.
+4. If you target private repos, the e2e test against a private repo also passes locally.
 
-Then commit + open a PR. The contract test is your safety net — if it passes, the pipeline is structurally sound; remaining review is just about the synthesis logic.
+Then commit and open a PR. The contract test is your safety net: if it passes, the pipeline is structurally sound, and review can focus on the synthesis logic.

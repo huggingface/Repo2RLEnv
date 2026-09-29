@@ -194,4 +194,4 @@ What a reward means depends on the pipeline:
 
 ## Limits
 
-A score says something about an agent only when the task itself is sound. An exported task is a generation result: its quality is established by its controls (the oracle scores 1, nop scores 0) and by the review-and-repair loop, which records the outcome as an evaluation label. Run the controls on every dataset you evaluate, and prefer tasks labeled `verified` when a result will be reported. See [Quality](../concepts/quality.mdx).
+An agent's score means something only if the task is sound, and a freshly exported task has passed nothing beyond its generator's own checks. Run the controls on every dataset you evaluate (the oracle should score 1 and nop 0), and prefer tasks labeled `verified` when you report a result. [Quality](../concepts/quality.mdx) explains how a task gets that label.

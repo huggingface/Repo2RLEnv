@@ -3,7 +3,7 @@ title: "Introduction"
 description: "What Repo2RLEnv builds, why it exists, and where it fits next to Harbor."
 ---
 
-Repo2RLEnv turns repositories, pull requests and task seeds into verifiable RL environments for coding agents. Each environment is a Harbor task — an instruction, a container, a hidden verifier and a reference solution — that you can run with any Harbor agent or feed to a trainer.
+Repo2RLEnv turns repositories, pull requests and task seeds into verifiable RL environments for coding agents. Each environment is a Harbor task (an instruction, a container, a hidden verifier and a reference solution) that you can run with any Harbor agent or feed to a trainer.
 
 <Film id="launch" />
 
@@ -11,7 +11,7 @@ Repo2RLEnv turns repositories, pull requests and task seeds into verifiable RL e
 
 Reinforcement learning for coding agents needs tasks an agent can attempt and a reward a program can compute. Every task needs a reproducible environment, an instruction that doesn't give the answer away, a verifier that tells a correct change from an incorrect one, and a reference solution that proves the task is solvable.
 
-Building these by hand takes hours per task, and a useful training run needs thousands. Repo2RLEnv generates them from material that already exists — merged PRs, commit history, a library's own functions, security advisories, task seeds — and gives you the checks to decide which ones to keep.
+Building these by hand takes hours per task, and a useful training run needs thousands. Repo2RLEnv generates them from material that already exists, such as merged PRs, commit history, a library's own functions, security advisories and task seeds. It also gives you the checks to decide which ones to keep.
 
 ## What a Harbor task is
 
@@ -19,9 +19,9 @@ Building these by hand takes hours per task, and a useful training run needs tho
 
 ## Three ways to generate tasks
 
-- **[Native pipelines](concepts/glossary.mdx#native-pipeline)** — six built-in generators that mine a repository's PRs, commits, functions or CVEs and run on your machine (Docker for test-based tasks).
-- **[Tasksmith](pipelines/tasksmith.md)** — an agent investigates one merged PR, builds its environment, designs the task, then reviews and repairs it, on Modal or Daytona workers.
-- **[Research recipes](pipelines/owned_recipes.md)** — 16 in-repo implementations of published methods (SWE-smith, SWE-gen, R2E-Gym, SETA, SCALER, FrontierSmith and more) for repair, terminal and reasoning tasks, on Modal or Daytona workers.
+- **[Native pipelines](concepts/glossary.mdx#native-pipeline):** six built-in generators that mine a repository's PRs, commits, functions or CVEs. They run on your machine, with Docker for test-based tasks.
+- **[Tasksmith](pipelines/tasksmith.md):** an agent investigates one merged PR, builds its environment, designs the task, then reviews and repairs it. It runs on Modal or Daytona workers.
+- **[Research recipes](pipelines/owned_recipes.md):** 16 in-repo implementations of published methods (SWE-smith, SWE-gen, R2E-Gym, SETA, SCALER, FrontierSmith and more) for repair, terminal and reasoning tasks. These also run on Modal or Daytona workers.
 
 [Pipelines](pipelines/index.mdx) compares every route; [Choose a pipeline](choose-a-pipeline.mdx) helps you pick one.
 
@@ -37,7 +37,7 @@ Repo2RLEnv writes Harbor's task format directly. Its own provenance and quality 
 
 ## Generated is not the same as verified
 
-An exported task is a generation result, not a guarantee. You establish its quality with controls — the reference solution should score 1 and an agent that does nothing ([nop](concepts/glossary.mdx#nop)) should score 0 — and with the [review and repair loop](pipelines/quality_loop.md), which checks the instruction, the verifier and leakage against real learner rollouts. The outcome is stored in the task as an [evaluation label](pipelines/task_evaluation_labels.md); every new task starts as `unverified`. [Quality](concepts/quality.mdx) explains the model.
+An exported task is a generation result, not a guarantee. You establish its quality in two steps. First, the controls: the reference solution should score 1, and an agent that does nothing ([nop](concepts/glossary.mdx#nop)) should score 0. Then the [review and repair loop](pipelines/quality_loop.md) checks the instruction, the verifier and leakage against real learner rollouts. The outcome is stored in the task as an [evaluation label](pipelines/task_evaluation_labels.md), and every new task starts as `unverified`. [Quality](concepts/quality.mdx) explains the model.
 
 ## Published datasets
 

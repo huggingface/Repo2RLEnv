@@ -10,7 +10,7 @@ const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' }
 export const metadata: Metadata = {
   title: {
     template: '%s · Repo2RLEnv',
-    default: 'Repo2RLEnv — verifiable RL environments from any repository',
+    default: 'Repo2RLEnv: verifiable RL environments from any repository',
   },
   description: siteDescription,
   applicationName: 'Repo2RLEnv',

@@ -5,7 +5,7 @@ navTitle: "0001 \u00b7 pr_diff"
 
 **Status:** implemented
 **Author:** `@adithya-s-k`
-**Created:** 2026-01-15 *(retrospective — pipeline shipped in v0.1.0; RFC written 2026-07-15 as archival record)*
+**Created:** 2026-01-15 *(retrospective: pipeline shipped in v0.1.0; RFC written 2026-07-15 as archival record)*
 
 ## Summary
 
@@ -19,16 +19,16 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
 
 ### Input
 
-- **Source** — GitHub · GitLab (via input-source abstraction added in v0.8.4).
-- **Trigger** — `repo2rlenv generate --pipeline pr_diff --repo <owner>/<name> --pipeline-opt limit=100 ...`
-- **Options model** — `PrDiffOptions`: `limit`, `since`, `until`, `skip_drafts`, `min_loc_changed`, `max_files_per_pr`, `require_test_changes`, plus provenance knobs.
+- **Source:** GitHub · GitLab (via input-source abstraction added in v0.8.4).
+- **Trigger:** `repo2rlenv generate --pipeline pr_diff --repo <owner>/<name> --pipeline-opt limit=100 ...`
+- **Options model:** `PrDiffOptions`: `limit`, `since`, `until`, `skip_drafts`, `min_loc_changed`, `max_files_per_pr`, `require_test_changes`, plus provenance knobs.
 
 ### Algorithm
 
-1. `gh pr list --state merged --json ...` — filter mergeAts and skip drafts client-side.
-2. Fetch `base.sha` per PR via `github.fetch_pr` (patched in #73 — `gh pr list --json baseRefOid` doesn't populate).
+1. `gh pr list --state merged --json ...`: filter mergeAts and skip drafts client-side.
+2. Fetch `base.sha` per PR via `github.fetch_pr` (patched in #73: `gh pr list --json baseRefOid` doesn't populate).
 3. Per PR: split into `(source_patch, test_patch)`, apply structural filters, drop drafts and CI-only changes.
-4. Emit a Harbor task with the thin env: `python:3.12-slim` + repo clone at `base_commit`. The oracle, instruction, and verifier ship as `tests/` aux files (`tests/{oracle.patch, instruction.md, verifier.py}`), which Harbor delivers only at verify time — not baked into the agent's image. (Early versions baked them into `/verifier/`; that let the agent read the oracle, fixed by moving them to `tests/`.)
+4. Emit a Harbor task with the thin env: `python:3.12-slim` + repo clone at `base_commit`. The oracle, instruction, and verifier ship as `tests/` aux files (`tests/{oracle.patch, instruction.md, verifier.py}`), which Harbor delivers only at verify time, not baked into the agent's image. (Early versions baked them into `/verifier/`; that let the agent read the oracle, fixed by moving them to `tests/`.)
 5. **No sandbox bootstrap.** The Dockerfile is self-contained; consumers rebuild it in ~30 s.
 
 ### Output
@@ -38,8 +38,8 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
 
 ## Verification
 
-- **Reward kind** — `diff_similarity`.
-- **Reward formula** — weighted sum of 6 components:
+- **Reward kind:** `diff_similarity`.
+- **Reward formula:** weighted sum of 6 components:
 
   | Component | Weight | Captures |
   |---|--:|---|
@@ -50,37 +50,37 @@ The starting point for the project. Datasets of merged PR diffs are the closest 
   | `similarity` | 0.10 | `SequenceMatcher` over `+`/`-` lines only |
   | `llm_judge` | 0.50 | Haiku 4.5 semantic correctness rating |
 
-  Plus a **catastrophic-size cap** — clamps reward to ≤ 0.40 when `size_sanity < 0.10`.
+  Plus a **catastrophic-size cap** that clamps reward to ≤ 0.40 when `size_sanity < 0.10`.
 
-- **Oracle invariant** — the merged diff scores exactly 1.0.
-- **Non-tamper** — verifier reads the agent's diff from `git diff --cached <base_commit>` and scores it against the oracle; the agent has no test file to tamper with.
+- **Oracle invariant:** the merged diff scores exactly 1.0.
+- **Non-tamper:** verifier reads the agent's diff from `git diff --cached <base_commit>` and scores it against the oracle; the agent has no test file to tamper with.
 
 ## Anti-contamination
 
-- **Git-history scrub** — after checkout at `base_commit`, remove `origin`, prune future refs, `gc`. Prevents `git diff origin/main`.
-- **Egress guard** — the shared `_env_guard.py` `docker-compose.yaml` overlay blackholes PyPI + GitHub, so `pip download <pkg>==<fix>` and web fetches of the fix commit fail.
-- **Instruction leak-strip** — extended in v0.8.5 to catch trailing `(#NNNN)` squash-trailers and cross-repo `repo#N` refs.
+- **Git-history scrub:** after checkout at `base_commit`, remove `origin`, prune future refs, `gc`. Prevents `git diff origin/main`.
+- **Egress guard:** the shared `_env_guard.py` `docker-compose.yaml` overlay blackholes PyPI + GitHub, so `pip download <pkg>==<fix>` and web fetches of the fix commit fail.
+- **Instruction leak-strip:** extended in v0.8.5 to catch trailing `(#NNNN)` squash-trailers and cross-repo `repo#N` refs.
 
 ## LLM use
 
-- **`at verify` (per scoring)** — one judge call per agent invocation (Anthropic Haiku by default; any OpenAI-compatible server via `R2E_JUDGE_ENDPOINT`), weight 0.50. Graceful degradation on missing API key: `judge_status=no_api_key`, other 5 components renormalize.
-- **No bootstrap LLM** — the thin env doesn't need it.
-- **Cost order-of-magnitude** — ~$0.001-$0.005 per scoring call. A 100-agent-run × 100-task eval ≈ $10-50.
+- **`at verify` (per scoring):** one judge call per agent invocation (Anthropic Haiku by default; any OpenAI-compatible server via `R2E_JUDGE_ENDPOINT`), weight 0.50. Graceful degradation on missing API key: `judge_status=no_api_key`, other 5 components renormalize.
+- **No bootstrap LLM:** the thin env doesn't need it.
+- **Cost order-of-magnitude:** ~$0.001-$0.005 per scoring call. A 100-agent-run × 100-task eval ≈ $10-50.
 
 ## Yield & repo suitability
 
-- **80–95% yield** — text-only, no execution gate. Almost every merged PR qualifies.
+- **80–95% yield:** text-only, no execution gate. Almost every merged PR qualifies.
 - **Works on any repo with merged PRs.** No sandbox constraint means monorepos, ML repos with non-portable test suites, and GPU-only projects all mine cleanly.
 
 ## Dependencies
 
 - No reuse; `pr_diff` is the *base* pipeline. Later pipelines borrow its Dockerfile-baking + verifier pattern.
-- Stdlib + `difflib`. LLM judge via `urllib` (the verifier is baked into the image and stays stdlib-only — it does not go through LiteLLM).
+- Stdlib + `difflib`. LLM judge via `urllib` (the verifier is baked into the image and stays stdlib-only, so it does not go through LiteLLM).
 
 ## Alternatives considered
 
-- **Full sandbox-verified diff similarity** — deferred to `pr_runtime`. `pr_diff` deliberately stays text-only so it's the cheapest, broadest baseline.
-- **Deterministic weights only, no LLM judge** — tried; scored `format_valid` + `similarity` too high (pilot data). LLM judge earns its 0.50 weight.
+- **Full sandbox-verified diff similarity:** deferred to `pr_runtime`. `pr_diff` deliberately stays text-only so it's the cheapest, broadest baseline.
+- **Deterministic weights only, no LLM judge:** tried; scored `format_valid` + `similarity` too high (pilot data). LLM judge earns its 0.50 weight.
 
 ## Rollout plan
 
@@ -88,7 +88,7 @@ Historic. Shipped in v0.1.0. Retuned in v0.8.3 via an LLM-driven reward-engineer
 
 ## Open questions
 
-Historic — none active.
+Historic only; none are active.
 
 ## References
 
@@ -103,7 +103,7 @@ Historic — none active.
 | **Shipping release** | v0.1.0 |
 | **Source file** | [`src/repo2rlenv/pipelines/pr_diff.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py) |
 | **Verifier** | [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
-| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) — `PrDiffOptions` |
+| **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) (`PrDiffOptions`) |
 | **Doc page** | [`docs/pipelines/pr_diff.md`](../pipelines/pr_diff.md) |
 | **Findings / release notes** | [`docs/release_notes/v0.8.3/findings-pr_diff.md`](../release_notes/v0.8.3/findings-pr_diff.md) |
 | **Reference dataset** | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) (181 envs) |

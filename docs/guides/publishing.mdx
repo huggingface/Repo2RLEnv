@@ -146,4 +146,4 @@ tar -xzf ./swe-smith/tasks.tar.gz -C ./swe-smith
 
 ## Limits
 
-Publishing checks format and integrity, not quality. `push` can't run an oracle, and `release` confirms that the bytes you selected are the bytes on the Hub. An exported task is a generation result: its quality is established by its controls (the oracle scores 1, nop scores 0) and the review-and-repair loop, recorded as an [evaluation label](../concepts/glossary.mdx#evaluation-label). Run the controls before you publish, and state in the dataset card which labels your tasks carry.
+Publishing checks format and integrity, not quality. `push` can't run an oracle, and `release` only confirms that the bytes you selected are the bytes on the Hub. Whether a task is sound is decided by its controls (the oracle scores 1, nop scores 0) and the review-and-repair loop, which records the result as an [evaluation label](../concepts/glossary.mdx#evaluation-label). Run the controls before you publish, and say in the dataset card which labels your tasks carry.

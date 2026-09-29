@@ -13,10 +13,10 @@ repo2rlenv [--version] [-v] [--no-ui] COMMAND ...
 
 | Flag | Default | Description |
 |---|---|---|
-| `--version` | — | Print `repo2rlenv <version>` and exit. |
+| `--version` | n/a | Print `repo2rlenv <version>` and exit. |
 | `-v`, `--verbose` | off | Debug logging. On an error, also print the traceback to stderr. |
 | `--no-ui` | off | Disable Rich live displays and print plain log lines. |
-| `-h`, `--help` | — | Show help for the command it follows. |
+| `-h`, `--help` | n/a | Show help for the command it follows. |
 
 Global flags go **before** the command: `repo2rlenv --no-ui generate …`. Placed after the command, they fail with `unrecognized arguments`.
 
@@ -43,18 +43,18 @@ repo2rlenv generate [--config FILE] [--repo REPO] [--pipeline NAME] [--recipe NA
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config FILE` | — | Generation input as YAML (`.yaml`, `.yml`), TOML or JSON. Flags on the command line override its values. |
-| `--repo REPO` | — | GitHub `owner/name`, a GitHub or GitLab URL, or a local path. |
+| `--config FILE` | none | Generation input as YAML (`.yaml`, `.yml`), TOML or JSON. Flags on the command line override its values. |
+| `--repo REPO` | none | GitHub `owner/name`, a GitHub or GitLab URL, or a local path. |
 | `--ref REF` | `HEAD` | Branch, tag or commit. Applied together with `--repo`. |
 | `--access` | `auto` | `public`, `private` or `auto`. Applied together with `--repo`. |
-| `--pipeline NAME` | — | Pipeline name, such as `pr_diff`. `repo2rlenv pipelines list` shows them all. |
+| `--pipeline NAME` | none | Pipeline name, such as `pr_diff`. `repo2rlenv pipelines list` shows them all. |
 | `--recipe NAME` | `native` | Research recipe to run for the pipeline, such as `swe_smith`. |
 | `--pipeline-opt KEY=VALUE` | none | Pipeline option. Repeatable. `true`/`false` become booleans, JSON values (numbers, lists) are parsed, and anything else stays a string. Overrides options from `--config`. |
-| `--llm PROVIDER/MODEL` | — | Model for synthesis and bootstrap, such as `anthropic/claude-sonnet-4-6`. |
-| `--llm-fallback PROVIDER/MODEL` | — | Model to switch to when the primary returns 5xx, rate-limit or network errors. |
-| `--llm-endpoint URL` | — | Base URL of a self-hosted OpenAI-compatible server for the primary model, such as `http://localhost:8000/v1`. The provider's default key is never sent there. |
+| `--llm PROVIDER/MODEL` | none | Model for synthesis and bootstrap, such as `anthropic/claude-sonnet-4-6`. |
+| `--llm-fallback PROVIDER/MODEL` | none | Model to switch to when the primary returns 5xx, rate-limit or network errors. |
+| `--llm-endpoint URL` | none | Base URL of a self-hosted OpenAI-compatible server for the primary model, such as `http://localhost:8000/v1`. The provider's default key is never sent there. |
 | `--llm-key-env VAR` | provider default | Environment variable that holds the primary model's API key. |
-| `--out DIR` | — | Output directory. |
+| `--out DIR` | none | Output directory. |
 | `--org ORG` | `default` | Task namespace: task names become `ORG/<slug>`. Applied together with `--out`. |
 | `--dataset-name NAME` | name of `--out` | Dataset name recorded in the output spec. Applied together with `--out`. |
 | `--visibility` | `public` | `public` or `private`. Applied together with `--out`. |
@@ -124,7 +124,7 @@ repo2rlenv push --check-auth [--fast] [--json]
 | Flag | Default | Description |
 |---|---|---|
 | `LOCAL_DIR` | `.` | Dataset directory, as written by `generate`. |
-| `DATASET` | — | Target as `owner/name` or `hf://owner/name`. Required unless `--check-auth`. `harbor://` and GitHub targets print the equivalent `harbor publish` or `git push` command instead. |
+| `DATASET` | none | Target as `owner/name` or `hf://owner/name`. Required unless `--check-auth`. `harbor://` and GitHub targets print the equivalent `harbor publish` or `git push` command instead. |
 | `--private` | off | Create the dataset repository as private. |
 | `-m`, `--message TEXT` | `Repo2RLEnv: add N tasks` | Commit message. |
 | `--image-registry PREFIX` | auto-detect | Force a registry prefix, such as `ghcr.io/my-org`. It's probed for write access first. |
@@ -152,7 +152,7 @@ repo2rlenv pull [--task NAME] [--registry-url URL] [--force] DATASET [LOCAL_DIR]
 |---|---|---|
 | `DATASET` | required | `owner/name`, `owner/name@rev`, `hf://owner/name`, or a bare `name` (owner resolved from your Hub login) for the Hub. `harbor://name[@tag]` for a Harbor registry. `gh://owner/repo[@ref]` or a `https://github.com/owner/repo` URL for GitHub. |
 | `LOCAL_DIR` | `./datasets/<owner>__<name>` | Destination directory. |
-| `--task NAME` | — | Hub only: download one task, such as `encode__httpx-3367`. |
+| `--task NAME` | none | Hub only: download one task, such as `encode__httpx-3367`. |
 | `--registry-url URL` | Harbor's public registry | Harbor only: a custom registry. Requires the `harbor` CLI on your `PATH`. |
 | `--force` | off | Delete the local copy and download again. |
 
@@ -176,12 +176,12 @@ repo2rlenv bootstrap --repo REPO --llm PROVIDER/MODEL [--ref REF] [--max-spend-u
 | `--ref REF` | `HEAD` | Branch, tag or commit. |
 | `--access` | `auto` | `public`, `private` or `auto`. |
 | `--llm PROVIDER/MODEL` | required | Model that drives the build agent. |
-| `--llm-endpoint URL` | — | Self-hosted OpenAI-compatible server for `--llm`. |
+| `--llm-endpoint URL` | none | Self-hosted OpenAI-compatible server for `--llm`. |
 | `--llm-key-env VAR` | provider default | Environment variable that holds the API key. |
 | `--max-iterations N` | `25` | Maximum agent turns. |
 | `--max-seconds N` | `1800` | Wall-clock limit. |
 | `--cache-dir DIR` | `$R2E_CACHE_DIR`, else `./workspace/bootstrap` | Image cache root. |
-| `--image-registry PREFIX` | — | Push the built image here, such as `ghcr.io/my-org/r2e`. |
+| `--image-registry PREFIX` | none | Push the built image here, such as `ghcr.io/my-org/r2e`. |
 | `--platform` | `linux/amd64` | `linux/amd64` or `linux/arm64`. |
 | `--language LANG` | auto-detect | `python`, `node`, `go`, `rust`, `java` or `c_cpp`. |
 | `--base-image IMAGE` | per language | Base image, such as `ubuntu:24.04`. |
@@ -250,16 +250,16 @@ repo2rlenv tasksmith run PANEL --campaign DIR --output DIR --runtime-wheel WHEEL
 | `--campaign DIR` | required | Existing campaign directory. |
 | `--output DIR` | required | Run directory. Rerunning the same command reuses matching completed work. |
 | `--runtime-wheel WHEEL` | required | Wheel built from the installed version (`uv build --wheel`). |
-| `--options FILE` | — | Options JSON, including quality models and spending limits, such as `examples/tasksmith-options.json`. |
+| `--options FILE` | none | Options JSON, including quality models and spending limits, such as `examples/tasksmith-options.json`. |
 | `--provider` | `modal` | `modal` or `daytona`. Used when `--options` is absent; must agree with it otherwise. |
 | `--author` | `pi` | `pi` or `opencode`. Used when `--options` is absent; must agree with it otherwise. |
-| `--stop-after N` | — | Process only the first N inputs. The report's denominator stays the full panel. |
-| `--sources FILE` | — | Frozen PR source records, in panel order. |
-| `--prepared-task DIR` | — | Recover one task matching `--sources` with fresh quality checks; the input is preserved. |
-| `--generation-run DIR` | — | Reuse verified generation artifacts from an identical panel and rerun only the current quality policy. |
+| `--stop-after N` | none | Process only the first N inputs. The report's denominator stays the full panel. |
+| `--sources FILE` | none | Frozen PR source records, in panel order. |
+| `--prepared-task DIR` | none | Recover one task matching `--sources` with fresh quality checks; the input is preserved. |
+| `--generation-run DIR` | none | Reuse verified generation artifacts from an identical panel and rerun only the current quality policy. |
 | `--reuse-evidence` | off | With `--generation-run`: also reuse matching baseline, reference and solver evidence. Semantic probes still rerun. |
-| `--bootstrap-report FILE` | — | Reuse the snapshot and dependency hints from a completed CPU bootstrap report. |
-| `--env-file FILE` | — | Load credentials from this file, without overriding variables already set. |
+| `--bootstrap-report FILE` | none | Reuse the snapshot and dependency hints from a completed CPU bootstrap report. |
+| `--env-file FILE` | none | Load credentials from this file, without overriding variables already set. |
 | `--json` | off | Print the report as JSON. |
 
 Exits `0` only when every input produced a usable task.
@@ -286,7 +286,7 @@ repo2rlenv tasksmith batch PLAN --campaign DIR --output DIR --runtime-wheel WHEE
 | `--campaign DIR` | required | Existing campaign directory. |
 | `--output DIR` | required | Batch directory. |
 | `--runtime-wheel WHEEL` | required | Runtime wheel. |
-| `--env-file FILE` | — | Credentials file. |
+| `--env-file FILE` | none | Credentials file. |
 | `--json` | off | Print the batch report as JSON. |
 
 Exits `0` when the plan's verified target was reached.
@@ -312,7 +312,7 @@ repo2rlenv tasksmith bootstrap MATRIX --campaign DIR --output DIR --runtime-whee
 | `--campaign DIR` | required | Existing campaign directory. |
 | `--output DIR` | required | Receipts, logs and compute estimates. |
 | `--runtime-wheel WHEEL` | required | Runtime wheel. |
-| `--env-file FILE` | — | Credentials file. |
+| `--env-file FILE` | none | Credentials file. |
 | `--json` | off | Print the reports as JSON. |
 
 ```bash
@@ -521,8 +521,8 @@ repo2rlenv release publish --receipt FILE [--collection SLUG] [--batch-size N | 
 |---|---|---|
 | `DIRECTORY` | required | Verified staging directory. |
 | `--receipt FILE` | required | Publication receipt. A completed receipt returns without uploading again; an incomplete one stops for reconciliation. |
-| `--collection SLUG` | — | Collection to add the dataset to. |
-| `--batch-size N` | — | Upload to a new, empty repository in commits of N files (1–500) instead of one large commit. |
+| `--collection SLUG` | none | Collection to add the dataset to. |
+| `--batch-size N` | none | Upload to a new, empty repository in commits of N files (1–500) instead of one large commit. |
 | `--recover-empty` | off | Recover an upload that timed out before creating a commit. Confirms the repository is still empty, then uploads in bounded commits. |
 | `--json` | off | Print the receipt as JSON. |
 
@@ -548,11 +548,11 @@ A run without `--repair` or `--run-rollout` makes model calls but creates no wor
 | `TASK` | required | Harbor task directory. |
 | `--campaign DIR` | required | Existing campaign directory. |
 | `--out DIR` | required | Run directory for `result.json`, revisions, trials and receipts. |
-| `--env-file FILE` | — | Load credentials from this file. They're never copied into task artifacts. |
-| `--baseline PATH` | — | Existing trial evidence: an owned trial receipt, a Harbor trial `result.json`, or a single-trial directory. |
-| `--oracle PATH` | — | Same, for the reference solution. |
-| `--rollout PATH` | — | Same, for a solver rollout. |
-| `--probes FILE` | — | Task-bound JSON manifest of known counterexamples and valid alternatives. |
+| `--env-file FILE` | none | Load credentials from this file. They're never copied into task artifacts. |
+| `--baseline PATH` | none | Existing trial evidence: an owned trial receipt, a Harbor trial `result.json`, or a single-trial directory. |
+| `--oracle PATH` | none | Same, for the reference solution. |
+| `--rollout PATH` | none | Same, for a solver rollout. |
+| `--probes FILE` | none | Task-bound JSON manifest of known counterexamples and valid alternatives. |
 | `--review-model PROVIDER/MODEL` | `anthropic/claude-sonnet-4-6` | Reviewer. Only `openai/` and `anthropic/` routes are accepted, for this and the other model flags. |
 | `--repair-model PROVIDER/MODEL` | the reviewer | Repair author. |
 | `--escalation-model PROVIDER/MODEL` | none | One stronger attempt when a review stays unresolved. |
@@ -572,8 +572,8 @@ A run without `--repair` or `--run-rollout` makes model calls but creates no wor
 | `--max-spend-usd N` | `15.00` | Spending limit for this run, inside the campaign limit. |
 | `--success-reward N` | `1.0` | Reward that counts as a solver success. |
 | `--provider` | `modal` | `modal` or `daytona` for CPU workers. GPU tasks always use native Modal. |
-| `--runtime-wheel WHEEL` | — | Required for CPU `--repair` and `--run-rollout`. |
-| `--worker-receipt RECEIPT` | — | Reuse a running worker from the same campaign. You stay responsible for stopping it. |
+| `--runtime-wheel WHEEL` | none | Required for CPU `--repair` and `--run-rollout`. |
+| `--worker-receipt RECEIPT` | none | Reuse a running worker from the same campaign. You stay responsible for stopping it. |
 | `--worker-reservation-usd N` | `3.00` | Reservation for a worker the run creates. |
 | `--resume` | off | Reuse completed, identical model requests and trial evidence. |
 | `--json` | off | Print the result as JSON. |
@@ -657,11 +657,11 @@ repo2rlenv tasks label --out DIR [--quality-result FILE | --status STATUS] [--st
 |---|---|---|
 | `TASK` | required | Task directory. |
 | `--out DIR` | required | New task directory. |
-| `--quality-result FILE` | — | Derive the label from a saved quality `result.json`. This is the only way to set `verified`. |
+| `--quality-result FILE` | none | Derive the label from a saved quality `result.json`. This is the only way to set `verified`. |
 | `--status` | `unverified` | `unverified`, `needs_repair` or `blocked`. Can't be combined with `--quality-result`. |
 | `--stage` | `generation` | `generation`, `bootstrap`, `construction`, `review`, `controls`, `probes`, `rollout`, `repair`, `complete` or `unknown`. |
 | `--reason-code CODE` | `validation_not_run` | Repeatable snake_case diagnosis. `needs_repair` and `blocked` require at least one, plus `--detail`. |
-| `--detail TEXT` | — | Human-readable reason and next diagnostic step. |
+| `--detail TEXT` | none | Human-readable reason and next diagnostic step. |
 | `--provenance` | `unknown` | `unknown`, `assisted` or `unattended`. |
 | `--json` | off | Print the new label as JSON. |
 

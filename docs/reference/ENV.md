@@ -2,7 +2,7 @@
 title: "Environment variables"
 ---
 
-Every variable Repo2RLEnv reads, in one place. None of them are required to *use* the tool — sensible defaults exist for all of them — but you'll want to know what's available when wiring up CI, Docker images, or a cron host.
+Every variable Repo2RLEnv reads, in one place. You don't need to set any of them to *use* the tool, since they all have sensible defaults, but it helps to know what's here when you wire up CI, Docker images or a cron host.
 
 Variables are grouped by what they affect.
 
@@ -10,9 +10,9 @@ Variables are grouped by what they affect.
 
 | Variable | What it controls | Default |
 |---|---|---|
-| `R2E_CACHE_DIR` | Bootstrap image cache root — where the LLM-built per-repo Docker images are stored, keyed by content hash. The expensive step runs once per (repo, ref); subsequent generations reuse the cache. | `./workspace/bootstrap` |
+| `R2E_CACHE_DIR` | Bootstrap image cache root: where the LLM-built per-repo Docker images are stored, keyed by content hash. The expensive step runs once per (repo, ref); subsequent generations reuse the cache. | `./workspace/bootstrap` |
 
-`repo2rlenv bootstrap --cache-dir DIR` and `repo2rlenv generate --bootstrap-opt cache_dir=DIR` take precedence over the env var, and the env var takes precedence over the default — standard layering.
+`repo2rlenv bootstrap --cache-dir DIR` and `repo2rlenv generate --bootstrap-opt cache_dir=DIR` take precedence over the env var, and the env var takes precedence over the default.
 
 > The dataset output path (`--out`) and any project-local state are intentionally **not** env-controlled: those are per-invocation choices that should live in your generate command or `Makefile`, not in shell state.
 
@@ -22,10 +22,10 @@ Used by every pipeline (mining + cloning).
 
 | Variable | What it does |
 |---|---|
-| `GITHUB_TOKEN` | Personal access token. Read in the **third** position of the auth chain — after an explicitly-named token (`repo.auth_token_env` in your config) and after `gh auth token` if `gh` is installed and logged in. |
+| `GITHUB_TOKEN` | Personal access token. Read **third** in the auth chain, after an explicitly named token (`repo.auth_token_env` in your config) and after `gh auth token` if `gh` is installed and logged in. |
 | `GH_TOKEN` | Not read directly. `gh` honors it, so when `gh` is installed it reaches Repo2RLEnv through `gh auth token` (second position). |
 | `GITLAB_TOKEN` | Token for `gitlab.com` sources, read after `repo.auth_token_env`. |
-| `repo.auth_token_env` *(config field, not env)* | Names which env var holds the token for *this* repo (useful when you have multiple org-scoped tokens). The token *value* is never embedded in config — only the *name*. |
+| `repo.auth_token_env` *(config field, not env)* | Names which env var holds the token for *this* repo (useful when you have multiple org-scoped tokens). The token *value* is never embedded in config, only the *name*. |
 
 Full resolution order + private-repo build-arg flow: [`AUTH.md`](./AUTH.md).
 
@@ -53,14 +53,14 @@ Those five are resolved by `repo2rlenv` itself, so a missing key fails fast with
 
 | Variable | Provider |
 |---|---|
-| `HOSTED_VLLM_API_KEY` *(optional)* | `hosted_vllm/…` — only if your vLLM was started with `--api-key`; honoured with or without `--llm-endpoint`. `HOSTED_VLLM_API_BASE` is the alternative to `--llm-endpoint`. |
-| `OLLAMA_API_KEY` *(optional)* | `ollama/…` — `OLLAMA_API_BASE` defaults to `http://localhost:11434`. |
+| `HOSTED_VLLM_API_KEY` *(optional)* | `hosted_vllm/…`. Only needed if your vLLM was started with `--api-key`; honoured with or without `--llm-endpoint`. `HOSTED_VLLM_API_BASE` is the alternative to `--llm-endpoint`. |
+| `OLLAMA_API_KEY` *(optional)* | `ollama/…`. `OLLAMA_API_BASE` defaults to `http://localhost:11434`. |
 
-With `--llm-endpoint` (or `llm.endpoint` in config) the provider-default key — `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, … — is never forwarded to the custom server: `openai/<model>` gets a placeholder, `hosted_vllm/` and `ollama/` use LiteLLM's own lookup above. Pass `--llm-key-env VAR` to send a specific key.
+With `--llm-endpoint` (or `llm.endpoint` in config), the provider-default key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) is never forwarded to the custom server. `openai/<model>` gets a placeholder, and `hosted_vllm/` and `ollama/` use LiteLLM's own lookup above. Pass `--llm-key-env VAR` to send a specific key.
 
 ## Container registry (for `_runtime` image distribution on push)
 
-Resolved before the docker credstore — an explicit env var beats whatever's cached locally, which is the right precedence for CI.
+These are resolved before the docker credstore. An explicit env var beats whatever's cached locally, which is the right precedence for CI.
 
 | Variable | What it does |
 |---|---|
@@ -75,7 +75,7 @@ Full L1-L4 probe protocol + per-registry setup: [`REGISTRY_AUTH.md`](./REGISTRY_
 
 ## `pr_diff` reward tuning
 
-The diff-similarity verifier baked into every `pr_diff` task is configurable at *score time* without rebuilding the image — the verifier reads these inside the container. Pass them to the verifier with Harbor's `--ve`, for example `harbor run … --ve R2E_W_JUDGE=0`.
+The diff-similarity verifier baked into every `pr_diff` task is configurable at *score time* without rebuilding the image, because the verifier reads these inside the container. Pass them to the verifier with Harbor's `--ve`, for example `harbor run … --ve R2E_W_JUDGE=0`.
 
 | Variable | What it does | Default |
 |---|---|---|
@@ -85,10 +85,10 @@ The diff-similarity verifier baked into every `pr_diff` task is configurable at 
 | `R2E_W_REGION` | Weight for the *region overlap* component. | `0.20` |
 | `R2E_W_SIM` | Weight for the *changes-only similarity* component. | `0.10` |
 | `R2E_W_JUDGE` | Weight for the *LLM-as-judge* semantic-correctness component. | `0.50` |
-| `R2E_JUDGE_MODEL` | The judge model, as the serving API names it (a bare model id, not a LiteLLM `provider/model` string — the verifier is stdlib-only and does not go through LiteLLM). Required when `R2E_JUDGE_ENDPOINT` is set. | `claude-haiku-4-5-20251001` |
-| `R2E_JUDGE_ENDPOINT` | Base URL of an OpenAI-compatible server to use as the judge instead of Anthropic — vLLM, Ollama, llama.cpp, a gateway. The verifier posts to `<endpoint>/chat/completions` at temperature 0 (small local models are noisy judges at their default sampling temperature). From inside the verifier container a model on the host is `http://host.docker.internal:8000/v1` on Docker Desktop (macOS / Windows / WSL2); on a bare Linux daemon that name does not resolve, so use the host's LAN IP (`hostname -I`) with the server bound to `0.0.0.0`. | unset (Anthropic) |
+| `R2E_JUDGE_MODEL` | The judge model, as the serving API names it (a bare model id, not a LiteLLM `provider/model` string, because the verifier is stdlib-only and doesn't go through LiteLLM). Required when `R2E_JUDGE_ENDPOINT` is set. | `claude-haiku-4-5-20251001` |
+| `R2E_JUDGE_ENDPOINT` | Base URL of an OpenAI-compatible server (vLLM, Ollama, llama.cpp, a gateway) to use as the judge instead of Anthropic. The verifier posts to `<endpoint>/chat/completions` at temperature 0 (small local models are noisy judges at their default sampling temperature). From inside the verifier container a model on the host is `http://host.docker.internal:8000/v1` on Docker Desktop (macOS / Windows / WSL2); on a bare Linux daemon that name does not resolve, so use the host's LAN IP (`hostname -I`) with the server bound to `0.0.0.0`. | unset (Anthropic) |
 | `R2E_JUDGE_API_KEY` | Bearer token sent to `R2E_JUDGE_ENDPOINT`. Optional: self-hosted servers ignore it, so a placeholder is sent when unset. `ANTHROPIC_API_KEY` is never forwarded to a custom endpoint. | unset |
-| `ANTHROPIC_API_KEY` | Required for the LLM-judge component on the default Anthropic route; the verifier degrades gracefully (records `judge_status=no_api_key`) when unset, so the other five components still score. Ignored when `R2E_JUDGE_ENDPOINT` is set. |
+| `ANTHROPIC_API_KEY` | Required for the LLM-judge component on the default Anthropic route; the verifier degrades gracefully (records `judge_status=no_api_key`) when unset, so the other five components still score. Ignored when `R2E_JUDGE_ENDPOINT` is set. | unset |
 
 ## Remote workers (Modal, Daytona)
 

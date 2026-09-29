@@ -1,5 +1,5 @@
 ---
-title: "pr_diff — Harbor-runnable env + 6-component reward"
+title: "pr_diff: Harbor-runnable env + 6-component reward"
 ---
 
 This release lifts `pr_diff` from v0.1's text-only output to a **fully Harbor-runnable RL environment** with a multi-component diff-similarity verifier (5 deterministic components + LLM-as-judge). The PR ships **100 verified environments published to HF Hub** as the reference dataset.
@@ -25,7 +25,7 @@ harbor run -p /tmp/pr-diff -a oracle --env docker  # → reward = 1.000
 
 ### 1. Harbor-runnable environment (was text-only in v0.1)
 
-Each emitted task now ships `environment/Dockerfile` + `tests/test.sh`, so `harbor run` works directly. The Dockerfile is a thin, **agent-agnostic** `python:3.12-slim` + git image with the repo cloned at `base_commit` and the oracle diff base64-baked in — Harbor's agent adapter installs whatever runtime the agent needs (claude-code / openhands / codex / aider). No bootstrap LLM agent — image builds in ~30 s.
+Each emitted task now ships `environment/Dockerfile` + `tests/test.sh`, so `harbor run` works directly. The Dockerfile is a thin, **agent-agnostic** `python:3.12-slim` + git image with the repo cloned at `base_commit` and the oracle diff base64-baked in. Harbor's agent adapter installs whatever runtime the agent needs (claude-code / openhands / codex / aider). No bootstrap LLM agent, so the image builds in ~30 s.
 
 The verifier is a pure-stdlib Python module ([`_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py)) base64-embedded in `tests/test.sh`. It captures the agent's edits via `git add -A; git diff --cached <base>` and scores them against the oracle.
 
@@ -37,14 +37,14 @@ Replaces the single-scalar `difflib.ratio()` with the SWE-RL-paper's recipe:
 |---|--:|---|
 | `format_valid` | 0.00 | Predicted parses as a unified diff. Always 1 for `claude-code` → no discriminative signal → weight 0 (kept as a guard). |
 | `size_sanity` | 0.08 | `min(oracle_loc, predicted_loc) / max(...)`. Catches over/under-generation. |
-| `file_targeting` | 0.12 | F1 over the changed-file sets (not Jaccard — F1 properly credits TP). |
+| `file_targeting` | 0.12 | F1 over the changed-file sets (not Jaccard, since F1 properly credits TP). |
 | `region_overlap` | 0.20 | Predicted hunks overlap oracle hunks (5-line slack). |
 | `similarity` | 0.10 | `SequenceMatcher` ratio over `+`/`-` lines only (no free credit for context). |
 | `llm_judge` | 0.50 | Haiku rates semantic correctness. Graceful degradation on missing API key. |
 
 Plus a **catastrophic-size hard cap**: clamps final reward to ≤ 0.40 when `size_sanity < 0.10`. Stops a charitable judge from inflating scores on patches that are wildly the wrong size.
 
-Final weights were retuned via an LLM-driven reward-engineering pass on a 23-task pilot — Sonnet 4.6 analyzed the per-task component data and recommended these weights (data-grounded; the original guesses scored `format_valid` and `similarity` too high).
+Final weights were retuned via an LLM-driven reward-engineering pass on a 23-task pilot: Sonnet 4.6 analyzed the per-task component data and recommended these weights (data-grounded; the original guesses scored `format_valid` and `similarity` too high).
 
 ### 3. Per-task calibration baseline + difficulty bucket
 
@@ -90,7 +90,7 @@ These filters caused 1 of the 25 launch repos (`date-fns/date-fns`) to emit 0 qu
 
 ## How the 100 envs were generated
 
-The published dataset is reproducible from the public `repo2rlenv` CLI alone — no internal tooling required. The recipe is per-repo `generate` × 25 repos, sequenced with concurrency 5 and `--max-retries 2` on the harbor side:
+The published dataset is reproducible from the public `repo2rlenv` CLI alone, with no internal tooling required. The recipe is per-repo `generate` × 25 repos, sequenced with concurrency 5 and `--max-retries 2` on the harbor side:
 
 ```bash
 # Per repo (× 25), fetch ~5× the needed envs so quality filters can drop the
@@ -116,7 +116,7 @@ Across three smoke runs (limit=1 → limit=5 → full 100), every successfully-c
 Two real verifier bugs were found and fixed by the pilots:
 
 1. `git diff <base>` skips untracked files → PRs that add files silently scored low. Fix: `git add -A; git diff --cached <base>`.
-2. Harbor's claude-code agent setup (`curl claude.ai/install.sh`) saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: keep concurrency ≤ 5 and pass `--max-retries 2` to harbor. **Not** baking the agent into the task Dockerfile — that would couple every env to one vendor's CLI and violate the agent-agnostic contract of a Harbor task spec.
+2. Harbor's claude-code agent setup (`curl claude.ai/install.sh`) saturates local bandwidth at concurrency ≥ 12, triggering `AgentSetupTimeoutError`. Fix: keep concurrency ≤ 5 and pass `--max-retries 2` to harbor. **Not** baking the agent into the task Dockerfile, because that would couple every env to one vendor's CLI and violate the agent-agnostic contract of a Harbor task spec.
 
 ## Limitations
 

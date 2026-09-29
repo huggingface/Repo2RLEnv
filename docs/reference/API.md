@@ -59,9 +59,9 @@ from repo2rlenv.auth import (
 )
 ```
 
-`resolve_github_token(repo, auth) -> str | None` — implements the four-step resolution chain documented in [AUTH.md](./AUTH.md). Returns `None` if anonymous.
+`resolve_github_token(repo, auth) -> str | None` implements the four-step resolution chain documented in [AUTH.md](./AUTH.md). It returns `None` for anonymous access.
 
-`auth_clone_url(url, token) -> str` — injects a token into a clone URL using GitHub's `x-access-token` form. Pass-through if `token` is `None`.
+`auth_clone_url(url, token) -> str` injects a token into a clone URL using GitHub's `x-access-token` form. If `token` is `None`, the URL passes through unchanged.
 
 ## `repo2rlenv.github`
 
@@ -69,9 +69,9 @@ from repo2rlenv.auth import (
 from repo2rlenv.github import list_merged_prs, fetch_pr_diff, PullRequestSummary
 ```
 
-`list_merged_prs(owner, name, *, limit, since, until, skip_drafts, token)` — paginates `gh pr list` and returns `PullRequestSummary` objects with PR title, body, base SHA, head SHA, URL, and changed files.
+`list_merged_prs(owner, name, *, limit, since, until, skip_drafts, token)` paginates `gh pr list` and returns `PullRequestSummary` objects with PR title, body, base SHA, head SHA, URL, and changed files.
 
-`fetch_pr_diff(owner, name, number, *, token)` — returns the unified diff as a string via `gh pr diff`.
+`fetch_pr_diff(owner, name, number, *, token)` returns the unified diff as a string via `gh pr diff`.
 
 ## `repo2rlenv.llm`
 
@@ -88,7 +88,7 @@ response = complete(
 print(response.content)
 ```
 
-Single-shot LiteLLM call. Honors `spec.endpoint` for self-hosted backends — no key required, and the provider-default key is never forwarded there unless `spec.api_key_env` names it; auto-points HF provider at `https://router.huggingface.co/v1`. Providers outside `auth.LLM_KEY_ENV_DEFAULTS` resolve their credentials inside LiteLLM. `check_provider(spec)` fails fast on an unknown provider anywhere in the fallback chain.
+A single-shot LiteLLM call. It honors `spec.endpoint` for self-hosted backends: no key is required there, and the provider-default key is never forwarded to it unless `spec.api_key_env` names it. The HF provider is pointed at `https://router.huggingface.co/v1` automatically. Providers outside `auth.LLM_KEY_ENV_DEFAULTS` resolve their credentials inside LiteLLM. `check_provider(spec)` fails fast on an unknown provider anywhere in the fallback chain.
 
 ## `repo2rlenv.reward`
 
@@ -112,7 +112,7 @@ pipeline = cls(generation_input, options)
 result = pipeline.run(out_dir)   # returns PipelineResult(candidates, emitted, skipped, out_dir, skip_reasons)
 ```
 
-`Pipeline` is a `runtime_checkable` Protocol — every entry in `PIPELINES` duck-conforms. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](../pipelines/index.mdx) for per-pipeline docs.
+`Pipeline` is a `runtime_checkable` Protocol, and every entry in `PIPELINES` duck-conforms to it. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](../pipelines/index.mdx) for per-pipeline docs.
 
 ## `repo2rlenv.emitter.harbor`
 
@@ -152,10 +152,10 @@ Two-commit upload: tasks first, then `registry.json` pinned to the resulting com
 
 ## Running tasks
 
-Repo2RLEnv ships **no execution runtime**. To run/score:
+Repo2RLEnv ships **no execution runtime**. To run or score tasks:
 
-- **Diff-similarity scoring** — call `reward.calculate_diff_similarity_reward(oracle, prediction)` directly from Python. Used by RL training loops where running tests every rollout is too expensive. There is no CLI wrapper.
-- **Test execution** — use `harbor run --agent <agent> --path <task>`. Repo2RLEnv emits Harbor-compatible task directories that work out of the box across Harbor's Local Docker / Modal / Daytona / E2B / Runloop backends.
+- **Diff-similarity scoring:** call `reward.calculate_diff_similarity_reward(oracle, prediction)` directly from Python. RL training loops use it when running tests on every rollout is too expensive. There is no CLI wrapper.
+- **Test execution:** use `harbor run --agent <agent> --path <task>`. Repo2RLEnv emits Harbor-compatible task directories that work out of the box across Harbor's Local Docker / Modal / Daytona / E2B / Runloop backends.
 
 ## CLI ↔ API mapping
 

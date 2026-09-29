@@ -85,7 +85,7 @@ export function Film({ id, caption, poster }: { id: string; caption?: string; po
   }, [film]);
 
   const Player = mods?.[1].Player;
-  // 18% in — the same frame render-docs.sh uses for the poster.
+  // 18% in: the same frame render-docs.sh uses for the poster.
   const initialFrame = film
     ? Math.min(poster ?? Math.floor((film.durationInFrames * 18) / 100), film.durationInFrames - 1)
     : 0;

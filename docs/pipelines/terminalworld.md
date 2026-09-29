@@ -2,8 +2,8 @@
 title: "terminalworld"
 ---
 
-TerminalWorld reconstructs executable tasks from real terminal recordings.
-Its tests are generated from the public goal and observed reference execution.
+TerminalWorld rebuilds executable tasks from real terminal recordings. Its tests
+come from the public goal and from what the reference actually did when it ran.
 
 ## Pipeline, step by step
 
@@ -28,21 +28,22 @@ flowchart TD
   R -->|"0 / 1"| H["Export reconstructed task"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Screen the input.** Credential/PII patterns filter transcripts before any model call. P1 scores three axes from 0–3, reports tools, command count and supported. A bounded public-link probe supplies the fourth 0–3 context score.
+**Screen the input.** Before any model call, transcripts that match credential or PII patterns are filtered out. P1 scores three axes from 0 to 3 and reports the tools, the command count and whether the recording is supported. A bounded probe of public links adds a fourth context score, also from 0 to 3.
 
-**Recover intent and actions.** Require supported=true, at least three commands and total score ≥ min_score. Extract and refine the script, then write the instruction from metadata and the refined script.
+**Recover intent and actions.** A recording needs `supported=true`, at least three commands, and a total score of at least `min_score`. The recipe extracts and refines the script, then writes the instruction from the metadata and the refined script.
 
-**Observe before verifying.** The environment builder sees transcript evidence and produces real dependencies, starting fixtures and a reference. Only after a successful replay with persistent changes does the test author see bounded initial/final paths, contents and stdout.
+**Observe before verifying.** The environment builder sees the transcript evidence and produces real dependencies, starting fixtures and a reference. The test author only comes in after a successful replay that leaves persistent changes, and it sees bounded initial and final paths, contents and stdout.
 
 ## Every prompt and its data
 
-Six authoring calls on a successful first attempt: score, extract, refine,
-instruction, environment, tests. Filtered inputs use zero or one call. With
-`review_drafts: true`, the shared runner adds
+A successful first attempt makes six authoring calls: score, extract, refine,
+instruction, environment and tests. Filtered inputs use zero or one call. With
+`review_drafts: true`, the shared runner adds a
 [Q1 consistency review](prompt_reference.md#optional-review-before-execution)
-after P6. Blocking issues return to the materializer's existing bounded loop.
+after P6, and blocking issues go back into the materializer's existing bounded
+loop.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -53,17 +54,17 @@ after P6. Blocking issues return to the materializer's existing bounded loop.
 | P5 · Environment / repair | environment_prompt.md + owned environment adaptation | RecordingDesign, including transcript evidence, and accumulated feedback. | EnvironmentBuild: setup, files, solution_shell, self_review | Reference is executed remotely before P6. |
 | P6 · Tests | tests_prompt.md + observed-state adaptation | Instruction, reference script and execution_snapshot. | TestProgram: code | Repeated when a repaired environment reaches replay successfully. |
 
-Read the [complete terminalworld prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/terminalworld/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete terminalworld prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/terminalworld/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: a recorded Git workflow is turned into a self-contained initial repository fixture. The reference performs the recorded transformation; tests inspect the observed resulting files or Git state. The original transcript is authoring evidence, not the learner prompt.
+Say a recording shows a Git workflow. It becomes a self-contained starting repository fixture. The reference performs the recorded transformation, and the tests inspect the resulting files or Git state that were observed. The original transcript is evidence for authoring, not the learner's prompt.
 
 ## What repeats, what is checked
 
-A materialization retry repeats environment construction and, if replay succeeds, test generation. Extraction and instruction are not regenerated by this loop. Opaque TUI, external accounts, GPU and unsupported service requirements are input filters. A provider timeout is an uncertain request, not a low-quality-task verdict.
+A materialization retry rebuilds the environment and, if the replay succeeds, regenerates the tests. This loop doesn't regenerate the extraction or the instruction. Recordings that need an opaque TUI, external accounts, a GPU or unsupported services are filtered out at input. A provider timeout counts as an uncertain request, not a verdict that the task is low quality.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -76,9 +77,9 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Run and supported profile
 
-Provide a directory containing one or more native recording folders, each with
-`info.json` and `recording.txt`. Metadata includes `title`, `description`, `id`
-and `url`. To acquire public source recordings from numeric IDs:
+Provide a directory with one or more native recording folders, each containing
+`info.json` and `recording.txt`. The metadata includes `title`, `description`,
+`id` and `url`. To fetch public source recordings by numeric ID:
 
 ```bash
 python -m repo2rlenv.pipelines.recipes.terminalworld.source \
@@ -86,12 +87,12 @@ python -m repo2rlenv.pipelines.recipes.terminalworld.source \
 repo2rlenv generate --config examples/owned-terminalworld.yaml
 ```
 
-The ID file is a JSON list such as `["100135"]`. Acquisition fetches text and
-metadata only, checks robots.txt and records download failures. Existing inputs
-are reused. Export the generated task bundles rather than the raw recordings.
+The ID file is a JSON list such as `["100135"]`. Acquisition fetches only text
+and metadata, checks robots.txt and records download failures. Existing inputs
+are reused. Export the generated task bundles, not the raw recordings.
 
-To discover fresh sources without using an upstream task dataset, index bounded
-public explore pages first:
+To find new sources without using an upstream task dataset, index a bounded
+number of public explore pages first:
 
 ```bash
 python -m repo2rlenv.pipelines.recipes.terminalworld.discovery \
@@ -100,63 +101,65 @@ python -m repo2rlenv.pipelines.recipes.terminalworld.source \
   --ids-json workspace/recording-index/ids.json --out workspace/recordings
 ```
 
-Discovery uses the native public/recent/featured/popular feed URLs. It keeps only
-numeric recording IDs and page receipts, bounds pages and response sizes,
-checks robots.txt, waits between requests and stops a feed on empty or repeated
-pages. Completed pages are reused on restart. New inputs still pass the same
-privacy and feasibility filters; finding a recording does not accept a task.
-Use one acquisition process per recording directory to preserve its receipt.
+Discovery uses the native public, recent, featured and popular feed URLs. It
+keeps only numeric recording IDs and page receipts, caps pages and response
+sizes, checks robots.txt, waits between requests, and stops a feed when a page is
+empty or repeats. Completed pages are reused on restart. New inputs still go
+through the same privacy and feasibility filters; finding a recording doesn't
+make it a task. Use one acquisition process per recording directory so its
+receipt stays intact.
 
-You can also provide a JSON list of explicit public profile paths, such as
-`["/~example"]`, through `--profiles-json workspace/profiles.json`. Profile paths
-are restricted to Asciinema; the combined discovery run permits at most 200
-pages. This is an owned source-curation extension to the native explore feeds.
-The scale campaign selected public profiles linked from earlier usable source
-recordings after the explore feeds began repeating. It therefore samples related
-workflows; it does not establish a random or representative terminal benchmark.
+You can also pass a JSON list of explicit public profile paths, such as
+`["/~example"]`, with `--profiles-json workspace/profiles.json`. Profile paths
+are limited to Asciinema, and a combined discovery run allows at most 200 pages.
+This is Repo2RLEnv's own source-curation extension to the native explore feeds.
+Once the explore feeds started repeating, the scale campaign picked public
+profiles linked from earlier usable recordings. So it samples related workflows,
+and it isn't a random or representative terminal benchmark.
 
-Acquisition writes `acquisition.json` with a running, interrupted or completed
-state. Completion is bound to the current `retrieval.json` hash. A controller can
-wait for a useful batch of new recordings, then consume a smaller final batch
-only after acquisition completes. A download failure remains in the retrieval
-receipt and is not a successful input.
+Acquisition writes `acquisition.json` with a state of running, interrupted or
+completed. Completion is bound to the current `retrieval.json` hash. A controller
+can wait for a useful batch of new recordings, then take a smaller final batch
+only once acquisition completes. A download failure stays in the retrieval
+receipt and never counts as a successful input.
 
 The first runtime profile supports a single offline CPU Linux container. It
-installs real dependencies during build and can synthesize missing input files
-when the recorded workflow provides enough evidence, as permitted by the native
-builder. It excludes opaque TUI, GPU, privileged networking, multi-service and
+installs real dependencies during the build. As the native builder allows, it can
+synthesize missing input files when the recorded workflow gives enough evidence.
+It excludes opaque TUI, GPU, privileged networking, multi-service and
 external-account workflows. The value score is an upstream input-selection
 stage, separate from the later task-quality audit.
 
-An empty `environment_files` list is valid when the learner creates the requested
+An empty `environment_files` list is valid when the learner builds the requested
 deliverables from scratch. The owned Dockerfile and dependencies still define the
-environment. Requiring a placeholder fixture caused a recorded compilation task
-to exhaust a repair reservation despite a valid starting state; the schema now
-accepts that shape without changing reference or verifier requirements.
+environment, and the reference and verifier requirements are unchanged. Before
+the schema accepted this, a recorded compilation task with a valid starting state
+used up its repair reservation because a placeholder fixture was required.
 
-Options include the shared terminal generation bounds and `min_score` (default
-four out of twelve, the native bronze threshold). The snapshot records file
-changes and bounded content prefixes. The test author consumes that execution
-evidence before the fresh baseline/reference trials.
+Options include the shared terminal generation bounds and `min_score`, which
+defaults to four out of twelve, the native bronze threshold. The snapshot records
+file changes and bounded content prefixes. The test author reads that execution
+evidence before the fresh baseline and reference trials.
 
 ## Measured results and limits
 
 The [dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-terminalworld)
-contains 100 tasks. The measured sample produced 80 new exports from 1,293 recorded
-candidate IDs, including recordings rejected during design screening. Generation
+has 100 tasks. The measured sample produced 80 new exports from 1,293 recorded
+candidate IDs, counting recordings rejected during design screening. Generation
 cost averaged **$1.26 per new task**, including estimated compute and failed
-attempts. This is not the conversion rate among pre-approved designs.
-See [economics](economics.md) for the counting rules and sample scope.
+attempts. That isn't the conversion rate among designs that were already
+approved. See [economics](economics.md) for the counting rules and sample scope.
 
-Three published tasks are labeled `needs_repair`: two verifiers do not execute
-required scripts, and one checks C source keywords and executable format without
-establishing the requested process behavior. The other 97 remain `unverified`
-for independent quality acceptance. One task used an assisted recovery of saved
-authoring output after an empty-fixture schema fix; its provenance records that
-intervention. Passing baseline/reference controls does not establish resistance
-to reward shortcuts or replace independent review and blind solver rollouts.
+Three published tasks are labeled `needs_repair`. Two have verifiers that don't
+run the required scripts. The third checks C source keywords and the executable
+format without establishing the process behavior the task asks for. The other 97
+are still `unverified`, pending independent quality acceptance. One task was
+completed by an assisted recovery of saved authoring output after the
+empty-fixture schema fix, and its provenance records that intervention. Passing
+baseline and reference controls doesn't show resistance to reward shortcuts, and
+it doesn't replace independent review and blind solver rollouts.
 
-Credit: [TerminalWorld](https://github.com/EuniAI/TerminalWorld), Apache-2.0,
+Credit: [TerminalWorld](https://github.com/EuniAI/TerminalWorld) (Apache-2.0),
 commit `784698ba93735470ce1664bff2ec44bcd7b28e15`. See
-[RFC 0019](../rfcs/0019-terminalworld-recipe.md) and packaged
+[RFC 0019](../rfcs/0019-terminalworld-recipe.md) and the packaged
 `recipes/terminalworld/provenance.md` for the exact source map and adaptations.

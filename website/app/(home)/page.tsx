@@ -63,15 +63,15 @@ export default function HomePage() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border bg-fd-background px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
           >
             <span className="size-1.5 rounded-full bg-brand" />
-            v{version} — FrontierSmith optimization synthesis
+            v{version}: FrontierSmith optimization synthesis
             <ArrowRight className="size-3" aria-hidden />
           </Link>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.035em] text-balance sm:text-6xl">
             Turn any repository into <span className="text-brand">verifiable RL environments.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
-            Repo2RLEnv generates coding, terminal and reasoning tasks in the Harbor format — an
-            instruction, a starting environment, a private verifier and a reference solution — ready
+            Repo2RLEnv generates coding, terminal and reasoning tasks in the Harbor format. Each one has an
+            instruction, a starting environment, a private verifier and a reference solution, ready
             to train and evaluate agents.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -192,7 +192,7 @@ export default function HomePage() {
             </h2>
             <p className="mt-4 leading-relaxed text-fd-muted-foreground">
               Every pipeline emits the same directory. Harbor runs it in a sandbox with any of its
-              agent harnesses — Claude Code, Codex, OpenHands and more — and the verifier writes the
+              agent harnesses (Claude Code, Codex, OpenHands and more), and the verifier writes the
               reward.
             </p>
             <Link

@@ -42,19 +42,19 @@ Graded F2P × P2P is the fraction of fail-to-pass tests the agent fixes times th
 
 ## If you want…
 
-- **A first dataset in minutes, without Docker or an LLM key** — use `pr_diff`. The [Quickstart](quickstart.mdx) walks through it.
-- **SWE-bench-style tasks graded by the repository's own tests** — use `pr_runtime`.
-- **Tasks from a repository with few PRs, or fixes committed straight to the main branch** — use `commit_runtime`.
-- **Tasks about using a library rather than its history** — use `code_instruct`.
-- **Function-level reimplementation tasks** — use `equivalence_tests` locally, or the [`r2e`](pipelines/r2e.md) recipe on remote workers.
-- **Security repair tasks** — use `cve_patches`.
-- **One carefully built task per PR, even when the PR's own tests don't cover the change** — use Tasksmith. It can write private behavioral tests and reviews and repairs each task before export.
-- **Many repair tasks from one healthy repository** — use [`swe_smith`](pipelines/repo_mutate.md), which introduces source defects for the agent to fix.
-- **Terminal and shell tasks** — use [`seta_seed2synth`](pipelines/terminal_synth.md), [`tmax`](pipelines/tmax.md), [`endless_terminals`](pipelines/endless_terminals.md) or [`terminalworld`](pipelines/terminalworld.md); use [`cli_gym`](pipelines/env_repair.md) for broken development environments.
-- **Harder variants of Harbor tasks you already have** — use [`seta_evol`](pipelines/task_evolve.md) or [`dataarc`](pipelines/dataarc.md).
-- **Reasoning tasks with no repository at all** — use [`scaler`](pipelines/scaler.md).
-- **Open-ended optimization with a graded objective and no known optimum** — use [`frontiersmith`](pipelines/frontiersmith.md).
-- **A reproduction of a specific published method** — use its recipe. [Research recipes](pipelines/owned_recipes.md) maps each method to its pipeline name.
+- For a first dataset in minutes, without Docker or an LLM key, use `pr_diff`. The [Quickstart](quickstart.mdx) walks through it.
+- For SWE-bench-style tasks graded by the repository's own tests, use `pr_runtime`.
+- For a repository with few PRs, or one where fixes are committed straight to the main branch, use `commit_runtime`.
+- For tasks about using a library rather than its history, use `code_instruct`.
+- For function-level reimplementation tasks, use `equivalence_tests` locally, or the [`r2e`](pipelines/r2e.md) recipe on remote workers.
+- For security repair tasks, use `cve_patches`.
+- For one carefully built task per PR, even when the PR's own tests don't cover the change, use Tasksmith. It can write private behavioral tests, and it reviews and repairs each task before export.
+- For many repair tasks from one healthy repository, use [`swe_smith`](pipelines/repo_mutate.md), which introduces source defects for the agent to fix.
+- For terminal and shell tasks, use [`seta_seed2synth`](pipelines/terminal_synth.md), [`tmax`](pipelines/tmax.md), [`endless_terminals`](pipelines/endless_terminals.md) or [`terminalworld`](pipelines/terminalworld.md). For broken development environments, use [`cli_gym`](pipelines/env_repair.md).
+- For harder variants of Harbor tasks you already have, use [`seta_evol`](pipelines/task_evolve.md) or [`dataarc`](pipelines/dataarc.md).
+- For reasoning tasks with no repository at all, use [`scaler`](pipelines/scaler.md).
+- For open-ended optimization with a graded objective and no known optimum, use [`frontiersmith`](pipelines/frontiersmith.md).
+- To reproduce a specific published method, use its recipe. [Research recipes](pipelines/owned_recipes.md) maps each method to its pipeline name.
 
 ## Run your choice
 

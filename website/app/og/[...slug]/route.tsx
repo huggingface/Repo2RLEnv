@@ -7,7 +7,7 @@ import { groups } from '@/lib/catalog';
 
 export const revalidate = false;
 
-// Social share image: the site's minimal look — white, ink, one emerald label.
+// Social share image in the site's minimal look: white, ink, one emerald label.
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));

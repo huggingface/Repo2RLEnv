@@ -241,8 +241,8 @@ See [Rewards](../concepts/rewards.mdx#diff-similarity) for how this compares wit
 ## Yield and cost
 
 No complete candidate count or generation cost was recovered for the reference
-dataset, so there's no measured yield. What drives it: there is no execution gate,
-so every listed PR that survives the filters becomes a task. The run summary
+dataset, so there's no measured yield. Yield depends on the filters alone:
+there's no execution gate, so every listed PR that survives them becomes a task. The run summary
 counts each skip reason (`draft`, `too_many_files`, `test_only_diff`,
 `docs_only_diff`, `revert_pr`, `diff_too_small`, `instruction_too_thin`, and so on).
 Generation makes no model calls; the only model cost is one judge call per scored

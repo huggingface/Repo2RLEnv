@@ -2,8 +2,8 @@
 title: "cli_gym"
 ---
 
-CLI-Gym derives repair tasks by deliberately breaking a healthy development
-environment and verifying that a recovery restores its existing tests.
+CLI-Gym builds repair tasks by deliberately breaking a healthy development
+environment, then checking that a recovery brings its existing tests back.
 
 ## Pipeline, step by step
 
@@ -21,17 +21,17 @@ flowchart TD
   R -->|"Pass"| O["Export environment repair task"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Establish a healthy system.** Collect real passing test identities, installed packages and file paths, plus hashes protecting source/tests. The author samples at most fifty test identities per candidate.
+**Establish a healthy system.** The recipe records the real passing test IDs, the installed packages and file paths, and hashes that protect the source and tests. The author sees at most fifty test IDs per candidate.
 
-**Invert and restore.** The goal specifies an environment failure. Scripts must change persistent filesystem state without editing protected repository code/tests. A valid inversion affects at least one selected test; recovery restores the healthy suite.
+**Invert and restore.** The goal describes an environment failure. The scripts must change persistent filesystem state without touching the protected repository code or tests. A valid inversion breaks at least one selected test, and the recovery restores the healthy suite.
 
-**Describe symptoms.** The instruction author gets actual baseline results and a recovery goal, not a license to invent assertion failures. A fresh Harbor rebuild verifies the packaged destruction/restoration path.
+**Describe symptoms.** The instruction author gets the actual baseline results and a recovery goal. It isn't free to invent assertion failures. A fresh Harbor rebuild then checks the packaged destruction and restoration path.
 
 ## Every prompt and its data
 
-One goal call, then up to max_rounds inversion calls. Instruction writing occurs only for a successful disruption/recovery attempt.
+There's one goal call, then up to `max_rounds` inversion calls. The instruction is written only after a disruption and recovery attempt succeeds.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
@@ -39,17 +39,17 @@ One goal call, then up to max_rounds inversion calls. Instruction writing occurs
 | P2 · Inversion / repair | Inline system prompt in CLIGymPipeline.author_export | Goal, observed healthy environment and feedback. | Inversion: destruction_shell, recovery_shell, explanation | Up to max_rounds, default three. |
 | P3 · Instruction | instruction_prompt.md with task_description and symptoms_UTs + adaptation | Actual baseline and goal.recovery_strategy. | RepairInstruction: instruction | Called after a valid contrast; repeated if a later Harbor failure returns to the loop. |
 
-Read the [complete cli_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/cli_gym/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete cli_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/cli_gym/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: a Python path configuration causes the healthy CLI package to stop importing. The learner sees the failure and offline wheel cache, and must restore the environment. The source implementation itself must remain unchanged.
+Say a Python path configuration stops the healthy CLI package from importing. The learner sees the failure and an offline wheel cache, and must restore the environment. The source implementation itself has to stay unchanged.
 
 ## What repeats, what is checked
 
-P1 is fixed for the candidate. P2 receives destruction/recovery failures and later Harbor feedback. The final task runs as root because it is an environment repair problem; its isolation/shortcut risks still require the later quality review. Neither empty tests nor incomplete recovery is a successful generation.
+P1 is fixed for each candidate. P2 gets feedback from failed destruction or recovery, and later from Harbor. The final task runs as root because it's an environment repair problem, so its isolation and shortcut risks still need the later quality review. Empty tests and incomplete recovery never count as a successful generation.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -61,39 +61,40 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 
 ## Run and supported profile
 
-Run `repo2rlenv generate --config examples/owned-cli-gym.yaml`. This first profile
-supports public GitHub Python repositories with a `tests/` directory. The
-configuration supplies source paths, test/build dependencies, offline recovery
-assets and optional disruption directions. The target repository is cloned in
-the remote bootstrap; the CLI-Gym research repository is never a runtime dependency.
+Run `repo2rlenv generate --config examples/owned-cli-gym.yaml`. This first
+profile supports public GitHub Python repositories with a `tests/` directory.
+The config supplies source paths, test and build dependencies, offline recovery
+assets and, optionally, disruption directions. The target repository is cloned
+during the remote bootstrap. The CLI-Gym research repository is never a runtime
+dependency.
 
-The inversion author samples up to fifty real passing test identities, proposes
-a distinct environment failure, then revises its scripts using actual execution
-feedback. Source and test files are protected. Changes must persist in files;
-temporary shell exports cannot represent a separate environment state.
+The inversion author samples up to fifty real passing test IDs and proposes a
+distinct environment failure. It then revises its scripts using actual execution
+feedback. Source and test files are protected. Changes must persist in files; a
+temporary shell export can't represent a separate environment state.
 
-The baseline must lose at least one selected test and the recovery must restore
-all required healthy tests. Empty, malformed and incomplete results cannot earn
-success. A broken Python import or collection step is a valid environment
-failure, but is reported accurately. The final Harbor bundle undergoes another
-fresh baseline/reference pair before export.
+The baseline must lose at least one selected test, and the recovery must bring
+back all the required healthy tests. Empty, malformed and incomplete results
+can't earn success. A broken Python import or collection step counts as a valid
+environment failure, and it's reported as exactly that. The final Harbor bundle
+gets another fresh baseline and reference pair before export.
 
 The solver repairs the container as root, offline, without changing repository
-source or tests. The example makes dependency wheels available in `/opt/wheelhouse`.
-The exported image preinstalls `tmux` so Harbor's Terminus-2 agent can start
-without downloading terminal tooling. Baseline/reference success alone does not
-test this agent setup path; include a blind solver run in the quality pilot.
-The build-time destruction script stays outside the learner filesystem; its
-inverse remains a private reference. Full adversarial review of the root runtime
-is deferred to the later quality campaign.
+source or tests. The example puts dependency wheels in `/opt/wheelhouse`. The
+exported image preinstalls `tmux` so Harbor's Terminus-2 agent can start without
+downloading terminal tooling. Baseline and reference success don't exercise that
+agent setup path, so include a blind solver run in the quality pilot. The
+build-time destruction script stays outside the learner's filesystem, and its
+inverse stays a private reference. A full adversarial review of the root runtime
+is left to the later quality campaign.
 
 Options include `target`, `max_candidates`, `max_rounds`, `seed`, `directions`
-and the common Python build/test profile. The target remains at least **20 tasks**
-at the user's request; all **25 generated tasks** are retained in the published
-release. See the [release inventory](releases.md) and
-[shared Modal/Daytona and progress interface](owned_recipes.md).
+and the common Python build and test profile. The target stays at
+**20 tasks** or more, by request. The published release
+keeps all **25 generated tasks**. See the [release inventory](releases.md) and
+the [shared Modal/Daytona and progress interface](owned_recipes.md).
 
-Credit: [CLI-Gym](https://github.com/LiberCoders/CLI-Gym), MIT, commit
+Credit: [CLI-Gym](https://github.com/LiberCoders/CLI-Gym) (MIT), commit
 `48bb920b728a25a55a5b442303e901919654599e`. See
-[RFC 0021](../rfcs/0021-cli-gym-recipe.md) and packaged
-`recipes/cli_gym/provenance.md` for source mapping and profile restrictions.
+[RFC 0021](../rfcs/0021-cli-gym-recipe.md) and the packaged
+`recipes/cli_gym/provenance.md` for the source mapping and profile restrictions.

@@ -2,7 +2,8 @@
 title: "r2e_gym"
 ---
 
-R2E-Gym / SWEGEN turns real historical code changes into repository repair tasks.
+R2E-Gym / SWEGEN turns real commits from a repository's history into repair
+tasks.
 
 ## Pipeline, step by step
 
@@ -18,33 +19,33 @@ flowchart TD
   R -->|"0 / 1"| O["Export commit-history task"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Mine commits.** Traverse first-parent history rather than PR metadata. The default native-inspired filters require bug-like edits and test matches within bounded changes.
+**Mine commits.** The recipe walks first-parent history instead of PR metadata. By default, filters modelled on the native pipeline require bug-like edits and matching test changes, within bounded change sizes.
 
-**Materialize comparison tests.** Selected post-change test modules retain their names and package layout under `r2e_tests/`, alongside their package fixtures and helper files. Both old and new implementations execute the same selected modules. Companion files remain private; copying them does not add their unrelated tests to the execution list.
+**Materialize comparison tests.** The selected post-change test modules keep their names and package layout under `r2e_tests/`, along with their package fixtures and helper files. The old and new implementations both run the same selected modules. Companion files stay private, and copying them doesn't add their unrelated tests to the list that runs.
 
-**Package a repair.** The shared history author uses R2E-Gym’s own issue prompt and examples. The output restores selected new-source files in an otherwise old repository context.
+**Package a repair.** The shared history author uses R2E-Gym's own issue prompt and examples. The reference restores the selected new-source files in an otherwise old repository.
 
 ## Every prompt and its data
 
-One issue-author call after remote contrast succeeds; commit discovery and filtering use no LLM.
+There's one issue-author call once the remote contrast succeeds. Commit discovery and filtering don't use an LLM.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
 | P1 · Historical issue | instruction_prompt.md + issue_examples.json + shared history adaptation | Bounded authoring view of the evaluated candidate: commit context, private source diff and observed tests. Complete test identities remain in the private verifier contract. | HistoricalIssue: analysis, instruction | Same call machinery as SWE-Next; different source and test layout. |
 
-Read the [complete r2e_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e_gym/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete r2e_gym prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e_gym/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: a commit changes a function and its regression test without a useful PR record. The commit pair supplies the old/new behavior, while the generated instruction explains the observed defect.
+Say a commit changes a function and its regression test, and there's no useful PR record. The commit pair gives the old and new behavior, and the generated instruction explains the defect that was observed.
 
 ## What repeats, what is checked
 
-require_bug_edit and require_test_match default to true. The initial profile supports ordinary pytest; repository-specific Pillow/NumPy/Datalad/Tornado heuristics are outside scope. Failed contrast or final Harbor checks skip the candidate. No interactive coding agent repairs the repository during this recipe.
+`require_bug_edit` and `require_test_match` default to true. The first profile supports ordinary pytest; the repository-specific heuristics for Pillow, NumPy, Datalad and Tornado are out of scope. A failed contrast or a failed final Harbor check skips the candidate. No interactive coding agent repairs the repository during this recipe.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -58,27 +59,35 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 ## Run and supported profile
 
 Run `repo2rlenv generate --config examples/owned-r2e-gym.yaml`.
-The first profile supports public GitHub Python repositories and ordinary pytest
-files. Source paths, dependency installation and test roots are explicit. All
-repository execution and image builds run on the configured Modal or Daytona worker.
+The first profile supports public GitHub Python repositories with ordinary pytest
+files. Source paths, dependency installation and test roots are all explicit.
+All repository execution and image builds happen on the configured Modal or
+Daytona worker.
 
-The strict test identity comparison is retained. The owned packaging adaptation preserves test package imports under `r2e_tests/`, while `private_test_paths` keeps all companion fixtures out of the learner image. Repository-specific Pillow, NumPy, Datalad and Tornado import/runner heuristics are not supported in the initial ordinary-pytest profile. The native optional bug-edit/test-match switches default on, as in the published generation guide.
+The strict test-ID comparison is kept. The packaging adaptation keeps test
+package imports working under `r2e_tests/`, and `private_test_paths` keeps every
+companion fixture out of the learner image. The repository-specific import and
+runner heuristics for Pillow, NumPy, Datalad and Tornado aren't supported in this
+first ordinary-pytest profile. The native bug-edit and test-match switches are
+optional and default on, as in the published generation guide.
 
-`target`, `max_candidates`, `history_limit` and change-size bounds control the run.
-`require_bug_edit` and `require_test_match` expose the native filter switches.
-`pytest_args` records explicit runner options identically in generation and the
-exported verifier; use it to separate runtime testing from optional CI reporting.
-The released collection contains **100 generated tasks**, listed in the
+`target`, `max_candidates`, `history_limit` and the change-size bounds control
+the run. `require_bug_edit` and `require_test_match` expose the native filter
+switches. `pytest_args` records explicit runner options and applies them the same
+way during generation and in the exported verifier. Use it to keep runtime
+testing separate from optional CI reporting.
+The released collection has **100 generated tasks**, listed in the
 [release inventory](releases.md). The runtime records source exclusions,
-bootstrap failures and execution results. A reference success is a generation
-check; detailed quality acceptance follows the full campaign.
+bootstrap failures and execution results. A passing reference is a generation
+check; detailed quality acceptance comes after the full campaign.
 
 The export carries the old repository context, private post-change tests, a
-reference repair and deterministic test reward. Changed source files must already
-exist; added/deleted implementation files and specialized test runners need a
-separate supported profile. Dependencies are available before offline solving.
+reference repair and a deterministic test reward. Changed source files must
+already exist. Added or deleted implementation files, and specialized test
+runners, need a separate supported profile. Dependencies are installed before the
+offline solve.
 
-Credit: [R2E-Gym / SWEGEN](https://github.com/R2E-Gym/R2E-Gym), Apache-2.0,
+Credit: [R2E-Gym / SWEGEN](https://github.com/R2E-Gym/R2E-Gym) (Apache-2.0),
 commit `0d94c4eb9431cd195c55a7ea3abd54006c9a1735`. See
 [RFC 0024](../rfcs/0024-r2e-gym-recipe.md), the packaged `recipes/r2e_gym/provenance.md`,
 and the [shared CLI and cloud guide](owned_recipes.md).

@@ -32,9 +32,9 @@ not a person, whether they succeeded. Reinforcement learning needs thousands of 
 tasks, each with a working environment, an instruction that doesn't give the answer away,
 and a verifier you can trust. Building them by hand takes hours apiece.
 
-**Repo2RLEnv builds them from material that already exists** — merged pull requests,
-commit history, security advisories, a library's own functions, terminal recordings,
-problem families — and packages each one as a standard
+**Repo2RLEnv builds them from material that already exists:** merged pull requests,
+commit history, security advisories, a library's own functions, terminal recordings and
+problem families. Each one becomes a standard
 [Harbor](https://github.com/harbor-framework/harbor) task you can train on, evaluate with
 any agent, and share on the Hugging Face Hub.
 
@@ -46,8 +46,8 @@ any agent, and share on the Hugging Face Hub.
 
 | When | What |
 |---|---|
-| **Sep 29, 2026** | 📚 **A new documentation site** — guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
-| **Sep 29, 2026** · v0.9.3 | 🧮 **FrontierSmith** turns closed-ended programming problems into optimization tasks with continuous, deterministic rewards — no known optimum, so better solutions earn more. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
+| **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
+| **Sep 29, 2026** · v0.9.3 | 🧮 **FrontierSmith** turns closed-ended programming problems into optimization tasks with continuous, deterministic rewards. There's no known optimum, so a better solution earns more. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 25, 2026** · v0.9.2 | 🧱 **CodeMidas** rebuilds removed features from their behavioral contract, with execution-grounded tests and independent rollout review. |
 | **Sep 15, 2026** · v0.9.0 | 🤖 **Tasksmith** and **15 research recipes** (SWE-smith, R2E-Gym, SWE-gen, SETA, SCALER and more) on one shared execution and review layer. |
 
@@ -55,8 +55,8 @@ Older releases are in the [version history](https://huggingface.github.io/Repo2R
 
 ## Quickstart
 
-Generate your first environments in about five minutes — no Docker and no LLM key needed
-for this first pipeline. You need Python 3.12+ and the [GitHub CLI](https://cli.github.com).
+Generate your first environments in about five minutes. This first pipeline needs no
+Docker and no LLM key, just Python 3.12+ and the [GitHub CLI](https://cli.github.com).
 
 ```bash
 pip install 'repo2rlenv[harbor]'
@@ -87,11 +87,11 @@ Mining pipelines keep only the pull requests that pass their filters.
 **[Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/)** adapts to
 each one instead. Point it at a merged pull request and an agent:
 
-1. **Investigates** the change and the repository around it,
-2. **Bootstraps** the repository's environment on a remote worker,
-3. **Designs** the instruction and a private verifier,
-4. **Constructs** the Harbor task, with the merged code as the reference solution,
-5. **Reviews and repairs** its own work until the controls pass.
+1. investigates the change and the repository around it,
+2. bootstraps the repository's environment on a remote worker,
+3. designs the instruction and a private verifier,
+4. constructs the Harbor task, with the merged code as the reference solution,
+5. reviews and repairs its own work until the controls pass.
 
 Tasksmith orchestrates Pi or OpenCode agents with LangGraph, runs on Daytona or Modal
 (with Modal L4 GPUs for GPU tasks), and records the evidence and cost of every stage. Its
@@ -106,11 +106,11 @@ agent's work is scored. **[Browse all 23 →](https://huggingface.github.io/Repo
 
 | Kind of task | Generators | How it's scored |
 |---|---|---|
-| **Repository repair** — fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
-| **Implementation and reconstruction** — write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
-| **Patch similarity** — reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Similarity to the merged diff, with an optional LLM judge — no test suite needed |
-| **Terminal tasks** — reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
-| **Reasoning and optimization** — no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
+| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
+| **Implementation and reconstruction:** write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
+| **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Similarity to the merged diff, with an optional LLM judge. No test suite needed |
+| **Terminal tasks:** reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
+| **Reasoning and optimization:** no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
 
 The six native pipelines run on your machine. Tasksmith and the research recipes run
 their target code on Modal or Daytona workers, inside a budget you set.
@@ -121,14 +121,14 @@ Each native pipeline has a one-minute explainer film in the docs.
 
 <table>
   <tr>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-runtime-light.jpg" alt="pr_runtime explainer"></a><br><code>pr_runtime</code> — the two runs</td>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/commit-runtime-light.jpg" alt="commit_runtime explainer"></a><br><code>commit_runtime</code> — the history walk</td>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/cve-patches-light.jpg" alt="cve_patches explainer"></a><br><code>cve_patches</code> — the advisory</td>
+    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-runtime-light.jpg" alt="pr_runtime explainer"></a><br><code>pr_runtime</code>: the two runs</td>
+    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/commit-runtime-light.jpg" alt="commit_runtime explainer"></a><br><code>commit_runtime</code>: the history walk</td>
+    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/cve-patches-light.jpg" alt="cve_patches explainer"></a><br><code>cve_patches</code>: the advisory</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/code-instruct-light.jpg" alt="code_instruct explainer"></a><br><code>code_instruct</code> — the gauntlet</td>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/equivalence-tests-light.jpg" alt="equivalence_tests explainer"></a><br><code>equivalence_tests</code> — the mirror</td>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-diff-light.jpg" alt="pr_diff explainer"></a><br><code>pr_diff</code> — the split</td>
+    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/code-instruct-light.jpg" alt="code_instruct explainer"></a><br><code>code_instruct</code>: the gauntlet</td>
+    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/equivalence-tests-light.jpg" alt="equivalence_tests explainer"></a><br><code>equivalence_tests</code>: the mirror</td>
+    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-diff-light.jpg" alt="pr_diff explainer"></a><br><code>pr_diff</code>: the split</td>
   </tr>
 </table>
 
@@ -197,10 +197,10 @@ credential.
 
 ## Documentation
 
-- **[Get started](https://huggingface.github.io/Repo2RLEnv/introduction/)** — introduction, quickstart, installation, choosing a pipeline
-- **[Concepts](https://huggingface.github.io/Repo2RLEnv/concepts/how-it-works/)** — how it works, anatomy of a task, rewards, quality and verification
-- **[Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/)** — every generator, with stage diagrams and the exact prompts
-- **[Guides](https://huggingface.github.io/Repo2RLEnv/guides/run-with-harbor/)** — running with Harbor, remote workers, publishing, troubleshooting
+- **[Get started](https://huggingface.github.io/Repo2RLEnv/introduction/)**: introduction, quickstart, installation, choosing a pipeline
+- **[Concepts](https://huggingface.github.io/Repo2RLEnv/concepts/how-it-works/)**: how it works, anatomy of a task, rewards, quality and verification
+- **[Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/)**: every generator, with stage diagrams and the exact prompts
+- **[Guides](https://huggingface.github.io/Repo2RLEnv/guides/run-with-harbor/)**: running with Harbor, remote workers, publishing, troubleshooting
 - **[CLI reference](https://huggingface.github.io/Repo2RLEnv/reference/cli/)** · **[Design RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/)** · **[Release notes](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/)**
 
 The docs are also available as [`llms.txt`](https://huggingface.github.io/Repo2RLEnv/llms.txt)
@@ -208,7 +208,7 @@ for coding agents.
 
 ## Contributing
 
-Contributions are welcome — new pipelines, recipes, log parsers and docs alike. Read
+New pipelines, recipes, log parsers and docs are all welcome. Read
 [CONTRIBUTING.md](https://github.com/huggingface/Repo2RLEnv/blob/main/CONTRIBUTING.md) and,
 for a new generator, start with an [RFC](https://huggingface.github.io/Repo2RLEnv/rfcs/) and
 the [guide to adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/).

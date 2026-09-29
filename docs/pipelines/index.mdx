@@ -5,7 +5,7 @@ description: "Every way Repo2RLEnv turns repositories, pull requests and task se
 full: true
 ---
 
-A pipeline turns source material, such as a repository, its pull requests or an existing task, into [Harbor tasks](../concepts/tasks.mdx). They're grouped here by the kind of task they produce. Each card shows the reward, whether the pipeline runs on your machine or on a remote worker, and its status. Not sure which to use? Start with [Choose a pipeline](../choose-a-pipeline.mdx).
+A pipeline turns source material, such as a repository, its pull requests or an existing task, into [Harbor tasks](../concepts/tasks.mdx). They're grouped here by the kind of task they produce. Each card shows the reward, whether the pipeline runs on your machine or on a remote worker, and its status. If you're not sure which to use, start with [Choose a pipeline](../choose-a-pipeline.mdx).
 
 <PipelineCatalog />
 
@@ -17,7 +17,7 @@ A pipeline turns source material, such as a repository, its pull requests or an 
 | Tasksmith | `repo2rlenv tasksmith run <panel> --campaign … --output … --runtime-wheel …` | A Modal or Daytona worker. See [Tasksmith](tasksmith.md). |
 | Research recipe | `repo2rlenv generate --config <file>` with `pipeline.name` and `pipeline.recipe` set | A Modal or Daytona worker; there's no local fallback. See [Run research recipes](owned_recipes.md). |
 
-The native datasets are historical inventories; [native results](native_results.md) records what was and wasn't validated. The recipe and Tasksmith datasets hold 1,330 tasks in 15 datasets, each with per-task [evaluation labels](task_evaluation_labels.md). CodeMidas and FrontierSmith collections are staged locally and reported separately. See [published datasets](releases.md) and [yield and cost](economics.md).
+The native datasets are historical inventories, and [native results](native_results.md) records what was and wasn't validated. The recipe and Tasksmith datasets hold 1,330 tasks in 15 datasets, each with per-task [evaluation labels](task_evaluation_labels.md). CodeMidas and FrontierSmith collections are staged locally and reported separately. See [published datasets](releases.md) and [yield and cost](economics.md).
 
 ## Planned or deferred
 
