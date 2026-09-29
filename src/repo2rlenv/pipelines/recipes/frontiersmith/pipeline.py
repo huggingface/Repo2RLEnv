@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.campaigns.events import ProgressEvent
 from repo2rlenv.emitter.bundle import inspect_bundle
@@ -136,336 +138,350 @@ class FrontierSmithPipeline:
                 continue
             if (deadline - datetime.now(UTC)).total_seconds() < 900:
                 raise TimeoutError("Worker window too short for another candidate")
-            directory = run / "candidates" / seed.id
-            save_record(directory / "seed.json", seed.model_dump())
+            try:
+                directory = run / "candidates" / seed.id
+                save_record(directory / "seed.json", seed.model_dump())
 
-            def ask(stage, schema, prompt, payload, *, seed=seed, directory=directory):
-                self.event(stage, "started", seed.title)
-                format_feedback = []
-                for format_attempt in range(options.max_repairs + 1):
-                    key = f"{stage}-format-{format_attempt}"
-                    try:
-                        return author(
-                            spec.llm,
-                            schema,
-                            prompt=prompt,
-                            payload={"input": payload, "format_feedback": format_feedback},
-                            path=directory / f"{key}.json",
-                            ledger=ledger,
-                            operation=f"frontiersmith:{execution.run_id}:{seed.id}:{key}",
-                            max_tokens=options.max_tokens,
-                            resume=execution.resume,
-                        )
-                    except InvalidArtifact as exc:
-                        format_feedback.append(str(exc))
-                raise InvalidArtifact(f"{stage} exhausted its structured-output repair allowance")
+                def ask(stage, schema, prompt, payload, *, seed=seed, directory=directory):
+                    self.event(stage, "started", seed.title)
+                    format_feedback = []
+                    for format_attempt in range(options.max_repairs + 1):
+                        key = f"{stage}-format-{format_attempt}"
+                        try:
+                            return author(
+                                spec.llm,
+                                schema,
+                                prompt=prompt,
+                                payload={"input": payload, "format_feedback": format_feedback},
+                                path=directory / f"{key}.json",
+                                ledger=ledger,
+                                operation=f"frontiersmith:{execution.run_id}:{seed.id}:{key}",
+                                max_tokens=options.max_tokens,
+                                resume=execution.resume,
+                            )
+                        except InvalidArtifact as exc:
+                            format_feedback.append(str(exc))
+                    raise InvalidArtifact(
+                        f"{stage} exhausted its structured-output repair allowance"
+                    )
 
-            design_feedback = []
-            for design_attempt in range(options.max_repairs + 1):
-                design = ask(
-                    f"mutate-{design_attempt}",
-                    Design,
-                    prompts.MUTATE,
-                    {"seed": seed.model_dump(), "feedback": design_feedback},
-                )
-                design = design.model_copy(update={"instruction": public_instruction(design)})
-                review = ask(
-                    f"filter-{design_attempt}", Review, prompts.FILTER, design.model_dump()
-                )
-                if review.approved:
-                    break
-                design_feedback.append(
-                    {"previous_design": design.model_dump(), "review": review.model_dump()}
-                )
-            else:
-                record["skipped"][seed.id] = "formulation_rejected"
-                save_record(receipt, record)
-                continue
-            baseline = ask(
-                "baseline",
-                Program,
-                prompts.SOLVE,
-                {"instruction": design.instruction, "brief": design.baseline_strategy},
-            )
-
-            def sample_solution(i, *, ask=ask, design=design):
-                return ask(
-                    f"solution-{i}",
+                design_feedback = []
+                for design_attempt in range(options.max_repairs + 1):
+                    design = ask(
+                        f"mutate-{design_attempt}",
+                        Design,
+                        prompts.MUTATE,
+                        {"seed": seed.model_dump(), "feedback": design_feedback},
+                    )
+                    design = design.model_copy(update={"instruction": public_instruction(design)})
+                    review = ask(
+                        f"filter-{design_attempt}", Review, prompts.FILTER, design.model_dump()
+                    )
+                    if review.approved:
+                        break
+                    design_feedback.append(
+                        {"previous_design": design.model_dump(), "review": review.model_dump()}
+                    )
+                else:
+                    record["skipped"][seed.id] = "formulation_rejected"
+                    save_record(receipt, record)
+                    continue
+                baseline = ask(
+                    "baseline",
                     Program,
                     prompts.SOLVE,
+                    {"instruction": design.instruction, "brief": design.baseline_strategy},
+                )
+
+                def sample_solution(i, *, ask=ask, design=design):
+                    return ask(
+                        f"solution-{i}",
+                        Program,
+                        prompts.SOLVE,
+                        {
+                            "instruction": design.instruction,
+                            "brief": (
+                                "Develop a strong feasible strategy independently. "
+                                + [
+                                    "Consider a constructive heuristic.",
+                                    "Consider bounded local improvement.",
+                                    "Consider a different global or multistart approach.",
+                                ][i % 3]
+                            ),
+                        },
+                    )
+
+                with ThreadPoolExecutor(
+                    max_workers=max(1, min(options.solutions, spec.llm.max_concurrent))
+                ) as pool:
+                    solutions = list(pool.map(sample_solution, range(options.solutions)))
+                divergence = ask(
+                    "divergence",
+                    Divergence,
+                    prompts.DIVERGENCE,
                     {
                         "instruction": design.instruction,
-                        "brief": (
-                            "Develop a strong feasible strategy independently. "
-                            + [
-                                "Consider a constructive heuristic.",
-                                "Consider bounded local improvement.",
-                                "Consider a different global or multistart approach.",
-                            ][i % 3]
-                        ),
-                    },
-                )
-
-            with ThreadPoolExecutor(
-                max_workers=max(1, min(options.solutions, spec.llm.max_concurrent))
-            ) as pool:
-                solutions = list(pool.map(sample_solution, range(options.solutions)))
-            divergence = ask(
-                "divergence",
-                Divergence,
-                prompts.DIVERGENCE,
-                {
-                    "instruction": design.instruction,
-                    "solutions": [s.model_dump() for s in solutions],
-                },
-            )
-            expected = len(solutions) * (len(solutions) - 1) // 2
-            if len(divergence.distinct_pairs) != expected:
-                raise ValueError("Divergence review returned the wrong number of pairs")
-            if sum(divergence.distinct_pairs) / expected < options.min_divergence:
-                record["skipped"][seed.id] = "low_semantic_divergence"
-                save_record(receipt, record)
-                continue
-
-            feedback = []
-            success = False
-            for attempt in range(options.max_repairs + 1):
-                generator = ask(
-                    f"generator-{attempt}",
-                    Program,
-                    prompts.GENERATOR,
-                    {
-                        "design": design.model_dump(),
-                        "solutions": [s.model_dump() for s in solutions],
-                        "feedback": feedback,
-                        "attempts_remaining": options.max_repairs - attempt,
-                    },
-                )
-                scorer = ask(
-                    f"scorer-{attempt}",
-                    Program,
-                    prompts.SCORER,
-                    {
-                        "design": design.model_dump(),
-                        "generator": generator.code,
-                        "feedback": feedback,
-                        "attempts_remaining": options.max_repairs - attempt,
-                    },
-                )
-                feasibility = ask(
-                    f"feasibility-{attempt}",
-                    Program,
-                    prompts.FEASIBILITY,
-                    {"instruction": design.instruction, "feedback": feedback},
-                )
-                infrastructure = Infrastructure(
-                    generator=generator.code, scorer=scorer.code, feasibility=feasibility.code
-                )
-                checked = ask(
-                    f"review-{attempt}",
-                    Review,
-                    prompts.REVIEW,
-                    {
-                        "design": design.model_dump(),
-                        "infrastructure": infrastructure.model_dump(),
-                        "baseline": baseline.model_dump(),
                         "solutions": [s.model_dump() for s in solutions],
                     },
                 )
-                if not checked.approved:
-                    feedback.append(
-                        {"review": checked.model_dump(), "previous": infrastructure.model_dump()}
-                    )
+                expected = len(solutions) * (len(solutions) - 1) // 2
+                if len(divergence.distinct_pairs) != expected:
+                    raise InvalidArtifact("Divergence review returned the wrong number of pairs")
+                if sum(divergence.distinct_pairs) / expected < options.min_divergence:
+                    record["skipped"][seed.id] = "low_semantic_divergence"
+                    save_record(receipt, record)
                     continue
-                name = "frontiersmith-" + seed.id
-                lineage = {
-                    "seed_id": seed.id,
-                    "seed_source": seed.source,
-                    "seed_license": seed.license,
-                    "author_model": spec.llm.qualified_name,
-                }
 
-                def emit(
-                    solution,
-                    destination,
-                    *,
-                    design=design,
-                    infrastructure=infrastructure,
-                    name=name,
-                    lineage=lineage,
-                ):
-                    return export_task(
-                        design,
-                        infrastructure,
-                        solution,
-                        destination,
-                        name=name,
-                        org=spec.output.org,
-                        seed=options.seed,
-                        lineage=lineage,
-                        resume=execution.resume,
+                feedback = []
+                success = False
+                for attempt in range(options.max_repairs + 1):
+                    generator = ask(
+                        f"generator-{attempt}",
+                        Program,
+                        prompts.GENERATOR,
+                        {
+                            "design": design.model_dump(),
+                            "solutions": [s.model_dump() for s in solutions],
+                            "feedback": feedback,
+                            "attempts_remaining": options.max_repairs - attempt,
+                        },
                     )
-
-                trial_prefix = (
-                    "fs-"
-                    + hashlib.sha256(
-                        f"{execution.run_id}:{seed.id}:{attempt}".encode()
-                    ).hexdigest()[:16]
-                )
-
-                def trial(
-                    task,
-                    label,
-                    agent="oracle",
-                    *,
-                    seed=seed,
-                    directory=directory,
-                    attempt=attempt,
-                    trial_prefix=trial_prefix,
-                ):
-                    self.event("execute", "started", f"{seed.title}: {label}")
-                    return run_trial(
-                        worker,
-                        task,
-                        directory / f"execution-{attempt}" / label,
-                        trial_id=f"{trial_prefix}-{label}",
-                        agent=agent,
-                        python=python,
-                        resume=execution.resume,
-                        timeout_sec=600,
+                    scorer = ask(
+                        f"scorer-{attempt}",
+                        Program,
+                        prompts.SCORER,
+                        {
+                            "design": design.model_dump(),
+                            "generator": generator.code,
+                            "feedback": feedback,
+                            "attempts_remaining": options.max_repairs - attempt,
+                        },
                     )
-
-                base_task = emit(baseline, directory / f"baseline-{attempt}")
-                nop = trial(base_task, "nop", "nop")
-                base = trial(base_task, "baseline")
-                samples = [
-                    trial(emit(s, directory / f"sample-{attempt}-{i}"), f"sample-{i}")
-                    for i, s in enumerate(solutions)
-                ]
-                trials = [nop, base, *samples]
-                if not all(t.completed for t in trials):
-                    # Retain concrete verifier stderr for bounded infrastructure repair.
-                    errors = []
-                    for t in trials:
-                        errors.append(
+                    feasibility = ask(
+                        f"feasibility-{attempt}",
+                        Program,
+                        prompts.FEASIBILITY,
+                        {"instruction": design.instruction, "feedback": feedback},
+                    )
+                    infrastructure = Infrastructure(
+                        generator=generator.code, scorer=scorer.code, feasibility=feasibility.code
+                    )
+                    checked = ask(
+                        f"review-{attempt}",
+                        Review,
+                        prompts.REVIEW,
+                        {
+                            "design": design.model_dump(),
+                            "infrastructure": infrastructure.model_dump(),
+                            "baseline": baseline.model_dump(),
+                            "solutions": [s.model_dump() for s in solutions],
+                        },
+                    )
+                    if not checked.approved:
+                        feedback.append(
                             {
-                                "exception": t.exception_type,
-                                "logs": {
-                                    p.name: p.read_text()[-8000:]
-                                    for p in t.result.parent.rglob("*.txt")
-                                    if p.name
-                                    in {
-                                        "test-stdout.txt",
-                                        "test-stderr.txt",
-                                        "stderr.txt",
-                                        "stdout.txt",
-                                    }
-                                },
+                                "review": checked.model_dump(),
+                                "previous": infrastructure.model_dump(),
                             }
                         )
-                    feedback.append(
-                        {"execution_errors": errors, "previous": infrastructure.model_dump()}
+                        continue
+                    name = "frontiersmith-" + seed.id
+                    lineage = {
+                        "seed_id": seed.id,
+                        "seed_source": seed.source,
+                        "seed_license": seed.license,
+                        "seed_family": seed.family,
+                        "author_model": spec.llm.qualified_name,
+                    }
+
+                    def emit(
+                        solution,
+                        destination,
+                        *,
+                        design=design,
+                        infrastructure=infrastructure,
+                        name=name,
+                        lineage=lineage,
+                    ):
+                        return export_task(
+                            design,
+                            infrastructure,
+                            solution,
+                            destination,
+                            name=name,
+                            org=spec.output.org,
+                            seed=options.seed,
+                            lineage=lineage,
+                            resume=execution.resume,
+                        )
+
+                    trial_prefix = (
+                        "fs-"
+                        + hashlib.sha256(
+                            f"{execution.run_id}:{seed.id}:{attempt}".encode()
+                        ).hexdigest()[:16]
                     )
-                    continue
-                if nop.reward != 0:
-                    raise ValueError("Missing submission received nonzero reward")
-                vectors = [score_vector(t) for t in samples]
-                eligible = [
-                    i
-                    for i, sample in enumerate(samples)
-                    if all(
-                        row["status"] == "completed" and row["feasible"] is True
-                        for row in score_report(sample)["cases"]
-                    )
-                ]
-                baseline_completed = all(
-                    row["status"] == "completed" and row["feasible"] is True
-                    for row in score_report(base)["cases"]
-                )
-                if not baseline_completed or len(eligible) < 2:
-                    record["skipped"][seed.id] = "insufficient_successful_programs"
-                    break
-                spread = behavioral_divergence(
-                    [vectors[i] for i in eligible], options.min_score_spread
-                )
-                best = max(eligible, key=lambda i: samples[i].reward)
-                if (
-                    spread < options.min_divergence
-                    or samples[best].reward <= base.reward
-                    or samples[best].reward <= 0
-                ):
-                    feedback.append(
-                        {
-                            "execution_diversity": {
-                                "baseline": base.reward,
-                                "sample_rewards": [t.reward for t in samples],
-                                "vectors": vectors,
-                                "distinct_pair_fraction": spread,
-                            },
-                            "required_action": "Find legal input cases that distinguish competing algorithms. Preserve the public objective and scorer formula. If none exist within the public constraints, report the limitation; do not manipulate rewards.",
-                            "previous": infrastructure.model_dump(),
-                        }
-                    )
-                    if attempt == options.max_repairs:
-                        record["skipped"][seed.id] = "low_execution_diversity_or_improvement"
-                    continue
-                reference = emit(solutions[best], directory / f"reference-{attempt}")
-                repeat = trial(reference, "repeat")
-                if not repeat.completed or score_vector(repeat) != vectors[best]:
-                    record["skipped"][seed.id] = "reference_not_repeatable"
-                    break
-                # Export the same tested bundle; no post-validation rewriting of prompts/tests.
-                task = reference
-                evidence = {
-                    "task": str((out_dir / name).resolve()),
-                    "bundle_hash": inspect_bundle(task)["bundle_hash"],
-                    "baseline_reward": base.reward,
-                    "reference_reward": samples[best].reward,
-                    "sample_rewards": [t.reward for t in samples],
-                    "score_vectors": vectors,
-                    "semantic_divergence": sum(divergence.distinct_pairs) / expected,
-                    "behavioral_divergence": spread,
-                    "construction_verified": True,
-                    "explicit_feasibility": True,
-                    "rollout_status": "not_run",
-                    "attempts": attempt + 1,
-                    "reference_index": best,
-                    "reference_repeat_result": str(repeat.result.resolve()),
-                }
-                if len(record["tasks"]) < options.rollout_tasks:
-                    self.event("rollout", "started", seed.title)
-                    rollout = run_trial(
-                        worker,
+
+                    def trial(
                         task,
-                        directory / "rollout",
-                        trial_id=trial_prefix + "-rollout",
-                        agent="responses",
-                        model=spec.llm,
-                        ledger=ledger,
-                        reservation_usd="1.50",
-                        max_turns=8,
-                        max_tokens=4096,
-                        python=python,
-                        resume=execution.resume,
-                        timeout_sec=600,
+                        label,
+                        agent="oracle",
+                        *,
+                        seed=seed,
+                        directory=directory,
+                        attempt=attempt,
+                        trial_prefix=trial_prefix,
+                    ):
+                        self.event("execute", "started", f"{seed.title}: {label}")
+                        return run_trial(
+                            worker,
+                            task,
+                            directory / f"execution-{attempt}" / label,
+                            trial_id=f"{trial_prefix}-{label}",
+                            agent=agent,
+                            python=python,
+                            resume=execution.resume,
+                            timeout_sec=600,
+                        )
+
+                    base_task = emit(baseline, directory / f"baseline-{attempt}")
+                    nop = trial(base_task, "nop", "nop")
+                    base = trial(base_task, "baseline")
+                    samples = [
+                        trial(emit(s, directory / f"sample-{attempt}-{i}"), f"sample-{i}")
+                        for i, s in enumerate(solutions)
+                    ]
+                    trials = [nop, base, *samples]
+                    if not all(t.completed for t in trials):
+                        # Retain concrete verifier stderr for bounded infrastructure repair.
+                        errors = []
+                        for t in trials:
+                            errors.append(
+                                {
+                                    "exception": t.exception_type,
+                                    "logs": {
+                                        p.name: p.read_text()[-8000:]
+                                        for p in t.result.parent.rglob("*.txt")
+                                        if p.name
+                                        in {
+                                            "test-stdout.txt",
+                                            "test-stderr.txt",
+                                            "stderr.txt",
+                                            "stdout.txt",
+                                        }
+                                    },
+                                }
+                            )
+                        feedback.append(
+                            {"execution_errors": errors, "previous": infrastructure.model_dump()}
+                        )
+                        continue
+                    if nop.reward != 0:
+                        raise ValueError("Missing submission received nonzero reward")
+                    vectors = [score_vector(t) for t in samples]
+                    eligible = [
+                        i
+                        for i, sample in enumerate(samples)
+                        if all(
+                            row["status"] == "completed" and row["feasible"] is True
+                            for row in score_report(sample)["cases"]
+                        )
+                    ]
+                    baseline_completed = all(
+                        row["status"] == "completed" and row["feasible"] is True
+                        for row in score_report(base)["cases"]
                     )
-                    evidence.update(
-                        rollout_status="completed" if rollout.completed else "failed",
-                        rollout_reward=rollout.reward,
-                        rollout_result=str(rollout.result.resolve()),
+                    if not baseline_completed or len(eligible) < 2:
+                        record["skipped"][seed.id] = "insufficient_successful_programs"
+                        break
+                    spread = behavioral_divergence(
+                        [vectors[i] for i in eligible], options.min_score_spread
                     )
-                save_record(directory / "quality.json", evidence)
-                retain(task, out_dir / name, directory / "quality.json")
-                record["tasks"][seed.id] = evidence
+                    best = max(eligible, key=lambda i: samples[i].reward)
+                    if (
+                        spread < options.min_divergence
+                        or samples[best].reward <= base.reward
+                        or samples[best].reward <= 0
+                    ):
+                        feedback.append(
+                            {
+                                "execution_diversity": {
+                                    "baseline": base.reward,
+                                    "sample_rewards": [t.reward for t in samples],
+                                    "vectors": vectors,
+                                    "distinct_pair_fraction": spread,
+                                },
+                                "required_action": "Find legal input cases that distinguish competing algorithms. Preserve the public objective and scorer formula. If none exist within the public constraints, report the limitation; do not manipulate rewards.",
+                                "previous": infrastructure.model_dump(),
+                            }
+                        )
+                        if attempt == options.max_repairs:
+                            record["skipped"][seed.id] = "low_execution_diversity_or_improvement"
+                        continue
+                    reference = emit(solutions[best], directory / f"reference-{attempt}")
+                    repeat = trial(reference, "repeat")
+                    if not repeat.completed or score_vector(repeat) != vectors[best]:
+                        record["skipped"][seed.id] = "reference_not_repeatable"
+                        break
+                    # Export the same tested bundle; no post-validation rewriting of prompts/tests.
+                    task = reference
+                    evidence = {
+                        "task": str((out_dir / name).resolve()),
+                        "bundle_hash": inspect_bundle(task)["bundle_hash"],
+                        "baseline_reward": base.reward,
+                        "reference_reward": samples[best].reward,
+                        "sample_rewards": [t.reward for t in samples],
+                        "score_vectors": vectors,
+                        "semantic_divergence": sum(divergence.distinct_pairs) / expected,
+                        "behavioral_divergence": spread,
+                        "construction_verified": True,
+                        "explicit_feasibility": True,
+                        "seed_family": seed.family,
+                        "generator_seeds_checked": score_report(repeat)["generator_seeds_checked"],
+                        "rollout_status": "not_run",
+                        "attempts": attempt + 1,
+                        "reference_index": best,
+                        "reference_repeat_result": str(repeat.result.resolve()),
+                    }
+                    if len(record["tasks"]) < options.rollout_tasks:
+                        self.event("rollout", "started", seed.title)
+                        rollout = run_trial(
+                            worker,
+                            task,
+                            directory / "rollout",
+                            trial_id=trial_prefix + "-rollout",
+                            agent="responses",
+                            model=spec.llm,
+                            ledger=ledger,
+                            reservation_usd="1.50",
+                            max_turns=8,
+                            max_tokens=4096,
+                            python=python,
+                            resume=execution.resume,
+                            timeout_sec=600,
+                        )
+                        evidence.update(
+                            rollout_status="completed" if rollout.completed else "failed",
+                            rollout_reward=rollout.reward,
+                            rollout_result=str(rollout.result.resolve()),
+                        )
+                    save_record(directory / "quality.json", evidence)
+                    retain(task, out_dir / name, directory / "quality.json")
+                    record["tasks"][seed.id] = evidence
+                    save_record(receipt, record)
+                    success = True
+                    self.event(
+                        "export", "completed", f"{seed.title}: reference {samples[best].reward:.3f}"
+                    )
+                    break
+                if not success and seed.id not in record["skipped"]:
+                    record["skipped"][seed.id] = "infrastructure_repair_exhausted"
                 save_record(receipt, record)
-                success = True
-                self.event(
-                    "export", "completed", f"{seed.title}: reference {samples[best].reward:.3f}"
-                )
-                break
-            if not success and seed.id not in record["skipped"]:
-                record["skipped"][seed.id] = "infrastructure_repair_exhausted"
-            save_record(receipt, record)
+            except (InvalidArtifact, ValidationError) as exc:
+                record["skipped"][seed.id] = "invalid_model_artifact"
+                save_record(run / "candidates" / seed.id / "failure.json", {"error": str(exc)})
+                save_record(receipt, record)
+                self.event("candidate", "completed", f"{seed.title}: artifact repair exhausted")
         record["state"] = "completed"
         save_record(receipt, record)
         return self.result(record, out_dir)

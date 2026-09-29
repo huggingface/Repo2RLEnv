@@ -7,6 +7,8 @@ Use Python 3.12 standard library, one JSON object on stdin and one JSON object o
 stdout per invocation. No packages, network, files, subprocesses or nondeterminism
 in submitted programs. Prefer combinatorial objectives over noisy runtime scores.
 Keep programs practical within 3 CPU seconds and 256 MiB per instance.
+Respect the seed's domain and core structure; do not turn unrelated seeds into
+the same generic subset selection, cache eviction, scheduling or graph problem.
 """
 
 MUTATE = (
@@ -26,6 +28,9 @@ Provide a simple feasible baseline strategy separately. Do not describe the stro
 solution algorithm in the learner instruction. Difficulty should come from
 optimization rather than unclear requirements. Include /workspace/solution.py as
 the deliverable; Python is run isolated with -I, so use only the standard library.
+The exact baseline must be feasible for all allowed inputs, including degenerate
+cases. Choose bounds that permit several complete feasible programs under the
+execution limits; avoid making feasibility itself an intractable search.
 """
 )
 
@@ -73,6 +78,8 @@ At least half the cases must be challenging larger instances with interacting
 constraints; do not fill the suite with repeated easy components that all strong
 solvers solve identically. Every case MUST satisfy the public input constraints
 and admit a feasible solution.
+The generator is smoke-tested at the configured seed and the next two seeds.
+Handle empty sampling ranges and boundary sizes explicitly; every seed must work.
 Scorer defines score(instance: dict, output: object) -> float in [0,1]. Check ALL
 output feasibility constraints before computing the publicly defined objective.
 Malformed output, null, booleans, scalars, missing keys, wrong lengths, duplicate

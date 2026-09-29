@@ -10,7 +10,11 @@ from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.emitter.bundle import inspect_bundle
 from repo2rlenv.pipelines.recipes.frontiersmith.author import author
 from repo2rlenv.pipelines.recipes.frontiersmith.export import export_task
-from repo2rlenv.pipelines.recipes.frontiersmith.grade import finite_reward, grade_output
+from repo2rlenv.pipelines.recipes.frontiersmith.grade import (
+    finite_reward,
+    generated_cases,
+    grade_output,
+)
 from repo2rlenv.pipelines.recipes.frontiersmith.models import (
     Design,
     Infrastructure,
@@ -64,6 +68,94 @@ def test_zero_reward_does_not_mean_infeasible_and_disagreement_fails():
     scores = iter([0.5, 0.6])
     with pytest.raises(ValueError, match="not deterministic"):
         grade_output(SimpleNamespace(score=lambda *args: next(scores)), valid, {}, {}, "completed")
+
+
+def test_generator_rejects_invalid_or_unstable_case_sets():
+    valid = SimpleNamespace(generate=lambda seed: [{"value": seed}] * 8)
+    assert generated_cases(valid, 43) == [{"value": 43}] * 8
+    for cases in ([], [{}] * 17, [None] * 8, [{"value": float("nan")}] * 8):
+        with pytest.raises(ValueError):
+            generated_cases(SimpleNamespace(generate=lambda seed, cases=cases: cases), 42)
+    values = iter([[{"value": 1}] * 8, [{"value": 2}] * 8])
+    with pytest.raises(ValueError, match="not deterministic"):
+        generated_cases(SimpleNamespace(generate=lambda seed: next(values)), 42)
+
+
+def test_exhausted_artifact_repairs_do_not_abort_other_seeds(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    from repo2rlenv.pipelines.recipes.frontiersmith import pipeline
+    from repo2rlenv.pipelines.recipes.frontiersmith.author import InvalidArtifact
+    from repo2rlenv.spec.input import GenerationInput
+
+    campaign = tmp_path / "campaign"
+    ledger = BudgetLedger(campaign / "budget.sqlite3", limit_usd=1)
+    seeds = tmp_path / "seeds.json"
+    seeds.write_text(
+        json.dumps(
+            [
+                dict(
+                    id=name,
+                    title=name,
+                    problem="Find the shortest route on a small directed weighted graph.",
+                    source="test",
+                    license="Apache-2.0",
+                    family="routing",
+                )
+                for name in ("one", "two")
+            ]
+        )
+    )
+    worker = tmp_path / "worker.json"
+    worker.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "ledger": str(ledger.path),
+                "worker_id": "fixture",
+                "started_at": datetime.now(UTC).isoformat(),
+                "spec": {"provider": "daytona", "timeout_sec": 3600},
+            }
+        )
+    )
+    spec = GenerationInput.model_validate(
+        {
+            "source": {"kind": "seeds", "path": str(seeds)},
+            "pipeline": {"name": "optimization_synth", "recipe": "frontiersmith"},
+            "llm": {"provider": "openai", "model": "gpt-6-sol"},
+            "execution": {
+                "campaign_dir": str(campaign),
+                "run_id": "fixture",
+                "worker_receipt": str(worker),
+                "runtime_wheel": str(tmp_path / "fixture.whl"),
+                "timeout_sec": 3600,
+            },
+            "output": {
+                "destination": str(tmp_path / "tasks"),
+                "org": "test",
+                "dataset_name": "fixture",
+            },
+        }
+    )
+    calls = []
+
+    def invalid(*args, **kwargs):
+        calls.append(kwargs["operation"])
+        raise InvalidArtifact("Received malformed model artifact")
+
+    monkeypatch.setattr(pipeline, "check_runtime_wheel", lambda path: "a" * 64)
+    monkeypatch.setattr(pipeline, "connect_worker", lambda *args: object())
+    monkeypatch.setattr(pipeline, "prepare_docker", lambda worker: None)
+    monkeypatch.setattr(pipeline, "install_runtime", lambda *args: "a" * 64)
+    monkeypatch.setattr(pipeline, "author", invalid)
+    options = parse_options(
+        "optimization_synth", {"target": 1, "max_candidates": 2}, recipe="frontiersmith"
+    )
+    pipeline.FrontierSmithPipeline(spec, options).run(tmp_path / "tasks")
+    record = json.loads((campaign / "runs/fixture/run.json").read_text())
+    assert record["state"] == "completed"
+    assert record["skipped"] == {"one": "invalid_model_artifact", "two": "invalid_model_artifact"}
+    assert len(calls) == 6
 
 
 def test_export_is_parseable_private_and_content_bound(tmp_path):

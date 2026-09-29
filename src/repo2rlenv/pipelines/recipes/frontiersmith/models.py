@@ -18,6 +18,7 @@ class Seed(Artifact):
     problem: str = Field(min_length=40, max_length=12000)
     source: str
     license: str
+    family: str = Field(default="unspecified", pattern=r"^[a-z][a-z0-9-]{0,60}$")
 
 
 class Design(Artifact):

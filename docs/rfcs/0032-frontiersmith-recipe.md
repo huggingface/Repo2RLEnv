@@ -43,7 +43,7 @@ flowchart TD
 ```
 
 1. **Source:** require stable seed IDs, problem text, source and license metadata.
-   Record exact content in the campaign. Twenty original textbook-style seed
+   Record exact content and optional problem-family metadata in the campaign. Twenty original textbook-style seed
    descriptions are provided; they are not copied contest statements.
 2. **Mutation:** make one change to the objective, output constraints or input
    assumptions. Require a complete public input/output contract, feasibility,
@@ -56,6 +56,8 @@ flowchart TD
 5. **Construction:** separate model calls produce the generator, scorer and
    independent feasibility validator. A fourth call checks contract agreement. Repairs receive concrete review or execution
    evidence and previous infrastructure; two repairs are allowed by default.
+   Smoke-test the generator at three seeds. Exhausted structured-output repairs
+   retain a candidate failure and allow later seeds to continue.
 6. **Execution:** use fresh Harbor trials for no-op, baseline, each sampled solution
    and a repeated best reference. Require no-op zero, a positive reference improving
    on baseline, meaningful per-case score diversity and repeatable reference scores.
@@ -87,7 +89,7 @@ may have positive reward. No generic oracle-equals-one assertion is used.
 
 The learner runs as `solver` with networking disabled. Tests and reference code
 are not copied into the image. The root verifier restricts private directories,
-copies only a bounded regular submission file, and invokes it as a different
+protects verifier logs, copies only a bounded regular submission file, and invokes it as a different
 unprivileged UID with CPU, memory, process and output limits. Each instance runs in
 a fresh process using isolated Python. The checker receives parsed JSON output,
 never executes the submitted source, and recomputes the objective itself.

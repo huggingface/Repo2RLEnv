@@ -93,6 +93,12 @@ tasks/frontiersmith-<seed>/
   tests/contract.json
 ```
 
+Each generator is also smoke-tested at the configured seed and its next two
+values. This catches seed-dependent construction failures; it does not establish
+solver generalization to those extra inputs. Seed-family metadata is carried into
+each task so collection diversity can be measured. Exhausted structured-output
+repairs reject the candidate and preserve its receipts while later seeds continue.
+
 The campaign separately retains model receipts, review findings, trial results,
 per-case score vectors and a `quality.json` for each emitted task. The generic
 evaluation label remains `unverified` until the broader review/probe/rollout
@@ -163,3 +169,24 @@ unattended-yield benchmark. Initial export yield was 11/15 (73.3%); final select
 was 10/15 (66.7%). [Machine-readable results and bundle identities](../data/frontiersmith-pilot.json)
 record the exact sample. Generated tasks and raw receipts stay in the ignored
 campaign directory; the selected archive is `workspace/frontiersmith/frontiersmith-pilot.tar.gz`.
+
+## Expanding the problem range
+
+The expansion uses 200 original OpenAI-authored closed-ended seeds in
+`examples/frontiersmith-diverse-seeds.json`, with ten per domain. It covers: network
+design, transport, scheduling, allocation, geometry, strings/compression, storage,
+query planning, compilers, logic, numerical approximation, combinatorial design,
+sequence reordering, energy systems, communication, search structures, image/grid
+processing, data representation, software testing and state-space planning.
+
+Seeds include their family and provenance. The mutation stage preserves each
+seed's core domain rather than converting unrelated problems into the same generic
+selection task. All resulting environments remain Python standard-library coding
+challenges with deterministic objectives; domain variety does not imply GPU,
+repository-editing or service-based environments.
+
+Independent workers receive disjoint, shuffled seed shards and share one expansion
+budget ledger. The expansion cap is the $100 combined allowance minus the pilot's
+$5.606553, preserving the settled pilot ledger. Accepted pilot tasks are retained
+unchanged. The target is 90 additional construction-checked tasks, followed by a
+collection-level diversity audit. Generated campaign files remain ignored.

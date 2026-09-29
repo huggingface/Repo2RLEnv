@@ -53,6 +53,22 @@ def grade_output(scorer, validator, instance, output, status):
     return score, feasible
 
 
+def generated_cases(generator, seed):
+    cases = generator.generate(seed)
+    if (
+        not isinstance(cases, list)
+        or not 8 <= len(cases) <= 16
+        or any(type(case) is not dict for case in cases)
+    ):
+        raise ValueError("Generator must return 8-16 JSON objects")
+    serialized = json.dumps(cases, sort_keys=True, allow_nan=False)
+    if len(serialized.encode()) > 2 * 1024 * 1024:
+        raise ValueError("Generated test data exceeds 2 MiB")
+    if serialized != json.dumps(generator.generate(seed), sort_keys=True, allow_nan=False):
+        raise ValueError("Generator is not deterministic")
+    return cases
+
+
 def run_solution(path, instance, directory):
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         process = subprocess.Popen(
@@ -102,6 +118,8 @@ def main():
         Path("/solution").chmod(0o700)
     log = Path("/logs/verifier")
     log.mkdir(parents=True, exist_ok=True)
+    os.chown(log, 0, 0)
+    log.chmod(0o700)
     for filename in ("reward.txt", "reward.json", "scores.json"):
         (log / filename).unlink(missing_ok=True)
     contract = json.loads((tests / "contract.json").read_text())
@@ -112,20 +130,10 @@ def main():
         if contract.get("explicit_feasibility")
         else None
     )
-    cases = generator.generate(contract["seed"])
-    if (
-        not isinstance(cases, list)
-        or not 8 <= len(cases) <= 16
-        or any(type(c) is not dict for c in cases)
-    ):
-        raise ValueError("Generator must return 8-16 JSON objects")
-    serialized = json.dumps(cases, sort_keys=True, allow_nan=False)
-    if len(serialized.encode()) > 2 * 1024 * 1024:
-        raise ValueError("Generated test data exceeds 2 MiB")
-    if serialized != json.dumps(
-        generator.generate(contract["seed"]), sort_keys=True, allow_nan=False
-    ):
-        raise ValueError("Generator is not deterministic")
+    cases = generated_cases(generator, contract["seed"])
+    smoke_seeds = [contract["seed"] + offset for offset in (0, 1, 2)]
+    for seed in smoke_seeds[1:]:
+        generated_cases(generator, seed)
     for case in cases:
         for invalid in (None, True, [], {}, {"__invalid__": True}):
             if validator and validator.is_feasible(case, invalid) is not False:
@@ -144,6 +152,8 @@ def main():
             info = os.fstat(stream.fileno())
             if stat.S_ISREG(info.st_mode) and info.st_size <= 65536:
                 code = stream.read(65537)
+                if len(code) > 65536:
+                    code = None
     rows = []
     with tempfile.TemporaryDirectory(prefix="frontiersmith-") as temporary:
         directory = Path(temporary)
@@ -161,7 +171,11 @@ def main():
             score, feasible = grade_output(scorer, validator, case, output, status)
             rows.append({"case": index, "reward": score, "status": status, "feasible": feasible})
     reward = sum(row["reward"] for row in rows) / len(rows)
-    (log / "scores.json").write_text(json.dumps({"reward": reward, "cases": rows}, indent=2))
+    (log / "scores.json").write_text(
+        json.dumps(
+            {"reward": reward, "cases": rows, "generator_seeds_checked": smoke_seeds}, indent=2
+        )
+    )
     (log / "reward.txt").write_text(str(reward))
     (log / "reward.json").write_text(json.dumps({"reward": reward}))
     print(json.dumps({"reward": reward, "case_count": len(rows)}))
