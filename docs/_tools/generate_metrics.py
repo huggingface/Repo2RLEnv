@@ -129,7 +129,7 @@ def codemidas_tables(row: dict) -> tuple[list[str], list[str]]:
 
 
 def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
-    """Report the assisted local pilot without inflating published/verified totals."""
+    """Report local construction evidence without inflating published/verified totals."""
     n = row["selected_tasks"]
     model = Decimal(row["model_usd"])
     compute = Decimal(row["estimated_compute_usd"])
@@ -144,8 +144,43 @@ def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
         or row["full_quality_verified"] != 0
         or any(task["quality_status"] != "unverified" for task in row["tasks"])
     ):
-        raise ValueError("FrontierSmith pilot counts, labels or costs disagree")
+        raise ValueError("FrontierSmith counts, labels or costs disagree")
     rollouts = sum(task["rollout_status"] == "completed" for task in row["tasks"])
+    if row.get("measurement_kind") == "pilot_and_expansion":
+        if Decimal(row["reserved_usd"]) != 0 or not row["all_workers_terminated"]:
+            raise ValueError("The final campaign report still has live workers or reservations")
+        releases = [
+            f"[FrontierSmith](frontiersmith.md#measured-100-task-collection) has **{n} local construction-checked Harbor tasks** across {len(row['families'])} problem families, measured {row['measured_on']}. All retain `unverified` labels; {rollouts}/{n} final bundles have a completed blind OpenAI rollout. These artifacts have not been published and are excluded from the totals above.",
+            "",
+        ]
+        costs = [
+            "## FrontierSmith optimization synthesis",
+            "",
+            f"Measured **{row['measured_on']}** with OpenAI `{row['model']}` and Daytona CPU workers. {attempted} candidate attempts across {row['distinct_seeds']} distinct seeds produced {exported} initial exports; {n} were selected after construction and collection review. Initial export yield was **{100 * exported / attempted:.1f}%**; final selection was **{100 * n / attempted:.1f}%**.",
+            "",
+            "| Cost component | Whole collection | Per selected task |",
+            "|---|---:|---:|",
+            f"| Recorded API usage | ${model:.2f} | ${model / n:.3f} |",
+            f"| Estimated compute | ${compute:.2f} | ${compute / n:.3f} |",
+            f"| Combined | ${total:.2f} | ${total / n:.3f} |",
+            "",
+            "| Measurement scope | Attempts | Initial exports | Selected | Combined cost |",
+            "|---|---:|---:|---:|---:|",
+        ]
+        for phase in row["campaigns"]:
+            costs.append(
+                f"| {phase['name']} | {phase['candidate_attempts']} | {phase['initial_exports']} | {phase['selected_tasks']} | ${Decimal(phase['total_usd']):.2f} |"
+            )
+        costs.extend(
+            [
+                "",
+                f"Costs include original seed authoring, failed candidates, bounded repair, construction trials, collection reviews and sample rollouts. The ten-task development pilot used evolving checks; the expansion used the recorded fixed recipe. This is a measured assisted campaign, not a guarantee of future yield. {rollouts}/{n} selected bundles have blind rollout evidence; full quality acceptance remains pending.",
+                "",
+                "Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated and reservations settled. See the [collection audit](frontiersmith.md#measured-100-task-collection) and [machine-readable results](../data/frontiersmith-campaign.json).",
+                "",
+            ]
+        )
+        return releases, costs
     releases = [
         f"[FrontierSmith](frontiersmith.md#measured-local-pilot) has **{n} local construction-checked Harbor tasks** from its {row['measured_on']} pilot. All retain `unverified` labels; {rollouts} final-bundle blind OpenAI rollout was completed. A further candidate is retained as `needs_repair`. These artifacts have not been published and are excluded from the totals above.",
         "",
@@ -304,7 +339,10 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     data = json.loads((ROOT / "docs/data/pipelines.json").read_text())
-    frontiersmith = json.loads((ROOT / "docs/data/frontiersmith-pilot.json").read_text())
+    campaign = ROOT / "docs/data/frontiersmith-campaign.json"
+    frontiersmith = json.loads(
+        (campaign if campaign.exists() else ROOT / "docs/data/frontiersmith-pilot.json").read_text()
+    )
     for name, text in render(data, frontiersmith).items():
         path = ROOT / "docs/pipelines" / name
         if args.check:

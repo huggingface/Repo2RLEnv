@@ -35,8 +35,8 @@ flowchart TD
     R --> H[Harbor construction trials on Daytona]
     H --> C[Score vectors, improvement and reference repeatability]
     H -->|Infrastructure defect; bounded repairs| G
-    C --> E[Export exact tested Harbor bytes]
-    E --> L[Optional independent OpenAI agent rollout]
+    C --> L[Optional independent OpenAI agent rollout]
+    L --> E[Export exact tested Harbor bytes and evidence]
     F -->|Rejected| X[Retained diagnostic evidence]
     D -->|Insufficient diversity| X
     C -->|Insufficient evidence| X
@@ -44,7 +44,8 @@ flowchart TD
 
 1. **Source:** require stable seed IDs, problem text, source and license metadata.
    Record exact content and optional problem-family metadata in the campaign. Twenty original textbook-style seed
-   descriptions are provided; they are not copied contest statements.
+   descriptions are provided, plus a separate 200-seed set spanning 20 domains.
+   They are original descriptions, not copied contest statements.
 2. **Mutation:** make one change to the objective, output constraints or input
    assumptions. Require a complete public input/output contract, feasibility,
    computable score formula and example. No reference-dependent optimum.

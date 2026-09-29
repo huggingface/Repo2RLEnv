@@ -190,3 +190,56 @@ budget ledger. The expansion cap is the $100 combined allowance minus the pilot'
 $5.606553, preserving the settled pilot ledger. Accepted pilot tasks are retained
 unchanged. The target is 90 additional construction-checked tasks, followed by a
 collection-level diversity audit. Generated campaign files remain ignored.
+
+```mermaid
+flowchart LR
+    D[20 problem domains] --> S[200 original seed descriptions]
+    S --> Q[Disjoint shuffled shards]
+    Q --> W[8 independent Daytona workers]
+    B[Shared expansion budget] -. governs .-> W
+    W --> C[Per-task construction gates]
+    C --> A[Collection diversity audit]
+    P[10 retained pilot tasks] --> A
+    A --> H[Target: 100 selected Harbor tasks]
+    C --> F[Retained failures and repair evidence]
+```
+
+Parallelism is at the campaign level: each worker runs the same public `generate`
+command against its own seed shard and worker receipt. Within a candidate,
+independent solution calls can overlap; reference trials run sequentially on that
+worker to keep timing comparable. Collection curation is separate from the
+single-shard recipe command. Every selected task retains its original executable
+bundle hash and construction evidence; the collection audit must not silently
+rewrite a tested task.
+
+## Collection review
+
+A collection needs checks beyond one successful construction run:
+
+1. Parse every selected task with Harbor and verify its content identity against
+   the recorded trial receipts. Check no-op zero, baseline feasibility, at least
+   two feasible samples, improvement and repeated reference scores from per-case
+   evidence, not just an aggregate success flag.
+2. Review the finished instruction, generator, scorer and feasibility validator in
+   a fresh context without the sampled programs. Require a concrete counterexample
+   for any reported defect; distinguish limitations from actual contract failures.
+3. Compare formulations within each problem family and across mathematical
+   summaries. Shared algorithms or topics do not make tasks duplicates; renamed
+   decisions, constraints and objectives do. Exact file hashes alone cannot detect
+   semantic duplication.
+4. Preserve a flagged original with its diagnosis. A repair creates a new bundle,
+   with its parent identity recorded, and reruns the construction profile. Do not
+   copy old execution evidence onto changed tests or instructions.
+
+For example, an energy-storage task passed its original construction checks but
+contained one generated input with simultaneous surplus and demand, contrary to
+its public domain. The additional review found that mismatch. A bounded generator
+repair corrected the input, preserved the instruction and scoring formula, and
+passed fresh no-op, baseline, sample and repeated-reference trials. The original
+remains available with a `needs_repair` label. This illustrates why agreement
+among sampled programs is useful evidence but does not prove the tests are valid.
+
+These collection checks are an assisted curation step outside the single-shard
+`generate` command. They use the same model accounting and remote execution
+primitives; their requests, findings and repair receipts remain in the campaign.
+They do not upgrade tasks to the broader `verified` label automatically.
