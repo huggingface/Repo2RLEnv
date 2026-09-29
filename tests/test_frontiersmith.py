@@ -10,7 +10,7 @@ from repo2rlenv.campaigns.budget import BudgetLedger
 from repo2rlenv.emitter.bundle import inspect_bundle
 from repo2rlenv.pipelines.recipes.frontiersmith.author import author
 from repo2rlenv.pipelines.recipes.frontiersmith.export import export_task
-from repo2rlenv.pipelines.recipes.frontiersmith.grade import finite_reward
+from repo2rlenv.pipelines.recipes.frontiersmith.grade import finite_reward, grade_output
 from repo2rlenv.pipelines.recipes.frontiersmith.models import (
     Design,
     Infrastructure,
@@ -50,6 +50,22 @@ def test_continuous_rewards_and_behavioral_diversity():
         behavioral_divergence([[0.5], [0.1, 0.5]], 0.01)
 
 
+def test_zero_reward_does_not_mean_infeasible_and_disagreement_fails():
+    zero = SimpleNamespace(score=lambda instance, output: 0.0)
+    positive = SimpleNamespace(score=lambda instance, output: 0.5)
+    valid = SimpleNamespace(is_feasible=lambda instance, output: True)
+    invalid = SimpleNamespace(is_feasible=lambda instance, output: False)
+    assert grade_output(zero, valid, {}, {}, "completed") == (0.0, True)
+    assert grade_output(zero, invalid, {}, {}, "completed") == (0.0, False)
+    with pytest.raises(ValueError, match="infeasible"):
+        grade_output(positive, invalid, {}, {}, "completed")
+    with pytest.raises(ValueError, match="return bool"):
+        grade_output(zero, SimpleNamespace(is_feasible=lambda *args: 1), {}, {}, "completed")
+    scores = iter([0.5, 0.6])
+    with pytest.raises(ValueError, match="not deterministic"):
+        grade_output(SimpleNamespace(score=lambda *args: next(scores)), valid, {}, {}, "completed")
+
+
 def test_export_is_parseable_private_and_content_bound(tmp_path):
     from harbor.models.task.task import Task
 
@@ -66,6 +82,7 @@ def test_export_is_parseable_private_and_content_bound(tmp_path):
     infra = Infrastructure(
         generator="def generate(seed):\n    # eight independent fixture instances\n    return [{'v': [1, 2]}] * 8\n",
         scorer="def score(instance, output):\n    # invalid fixture submissions have zero reward\n    return 0.0\n",
+        feasibility="def is_feasible(instance, output):\n    return output == {'chosen': [1]}\n",
     )
     solution = Program(strategy="fixture", code="import json\nprint(json.dumps({'chosen': [1]}))\n")
     kwargs = dict(name="frontiersmith-fixture", org="test", seed=42, lineage={})
@@ -78,6 +95,11 @@ def test_export_is_parseable_private_and_content_bound(tmp_path):
     assert config["metadata"]["repo2env"]["evaluation"]["status"] == "unverified"
     assert not (path / "environment/solution.py").exists()
     assert not (path / "environment/scorer.py").exists()
+    assert not (path / "environment/feasibility.py").exists()
+    assert (path / "tests/feasibility.py").is_file()
+    assert json.loads((path / "tests/contract.json").read_text())["explicit_feasibility"] is True
+    instruction = (path / "instruction.md").read_text()
+    assert "3 CPU seconds" in instruction and "64 KiB" in instruction
     assert inspect_bundle(path)["integrity_passed"]
     assert export_task(design, infra, solution, tmp_path, resume=True, **kwargs) == path
     (path / "tests/scorer.py").write_text("raise RuntimeError('changed')")

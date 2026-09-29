@@ -18,6 +18,7 @@ ASSEMBLY = {
     "frontiersmith": [
         "frontiersmith/prompts.py",
         "frontiersmith/models.py",
+        "frontiersmith/export.py",
         "frontiersmith/pipeline.py",
     ],
     "codemidas": ["codemidas/models.py", "codemidas/pipeline.py", "codemidas/audit.py"],

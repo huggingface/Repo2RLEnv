@@ -13,6 +13,22 @@ WORKDIR /workspace
 ENV PYTHONDONTWRITEBYTECODE=1
 """
 
+RUNTIME_CONTRACT = """## Execution limits
+
+Submit a regular file at `/workspace/solution.py`, no larger than 64 KiB. Each test
+starts a fresh isolated Python 3.12 process with one JSON input object on stdin.
+Return one JSON output object on stdout. Limits per test are 3 CPU seconds,
+5 seconds wall time, 256 MiB address space, and 1 MiB stdout. A missing, malformed,
+failing or over-limit submission receives zero on that test. Use only the Python
+standard library; no packages, files, subprocesses, network or nondeterminism.
+"""
+
+
+def public_instruction(design):
+    if design.instruction.rstrip().endswith(RUNTIME_CONTRACT.rstrip()):
+        return design.instruction
+    return design.instruction.rstrip() + "\n\n" + RUNTIME_CONTRACT
+
 
 def export_task(
     design, infrastructure, solution, destination, *, name, org, seed, lineage, resume=False
@@ -21,7 +37,7 @@ def export_task(
         TaskBundle(
             name=name,
             org=org,
-            instruction=design.instruction,
+            instruction=public_instruction(design),
             files={
                 "environment/Dockerfile": TaskFile.text(DOCKERFILE),
                 "solution/solution.py": TaskFile.text(solution.code),
@@ -36,7 +52,16 @@ def export_task(
                 "tests/grade.py": TaskFile(files(__package__).joinpath("grade.py").read_bytes()),
                 "tests/generator.py": TaskFile.text(infrastructure.generator),
                 "tests/scorer.py": TaskFile.text(infrastructure.scorer),
-                "tests/contract.json": TaskFile.text(json.dumps({"seed": seed})),
+                **(
+                    {"tests/feasibility.py": TaskFile.text(infrastructure.feasibility)}
+                    if infrastructure.feasibility
+                    else {}
+                ),
+                "tests/contract.json": TaskFile.text(
+                    json.dumps(
+                        {"seed": seed, "explicit_feasibility": bool(infrastructure.feasibility)}
+                    )
+                ),
             },
             metadata={
                 "pipeline": "optimization_synth",

@@ -42,7 +42,7 @@ The complete references below contain:
 | SETA Evol | Strategy-specific child design → child builder | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/seta_evol/) |
 | SWE-gen | Substantiality and instruction in one call | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_gen/) |
 | SWE-Flow | Function docstrings → test-based specification | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_flow/) |
-| FrontierSmith | Formulation mutation → review → baseline and sampled programs → idea divergence → test generator → scorer → infrastructure review → execution/repair | [Prompts and assembly](prompts/frontiersmith.md) |
+| FrontierSmith | Formulation mutation → review → baseline and sampled programs → idea divergence → test generator → scorer → independent feasibility → infrastructure review → execution/repair | [Prompts and assembly](prompts/frontiersmith.md) |
 | CodeMidas | Source exploration → behavioral contract → observed tests → assertion review → rollout review and screening | [Prompts and assembly](prompts/codemidas.md) |
 | R2E | Differential tests → execution/coverage → refined specification | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/r2e/) |
 | TMax | Template → initial tests → final tests → environment/reference | [Templates and assembly](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/tmax/) |

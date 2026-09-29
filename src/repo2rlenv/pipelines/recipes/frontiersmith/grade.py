@@ -41,6 +41,18 @@ def finite_reward(value):
     return float(value)
 
 
+def grade_output(scorer, validator, instance, output, status):
+    score = finite_reward(scorer.score(instance, output)) if status == "completed" else 0.0
+    feasible = validator.is_feasible(instance, output) if validator else None
+    if validator and type(feasible) is not bool:
+        raise ValueError("Feasibility validator must return bool")
+    if feasible is False and score != 0:
+        raise ValueError("Scorer rewards an infeasible output")
+    if status == "completed" and score != finite_reward(scorer.score(instance, output)):
+        raise ValueError("Scorer is not deterministic")
+    return score, feasible
+
+
 def run_solution(path, instance, directory):
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         process = subprocess.Popen(
@@ -74,7 +86,7 @@ def run_solution(path, instance, directory):
             return None, "output_limit"
         try:
             parsed = json.loads(output, parse_constant=lambda _: None)
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, RecursionError):
             return None, "invalid_json"
         if not isinstance(parsed, dict):
             return None, "invalid_shape"
@@ -95,6 +107,11 @@ def main():
     contract = json.loads((tests / "contract.json").read_text())
     generator = load(tests / "generator.py", "private_generator")
     scorer = load(tests / "scorer.py", "private_scorer")
+    validator = (
+        load(tests / "feasibility.py", "private_feasibility")
+        if contract.get("explicit_feasibility")
+        else None
+    )
     cases = generator.generate(contract["seed"])
     if (
         not isinstance(cases, list)
@@ -111,6 +128,8 @@ def main():
         raise ValueError("Generator is not deterministic")
     for case in cases:
         for invalid in (None, True, [], {}, {"__invalid__": True}):
+            if validator and validator.is_feasible(case, invalid) is not False:
+                raise ValueError("Feasibility validator accepts malformed output")
             if finite_reward(scorer.score(case, invalid)) != 0:
                 raise ValueError("Scorer accepts malformed output")
 
@@ -139,10 +158,8 @@ def main():
                 if code is not None
                 else (None, "missing_solution")
             )
-            score = finite_reward(scorer.score(case, output)) if status == "completed" else 0.0
-            if status == "completed" and score != finite_reward(scorer.score(case, output)):
-                raise ValueError("Scorer is not deterministic")
-            rows.append({"case": index, "reward": score, "status": status})
+            score, feasible = grade_output(scorer, validator, case, output, status)
+            rows.append({"case": index, "reward": score, "status": status, "feasible": feasible})
     reward = sum(row["reward"] for row in rows) / len(rows)
     (log / "scores.json").write_text(json.dumps({"reward": reward, "cases": rows}, indent=2))
     (log / "reward.txt").write_text(str(reward))

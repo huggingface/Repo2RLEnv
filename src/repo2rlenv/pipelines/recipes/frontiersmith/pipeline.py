@@ -19,7 +19,7 @@ from repo2rlenv.execution.lifecycle import prepare_docker, save_record
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.recipes.frontiersmith import prompts
 from repo2rlenv.pipelines.recipes.frontiersmith.author import InvalidArtifact, author
-from repo2rlenv.pipelines.recipes.frontiersmith.export import export_task
+from repo2rlenv.pipelines.recipes.frontiersmith.export import export_task, public_instruction
 from repo2rlenv.pipelines.recipes.frontiersmith.models import (
     Design,
     Divergence,
@@ -168,6 +168,7 @@ class FrontierSmithPipeline:
                     prompts.MUTATE,
                     {"seed": seed.model_dump(), "feedback": design_feedback},
                 )
+                design = design.model_copy(update={"instruction": public_instruction(design)})
                 review = ask(
                     f"filter-{design_attempt}", Review, prompts.FILTER, design.model_dump()
                 )
@@ -251,7 +252,15 @@ class FrontierSmithPipeline:
                         "attempts_remaining": options.max_repairs - attempt,
                     },
                 )
-                infrastructure = Infrastructure(generator=generator.code, scorer=scorer.code)
+                feasibility = ask(
+                    f"feasibility-{attempt}",
+                    Program,
+                    prompts.FEASIBILITY,
+                    {"instruction": design.instruction, "feedback": feedback},
+                )
+                infrastructure = Infrastructure(
+                    generator=generator.code, scorer=scorer.code, feasibility=feasibility.code
+                )
                 checked = ask(
                     f"review-{attempt}",
                     Review,
@@ -364,10 +373,14 @@ class FrontierSmithPipeline:
                 eligible = [
                     i
                     for i, sample in enumerate(samples)
-                    if all(row["status"] == "completed" for row in score_report(sample)["cases"])
+                    if all(
+                        row["status"] == "completed" and row["feasible"] is True
+                        for row in score_report(sample)["cases"]
+                    )
                 ]
                 baseline_completed = all(
-                    row["status"] == "completed" for row in score_report(base)["cases"]
+                    row["status"] == "completed" and row["feasible"] is True
+                    for row in score_report(base)["cases"]
                 )
                 if not baseline_completed or len(eligible) < 2:
                     record["skipped"][seed.id] = "insufficient_successful_programs"
@@ -413,6 +426,7 @@ class FrontierSmithPipeline:
                     "semantic_divergence": sum(divergence.distinct_pairs) / expected,
                     "behavioral_divergence": spread,
                     "construction_verified": True,
+                    "explicit_feasibility": True,
                     "rollout_status": "not_run",
                     "attempts": attempt + 1,
                     "reference_index": best,

@@ -56,6 +56,7 @@ class Program(Artifact):
 class Infrastructure(Artifact):
     generator: str = Field(min_length=60, max_length=24000)
     scorer: str = Field(min_length=60, max_length=24000)
+    feasibility: str = Field(default="", max_length=24000)
 
     @model_validator(mode="after")
     def syntax(self):
@@ -63,6 +64,12 @@ class Infrastructure(Artifact):
             tree = ast.parse(source)
             if entry not in {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}:
                 raise ValueError(f"Infrastructure must define {entry}")
+        if self.feasibility:
+            tree = ast.parse(self.feasibility)
+            if "is_feasible" not in {
+                node.name for node in tree.body if isinstance(node, ast.FunctionDef)
+            }:
+                raise ValueError("Feasibility validator must define is_feasible")
         return self
 
 

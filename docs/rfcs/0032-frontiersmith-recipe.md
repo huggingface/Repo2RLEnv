@@ -53,13 +53,14 @@ flowchart TD
 4. **Diversity:** generate a simple baseline and three independent solution programs
    by default. A separate review compares every pair's core algorithm. Reject low
    diversity before paying for test construction.
-5. **Construction:** separate model calls produce the generator and scorer. A third
-   call checks contract agreement. Repairs receive concrete review or execution
+5. **Construction:** separate model calls produce the generator, scorer and
+   independent feasibility validator. A fourth call checks contract agreement. Repairs receive concrete review or execution
    evidence and previous infrastructure; two repairs are allowed by default.
 6. **Execution:** use fresh Harbor trials for no-op, baseline, each sampled solution
    and a repeated best reference. Require no-op zero, a positive reference improving
    on baseline, meaningful per-case score diversity and repeatable reference scores.
-   A reference is best among samples, not necessarily optimal. Errors do not count
+   Baseline and at least two samples must be feasible on every case, including
+   valid zero-reward outputs. A reference is best among samples, not necessarily optimal. Errors do not count
    as evidence of task difficulty.
 7. **Export:** use the shared content-bound Harbor emitter. Preserve raw diagnostics,
    request/response receipts and scores outside learner-visible task files.

@@ -35,7 +35,7 @@ repo2rlenv generate \
 
     ---
 
-    Six native pipelines, 15 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
+    Six native pipelines, 16 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
 
     [:octicons-arrow-right-24: Browse the pipelines](pipelines/README.md)
 
@@ -63,7 +63,7 @@ Repo2RLEnv authors and checks tasks; Harbor defines their runtime contract and e
 
 | Layer | Repo2RLEnv ships | We rely on |
 |---|---|---|
-| **Generation** | Native pipelines, 15 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
+| **Generation** | Native pipelines, 16 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
 | **Spec** | The `[metadata.repo2env]` extension to `task.toml` — source lineage, artifact identities and evaluation labels | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
 | **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's runtime](https://github.com/harbor-framework/harbor) — sandbox providers and coding-agent integrations |
 
@@ -99,7 +99,7 @@ measure that cohort, not unattended success on arbitrary PRs.
 
 ### Research-inspired recipes — experimental
 
-All 15 recipes below are implemented. Their stage diagrams, prompts, input
+All 16 recipes below are implemented. Their stage diagrams, prompts, input
 requirements and upstream credits are in the linked guides.
 
 | Recipe | Task shape | Reward | Reference dataset |

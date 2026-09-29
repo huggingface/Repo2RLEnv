@@ -92,9 +92,12 @@ instruction and score formula, and conclude within the supplied attempt budget.
 REVIEW = (
     COMMON
     + """
-Audit the public instruction, generated test generator, scorer and sampled programs
+Audit the public instruction, generated test generator, scorer, independent
+is_feasible validator (when supplied), and sampled programs
 together. Approve only if tests satisfy the input domain, scorer matches the exact
 public score formula and feasibility, and every graded requirement is public.
+The independent validator must accept valid zero-reward outputs and reject every
+output that violates a public feasibility rule. Check agreement with the scorer.
 Check invalid outputs, bool/int confusion, NaN, duplicates and indices; look for
 trivial score saturation. Do not require all sampled algorithms to work or pass;
 their failures are evidence, not a reason to loosen the contract. Original code
@@ -116,5 +119,19 @@ SCORER = (
 For this stage return only the scorer module in Program.code and explain its checks
 in Program.strategy. Do not write a generator. Define score(instance, output).
 The supplied generator is a separate artifact; check it against the public contract.
+"""
+)
+
+FEASIBILITY = (
+    COMMON
+    + """
+Independently implement the public output validity contract, without optimizing or
+scoring. Return a module in Program.code defining is_feasible(instance, output)
+returning a strict bool. Validate every public output constraint, output types,
+indices, uniqueness, bounds, feasibility and exact required fields. Reject bool
+where integer is required and reject nonfinite numbers. Invalid output returns
+False without raising. A VALID output with score zero is still feasible. Do not
+require improvement over a baseline or optimality. No filesystem or network access.
+The input follows the public contract. Include a short explanation in strategy.
 """
 )

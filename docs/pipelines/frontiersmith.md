@@ -14,7 +14,7 @@ flowchart LR
     S[Seed problem] --> M[Mutate]
     M --> F[Review formulation]
     F --> D[Sample solutions and compare ideas]
-    D --> T[Generate tests and scorer]
+    D --> T[Generate tests, scorer and validity checker]
     T --> R[Review and repair]
     R --> H[Harbor execution]
     H --> E[Task plus evidence]
@@ -35,11 +35,15 @@ requests and responses are retained in the campaign; the
 | Idea divergence | Sample programs | One algorithmic-distinction judgment per pair |
 | Test generation | Design and sampled strategies | Seeded generator with 8–16 edge, adversarial and larger cases |
 | Scoring | Design and generated tests | Feasibility checker and exact public score calculation |
-| Infrastructure review | Instruction, tests, scorer and programs | Approve or route concrete defects to bounded repair |
+| Feasibility | Public instruction only | Independent `is_feasible` checker; valid zero-reward solutions remain valid |
+| Infrastructure review | Instruction, tests, scorer, validity checker and programs | Approve or route concrete defects to bounded repair |
 | Optional rollout | Learner-visible Harbor task only | Independent agent attempt, transcript and observed reward |
 
 Harbor execution itself uses no LLM judge. The no-op must score zero; a sampled
-reference must improve on the baseline and repeat its per-case scores. Sample
+reference must improve on the baseline and repeat its per-case scores. The baseline
+and at least two sampled programs must be feasible on every generated case. A
+separate boolean validity verdict distinguishes a legal zero score from an invalid
+submission. Sample
 score vectors must differ (default mean absolute difference of at least 0.001
 for at least 30% of sampled pairs). This is a sensitivity threshold on deterministic
 scores, not a minimum task reward or a claim about training benefit. A reference score below one is normal. Generated but
@@ -85,6 +89,7 @@ tasks/frontiersmith-<seed>/
   tests/grade.py              # Owned process isolation and reward writer
   tests/generator.py          # Private reproducible test instances
   tests/scorer.py             # Feasibility and graded objective
+  tests/feasibility.py        # Independently authored validity verdict
   tests/contract.json
 ```
 
