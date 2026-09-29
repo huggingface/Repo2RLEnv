@@ -507,6 +507,27 @@ def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
 
 
+def test_normalize_unittest_gets_verbosity():
+    # Without -v, unittest prints only dots and no test name is parseable.
+    assert normalize_test_cmds_for_runtime(["python -m unittest"]) == ["python -m unittest -v"]
+    assert normalize_test_cmds_for_runtime(["python -m unittest discover -s tests"]) == [
+        "python -m unittest discover -s tests -v"
+    ]
+    # Django's runner counts verbosity instead of toggling it.
+    assert normalize_test_cmds_for_runtime(["./manage.py test"]) == ["./manage.py test -v 2"]
+    # Already verbose ⇒ keep
+    assert normalize_test_cmds_for_runtime(["python manage.py test demo -v 2"]) == [
+        "python manage.py test demo -v 2"
+    ]
+    # Django's in-repo runtests.py takes --verbosity, not a -v count.
+    assert normalize_test_cmds_for_runtime(["python tests/runtests.py"]) == [
+        "python tests/runtests.py --verbosity 2"
+    ]
+    assert normalize_test_cmds_for_runtime(["python tests/runtests.py --verbosity 3"]) == [
+        "python tests/runtests.py --verbosity 3"
+    ]
+
+
 def test_normalize_go_test_gets_v_flag():
     """`go test` without -v doesn't print --- PASS lines — parser needs them."""
     assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -v ./..."]

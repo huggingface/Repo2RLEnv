@@ -82,8 +82,8 @@ Per-language log parsers map raw test output to `{PASSED, FAILED, SKIPPED, ERROR
 
 | Language | Parser | Notes |
 |---|---|---|
-| Python (pytest) | `log_parsers/python.py` | Handles `PASSED tests/foo.py::test_x` lines |
-| Python (django) | same module, django variant | Django runs are slightly different |
+| Python (pytest) | `log_parsers/pytest_parser.py` | Handles `PASSED tests/foo.py::test_x` lines, plus pytest-xdist's `[gw1]` labels |
+| Python (unittest, django) | `log_parsers/unittest_parser.py` | `test_x (pkg.Case.test_x) ... ok`; needs `-v` (`-v 2` for Django) |
 | JS / TS (mocha, jest) | `log_parsers/javascript.py` | From SWE-bench-Live multi-language |
 | Go (`go test`) | new (we write it) | `--- PASS:` / `--- FAIL:` |
 | Rust (`cargo test`) | new | `test foo ... ok` / `FAILED` |

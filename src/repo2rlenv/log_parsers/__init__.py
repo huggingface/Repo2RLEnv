@@ -14,6 +14,7 @@ Public API:
   * `parse_go_test`   — `go test -v`
   * `parse_cargo_test`— `cargo test`
   * `parse_jest`      — Jest / Mocha / Vitest
+  * `parse_unittest`  — `python -m unittest` / Django's runner
 
   * `parse_logs(language, test_cmds, log)` — dispatch by runner. Inspects
     the test_cmds string for runner keywords first; falls back to the
@@ -32,6 +33,7 @@ from repo2rlenv.log_parsers.cargo_parser import parse_cargo_test
 from repo2rlenv.log_parsers.go_parser import parse_go_test
 from repo2rlenv.log_parsers.jest_parser import parse_jest
 from repo2rlenv.log_parsers.pytest_parser import TestStatus, parse_pytest
+from repo2rlenv.log_parsers.unittest_parser import parse_unittest
 
 __all__ = [
     "TestStatus",
@@ -40,13 +42,14 @@ __all__ = [
     "parse_jest",
     "parse_logs",
     "parse_pytest",
+    "parse_unittest",
 ]
 
 
 def _detect_runner(test_cmds: list[str]) -> str:
     """Inspect the bootstrap-recorded test commands and name the runner.
 
-    Returns one of: "pytest", "go", "cargo", "jest", "unknown".
+    Returns one of: "pytest", "unittest", "go", "cargo", "jest", "unknown".
 
     Why inspect test_cmds rather than the LanguageHint alone? A single
     language often has multiple runners — Python has pytest + unittest +
@@ -57,6 +60,10 @@ def _detect_runner(test_cmds: list[str]) -> str:
     joined = " ".join(test_cmds).lower()
     if "pytest" in joined:
         return "pytest"
+    # unittest's own runner, Django's `manage.py test`, and Django's in-repo
+    # `runtests.py` all print TextTestRunner output.
+    if re.search(r"\bunittest\b|manage\.py\s+test\b|runtests\.py", joined):
+        return "unittest"
     if re.search(r"\bgo\s+test\b", joined):
         return "go"
     if re.search(r"\bcargo\s+test\b", joined):
@@ -105,6 +112,8 @@ def parse_logs(
 
     if runner == "pytest":
         return parse_pytest(log)
+    if runner == "unittest":
+        return parse_unittest(log)
     if runner == "go":
         return parse_go_test(log)
     if runner == "cargo":

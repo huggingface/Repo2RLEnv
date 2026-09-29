@@ -104,6 +104,9 @@ def parse_pytest(log: str) -> dict[str, str]:
                 break
         if leading is not None:
             work = line[len(leading) :].strip()
+            # unittest's `FAILED (failures=1)` footer is a count, not a node ID.
+            if work.startswith("(") and work.endswith(")"):
+                continue
             if leading == SKIPPED and re.match(r"^\[\d+\](?:\s|$)", work):
                 # Folded skips report a file location, not a parametrized ID.
                 tokens = work.split(maxsplit=2)
@@ -123,6 +126,83 @@ def parse_pytest(log: str) -> dict[str, str]:
             name = m.group("name")
             if "::" in name or name.endswith(".py"):
                 out[name] = m.group("status")
+    return out
+
+
+# Keep these patterns in sync with log_parsers/unittest_parser.py.
+_UT_NAME_RE = re.compile(r"^(?P<method>[^\s()]+) \((?P<dotted>[\w.]+)\)(?: .+)?$")
+_UT_BLOCK_RE = re.compile(r"^(?P<status>FAIL|ERROR):\s+(?P<name>.+?)\s*$")
+_UT_STATUS = {
+    "ok": PASSED,
+    "FAIL": FAILED,
+    "ERROR": ERROR,
+    "expected failure": PASSED,
+    "unexpected success": FAILED,
+}
+
+
+# Subtests report under the parent's identity, worst status first, because a
+# repaired run prints only `parent ... ok`.
+_UT_RANK = {SKIPPED: 0, PASSED: 1, FAILED: 2, ERROR: 3}
+
+
+def _ut_canonical(method: str, dotted: str) -> str:
+    return dotted if dotted.endswith(f".{method}") else f"{dotted}.{method}"
+
+
+def _ut_record(out: dict[str, str], name: str, status: str) -> None:
+    if name in out and _UT_RANK[out[name]] >= _UT_RANK[status]:
+        return
+    out[name] = status
+
+
+def _ut_status(tail: str) -> str | None:
+    text = tail.strip()
+    if not text:
+        return None
+    if text.startswith("skipped"):
+        return SKIPPED
+    return _UT_STATUS.get(text)
+
+
+def parse_unittest(log: str) -> dict[str, str]:
+    """{test_name -> status} from `python -m unittest -v` / Django output.
+
+    A docstring pushes the status onto the line after the name, and subtest
+    failures report on their own indented line while the parent prints none.
+    """
+    out: dict[str, str] = {}
+    if not log:
+        return out
+    pending: str | None = None
+    for raw in log.split("\n"):
+        line = raw.rstrip()
+        claimed, pending = pending, None
+        if not line.strip():
+            continue
+        head, sep, tail = line.strip().rpartition(" ... ")
+        if sep:
+            m = _UT_NAME_RE.match(head)
+            if m:
+                status = _ut_status(tail)
+                if status is not None:
+                    _ut_record(out, _ut_canonical(m["method"], m["dotted"]), status)
+            elif claimed is not None:
+                status = _ut_status(tail)
+                if status is not None:
+                    _ut_record(out, claimed, status)
+            continue
+        m = _UT_NAME_RE.match(line.strip())
+        if m:
+            pending = _ut_canonical(m["method"], m["dotted"])
+            continue
+        m = _UT_BLOCK_RE.match(line)
+        if m:
+            name = _UT_NAME_RE.match(m["name"])
+            if name:
+                _ut_record(
+                    out, _ut_canonical(name["method"], name["dotted"]), _UT_STATUS[m["status"]]
+                )
     return out
 
 
@@ -310,6 +390,8 @@ def _detect_runner(test_cmds: str) -> str:
     joined = test_cmds.lower()
     if "pytest" in joined:
         return "pytest"
+    if re.search(r"\bunittest\b|manage\.py\s+test\b|runtests\.py", joined):
+        return "unittest"
     if re.search(r"\bgo\s+test\b", joined):
         return "go"
     if re.search(r"\bcargo\s+test\b", joined):
@@ -323,6 +405,8 @@ def parse_logs(runner: str, log: str) -> dict[str, str]:
     """Dispatch to the right per-runner parser. Empty dict if unknown."""
     if runner == "pytest":
         return parse_pytest(log)
+    if runner == "unittest":
+        return parse_unittest(log)
     if runner == "go":
         return parse_go_test(log)
     if runner == "cargo":
@@ -448,7 +532,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--log", required=True, help="captured test-run log file")
     p.add_argument("--f2p", required=True, help="JSON file: FAIL_TO_PASS test names")
     p.add_argument("--p2p", required=True, help="JSON file: PASS_TO_PASS test names")
-    p.add_argument("--runner", default="", help="pytest|go|cargo|jest (else auto-detect)")
+    p.add_argument("--runner", default="", help="pytest|unittest|go|cargo|jest (else auto-detect)")
     p.add_argument("--test-cmds", default="", help="test command string (runner auto-detect)")
     p.add_argument("--exit-code", type=int, default=1, help="test suite exit code (fallback)")
     p.add_argument("--out-dir", default="/logs/verifier", help="where to write reward.{txt,json}")
@@ -521,4 +605,5 @@ __all__ = [
     "parse_jest",
     "parse_logs",
     "parse_pytest",
+    "parse_unittest",
 ]
