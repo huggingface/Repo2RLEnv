@@ -3,62 +3,62 @@ title: "Agent harnesses + how RL traces leave the sandbox"
 navTitle: "Agents"
 ---
 
-A reference for what's possible when consumers run Repo2RLEnv-emitted Harbor tasks: which agent harnesses can run them, what inputs each agent accepts (LLM endpoint, model, etc.), and the data path that makes RL training possible — how token IDs and logprobs flow out of the sandbox into a trainer.
+This page covers what happens when someone runs a Harbor task that Repo2RLEnv emitted: which agent harnesses can run it, what inputs each agent accepts (LLM endpoint, model and so on), and how token IDs and logprobs get out of the sandbox and into a trainer. That last path is what makes RL training possible.
 
-This is **Harbor's responsibility**, not Repo2RLEnv's — but understanding it matters because it determines what kinds of consumers our datasets work with out of the box.
+All of this is **Harbor's responsibility**, not Repo2RLEnv's. It's still worth understanding, because it decides which consumers can use our datasets out of the box.
 
 ## TL;DR
 
-- Harbor ships **25 agent harnesses** (≈22 distinct coding agents + 2 testing helpers + 1 alias) — see [§1](#1-the-25-built-in-agents)
-- Every agent extends `BaseAgent` with shared params (`logs_dir`, `model_name`, `mcp_servers`) plus declarative `CliFlag` / `EnvVar` mappings — see [§2](#2-agent-contract)
-- The LLM **never runs inside the task sandbox** — agent makes outbound HTTPS calls to wherever it's hosted (cloud API or your tunneled vLLM) — see [§3](#3-llm-hosting)
-- Token IDs and logprobs are captured **inside the agent's container** to `/logs/agent/`, then read back via volume mount or SDK download into `trial_result.agent_result.rollout_details` — see [§4](#4-rl-traces--logprobs--how-data-leaves-the-sandbox)
-- Terminus 2 self-reports rollout details; for other agents, an OpenAI-compatible proxy in front of vLLM works as an alternative — see [§5](#5-two-paths-for-token-id-capture)
+- Harbor ships **25 agent harnesses**: ≈22 distinct coding agents, 2 testing helpers and 1 alias ([§1](#1-the-25-built-in-agents)).
+- Every agent extends `BaseAgent` with shared params (`logs_dir`, `model_name`, `mcp_servers`) plus declarative `CliFlag` / `EnvVar` mappings ([§2](#2-agent-contract)).
+- The LLM **never runs inside the task sandbox**. The agent makes outbound HTTPS calls to wherever it's hosted, a cloud API or your tunneled vLLM ([§3](#3-llm-hosting)).
+- Token IDs and logprobs are captured **inside the agent's container** to `/logs/agent/`, then read back via volume mount or SDK download into `trial_result.agent_result.rollout_details` ([§4](#4-rl-traces--logprobs-how-data-leaves-the-sandbox)).
+- Terminus 2 reports rollout details itself. For other agents, an OpenAI-compatible proxy in front of vLLM does the job instead ([§5](#5-two-paths-for-token-id-capture)).
 
 ## 1. The 25 built-in agents
 
-From [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py) — the canonical enum.
+The canonical list is the enum in [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py).
 
 ### Real coding agents (22)
 
 **CLI-based proprietary agents:**
-- `claude-code` — Anthropic's official CLI
-- `codex` — OpenAI Codex CLI
-- `gemini-cli` — Google
-- `copilot-cli` — GitHub
-- `cursor-cli` — Cursor
-- `rovodev-cli` — Atlassian Rovo
-- `kimi-cli` — Moonshot
-- `qwen-coder` — Alibaba (enum const is `QWEN_CODE`, value is `"qwen-coder"`)
+- `claude-code`: Anthropic's official CLI
+- `codex`: OpenAI Codex CLI
+- `gemini-cli`: Google
+- `copilot-cli`: GitHub
+- `cursor-cli`: Cursor
+- `rovodev-cli`: Atlassian Rovo
+- `kimi-cli`: Moonshot
+- `qwen-coder`: Alibaba (the enum constant is `QWEN_CODE`, the value is `"qwen-coder"`)
 
 **Open-source coding agents:**
 - `aider`
-- `goose` — Block's Goose
-- `openhands` and `openhands-sdk` — OpenHands (formerly OpenDevin)
-- `cline-cli` — Cline as CLI
-- `swe-agent` — Princeton SWE-agent
-- `mini-swe-agent` — minimal SWE-agent variant
+- `goose`: Block's Goose
+- `openhands` and `openhands-sdk`: OpenHands (formerly OpenDevin)
+- `cline-cli`: Cline as a CLI
+- `swe-agent`: Princeton SWE-agent
+- `mini-swe-agent`: a minimal SWE-agent variant
 - `opencode`
-- `trae-agent` — ByteDance Trae
+- `trae-agent`: ByteDance Trae
 - `hermes`
 - `pi`
-- `nemo-agent` — NVIDIA NeMo
+- `nemo-agent`: NVIDIA NeMo
 
 **Harbor-native:**
-- `terminus-1` and `terminus-2` — Harbor's reference agents (mono-tool tmux design, RL-friendly with native logprobs/token-id capture)
+- `terminus-1` and `terminus-2`: Harbor's reference agents. They use a single tmux tool and capture logprobs and token IDs natively, which makes them RL-friendly.
 
 ### Testing harnesses (2)
 
-- `oracle` — applies the ground-truth solution; useful to verify a task is internally consistent (oracle should always score 1.0)
-- `nop` — does nothing; for debugging the harness pipeline itself
+- `oracle`: applies the ground-truth solution. Use it to check that a task is internally consistent; the oracle should always score 1.0.
+- `nop`: does nothing. Use it to debug the harness pipeline itself.
 
 ### Plus 1 alias
 
-- `terminus` — alias resolving to one of the terminus variants
+- `terminus`: an alias that resolves to one of the terminus variants
 
 ### Architecture: how they plug in
 
-From `src/harbor/agents/factory.py`, `_AGENT_MAP: dict[AgentName, type[BaseAgent]]` is built dynamically from a `_AGENTS` list. Custom (third-party) agents register via `harbor run --agent-import-path my_pkg.agents:MyAgent` — no Harbor patch needed.
+In `src/harbor/agents/factory.py`, `_AGENT_MAP: dict[AgentName, type[BaseAgent]]` is built dynamically from an `_AGENTS` list. Custom (third-party) agents register with `harbor run --agent-import-path my_pkg.agents:MyAgent`, so you don't have to patch Harbor.
 
 Two base patterns:
 
@@ -112,7 +112,7 @@ class EnvVar:
     bool_false: str = "false"
 ```
 
-A subclass declares `CLI_FLAGS: list[CliFlag]` and the base auto-generates the agent's launch command. This is how Harbor stays DRY across 22+ agents.
+A subclass declares `CLI_FLAGS: list[CliFlag]` and the base class generates the agent's launch command from it. That's how Harbor avoids repeating launch logic across 22+ agents.
 
 ### Concrete: what `claude-code` accepts
 
@@ -133,11 +133,11 @@ class ClaudeCode(BaseInstalledAgent):
     ]
 ```
 
-`ANTHROPIC_API_KEY` is resolved by the Claude Code CLI itself; Harbor passes the env through.
+The Claude Code CLI resolves `ANTHROPIC_API_KEY` itself; Harbor just passes the environment through.
 
 ### Concrete: what `terminus-2` accepts (RL-targeted)
 
-The RL story lives here. `terminus-2` is purpose-built to capture token IDs + logprobs natively.
+This is the agent that matters for RL. `terminus-2` is built to capture token IDs and logprobs natively.
 
 ```python
 class Terminus2(BaseInstalledAgent):
@@ -173,10 +173,10 @@ class Terminus2(BaseInstalledAgent):
     ): ...
 ```
 
-The two important ones for hosted-LLM scenarios:
+Two of these matter most when you host the LLM yourself:
 
-- **`api_base`**: pointing at vLLM / SGLang / Ollama / your cloudflared tunnel
-- **`llm_backend`**: which Python client driver to use (LiteLLM is default, with adapters for direct providers)
+- **`api_base`**: points at vLLM / SGLang / Ollama / your cloudflared tunnel
+- **`llm_backend`**: picks the Python client driver (LiteLLM by default, with adapters for direct providers)
 
 ## 3. LLM hosting
 
@@ -196,7 +196,7 @@ The two important ones for hosted-LLM scenarios:
 - A self-hosted LLM behind your tunnel keeps both code AND prompts internal
 - Cold-API agents (Claude Code, Codex CLI) need their provider env var passed through `task.toml`'s `[environment].env` map
 
-## 4. RL traces + logprobs — how data leaves the sandbox
+## 4. RL traces + logprobs: how data leaves the sandbox
 
 This is the pipe that makes RL training possible. It has four layers.
 
@@ -227,7 +227,7 @@ flowchart TD
     F --> H
 ```
 
-### Layer 1 — agent stores rollout per turn
+### Layer 1: agent stores rollout per turn
 
 Inside `terminus_2.py`, on each LLM response:
 
@@ -240,22 +240,22 @@ if response.logprobs is not None:
     rollout_detail["logprobs"] = [response.logprobs]
 ```
 
-Accumulated in `self._rollout_details: list[RolloutDetail]`. **Only collected when `collect_rollout_details=True`** — default off because the data is large (~500B/token, see HF inference doc).
+These accumulate in `self._rollout_details: list[RolloutDetail]`. **They're only collected when `collect_rollout_details=True`.** It's off by default because the data is large (~500B/token, see the HF inference doc).
 
-### Layer 2 — written to `/logs/agent/` inside the container
+### Layer 2: written to `/logs/agent/` inside the container
 
-The agent's `logs_dir` is set to `/logs/agent` by Harbor convention. At end-of-turn the rollout dicts get serialized to JSONL there, alongside:
+By Harbor convention, the agent's `logs_dir` is `/logs/agent`. At the end of each turn the rollout dicts are serialized to JSONL there, next to:
 
-- `trajectory.jsonl` — per-step ATIF format (chat history, tool calls, observations)
-- `tmux_session.cast` — full asciinema recording of the terminal (Terminus 2 specifically)
+- `trajectory.jsonl`: per-step ATIF format (chat history, tool calls, observations)
+- `tmux_session.cast`: a full asciinema recording of the terminal (Terminus 2 specifically)
 
-### Layer 3 — Harbor pulls them out post-trial
+### Layer 3: Harbor pulls them out post-trial
 
-Two paths depending on the sandbox provider's `EnvironmentCapabilities.mounted`:
+There are two paths, depending on the sandbox provider's `EnvironmentCapabilities.mounted`:
 
 | Provider | `mounted` | How rollout data exits |
 |---|:-:|---|
-| Local Docker | ✅ True | Bind mount — Harbor reads `/logs/agent/*` directly from the sandbox host |
+| Local Docker | ✅ True | Bind mount: Harbor reads `/logs/agent/*` directly from the sandbox host |
 | Apple Container | ✅ True | Bind mount |
 | Daytona | ✅ True | Volume mount at `/harbor/logs/agent` on the sandbox |
 | Islo | ✅ True | Bind mount + CA bundle for TLS |
@@ -263,7 +263,7 @@ Two paths depending on the sandbox provider's `EnvironmentCapabilities.mounted`:
 
 Both paths populate the same end state: `trial_result.agent_result.rollout_details` is a list of `RolloutDetail` Pydantic objects, each with `prompt_token_ids: list[list[int]]`, `completion_token_ids: list[list[int]]`, `logprobs: list[list[float]]`.
 
-### Layer 4 — trainer consumes
+### Layer 4: trainer consumes
 
 ```python
 trial = job.run(...)
@@ -276,24 +276,24 @@ for trial_result in trial.results:
         # Feed into TRL / SkyRL / Prime-RL policy gradient computation
 ```
 
-Same shape every Harbor-compatible trainer uses today — `harbor-cookbook/sky-rl`, `harbor-cookbook/prime-rl`, `harbor-cookbook/tinker-rl`, `harbor-cookbook/harbor-rl` all consume this interface.
+Every Harbor-compatible trainer uses this shape today: `harbor-cookbook/sky-rl`, `harbor-cookbook/prime-rl`, `harbor-cookbook/tinker-rl` and `harbor-cookbook/harbor-rl` all consume this interface.
 
 ## 5. Two paths for token-ID capture
 
 Token IDs and logprobs can be captured at two different layers, depending on how cooperative your agent is.
 
-### Path A — agent self-reports (Terminus 2)
+### Path A: agent self-reports (Terminus 2)
 
-The LLM API response carries token IDs and logprobs (vLLM/SGLang return these natively; HF Router returns them per-provider — see [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md)). Agent unpacks them directly. Cleanest path; works whenever the agent and LLM endpoint cooperate.
+The LLM API response carries token IDs and logprobs. vLLM and SGLang return them natively; HF Router returns them depending on the provider (see [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md)). The agent unpacks them directly. It's the cleanest path, and it works whenever the agent and the LLM endpoint cooperate.
 
 **Requires:**
 
 - Agent supports rollout capture (Terminus 2 does; most CLI agents don't)
 - LLM endpoint returns `logprobs` (cloud APIs that don't return logprobs are unusable here)
 
-### Path B — vLLM proxy intercept
+### Path B: vLLM proxy intercept
 
-For agents that don't natively support `collect_rollout_details` (most CLI agents — Claude Code, Codex, etc.), Harbor can run a vLLM-compatible proxy in front of your hosted model. The proxy logs every `(prompt, completion, logprobs)` triple keyed by trial ID, regardless of which agent makes the call.
+For agents that don't support `collect_rollout_details` natively (most CLI agents, such as Claude Code and Codex), Harbor can run a vLLM-compatible proxy in front of your hosted model. The proxy logs every `(prompt, completion, logprobs)` triple keyed by trial ID, regardless of which agent makes the call.
 
 **Requires:**
 
@@ -304,7 +304,7 @@ For agents that don't natively support `collect_rollout_details` (most CLI agent
 
 | | Path A (self-report) | Path B (proxy intercept) |
 |---|---|---|
-| Cleanliness | Cleanest — data flows through one channel | Two data sources to reconcile |
+| Cleanliness | Cleanest: data flows through one channel | Two data sources to reconcile |
 | Agent support | Only Terminus 2 today | Any agent that talks OpenAI-compatible HTTPS |
 | LLM support | Endpoint must return logprobs | Endpoint must return logprobs (proxy logs them) |
 | Cost overhead | Zero | One extra hop per LLM call |
@@ -331,27 +331,27 @@ When we ship full pipelines (v0.2+), the loop looks like:
    ```
 4. Standard policy-gradient update from there
 
-We don't need to touch the rollout-capture pipe at all — Harbor already plumbs it end to end. **Repo2RLEnv just produces tasks; everything from "agent runs in sandbox" through "trainer gets rollout tensor" is Harbor's responsibility.**
+We don't need to touch the rollout-capture pipe at all, because Harbor already plumbs it end to end. **Repo2RLEnv just produces tasks. Everything from "agent runs in sandbox" to "trainer gets rollout tensor" is Harbor's responsibility.**
 
-The only RL-relevant Repo2RLEnv concern is **emitting tasks tagged with the right `reward_kinds`** (see [SPEC.md](./SPEC.md)):
+The one RL concern on the Repo2RLEnv side is **emitting tasks tagged with the right `reward_kinds`** (see [SPEC.md](./SPEC.md)):
 
 | Pipeline class | Reward kinds emitted | Rollout pipe used? |
 |---|---|---|
-| Lite (`pr_diff`) | `diff_similarity` only | No — trainer compares text directly |
-| Full (`pr_runtime`, `commit_runtime`, etc.) | `test_execution` (and optionally `diff_similarity`) | Yes — full Harbor rollout pipe |
+| Lite (`pr_diff`) | `diff_similarity` only | No (the trainer compares text directly) |
+| Full (`pr_runtime`, `commit_runtime`, etc.) | `test_execution` (and optionally `diff_similarity`) | Yes (the full Harbor rollout pipe) |
 
-For TRL specifically (HF's RL library), no official integration is shipped yet. A GRPO training loop (ORS reward server + TRL trainer) is planned for v0.9 — it will support `pr_diff` datasets via diff-similarity reward first, with execution-verified pipelines (`pr_runtime`, `commit_runtime`, etc.) following once a Harbor-wrapping reward server is in place.
+There's no official integration with TRL (HF's RL library) yet. A GRPO training loop (ORS reward server + TRL trainer) is planned for v0.9. It will support `pr_diff` datasets through the diff-similarity reward first; execution-verified pipelines (`pr_runtime`, `commit_runtime`, etc.) follow once a Harbor-wrapping reward server is in place.
 
 ## 7. References
 
-- [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py) — `AgentName` enum
-- [`src/harbor/agents/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/base.py) — `BaseAgent`
-- [`src/harbor/agents/installed/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/base.py) — `BaseInstalledAgent`, `CliFlag`, `EnvVar`
-- [`src/harbor/agents/installed/claude_code.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/claude_code.py) — example CLI-based agent
-- [`src/harbor/agents/terminus_2/terminus_2.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/terminus_2/terminus_2.py) — Harbor's RL-friendly reference agent
-- [`src/harbor/models/agent/rollout_detail.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/rollout_detail.py) — `RolloutDetail` schema
-- [`src/harbor/agents/factory.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/factory.py) — registration + dynamic `_AGENT_MAP`
-- [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md) — per-provider HF Router logprobs support matrix
+- [`src/harbor/models/agent/name.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/name.py): `AgentName` enum
+- [`src/harbor/agents/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/base.py): `BaseAgent`
+- [`src/harbor/agents/installed/base.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/base.py): `BaseInstalledAgent`, `CliFlag`, `EnvVar`
+- [`src/harbor/agents/installed/claude_code.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/installed/claude_code.py): example CLI-based agent
+- [`src/harbor/agents/terminus_2/terminus_2.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/terminus_2/terminus_2.py): Harbor's RL-friendly reference agent
+- [`src/harbor/models/agent/rollout_detail.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/agent/rollout_detail.py): `RolloutDetail` schema
+- [`src/harbor/agents/factory.py`](https://github.com/harbor-framework/harbor/blob/main/src/harbor/agents/factory.py): registration + dynamic `_AGENT_MAP`
+- [`references/hf_inference.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/references/hf_inference.md): per-provider HF Router logprobs support matrix
 - [Harbor agents docs](https://www.harborframework.com/docs/agents)
 - [Terminus 2 docs](https://www.harborframework.com/docs/agents/terminus-2)
-- [SPEC.md](./SPEC.md) — Repo2RLEnv reward_kinds and how they map to this pipe
+- [SPEC.md](./SPEC.md): Repo2RLEnv reward_kinds and how they map to this pipe

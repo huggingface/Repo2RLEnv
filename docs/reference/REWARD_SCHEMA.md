@@ -57,12 +57,12 @@ analysis, filtering, and debugging.
 | Field | Type | Description |
 |---|---|---|
 | `final_reward` | float [0, 1] | Final score, the same value as `reward.txt`. Hard-capped to ≤ 0.40 when `size_sanity < 0.10` (catastrophic-size guard); the breakdown has no separate flag for the cap, so check `components.size_sanity`. |
-| `components.format_valid` | 0 or 1 | Predicted output parses as a valid unified diff. Weight 0.00 — kept as a guard, not a scoring factor. |
-| `components.size_sanity` | [0, 1] | `min(oracle_loc, pred_loc) / max(oracle_loc, pred_loc)` — detects severe over- or under-generation. |
-| `components.file_targeting` | [0, 1] | F1 over the sets of changed files (not Jaccard — F1 gives partial credit for TP). |
+| `components.format_valid` | 0 or 1 | Predicted output parses as a valid unified diff. Weight 0.00: kept as a guard, not a scoring factor. |
+| `components.size_sanity` | [0, 1] | `min(oracle_loc, pred_loc) / max(oracle_loc, pred_loc)`. Catches severe over- or under-generation. |
+| `components.file_targeting` | [0, 1] | F1 over the sets of changed files (not Jaccard; F1 gives partial credit for TP). |
 | `components.region_overlap` | [0, 1] | Predicted hunks overlap oracle hunks within a 5-line slack. |
 | `components.similarity` | [0, 1] | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no credit for context lines). |
-| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` when disabled or API key absent — weight redistributed to remaining components. |
+| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` when disabled or the API key is absent, in which case its weight is redistributed to the remaining components. |
 | `weights` | object | Effective per-component weights (overridable via `R2E_W_*` env vars). |
 | `judge_model` | string or `null` | Model used for `llm_judge` as the serving API names it (e.g. `claude-haiku-4-5-20251001`, `Qwen/Qwen3.5-4B`), or `null` if the judge did not score. |
 | `judge_endpoint` | string or `null` | The OpenAI-compatible server the judge was routed to (`R2E_JUDGE_ENDPOINT`), or `null` on the default Anthropic route. |
@@ -71,7 +71,7 @@ analysis, filtering, and debugging.
 **Weight override env vars** (set inside the verifier container via `--ve`):
 `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM`, `R2E_W_JUDGE`
 
-**Judge routing env vars** (also via `--ve`): `R2E_JUDGE_MODEL`, `R2E_JUDGE_ENDPOINT`, `R2E_JUDGE_API_KEY` — see [`ENV.md`](./ENV.md#pr_diff-reward-tuning).
+**Judge routing env vars** (also via `--ve`): `R2E_JUDGE_MODEL`, `R2E_JUDGE_ENDPOINT`, `R2E_JUDGE_API_KEY`. See [`ENV.md`](./ENV.md#pr_diff-reward-tuning).
 
 ---
 
@@ -81,7 +81,7 @@ analysis, filtering, and debugging.
 
 **`reward.txt`:** `f2p_rate × p2p_rate`, rounded to 6 decimal places.
 
-**`reward-details.json` (normal path — test output successfully parsed):**
+**`reward-details.json` (normal path: test output parsed successfully):**
 
 ```json
 {
@@ -104,7 +104,7 @@ analysis, filtering, and debugging.
 }
 ```
 
-**`reward-details.json` (fallback path — test output unrecognised, no per-test status):**
+**`reward-details.json` (fallback path: test output unrecognised, no per-test status):**
 
 ```json
 {
@@ -134,9 +134,9 @@ analysis, filtering, and debugging.
 | `p2p_passed` | int | P2P tests still passing after the agent's patch. |
 | `p2p_rate` | float [0, 1] | `p2p_passed / p2p_total`. **1.0 when `p2p_total == 0`** (no regression guard). |
 | `regressions` | list[str] | P2P tests that broke under the agent's patch. |
-| `untracked_failed_count` | int | Tests that failed but were not in F2P or P2P — often pre-existing flakiness. |
+| `untracked_failed_count` | int | Tests that failed but were not in F2P or P2P, often from pre-existing flakiness. |
 | `untracked_failed` | list[str] | Names of untracked failures (capped at 20). |
-| `parse_status` | string | `"ok"` — per-test status parsed successfully. `"fallback_exitcode"` — runner output unrecognised, `reward` is binary exit-code based. |
+| `parse_status` | string | `"ok"`: per-test status parsed successfully. `"fallback_exitcode"`: runner output unrecognised, so `reward` is binary and based on the exit code. |
 | `eval_trustworthy` | bool | Only present in `fallback_exitcode` path. `false` when an F2P oracle exists but couldn't be verified. |
 | `runner` | string | Detected test runner: `"pytest"` \| `"go"` \| `"cargo"` \| `"jest"` \| `""` |
 | `tests_parsed` | int | Total tests detected in log output (only in `parse_status == "ok"`). |

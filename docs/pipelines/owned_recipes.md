@@ -3,15 +3,16 @@ title: "Owned generation recipes"
 navTitle: "Run research recipes"
 ---
 
-Owned recipes bring research methods into Repo2RLEnv without installing or cloning
-the upstream research implementations at runtime. Each recipe has its own source
-pin, notices, algorithm, options and RFC. Harbor and ordinary libraries remain
-dependencies. Target repositories are input data and may be cloned remotely.
+A research recipe is Repo2RLEnv's own implementation of a published
+task-generation method. It doesn't install or clone the upstream research code at
+runtime. Each recipe has its own source pin, notices, algorithm, options and RFC.
+Harbor and ordinary libraries are still dependencies. Target repositories are
+input data, and they may be cloned on the remote worker.
 
-Start with the input you have. Each walkthrough below explains the algorithm,
-numbers every model call, shows retry edges, and links to complete prompts.
-The [prompt guide](prompt_reference.md) explains how templates become actual
-requests recorded in a campaign.
+Pick a recipe by the input you have. Each walkthrough explains the algorithm,
+numbers every model call, shows where retries loop back, and links to the
+complete prompts. The [prompt guide](prompt_reference.md) explains how those
+templates become the actual requests recorded in a campaign.
 
 ## Choose a generation route
 
@@ -54,18 +55,20 @@ flowchart TD
 | [FrontierSmith](frontiersmith.md) | `optimization_synth / frontiersmith` | Closed-ended seed problems | Best sampled solution; not a proven optimum |
 | [SCALER](scaler.md) | `reasoning_synth / scaler` | Released family JSON | Answer from supplied reference program |
 
-`pipeline.name` describes the generation family; `recipe` selects its
-research-inspired implementation. Existing native behavior remains available
-without a recipe. These 16 recipes are experimental. SEC-bench is deferred and is not implemented.
+`pipeline.name` names the generation family, and `recipe` picks the
+research-inspired implementation within it. Leave out the recipe and you get the
+existing native behavior. All 16 recipes are experimental. SEC-bench is deferred
+and not implemented.
 
 ```bash
 repo2rlenv pipelines list
 repo2rlenv pipelines describe repo_mutate --recipe swe_smith --json
 ```
 
-The catalog distinguishes **planned** methods from executable **experimental**
-implementations. An executable recipe is not a claim of training-quality output.
-The shared architecture and ownership policy are in [RFC 0011](../rfcs/0011-owned-recipes.md).
+The catalog marks each method as **planned** or as an executable
+**experimental** implementation. A recipe that runs isn't a claim that its output
+is good enough to train on. [RFC 0011](../rfcs/0011-owned-recipes.md) covers the
+shared architecture and ownership policy.
 
 ## Where each stage runs
 
@@ -96,22 +99,26 @@ sequenceDiagram
   C->>C: Export bundle and lineage
 ```
 
-This shows execution boundaries, not one universal stage order. Historical
-recipes establish contrast before instruction writing; TerminalWorld replays
-before test writing; SCALER has no model stage. SWE-smith's fresh Harbor checks
-are a separate campaign step. Follow each method's diagram for its exact order.
+The diagram shows where each kind of work happens. It isn't one stage order
+that every recipe follows. The history recipes establish the before-and-after
+contrast before they write the instruction, TerminalWorld replays before it
+writes tests, and SCALER has no model stage at all. SWE-smith's fresh Harbor
+checks are a separate campaign step. Each method's own diagram gives its exact
+order.
 
-Preflight checks the source, recipe, budget and runtime hash. The model receives
+Preflight checks the source, recipe, budget and runtime hash. The model gets
 stage-specific system and user messages plus an output schema. Execution evidence
-includes test identities, rewards, logs and artifacts. The cloud worker is a
-Modal or Daytona sandbox running the owned wheel and Docker.
+includes test identities, rewards, logs and artifacts. The cloud
+[worker](../concepts/glossary.mdx#worker) is a Modal or Daytona sandbox running
+the owned wheel and Docker.
 
-The controller performs metadata acquisition, parsing, model calls, accounting
-and file assembly. Image builds and target/generated-code execution happen
-remotely. Repository profiles reuse `ensure_bootstrap` with an explicit Dockerfile
-and its cache, without the bootstrap LLM agent. Terminal builders generate their
-task-specific setup and fixtures as part of the recipe. Dependencies are installed
-before the learner runs offline.
+The [controller](../concepts/glossary.mdx#controller) on your machine handles
+metadata, parsing, model calls, accounting and file assembly. Image builds, and
+any run of target or generated code, happen remotely. Repository profiles reuse
+`ensure_bootstrap` with an explicit Dockerfile and its cache, but without the
+bootstrap LLM agent. Terminal builders generate their own task-specific setup and
+fixtures as part of the recipe. Dependencies are installed before the learner
+runs, and the learner runs offline.
 
 ## What a task contains
 
@@ -131,35 +138,38 @@ before the learner runs offline.
     Dockerfile               # When using a separate verifier environment
 ```
 
-The bundle is not copied wholesale into the learner container. Harbor uses its
-environment, solution and tests in their respective phases. Model receipts and
-generation traces stay outside it.
+Harbor doesn't copy the whole bundle into the learner's container. It uses the
+environment, solution and tests, each in its own phase. Model receipts and
+generation traces stay outside the bundle.
 
 | Verification shape | Recipes | Current reward |
 |---|---|---|
 | Collect allowed source into a separate verifier | SWE-smith, SWE-gen, SWE-Flow, R2E, SWE-Next, R2E-Gym | Required tests pass with expected nonempty identities; binary 0/1 |
-| Inspect terminal state with generated pytest tests | SETA, DataArc, TMax, Endless Terminals, TerminalWorld | All required tests pass; binary 0/1. Recorded weights do not make the current grader fractional. |
+| Inspect terminal state with generated pytest tests | SETA, DataArc, TMax, Endless Terminals, TerminalWorld | All required tests pass; binary 0/1. Recorded weights don't make the current grader fractional. |
 | Check environment restoration | CLI-Gym | Healthy tests restored and protected source preserved; binary 0/1 |
 | Collect answer file into a separate verifier | SCALER | Native answer equivalence; −1/+1 |
 
-Generation checks establish runnable tasks and references. Independent
-instructional-quality and adversarial review remain a later phase.
+Generation checks only show that a task and its reference run. Independent
+review of instruction quality, and adversarial review, come later.
 
 ## Accounting and workers
 
-Initialize an explicit budget once. Reinitializing with a different amount is
-rejected. Unknown model/provider outcomes retain their reservation; completed
-calls are accounted using recorded usage estimates rather than counted twice.
+Set the budget once, explicitly. Reinitializing with a different amount is
+rejected. A model or provider call whose outcome is unknown keeps its
+reservation. Completed calls are charged from recorded usage estimates and never
+counted twice.
 
-Set `execution.campaign_dir` in the generation config to this campaign directory.
-`generate --max-spend-usd` is a native-generation option; owned recipes reject it
-before dispatch and use the shared campaign ledger instead. `--pipeline-opt`
-overrides individual options even when the pipeline name comes from `--config`.
+Point `execution.campaign_dir` in the generation config at the campaign
+directory. `generate --max-spend-usd` only applies to native generation: recipes
+reject it before dispatch and use the shared campaign ledger instead.
+`--pipeline-opt` overrides individual options, even when the pipeline name comes
+from `--config`.
 
-Owned `generate --json` emits JSON Lines progress; inspection commands such as
-`tasksmith show --json` and `quality show --json` emit one JSON result. CLI failures
-use `{"error": "ExceptionType", "message": "description"}` and exit 2. Logs go to
-stderr; `--verbose` adds a traceback there without changing machine output.
+For recipes, `generate --json` prints progress as JSON Lines. Inspection commands
+such as `tasksmith show --json` and `quality show --json` print a single JSON
+result. CLI failures print `{"error": "ExceptionType", "message": "description"}`
+and exit 2. Logs go to stderr, and `--verbose` adds a traceback there without
+changing the machine-readable output.
 
 ```bash
 repo2rlenv campaign init workspace/my-campaign --budget-usd 25
@@ -171,36 +181,36 @@ repo2rlenv campaign status workspace/my-campaign --json
 repo2rlenv workers stop workspace/my-campaign/workers/my-worker.json
 ```
 
-Stopping a worker confirms cleanup but does not invent a bill. Reconcile a
-reservation with a usage/billing receipt or a clearly labelled conservative
-estimate:
+Stopping a worker confirms cleanup, but it doesn't make up a bill. Reconcile
+the reservation with a usage or billing receipt, or with a conservative estimate
+that's clearly labelled as one:
 
 ```bash
 repo2rlenv campaign settle workspace/my-campaign --operation worker:modal:my-worker \
   --cost-usd 0.30 --evidence workspace/my-campaign/worker-usage.json
 ```
 
-The amount above illustrates the command; it is not a price quotation. Include
-failed requests, image builds and runtime in campaign accounting. Model receipts
-record requests, responses, schema, usage and the cost basis. Keep these private
-review artifacts outside learner-visible task directories.
+The amount above only illustrates the command; it isn't a price quote. Campaign
+accounting should include failed requests, image builds and runtime. Model
+receipts record the request, response, schema, usage and cost basis. Keep these
+private review artifacts out of any task directory the learner can see.
 
-Modal workers run Docker inside a VM. Daytona workers use its image build and
-Docker-in-Docker facilities; account limits can differ. Modal's timeout is a
-maximum lifetime. Daytona's configured auto-stop is an **idle** timeout, and the
-owned controller additionally stops dispatch after the recorded execution window.
-Always terminate workers explicitly after use; there is no local Docker fallback.
+Modal workers run Docker inside a VM. Daytona workers use Daytona's image builds
+and Docker-in-Docker, and account limits can differ. Modal's timeout is a maximum
+lifetime. Daytona's configured auto-stop is an **idle** timeout, so the
+controller also stops dispatching work once the recorded execution window ends.
+Always terminate workers explicitly when you're done. There's no local Docker
+fallback.
 
 ## Output and acceptance
 
-The current release target is **100 generated tasks for each of twelve methods**,
-plus the approved smaller TMax collection of 55 and CLI-Gym collection of 25.
-The first 20-task milestones
-preceded this expansion. Tasksmith has its separate verified 50-task cohort. See
-the [release inventory](releases.md) for completed datasets and remaining counts.
-Detailed attack and blind-rollout audits follow generation; they do not block
-implementing the next recipe.
-This sequencing does not change what a later quality-accepted label means.
+The release target is **100 generated tasks for each of twelve methods**, plus
+two smaller approved collections: 55 tasks for TMax and 25 for CLI-Gym. The
+first milestones were 20 tasks each. Tasksmith has its own verified cohort of 50
+tasks. The [release inventory](releases.md) lists the finished datasets and the
+remaining counts. Detailed attack and blind-rollout audits come after
+generation, and they don't hold up work on the next recipe. That ordering doesn't
+change what a quality-accepted label means when one is given later.
 
 ```mermaid
 flowchart LR
@@ -211,28 +221,32 @@ flowchart LR
   R --> A["Artifact-bound acceptance report"]
 ```
 
-Generation reports attempted and exported counts. Acceptance requires every
-mandatory quality criterion to pass with evidence for the current bundle hash;
-missing checks, failed checks and evidence for an older revision are not passes.
-Solver failure alone does not invalidate a task. The initial owned implementation
-is still collecting these audits; its generated tasks are labelled **exported**.
+Generation reports how many candidates it attempted and how many it exported.
+Acceptance is stricter. Every mandatory quality criterion must pass, with
+evidence for the current [bundle hash](../concepts/glossary.mdx#bundle-hash). A
+missing check, a failed check or evidence for an older revision isn't a pass. A
+solver failing on a task doesn't, by itself, make the task invalid. These audits
+are still being collected, so the tasks the recipes generate are labelled
+**exported**.
 
-Harbor 0.22.0 parses the emitted schema 1.3 tasks. Some worker kernels do not
-support Harbor's nftables-based dynamic firewall. The owned
-`repo2rlenv.execution.harbor_offline:OfflineDockerEnvironment` adapter supports
-Linux Dockerfile tasks that remain offline in every phase, using Docker's
-`network_mode: none`. It rejects allowlists, network transitions and task-defined
-extra services. Other task shapes require another verified runtime route.
+Harbor 0.22.0 parses the schema 1.3 tasks the recipes emit. Some worker kernels
+don't support Harbor's nftables-based dynamic firewall. The owned
+`repo2rlenv.execution.harbor_offline:OfflineDockerEnvironment` adapter handles
+Linux Dockerfile tasks that stay offline in every phase, using Docker's
+`network_mode: none`. It rejects allowlists, network transitions and extra
+services defined by the task. Other task shapes need another verified runtime
+route.
 
-Implemented recipe guides: [SWE-smith](repo_mutate.md), [SETA Seed2Synth](terminal_synth.md),
-[SETA Evol](task_evolve.md), [SWE-gen](pr_to_env.md), [SWE-Flow](repo_reconstruct.md)
-and [R2E](r2e.md), plus [TMax](tmax.md) and
-[Endless Terminals](endless_terminals.md), [TerminalWorld](terminalworld.md),
-[CLI-Gym](env_repair.md), [DataArc](dataarc.md), [SWE-Next](swe_next.md), and [R2E-Gym](r2e_gym.md).
-[SCALER](scaler.md) adds algorithmic reasoning instances from released families.
-Those 14 recipes form the published research cohort. [CodeMidas](codemidas.md)
-adds source-driven reconstruction in a separate local campaign using Sol/Luna and
-Daytona. SEC-bench remains deferred and is not an implemented recipe.
+The published research cohort has 14 recipes: [SWE-smith](repo_mutate.md),
+[SETA Seed2Synth](terminal_synth.md), [SETA Evol](task_evolve.md),
+[SWE-gen](pr_to_env.md), [SWE-Flow](repo_reconstruct.md), [R2E](r2e.md),
+[TMax](tmax.md), [Endless Terminals](endless_terminals.md),
+[TerminalWorld](terminalworld.md), [CLI-Gym](env_repair.md),
+[DataArc](dataarc.md), [SWE-Next](swe_next.md), [R2E-Gym](r2e_gym.md), and
+[SCALER](scaler.md), which adds algorithmic reasoning instances from released
+families. [CodeMidas](codemidas.md) adds source-driven reconstruction in a
+separate local campaign using Sol/Luna and Daytona. SEC-bench is still deferred
+and isn't an implemented recipe.
 
 ## Contract references
 

@@ -3,7 +3,7 @@ title: "Rewards"
 description: "How each task family is scored, where the score is written, and how to use it for evaluation and RL training."
 ---
 
-Every task's [verifier](glossary.mdx#verifier) writes one number to `/logs/verifier/reward.txt`, and Harbor records it as the trial's reward. What the number means depends on the task family. Repo2RLEnv uses four scoring schemes, and this page explains each one so you can compare scores, pick a training signal and debug surprising results.
+Every task's [verifier](glossary.mdx#verifier) writes one number to `/logs/verifier/reward.txt`, and Harbor records it as the trial's reward. What the number means depends on the task family. There are four reward kinds, and test execution comes in a graded and a binary form. This page covers each one, so you can compare scores, pick a training signal and debug surprising results.
 
 ## At a glance
 

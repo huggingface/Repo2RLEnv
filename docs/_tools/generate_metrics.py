@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def unit(row: dict, key: str) -> str:
     value = row.get(key)
-    return "—" if value is None else f"${Decimal(str(value)) / row['sample_exports']:.2f}"
+    return "n/a" if value is None else f"${Decimal(str(value)) / row['sample_exports']:.2f}"
 
 
 def native_tables(history: dict) -> tuple[list[str], list[str]]:
@@ -33,7 +33,7 @@ def native_tables(history: dict) -> tuple[list[str], list[str]]:
     economics = [
         "## Native pipeline measurements",
         "",
-        "These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. — means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.",
+        "These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. n/a means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.",
         "",
         "| Pipeline | Retained tasks | Measured generation yield | Recorded synthesis / task | Scope |",
         "|---|---:|---:|---:|---|",
@@ -49,7 +49,7 @@ def native_tables(history: dict) -> tuple[list[str], list[str]]:
         yield_text = (
             f"{row['tasks']}/{attempted} ({100 * row['tasks'] / attempted:.1f}%)"
             if attempted
-            else "—"
+            else "n/a"
         )
         name = f"[{row['pipeline']}]({row['guide']})"
         evidence = (
@@ -62,7 +62,7 @@ def native_tables(history: dict) -> tuple[list[str], list[str]]:
             f"[Dataset](https://huggingface.co/datasets/{row['repo_id']}) · {evidence} |"
         )
         value = row["recorded_synthesis_usd"]
-        cost = "—" if value is None else f"${Decimal(value) / row['tasks']:.3f}"
+        cost = "n/a" if value is None else f"${Decimal(value) / row['tasks']:.3f}"
         if row["pipeline"] == "equivalence_tests" and value is not None:
             cost = "≥ " + cost
         economics.append(
@@ -260,7 +260,7 @@ def render(data: dict, frontiersmith: dict | None = None) -> dict[str, str]:
         "",
         "## Research recipes and Tasksmith generation",
         "",
-        "Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **— means unavailable, not zero.**",
+        "Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **n/a means unavailable, not zero.**",
         "",
         "| Pipeline | Attempted candidates | New tasks | Yield | Model / task | Compute / task | Total generation / task |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -286,9 +286,9 @@ def render(data: dict, frontiersmith: dict | None = None) -> dict[str, str]:
             raise ValueError(f"Invalid measurement denominator: {row['recipe']}")
         name = f"[{row['recipe']}]({row['guide']})"
         attempted = row.get("attempted_candidates")
-        rate = f"{100 * n / attempted:.1f}%" if attempted else "—"
+        rate = f"{100 * n / attempted:.1f}%" if attempted else "n/a"
         economics.append(
-            f"| {name} | {attempted if attempted else '—'} | {n} | {rate} | "
+            f"| {name} | {attempted if attempted else 'n/a'} | {n} | {rate} | "
             f"{unit(row, 'model_usd')} | {unit(row, 'compute_usd')} | {unit(row, 'generation_usd')} |"
         )
         labels = "; ".join(f"{v} {k.replace('_', ' ')}" for k, v in row["quality_counts"].items())

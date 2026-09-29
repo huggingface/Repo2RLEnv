@@ -1,5 +1,5 @@
 ---
-title: "CodeMidas — v0.9.2 release notes and dataset audit"
+title: "CodeMidas: v0.9.2 release notes and dataset audit"
 navTitle: "CodeMidas (0.9.2)"
 ---
 

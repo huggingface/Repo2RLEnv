@@ -2,21 +2,21 @@
 title: "swe_smith"
 ---
 
-**Status:** experimental; owned generation and Harbor execution pilot. No claim
-of a completed 20/100-task quality campaign yet.
+**Status:** experimental. Generation and Harbor execution are at the pilot
+stage; no 20- or 100-task quality campaign is claimed as complete yet.
 
-The `swe_smith` recipe starts from a healthy Python repository, introduces seeded
-single-site defects, and keeps mutations that produce identifiable failures in
-the existing test suite. An issue writer describes the observed behavior. The
-original implementation supplies the reference repair.
+The `swe_smith` recipe starts from a healthy Python repository and plants seeded,
+single-site defects. It keeps the mutations that make the existing test suite
+fail in a way you can pin to specific tests. An issue writer then describes the
+behavior it observed, and the original implementation is the reference repair.
 
 ## Method and attribution
 
-Inspired by [SWE-smith](https://github.com/SWE-bench/SWE-smith), MIT, source commit
-`9b74ac08118a85c39c356802f7961893af73e07f`. The owned code adapts the procedural
-operator/control-flow mutations, execution contrast, and issue-from-test-evidence
-stages. It does not implement the upstream LLM rewrite or multi-mutation
-combination strategies. See [RFC 0012](../rfcs/0012-swe-smith-recipe.md) and the
+Inspired by [SWE-smith](https://github.com/SWE-bench/SWE-smith) (MIT), source
+commit `9b74ac08118a85c39c356802f7961893af73e07f`. The owned code adapts three of
+its stages: procedural operator and control-flow mutations, execution contrast,
+and writing the issue from test evidence. It doesn't implement the upstream LLM
+rewrite or the strategies that combine several mutations. See [RFC 0012](../rfcs/0012-swe-smith-recipe.md) and the
 packaged `pipelines/recipes/swe_smith/provenance.md` and `UPSTREAM_LICENSE`.
 
 ## Pipeline, step by step
@@ -34,33 +34,33 @@ flowchart TD
   H -.-> Q["Separate campaign: fresh Harbor trials and quality review"]
 ```
 
-`P1`, `P2`, … identify actual model calls. Unlabelled stages are code or remote execution.
+`P1`, `P2`, … mark real model calls. Unlabelled stages are code or remote execution.
 
-**Prepare and mutate.** A healthy test report and source tree become a seeded, formatting-preserving operator, condition or constant edit. No model chooses the mutation.
+**Prepare and mutate.** Starting from a healthy source tree and its passing test report, the recipe makes one seeded edit to an operator, condition or constant, and keeps the file's formatting. No model picks the mutation.
 
-**Measure behavior.** The same tests run on the defective state. Invalid collection, no meaningful failures or loss of expected passing behavior rejects the mutation before spending on issue writing.
+**Measure behavior.** The same tests run against the broken code. If collection fails, nothing meaningful fails, or expected passing behavior is lost, the mutation is rejected before anything is spent on issue writing.
 
-**Author and export.** Only failing test excerpts and the defective execution log enter the issue author. The learner receives the mutated repository and public issue; the reference restores original source.
+**Author and export.** The issue writer sees only excerpts of the failing tests and the log from the broken run. The learner gets the mutated repository and the public issue. The reference restores the original source.
 
 ## Every prompt and its data
 
-One issue-writing call on the first successful attempt; up to two attempts in the pipeline.
+There's one issue-writing call when the first attempt succeeds, and at most two attempts in total.
 
 | Call | System prompt composition | User / input material | Output | Retry or branch |
 |---|---|---|---|---|
 | P1 · Issue | issue_prompt.md | Selected failing test source and imports, defective stdout, optional review feedback. No mutation patch is passed. | IssueReport: issue, reason | Malformed JSON, private test names, unsupported test-oriented wording and invalid/undefined Python examples produce revision feedback. |
 
-Read the [complete swe_smith prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_smith/) for every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) explains how to inspect the fully resolved request from a real run.
+The [complete swe_smith prompt reference](https://huggingface.github.io/Repo2RLEnv/pipelines/prompts/swe_smith/) has every retained template, appended instruction, substitution, example and output schema. The [shared prompt guide](prompt_reference.md) shows how to inspect the fully resolved request from a real run.
 
 ## Follow one task
 
-Illustration: a seeded boundary-condition edit makes a batching helper mishandle the last group. The issue describes that observable symptom. Hidden existing tests establish the failure; restoring the original helper is the reference.
+Say a seeded boundary-condition edit makes a batching helper mishandle the last group. The issue describes that symptom the way a user would see it. Existing tests, hidden from the learner, show the failure, and the reference restores the original helper.
 
 ## What repeats, what is checked
 
-The issue writer defaults to two attempts. The recipe itself exports after remote source-level contrast; fresh Harbor trials for SWE-smith are a separate campaign step, unlike recipes that call Harbor inside author_export. Do not infer per-export Harbor success from the common repository runner.
+The issue writer gets two attempts by default. The recipe exports as soon as the remote source-level contrast holds. Unlike recipes that call Harbor inside `author_export`, SWE-smith runs fresh Harbor trials as a separate campaign step, so don't read per-export Harbor success into the shared repository runner.
 
-An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces belong to the later quality campaign.
+An exported bundle is a generation result. Independent leakage review, shortcut probes and blind solver traces come later, in the quality campaign.
 
 ## Implementation map
 
@@ -70,13 +70,11 @@ An exported bundle is a generation result. Independent leakage review, shortcut 
 - [`swe_smith/export.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_smith/export.py)
 - [`swe_smith/grade.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/swe_smith/grade.py)
 
-
-
 ## Run
 
-This experimental route requires a checkout to build the owned worker wheel.
-It verifies that the wheel matches the controller's package before uploading it.
-No generated code or Docker image is executed on the controller.
+You need a checkout of this repository to build the worker wheel. The controller
+checks that the wheel matches its own package before uploading it, and it never
+runs generated code or a Docker image itself.
 
 ```bash
 uv sync --extra modal --extra mutation --extra harbor
@@ -87,14 +85,16 @@ uv run repo2rlenv workers start --campaign workspace/smith --provider modal \
 uv run repo2rlenv generate --config examples/owned-swe-smith.yaml
 ```
 
-Use `--no-ui` before `generate` for plain progress, or `generate --json` for JSON
-Lines. The same typed events drive the Rich display and durable journal.
+Put `--no-ui` before `generate` for plain progress output, or use
+`generate --json` for JSON Lines. Both come from the same typed events that drive
+the Rich display and the durable journal.
 
-The sample targets one execution-valid candidate before issue generation. It
-uses a pinned revision of more-itertools, a public CPU-only pytest profile.
-Change the source/test paths, build dependencies and installation command for a
-different repository. The recipe currently supports public GitHub repositories;
-private sources, non-Python mutations and GPU profiles are not implemented.
+The sample config aims for one execution-valid candidate before issue
+generation. It uses a pinned revision of more-itertools with a public, CPU-only
+pytest profile. For another repository, change the source and test paths, the
+build dependencies and the install command. Only public GitHub repositories are
+supported. Private sources, non-Python mutations and GPU profiles aren't
+implemented.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -111,40 +111,42 @@ private sources, non-Python mutations and GPU profiles are not implemented.
 
 ## What grading receives
 
-Both learner and verifier build contexts start with the defective source. The
-learner image omits the configured test paths and has no Git history. The
-reference lives only under `solution/`. Harbor collects the allowed Python source
-files into a fresh verifier environment. Test files, interpreter, configuration
-and reward writer are not copied from the learner.
+The learner and verifier build contexts both start from the broken source. The
+learner image leaves out the configured test paths and has no Git history. The
+reference lives only under `solution/`. Harbor copies the allowed Python source
+files into a fresh verifier environment. Test files, the interpreter,
+configuration and the reward writer never come from the learner.
 
-The trusted parent launches pytest as an unprivileged user and checks a nonempty,
-exact expected set of passing test identities. Empty reports, missing tests,
-collection errors and contradictory exit codes cannot produce success. This
-reduces common verifier shortcuts; arbitrary Python can still attack an in-process
-test runner, so attack probes and trace review remain acceptance requirements.
+A trusted parent process runs pytest as an unprivileged user and checks for an
+exact, nonempty set of expected passing test IDs. Empty reports, missing tests,
+collection errors and contradictory exit codes can't produce success. That
+closes off common verifier shortcuts. Arbitrary Python can still attack an
+in-process test runner, though, so attack probes and trace review are still
+required for acceptance.
 
 ## Recovery
 
 Run receipts live at `execution.campaign_dir/runs/execution.run_id`. An explicit
-`generate --resume --config ...` observes an already-dispatched remote job and
-reuses matching completed model responses. It does not silently repeat an
-uncertain model request. Changing configuration or worker code requires a new
-run ID. An interrupted worker launch with no recoverable identity requires
-provider reconciliation, not a blind retry.
+`generate --resume --config ...` picks up a remote job that was already
+dispatched and reuses matching completed model responses. It won't silently
+repeat a model request whose outcome is uncertain. If you change the
+configuration or the worker code, use a new run ID. A worker launch that was
+interrupted before it had a recoverable identity needs provider reconciliation,
+not a blind retry.
 
-Keep the worker running until generation evidence has been downloaded, then use
-`workers stop`. Completed exports and quality reports have different identities
-and lifecycles; editing a task invalidates its prior quality evidence.
+Keep the worker running until you've downloaded the generation evidence, then run
+`workers stop`. Completed exports and quality reports have separate identities
+and lifecycles, and editing a task invalidates its earlier quality evidence.
 
 ## Pilot evidence
 
-The first owned candidate at more-itertools revision
-`9ed3dbb0ae527230cd156d91d0af305478558fba` caused an intended failure with 749
-baseline passing test identities. Its emitted Harbor task returned 0 for nop and
-1 for two fresh oracle trials through the remote offline adapter. The instruction
-still required semantic review and repair; these results establish execution
-contrast, not training-quality acceptance or population yield.
+The first candidate, at more-itertools revision
+`9ed3dbb0ae527230cd156d91d0af305478558fba`, caused the intended failure against
+749 baseline passing test IDs. Its Harbor task scored 0 for nop and 1 in two
+fresh oracle trials through the remote offline adapter. The instruction still
+needed semantic review and repair. These results show execution contrast, not
+training-quality acceptance or population yield.
 
-The first generation campaign now has 24 distinct exports from 29 mutation
-attempts. Twenty exports have also passed fresh Harbor checks (nop 0, oracle 1)
-on Modal. These are generation results; quality acceptance remains pending.
+The first generation campaign has 24 distinct exports from 29 mutation attempts.
+Twenty of them have also passed fresh Harbor checks on Modal (nop 0, oracle 1).
+These are generation results; quality acceptance is still pending.

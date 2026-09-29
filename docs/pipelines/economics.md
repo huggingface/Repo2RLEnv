@@ -6,25 +6,25 @@ Observed samples measured on **2026-09-14**. Use these as measured examples, not
 
 ## Research recipes and Tasksmith generation
 
-Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **— means unavailable, not zero.**
+Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **n/a means unavailable, not zero.**
 
 | Pipeline | Attempted candidates | New tasks | Yield | Model / task | Compute / task | Total generation / task |
 |---|---:|---:|---:|---:|---:|---:|
-| [swe-smith](repo_mutate.md) | — | 76 | — | $0.03 | — | — |
-| [r2e](r2e.md) | — | 80 | — | $0.22 | — | — |
-| [swe-gen](pr_to_env.md) | — | 80 | — | $0.02 | — | — |
-| [swe-next](swe_next.md) | — | 80 | — | $0.09 | — | — |
-| [r2e-gym](r2e_gym.md) | — | 80 | — | $0.04 | — | — |
-| [scaler](scaler.md) | — | 80 | — | $0.00 | — | — |
+| [swe-smith](repo_mutate.md) | n/a | 76 | n/a | $0.03 | n/a | n/a |
+| [r2e](r2e.md) | n/a | 80 | n/a | $0.22 | n/a | n/a |
+| [swe-gen](pr_to_env.md) | n/a | 80 | n/a | $0.02 | n/a | n/a |
+| [swe-next](swe_next.md) | n/a | 80 | n/a | $0.09 | n/a | n/a |
+| [r2e-gym](r2e_gym.md) | n/a | 80 | n/a | $0.04 | n/a | n/a |
+| [scaler](scaler.md) | n/a | 80 | n/a | $0.00 | n/a | n/a |
 | [endless-terminals](endless_terminals.md) | 99 | 80 | 80.8% | $0.37 | $0.15 | $0.52 |
-| [cli-gym](env_repair.md) | — | 5 | — | $0.71 | $0.43 | $1.14 |
-| [swe-flow](repo_reconstruct.md) | — | 76 | — | $0.05 | $0.25 | $0.30 |
+| [cli-gym](env_repair.md) | n/a | 5 | n/a | $0.71 | $0.43 | $1.14 |
+| [swe-flow](repo_reconstruct.md) | n/a | 76 | n/a | $0.05 | $0.25 | $0.30 |
 | [seta-seed2synth](terminal_synth.md) | 112 | 77 | 68.8% | $0.54 | $0.17 | $0.71 |
 | [seta-evol](task_evolve.md) | 92 | 80 | 87.0% | $0.38 | $0.17 | $0.56 |
 | [tmax](tmax.md) | 104 | 35 | 33.7% | $1.68 | $0.42 | $2.10 |
 | [terminalworld](terminalworld.md) | 1293 | 80 | 6.2% | $0.68 | $0.58 | $1.26 |
 | [dataarc](dataarc.md) | 83 | 80 | 96.4% | $0.18 | $0.15 | $0.33 |
-| [tasksmith](tasksmith.md) | — | 26 | — | — | — | — |
+| [tasksmith](tasksmith.md) | n/a | 26 | n/a | n/a | n/a | n/a |
 
 ## How to read the measurements
 
@@ -107,16 +107,16 @@ Interactive assistant usage is excluded. Model costs use recorded usage and the 
 
 ## Native pipeline measurements
 
-These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. — means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.
+These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. n/a means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.
 
 | Pipeline | Retained tasks | Measured generation yield | Recorded synthesis / task | Scope |
 |---|---:|---:|---:|---|
-| [pr_diff](pr_diff.md) | 181 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
-| [pr_runtime](pr_runtime.md) | 100 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
-| [commit_runtime](commit_runtime.md) | 100 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [pr_diff](pr_diff.md) | 181 | n/a | n/a | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [pr_runtime](pr_runtime.md) | 100 | n/a | n/a | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [commit_runtime](commit_runtime.md) | 100 | n/a | n/a | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
 | [code_instruct](code_instruct.md) | 100 | 100/136 (73.5%) | $0.038 | Run-cumulative synthesis counters: sum one final maximum per repo, not every task. Includes retries through the last export; excludes bootstrap, compute, rollouts and earlier development. |
-| [equivalence_tests](equivalence_tests.md) | 100 | — | ≥ $0.025 | Lower bound from seven productive runs only. Excludes zero-output runs, later failed attempts, bootstrap, compute and rollouts; not an all-in task price. |
-| [cve_patches](cve_patches.md) | 19 | — | — | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
+| [equivalence_tests](equivalence_tests.md) | 100 | n/a | ≥ $0.025 | Lower bound from seven productive runs only. Excludes zero-output runs, later failed attempts, bootstrap, compute and rollouts; not an all-in task price. |
+| [cve_patches](cve_patches.md) | 19 | n/a | n/a | No complete generation-cost ledger recovered. Unavailable does not mean zero. |
 
 Code-instruct's complete generation log records 136 candidates, correcting the earlier 132-candidate claim. Equivalence-test logs contain at least 200 candidates, including zero-output runs, but several runs lack a final summary; its overall yield is unavailable. Its $0.025/task figure is only a lower bound from productive-run counters.
 

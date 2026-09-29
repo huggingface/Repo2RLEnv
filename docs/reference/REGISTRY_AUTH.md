@@ -9,22 +9,22 @@ the published tasks. This page covers how to log into each supported
 registry and verify the credentials work.
 
 Run `repo2rlenv push --check-auth` to probe every detected registry and
-get a one-shot report. No image is pushed, no garbage created.
+get a one-shot report. It pushes no image and leaves nothing behind.
 
 ## Default flow
 
-You don't have to pre-configure anything — `repo2rlenv push` auto-detects
+You don't have to pre-configure anything. `repo2rlenv push` auto-detects
 the first verified registry from `~/.docker/config.json`. If nothing is
 logged in, push falls back to inline-Dockerfile mode (recipe-level
-reproducibility) and warns about how to upgrade.
+reproducibility) and tells you how to upgrade.
 
-For the launch / CI path use `--require-registry` to hard-fail rather
-than fall back silently.
+For launches and CI, use `--require-registry` to hard-fail instead of
+falling back silently.
 
 ## GHCR (default recommendation)
 
-Free for public images, no anonymous-pull rate limit, ties naturally to a
-GitHub org. **Recommended default for new datasets.**
+Free for public images, no anonymous-pull rate limit, and it maps
+naturally onto a GitHub org. **Recommended default for new datasets.**
 
 ```bash
 gh auth refresh -h github.com -s write:packages
@@ -40,8 +40,8 @@ HF dataset is public.
 
 ## AWS ECR Private
 
-Token TTL is 12h — install `amazon-ecr-credential-helper` once and forget
-about it.
+Token TTL is 12h, so install `amazon-ecr-credential-helper` once and
+forget about it.
 
 ```bash
 brew install docker-credential-helper-ecr  # or apt
@@ -63,7 +63,7 @@ Make sure your IAM role has `ecr:CreateRepository`.
 
 ## AWS ECR Public
 
-Distinct service from Private. **50 GB free public storage, forever.**
+A separate service from ECR Private. **50 GB free public storage, forever.**
 
 ```bash
 aws ecr-public get-login-password --region us-east-1 \
@@ -105,8 +105,8 @@ gcloud artifacts repositories add-iam-policy-binding <repo> \
 
 ## Docker Hub
 
-Default tier has a **100 pulls / 6h / IP anonymous limit** — fine for
-small datasets, but a real problem for benchmarks pulled by many
+The default tier has a **100 pulls / 6h / IP anonymous limit**. That's
+fine for small datasets, but a real problem for benchmarks pulled by many
 consumers or in CI. `repo2rlenv push` will NOT pick Docker Hub as the
 auto-default when other registries are available; pass `--image-registry
 index.docker.io/<user>` to force it.
@@ -119,7 +119,7 @@ echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
 **Credential resolution.** For Docker Hub the probe prefers the explicit
 env vars **`DOCKER_USERNAME` + `DOCKER_TOKEN`** (a PAT) over the docker
-credstore — the credstore returns an OAuth *identity token* that is often
+credstore. The credstore returns an OAuth *identity token* that is often
 pull-only at the token endpoint, while an explicit PAT reliably grants
 push. The push **namespace** is the authenticated Docker Hub user
 (`DOCKER_USERNAME`), not the HF dataset owner, so images land under
@@ -130,7 +130,7 @@ push. The push **namespace** is the authenticated Docker Hub user
 bootstrap image per repo) are fully supported: `push` pushes **each**
 distinct image and rewrites **each** task's `environment/Dockerfile` to
 its own registry digest. If any push fails (or no registry is verified),
-it falls back to inline mode — each task bakes its own rebuild recipe and
+it falls back to inline mode: each task bakes its own rebuild recipe and
 stays reproducible with no registry at all.
 
 ## Local / `registry:2` (testing only)

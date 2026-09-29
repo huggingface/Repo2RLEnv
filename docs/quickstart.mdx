@@ -3,7 +3,7 @@ title: "Quickstart"
 description: "Generate, validate and run your first Harbor environment from a real GitHub repository in about five minutes."
 ---
 
-Turn recent merged PRs from [`pallets/click`](https://github.com/pallets/click) into Harbor tasks, check them, and score them with Harbor. You use the `pr_diff` pipeline, which needs no Docker and no LLM key to generate; running the tasks in step 5 needs Docker.
+Turn recent merged PRs from [`pallets/click`](https://github.com/pallets/click) into Harbor tasks, check them, and score them with Harbor. You'll use the `pr_diff` pipeline, which needs no Docker and no LLM key to generate. Running the tasks in step 5 does need Docker.
 
 You need Python 3.12 or later, Git, and the [GitHub CLI](https://cli.github.com) (`gh`).
 
@@ -49,7 +49,7 @@ emitted     1
 skipped     2 ({'too_many_files': 2})
 ```
 
-`limit` counts PRs listed, not tasks emitted, so you often get fewer tasks than the limit. If nothing is emitted, the command exits with status 1 — raise the limit (for example, `limit=10`) and run it again.
+`limit` counts PRs listed, not tasks emitted, so you often get fewer tasks than the limit. If nothing is emitted, the command exits with status 1. Raise the limit (for example, `limit=10`) and run it again.
 
 </Step>
 <Step>
@@ -80,14 +80,14 @@ tasks
 | `task.toml` | Harbor configuration (`version = "1.0"`, the task name `default/pallets__click-<pr>`, timeouts) plus `[metadata.repo2env]`: the source PR, base commit, reward kind, difficulty and an evaluation label that starts as `unverified`. |
 | `instruction.md` | What the agent reads: the PR's title and description rewritten as an issue, with links to the PR and "Closes #N" references removed. |
 | `environment/Dockerfile` | A `python:3.12-slim` image with the repository checked out at the PR's base commit and later history removed. |
-| `solution/patch.diff` | The merged PR's diff — the reference solution, or [oracle](concepts/glossary.mdx#oracle). |
+| `solution/patch.diff` | The merged PR's diff: the reference solution, or [oracle](concepts/glossary.mdx#oracle). |
 | `solution/solve.sh` | Applies `patch.diff`. Harbor's `oracle` agent runs this script. |
 | `tests/test.sh` | The verifier entry point: captures the agent's changes as a diff against the base commit and runs the scorer. |
 | `tests/verifier.py` | The scorer. It writes the reward to `/logs/verifier/reward.txt` and a per-component breakdown to `reward-details.json`. |
 | `tests/oracle.patch` | The verifier's copy of the reference diff. |
 | `tests/instruction.md` | The verifier's copy of the instruction, used by the optional LLM judge. |
 
-Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1 — file targeting, region overlap, line similarity and patch size, plus an optional LLM judge. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
+Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an optional LLM judge. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
 
 </Step>
 <Step>
@@ -98,7 +98,7 @@ Harbor uploads `tests/` only when it verifies, so the agent never sees the refer
 repo2rlenv validate ./tasks --oracle
 ```
 
-This is a static check. It confirms each `task.toml` parses, the instruction, environment and verifier files exist, and `solution/solve.sh` and `solution/patch.diff` are present. It doesn't build the image or run anything — the next step does that.
+This is a static check. It confirms each `task.toml` parses, the instruction, environment and verifier files exist, and `solution/solve.sh` and `solution/patch.diff` are present. It doesn't build the image or run anything. The next step does.
 
 ```text
 ✓ default/pallets__click-<pr>
@@ -123,7 +123,7 @@ The [`nop`](concepts/glossary.mdx#nop) agent changes nothing, so every task shou
 harbor run -p ./tasks -a nop --env docker
 ```
 
-Now run a real agent — Claude Code with Sonnet:
+Now run a real agent, Claude Code with Sonnet:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...

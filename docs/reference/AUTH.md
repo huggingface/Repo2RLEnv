@@ -3,34 +3,34 @@ title: "Authentication"
 navTitle: "Auth"
 ---
 
-GitHub auth is the only thing Repo2RLEnv really *cares* about — every pipeline starts by cloning a repo or hitting the GitHub API. The other tokens (HF, LLM, E2B) are passthroughs to upstream SDKs that already auto-resolve them.
+GitHub auth is the only credential Repo2RLEnv really *cares* about, because every pipeline starts by cloning a repo or calling the GitHub API. The other tokens (HF, LLM, E2B) pass straight through to upstream SDKs, which already resolve them on their own.
 
-This doc focuses on **GitHub**, then covers the others briefly.
+This page covers **GitHub** first, then the others briefly.
 
-## GitHub auth — three valid paths
+## GitHub auth: three valid paths
 
-Repo2RLEnv shells out to `gh` for clone + PR-list operations. `gh` itself respects `GH_TOKEN` / `GITHUB_TOKEN` env vars **above** any keychain creds, which is what makes the three paths below interchangeable.
+Repo2RLEnv shells out to `gh` for clone + PR-list operations. `gh` itself ranks the `GH_TOKEN` / `GITHUB_TOKEN` env vars **above** any keychain creds, which is why the three paths below are interchangeable.
 
-### Path A — `gh auth login` (most ergonomic)
+### Path A: `gh auth login` (most ergonomic)
 
 ```bash
 gh auth login
 ```
 
-Stores creds in macOS Keychain (or `~/.config/gh/` on Linux). After this, `gh` is authenticated for both public and private repos. Repo2RLEnv resolves the token via `gh auth token`. **No env-var setup needed** — what most HF / OSS contributors already have.
+This stores creds in the macOS Keychain (or `~/.config/gh/` on Linux), and `gh` is then authenticated for both public and private repos. Repo2RLEnv resolves the token with `gh auth token`. **No env-var setup needed**, and it's what most HF / OSS contributors already have.
 
-### Path B — A read-scoped Personal Access Token (no `gh auth login` required)
+### Path B: A read-scoped Personal Access Token (no `gh auth login` required)
 
-If you'd rather not run `gh auth login`, generate a fine-grained PAT at <https://github.com/settings/tokens?type=beta> with **Contents: Read** scope on the repos you care about. Then either:
+If you'd rather not run `gh auth login`, generate a fine-grained PAT at <https://github.com/settings/tokens?type=beta> with **Contents: Read** scope on the repos you care about. Then set it in your shell or in a `.env` file:
 
 ```bash
 # In your shell or a .env file at project root
 export GITHUB_TOKEN=ghp_xxx
 ```
 
-This works because `gh` reads `GH_TOKEN` / `GITHUB_TOKEN` env over its keychain. You never need to log in interactively.
+This works because `gh` prefers `GH_TOKEN` / `GITHUB_TOKEN` from the environment over its keychain, so you never have to log in interactively.
 
-### Path C — Explicit per-repo env var
+### Path C: Explicit per-repo env var
 
 If you have multiple tokens (different orgs, different scopes) and want to be explicit, set the env-var name in your config:
 
@@ -50,7 +50,7 @@ First match wins:
 1. `repo.auth_token_env` (if explicitly set in config)
 2. `gh auth token` (if `gh` is on PATH and `auth.use_gh_cli=true`, default)
 3. `$GITHUB_TOKEN`
-4. None — anonymous clone (fails with a clear error if `access="private"`)
+4. None: anonymous clone (fails with a clear error if `access="private"`)
 
 Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/auth.py).
 
@@ -60,13 +60,13 @@ Implementation: [`src/repo2rlenv/auth.py:resolve_github_token`](https://github.c
 
 | Input | Source | Token | Notes |
 |---|---|---|---|
-| `owner/name` or `https://github.com/...` | GitHub | `resolve_github_token` chain above | unchanged — the default |
+| `owner/name` or `https://github.com/...` | GitHub | `resolve_github_token` chain above | unchanged (the default) |
 | `https://gitlab.com/owner/name` | GitLab | `repo.auth_token_env` → `$GITLAB_TOKEN` (public needs none) | clone via `oauth2:<token>@` |
 | `/abs/path`, `./rel`, `~/x`, `file://…` (Windows: also `C:\path`, `.\rel`, UNC) | Local | none (no `gh` shell-out) | canonicalized to `file://<abspath>` |
 
 Source-aware resolution lives in [`auth.py:resolve_repo_token`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/auth.py); detection + capabilities in [`sources.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/sources.py).
 
-**Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice: the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source; `pr_diff` / `pr_runtime` mine pull/merge requests so they run on **GitHub or GitLab** (gitlab.com merge requests via the REST API); `cve_patches` is GitHub-only (OSV → github.com fix-commits + the GitHub commit API).
+**Capability gating.** Each source declares which platform data it can serve (`pull_requests`, `issues`, `commit_api`); each pipeline declares what it requires. `generate` blocks an incompatible combo up front. In practice, the git/source pipelines (`commit_runtime`, `code_instruct`, `equivalence_tests`) run on **any** source. `pr_diff` / `pr_runtime` mine pull/merge requests, so they run on **GitHub or GitLab** (gitlab.com merge requests via the REST API). `cve_patches` is GitHub-only (OSV → github.com fix-commits + the GitHub commit API).
 
 ## Private repos at task **build** time
 
@@ -77,9 +77,9 @@ harbor run -p ./datasets/<private-dataset> -a oracle --env docker \
   --build-arg GITHUB_TOKEN=$GITHUB_TOKEN
 ```
 
-The emitted Dockerfile declares `ARG GITHUB_TOKEN=` (empty default). When set, the clone goes through an `x-access-token:<token>@github.com/...` URL; the remote is reset to the clean URL immediately after, so the token never persists in `git config` inside the image and is never baked into a layer. **Public** repos need no build arg — the clone falls back to the anonymous URL.
+The emitted Dockerfile declares `ARG GITHUB_TOKEN=` (empty default). When it's set, the clone goes through an `x-access-token:<token>@github.com/...` URL, and the remote is reset to the clean URL straight after. The token never persists in `git config` inside the image and is never baked into a layer. **Public** repos need no build arg; the clone falls back to the anonymous URL.
 
-The same generation-time token also packages bootstrap-built images for `_runtime` pipelines (cloned host-side and `docker cp`'d in — never embedded). See [`reference/BOOTSTRAP.md`](./BOOTSTRAP.md).
+The same generation-time token also packages bootstrap-built images for `_runtime` pipelines (cloned host-side and `docker cp`'d in, never embedded). See [`reference/BOOTSTRAP.md`](./BOOTSTRAP.md).
 
 ## Failure modes
 
@@ -92,7 +92,7 @@ The same generation-time token also packages bootstrap-built images for `_runtim
 
 ## Other services (brief)
 
-These are passthroughs — Repo2RLEnv reads them but defers to the upstream SDK's resolution.
+These are passthroughs. Repo2RLEnv reads them but leaves resolution to the upstream SDK.
 
 ### Hugging Face Hub
 
@@ -112,7 +112,7 @@ LiteLLM resolves provider keys from provider-default env vars:
 
 Override with `--llm-key-env VAR` (or `llm.api_key_env` in config) if you have non-default names. Providers not in the table are resolved by LiteLLM's own per-provider lookup.
 
-**Self-hosted models need no key.** Point `--llm-endpoint` (or `llm.endpoint`) at any OpenAI-compatible server and use `hosted_vllm/<model>` or `openai/<model>`. The provider-default key is never forwarded to a custom endpoint — `openai/` gets a placeholder, `hosted_vllm/` honours `HOSTED_VLLM_API_KEY` if set. Pass `--llm-key-env VAR` to send a specific key. `ollama/<model>` reads `OLLAMA_API_BASE` on its own.
+**Self-hosted models need no key.** Point `--llm-endpoint` (or `llm.endpoint`) at any OpenAI-compatible server and use `hosted_vllm/<model>` or `openai/<model>`. The provider-default key is never forwarded to a custom endpoint: `openai/` gets a placeholder, and `hosted_vllm/` honours `HOSTED_VLLM_API_KEY` if it's set. Pass `--llm-key-env VAR` to send a specific key. `ollama/<model>` reads `OLLAMA_API_BASE` on its own.
 
 ### Container registry (image distribution for `_runtime` datasets)
 
@@ -123,14 +123,14 @@ Override with `--llm-key-env VAR` (or `llm.api_key_env` in config) if you have n
 | GHCR | `GHCR_TOKEN` or `GITHUB_TOKEN` | one-time `gh auth refresh -h github.com -s write:packages` |
 | Docker Hub | `DOCKER_USERNAME` + `DOCKER_TOKEN` (PAT) | preferred over the credstore (whose OAuth token is often pull-only); pushes under the Docker Hub user's namespace |
 
-If no registry verifies, push falls back to **inline mode** — each task bakes its own rebuild recipe and stays reproducible with no registry at all. Full details: [`reference/REGISTRY_AUTH.md`](./REGISTRY_AUTH.md).
+If no registry verifies, push falls back to **inline mode**: each task bakes its own rebuild recipe and stays reproducible with no registry at all. Full details: [`reference/REGISTRY_AUTH.md`](./REGISTRY_AUTH.md).
 
 ### E2B
 
-If you use Harbor with the E2B provider (`harbor run -d <dataset> -e e2b ...`), the E2B SDK reads `E2B_API_KEY` from env. Repo2RLEnv itself doesn't run E2B — Harbor does.
+If you use Harbor with the E2B provider (`harbor run -d <dataset> -e e2b ...`), the E2B SDK reads `E2B_API_KEY` from env. Repo2RLEnv itself doesn't run E2B; Harbor does.
 
 ## What's never stored
 
 - Token *values* are never written to task directories, the lockfile, git, or logs
 - Container registry credentials are sandbox-side (`docker login`, IAM roles)
-- Verifier-time secrets are forbidden by the spec — a task that needs a paid API key to run is non-conformant
+- The spec forbids verifier-time secrets. A task that needs a paid API key to run is non-conformant

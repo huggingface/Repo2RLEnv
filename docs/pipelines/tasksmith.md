@@ -4,7 +4,9 @@ navTitle: "Overview"
 description: "Repo2RLEnv's flagship generator: an agent turns a merged pull request into a Harbor environment with a private verifier, then checks and repairs its own work."
 ---
 
-Tasksmith turns one merged pull request into a verified [Harbor task](../concepts/glossary.mdx#harbor-task): a coding agent investigates the repository, a remote worker builds and tests its environment, the agent designs the instruction and a private verifier, and a review loop checks the result against execution evidence and repairs what it can. Deterministic mining keeps a PR only when it already fits one shape: [`pr_runtime`](pr_runtime.md), for example, needs the PR's own tests to flip from failing to passing in one repository-wide image. Tasksmith adapts to each PR instead: it picks the dependencies, tests and GPU count that PR needs, and writes behavioral tests where the PR's own tests fall short.
+Tasksmith turns one merged pull request into a verified [Harbor task](../concepts/glossary.mdx#harbor-task). A coding agent investigates the repository, and a remote worker builds and tests its environment. The agent then designs the instruction and a private verifier, and a review loop checks the result against execution evidence and repairs what it can.
+
+Deterministic mining keeps a PR only when it already fits one shape. [`pr_runtime`](pr_runtime.md), for example, needs the PR's own tests to flip from failing to passing in one repository-wide image. Tasksmith adapts to each PR instead. It picks the dependencies, tests and GPU count that PR needs, and writes behavioral tests where the PR's own tests fall short.
 
 ## At a glance
 
@@ -14,7 +16,7 @@ Tasksmith turns one merged pull request into a verified [Harbor task](../concept
 | Input | Merged public GitHub PRs, listed in a panel JSON file |
 | Supported changes | Added or modified Python source. PRs that delete or rename source, or change C, C++, CUDA, Rust, Go, JavaScript or TypeScript source, are rejected at intake, before any spend |
 | Output | A schema 1.3 Harbor bundle with an offline learner image, a separate offline verifier image, the merged code as [oracle](../concepts/glossary.mdx#oracle), and an [evaluation label](../concepts/glossary.mdx#evaluation-label) |
-| Reward | 0 or 1. It is 1 when the tests that pass are exactly the recorded fail-to-pass and pass-to-pass set ([F2P and P2P](../concepts/glossary.mdx#f2p-and-p2p)) |
+| Reward | 0 or 1. It's 1 when the tests that pass are exactly the recorded fail-to-pass and pass-to-pass set ([F2P and P2P](../concepts/glossary.mdx#f2p-and-p2p)) |
 | Authoring | LangGraph routes the stages, and a Pi or OpenCode agent investigates and designs. The author model must be `anthropic/…` (default `anthropic/claude-sonnet-4-6`) |
 | Quality | Built in: [controls](../concepts/glossary.mdx#controls), verifier [probes](../concepts/glossary.mdx#probe), a [blind rollout](../concepts/glossary.mdx#blind-rollout) by Sonnet, and bounded repair |
 | Execution | A remote Modal or Daytona [worker](../concepts/glossary.mdx#worker). GPU tasks run on native Modal with one or two L4 GPUs. Your machine only orchestrates |
@@ -160,7 +162,7 @@ workspace/tasksmith/run
     └── result.json
 ```
 
-`<pr-id>` is a 12-character hash of the PR's URL, head commit and source diff, and the task directory is named `tasksmith-<pr-id>`. `labeled-task.json` points at the labeled task. Each PR's `status` in `report.json` is the quality outcome (`usable`, `reviewed`, `needs_evidence`, `needs_repair` or `budget_exhausted`). If no bundle was produced, it is `bootstrap_failed` or `construction_failed`, and an interrupted PR is `incomplete`.
+`<pr-id>` is a 12-character hash of the PR's URL, head commit and source diff, and the task directory is named `tasksmith-<pr-id>`. `labeled-task.json` points at the labeled task. Each PR's `status` in `report.json` is the quality outcome (`usable`, `reviewed`, `needs_evidence`, `needs_repair` or `budget_exhausted`). If no bundle was produced, it's `bootstrap_failed` or `construction_failed`, and an interrupted PR is `incomplete`.
 
 ## Run many PRs
 
@@ -172,7 +174,7 @@ The learner starts from the merged head with the PR's source changes reversed. I
 
 Grading runs in a separate verifier container built from the same install recipe. It copies in only the learner's Python source from the declared source roots, where new Python helper files are allowed. Symlinks, special files and changes to fixed non-Python assets are rejected. The verifier runs the selected tests as an unprivileged user and writes 1 only when the tests that pass are exactly the recorded fail-to-pass and pass-to-pass set. The learner never sees the selected test collection.
 
-Both containers run offline. Required datasets and models must be pinned and available when the image is built. Use small real fixtures or models when they preserve the behavior, and don't replace a required model with a stub just to pass readiness. A static check rejects generated tests that grade by reading source text, such as `inspect.getsource`. It is a narrow safeguard, not proof of behavioral coverage.
+Both containers run offline. Required datasets and models must be pinned and available when the image is built. Use small real fixtures or models when they preserve the behavior, and don't replace a required model with a stub just to pass readiness. A static check rejects generated tests that grade by reading source text, such as `inspect.getsource`. That's a narrow safeguard, not proof of behavioral coverage.
 
 ## Review, repair and reuse
 
@@ -205,7 +207,7 @@ Dependency layers are cached on the provider worker, keyed by base image, depend
 
 ### Spend
 
-Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it is never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.22.0.
+Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it's never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.22.0.
 
 ## Results
 
