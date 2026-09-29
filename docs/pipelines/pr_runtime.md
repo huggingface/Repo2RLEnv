@@ -22,7 +22,7 @@ fail before the fix and pass after it.
 | Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
 | Languages | Any repository the bootstrap can build whose tests run under pytest, `go test`, `cargo test`, Jest, Mocha or Vitest. The reference dataset has 63 Python and 37 Go tasks |
 | Status | Stable |
-| Reference dataset | [`AdithyaSK/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime): 100 tasks from 13 repositories |
+| Reference dataset | [`FineEnvs/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-runtime): 100 tasks from 13 repositories |
 
 Two test sets define each task ([F2P and P2P](../concepts/glossary.mdx#f2p-and-p2p)). **FAIL_TO_PASS** (F2P) tests fail or error at the
 base commit and pass once the fix is applied: they prove the bug existed.
@@ -226,7 +226,7 @@ Claude Sonnet pilot, but the raw sample wasn't recovered. See
 ## Related
 
 - [RFC 0002: pr_runtime](../rfcs/0002-pr-runtime.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime) and its [validation evidence](native_results.md#pr-runtime)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-runtime) and its [validation evidence](native_results.md#pr-runtime)
 - [`commit_runtime`](commit_runtime.md): the same verifier on commits instead of PRs
 - [`pr_diff`](pr_diff.md): the same PRs, scored by diff similarity without running tests
 - [Bootstrap](../reference/BOOTSTRAP.md), [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)

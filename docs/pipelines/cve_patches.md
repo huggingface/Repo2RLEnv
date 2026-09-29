@@ -24,7 +24,7 @@ one to its fixing commit.
 | Hosts | GitHub only |
 | Languages | Any test runner `pr_runtime` supports when the fix commit ships a test. PoC synthesis is Python only |
 | Status | Experimental |
-| Reference dataset | [`AdithyaSK/repo2rlenv-cve-patches`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches): 19 tasks from six repositories |
+| Reference dataset | [`FineEnvs/repo2rlenv-cve-patches`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-cve-patches): 19 tasks from six repositories |
 
 ## Quickstart
 
@@ -210,7 +210,7 @@ that needs a PoC test, and two test runs per validated test.
 ## Related
 
 - [RFC 0006: cve_patches](../rfcs/0006-cve-patches.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches) and its [inventory](native_results.md#cve-patches)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-cve-patches) and its [inventory](native_results.md#cve-patches)
 - [`pr_runtime`](pr_runtime.md): the validation harness and verifier this pipeline reuses
 - [SEC-bench recipe proposal](../rfcs/0025-sec-bench-recipe.md), which is deferred
 - [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)

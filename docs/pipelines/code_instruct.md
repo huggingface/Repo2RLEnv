@@ -22,7 +22,7 @@ repository's Docker image; the hidden test is the reward.
 | Hosts | GitHub, GitLab and local paths |
 | Languages | Python only. On GitHub, the repository's primary language is checked first (`--force-language` skips the check) |
 | Status | Experimental |
-| Reference dataset | [`AdithyaSK/repo2rlenv-code-instruct`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct): 100 tasks, 20 each from click, flask, requests, attrs and starlette |
+| Reference dataset | [`FineEnvs/repo2rlenv-code-instruct`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-code-instruct): 100 tasks, 20 each from click, flask, requests, attrs and starlette |
 
 ## Quickstart
 
@@ -178,7 +178,7 @@ but the repository still has to bootstrap.
 ## Related
 
 - [RFC 0004: code_instruct](../rfcs/0004-code-instruct.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-code-instruct) and its [generation evidence](native_results.md#code-instruct)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-code-instruct) and its [generation evidence](native_results.md#code-instruct)
 - [`equivalence_tests`](equivalence_tests.md): tasks grounded in a real function instead of an invented one
 - [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
 - Adapted from OSS-Instruct in [Magicoder](https://github.com/ise-uiuc/magicoder) (Wei et al., 2024): seeds come from one repository instead of a corpus, and every task ships an executable test that the reference solution must pass. No code is copied.

@@ -23,7 +23,7 @@ invention, these tasks vary less than [`code_instruct`](code_instruct.md)'s.
 | Hosts | GitHub, GitLab and local paths |
 | Languages | Python only (module-level functions). On GitHub, the primary language is checked first (`--force-language` skips the check) |
 | Status | Experimental |
-| Reference dataset | [`AdithyaSK/repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests): 100 tasks from seven utility libraries |
+| Reference dataset | [`FineEnvs/repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-equivalence-tests): 100 tasks from seven utility libraries |
 
 ## Quickstart
 
@@ -184,7 +184,7 @@ handles cleanly, which the feedback loop improves. Cost scales with candidates Ã
 ## Related
 
 - [RFC 0005: equivalence_tests](../rfcs/0005-equivalence-tests.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) and its [generation evidence](native_results.md#equivalence-tests)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-equivalence-tests) and its [generation evidence](native_results.md#equivalence-tests)
 - [`r2e`](r2e.md): the research recipe with coverage-guided test repair and a private verifier
 - [`code_instruct`](code_instruct.md): tasks invented from a snippet instead of extracted
 - [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)

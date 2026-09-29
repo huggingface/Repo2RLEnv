@@ -141,7 +141,7 @@ evidence before the fresh baseline/reference trials.
 
 ## Measured results and limits
 
-The [dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld)
+The [dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-terminalworld)
 contains 100 tasks. The measured sample produced 80 new exports from 1,293 recorded
 candidate IDs, including recordings rejected during design screening. Generation
 cost averaged **$1.26 per new task**, including estimated compute and failed

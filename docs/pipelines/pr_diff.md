@@ -22,7 +22,7 @@ LLM, so `pr_diff` is the cheapest way to get many tasks out of a repository.
 | Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
 | Languages | Any, since scoring is text-based. The reference dataset spans Python, JavaScript/TypeScript, Go and Rust |
 | Status | Stable |
-| Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff): 181 tasks from 26 repositories |
+| Reference dataset | [`FineEnvs/repo2rlenv-pr-diff`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-diff): 181 tasks from 26 repositories |
 
 ## Quickstart
 
@@ -277,7 +277,7 @@ rate. See [native results](native_results.md#pr-diff).
 ## Related
 
 - [RFC 0001: pr_diff](../rfcs/0001-pr-diff.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) and its [release history](native_results.md#pr-diff)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-diff) and its [release history](native_results.md#pr-diff)
 - [`pr_runtime`](pr_runtime.md): the same PRs, verified by running their tests
 - [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
 - Inspired by [SWE-RL](https://github.com/facebookresearch/swe-rl) (Wei et al., 2025). The verifier is an independent reimplementation.

@@ -11,11 +11,11 @@ reward 0 and reference reward 1. Expansion cost was **$22.91**, approximately
 **$0.30 per new export**, including failed attempts and estimated worker/build
 costs. Two pilot instructions retain known specification issues: published copies
 carry `evaluation.status = "needs_repair"`, with the original exports preserved.
-The [published manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow/resolve/main/manifest.json) records source
+The [published manifest](https://huggingface.co/datasets/FineEnvs/repo2rlenv-swe-flow/resolve/main/manifest.json) records source
 diversity, costs and both findings. These generation checks do not establish
 independent quality acceptance for the collection.
 The complete bundles are published as
-[HuggingEnvs/repo2rlenv-swe-flow](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-swe-flow).
+[FineEnvs/repo2rlenv-swe-flow](https://huggingface.co/datasets/FineEnvs/repo2rlenv-swe-flow).
 
 ## Pipeline, step by step
 

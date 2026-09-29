@@ -47,7 +47,7 @@ export function TasksmithFeature() {
             href={tasksmith.dataset!.href}
             className="font-mono text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
           >
-            HuggingEnvs/HF_ML_Tasksmith · {tasksmith.dataset!.label}
+            FineEnvs/HF_ML_Tasksmith · {tasksmith.dataset!.label}
           </a>
           <div className="flex gap-2">
             <Link

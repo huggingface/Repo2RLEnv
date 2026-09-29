@@ -8,7 +8,7 @@
     "---Tasksmith---",
     "pipelines/tasksmith",
     "pipelines/tasksmith_parallel_campaigns",
-    "[HF_ML_Tasksmith dataset](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith)",
+    "[HF_ML_Tasksmith dataset](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith)",
     "---Concepts---",
     "concepts/how-it-works",
     "concepts/tasks",

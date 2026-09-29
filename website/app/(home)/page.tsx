@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 const collection =
-  'https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d';
+  'https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d';
 
 const steps = [
   {

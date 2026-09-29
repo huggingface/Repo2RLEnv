@@ -127,9 +127,9 @@ jq (18), bash (15), find (15), awk (13), sed (13) and tar (10); tags overlap.
 Source URLs and question/answer attribution remain attached to the task lineage.
 Eight source records lack a recorded content license; the report preserves that
 gap instead of assigning an inferred license. See the
-[dataset manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth/resolve/main/manifest.json),
+[dataset manifest](https://huggingface.co/datasets/FineEnvs/repo2rlenv-seta-seed2synth/resolve/main/manifest.json),
 [generation economics](economics.md) and
-[published Harbor dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-seed2synth).
+[published Harbor dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-seta-seed2synth).
 
 Specification audits, adversarial verifier checks and blind solver evaluations
 follow generation. A passing author self-review is not independent quality

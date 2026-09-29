@@ -270,7 +270,7 @@ def render(data: dict, frontiersmith: dict | None = None) -> dict[str, str]:
         "",
         "Published results cover the six native pipelines, Tasksmith and 14 research recipes. Local collections are reported separately and are not included in published totals.",
         "",
-        f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{data['collection']}). The native datasets retain their existing owners.",
+        f"Browse every dataset in the [Repo2RLEnv collection](https://huggingface.co/collections/{data['collection']}) on the Hugging Face Hub.",
         "",
         *native_releases,
         "## Tasksmith and research recipes",
