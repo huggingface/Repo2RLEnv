@@ -5,7 +5,7 @@ an optimization challenge. Agents submit a reusable Python program; deterministi
 private tests measure feasibility and solution quality on a continuous `[0,1]`
 scale. A better solution can earn more reward without there being a known optimum.
 
-**Status:** experimental; ten-task pilot in progress. This is an owned,
+**Status:** experimental; ten-task local pilot completed on 2026-09-29. This is an owned,
 paper-inspired adaptation, not the unreleased upstream generation implementation.
 See [RFC 0032](../rfcs/0032-frontiersmith-recipe.md) for exact differences.
 
@@ -108,8 +108,58 @@ adapter does not copy or require it. We use original seed descriptions and promp
 Candidate filtering and repair can dominate cost. Report spend per attempted seed
 and per exported task, including rejected candidates, and keep cloud billing
 distinct from token estimates. Do not extrapolate ten-task cost without reporting
-the observed acceptance fraction. Pilot results will be recorded after execution.
+the observed acceptance fraction. The measured development pilot is below.
 
 Method credit: [FrontierSmith paper](https://arxiv.org/abs/2605.14445),
 [upstream repository](https://github.com/FrontierCS/FrontierSmith), and
 [provenance](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/frontiersmith/provenance.md).
+
+## Measured local pilot
+
+**10 selected Harbor tasks from 15 candidate attempts across 14 original seeds.**
+Eleven tasks initially exported; one graph-coloring candidate was retained with a
+`needs_repair` label after explicit feasibility checks. Ten passed the final
+construction profile, with a feasible baseline and at least two fully feasible
+sampled programs, no-op zero, baseline improvement, score diversity and repeated
+reference scores. All ten parse with Harbor and pass artifact-integrity checks.
+
+| Task | Cases | Baseline | Best sampled reference |
+|---|---:|---:|---:|
+| bipartite-matching | 13 | 0.894 | 0.916 |
+| cache-replacement | 12 | 0.328 | 0.577 |
+| edit-distance | 14 | 0.105 | 0.823 |
+| load-balancing | 12 | 0.583 | 0.797 |
+| matrix-chain | 14 | 0.500 | 0.920 |
+| rectangle-packing | 15 | 0.853 | 0.912 |
+| set-coverage | 13 | 0.512 | 0.628 |
+| spanning-tree | 12 | 0.185 | 0.542 |
+| string-compression | 12 | 0.000 | 0.369 |
+| topological-order | 12 | 0.000 | 0.638 |
+
+Rewards use different objectives and normalizers; compare strategies within a
+task, not scores between these rows. References are feasible sampled solutions,
+not proofs of optimality.
+
+A fresh run of the final pipeline generated the set-coverage task, repaired its
+test set within the configured allowance, and completed a blind GPT-6 Sol rollout.
+The rollout was feasible on all 13 cases and scored **0.628**, matching the sampled
+reference. An earlier spanning-tree rollout scored 0.545, but used an earlier
+bundle and does not establish rollout validation of the final collection.
+
+All ten remain **`unverified`, stage `construction`**. Broad adversarial testing,
+independent quality acceptance and Hub publication have not been completed. The
+excluded graph-coloring candidate exposed why reward and feasibility must be
+separate: only one sampled strategy was fully valid, and review also found a
+seed-dependent generator boundary error.
+
+Recorded OpenAI usage cost was **$5.27**, with **$0.34 estimated Daytona compute**:
+**$5.61 total, about $0.56 per selected task**. This includes rejected attempts,
+development retries, two rollouts and repeated construction checks. It excludes
+interactive assistant usage. These are usage/resource estimates, not invoices.
+All three workers were terminated; no unresolved reservations remain.
+
+This was an assisted development campaign with evolving checks, not a controlled
+unattended-yield benchmark. Initial export yield was 11/15 (73.3%); final selection
+was 10/15 (66.7%). [Machine-readable results and bundle identities](../data/frontiersmith-pilot.json)
+record the exact sample. Generated tasks and raw receipts stay in the ignored
+campaign directory; the selected archive is `workspace/frontiersmith/frontiersmith-pilot.tar.gz`.

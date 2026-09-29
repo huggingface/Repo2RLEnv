@@ -1,6 +1,6 @@
 # Published Harbor datasets
 
-Published results cover the six native pipelines, Tasksmith and 14 research recipes. The local CodeMidas collection is reported separately and is not included in published totals.
+Published results cover the six native pipelines, Tasksmith and 14 research recipes. The local CodeMidas and FrontierSmith collections are reported separately and are not included in published totals.
 
 Browse the [HuggingEnvs collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d). The native datasets retain their existing owners.
 
@@ -46,6 +46,8 @@ These tasks have **historical evidence scopes**, not retrospectively assigned `v
 [CodeMidas](codemidas.md) has **100 staged Harbor tasks**, separate from the published totals above. The 2026-09-25 campaign generated 128 exports; 101 passed ordinary solver review, 26 had demonstrated verifier/instruction defects and 1 remained unresolved.
 
 The curated collection has **200 baseline failures and 400 oracle passes**, plus four reviewed Luna attempts and four Sol screens per task. All 100 retain **blocked** labels because adversarial checks could not run. No full-method acceptance is claimed. See the [release notes and audit](../release_notes/codemidas.md) and [source/difficulty breakdown](codemidas.md#measured-local-campaign).
+
+[FrontierSmith](frontiersmith.md#measured-local-pilot) has **10 local construction-checked Harbor tasks** from its 2026-09-29 pilot. All retain `unverified` labels; one final-bundle blind OpenAI rollout was completed. A further candidate is retained as `needs_repair`. These artifacts have not been published and are excluded from the totals above.
 
 ## What the labels establish
 

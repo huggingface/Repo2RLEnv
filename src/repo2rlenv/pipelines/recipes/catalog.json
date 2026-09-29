@@ -359,7 +359,7 @@
       "license": "NOASSERTION",
       "retained_material": false
     },
-    "rfc": "docs/rfcs/0032-frontiersmith-recipe.md",
+    "rfc": "0032-frontiersmith-recipe.md",
     "target": 10
   }
 ]

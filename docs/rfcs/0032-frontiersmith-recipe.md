@@ -1,6 +1,6 @@
 # RFC 0032: FrontierSmith optimization synthesis
 
-**Status:** experimental implementation; ten-task pilot in progress
+**Status:** experimental implementation; ten-task local pilot completed
 
 **Author:** adithya-s-k
 
@@ -109,8 +109,11 @@ Unit tests cover schema rejection, discovery, Harbor parsing, private asset
 placement, immutable resume, score-vector alignment, nonfinite rewards and durable
 budget reservations. The cloud pilot must demonstrate actual task execution and
 record yield, reasons for rejection, token costs and worker cost separately.
-Ten exported construction-checked environments are the pilot target; full quality
-acceptance and publication are separate decisions.
+The pilot produced ten selected construction-checked environments from fifteen
+candidate attempts; one further export needs repair. One final-bundle blind
+rollout completed. All ten retain unverified quality labels. Full quality
+acceptance and publication are separate decisions. See the walkthrough for scores,
+measured cost, failures and the development-campaign limitations.
 
 ## Implementation
 

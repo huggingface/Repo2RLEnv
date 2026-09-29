@@ -93,3 +93,27 @@ The [sanitized summary](../data/pipelines.json) contains sample sizes, cost scop
 python docs/_tools/generate_metrics.py
 python docs/_tools/generate_metrics.py --check
 ```
+
+## FrontierSmith development pilot
+
+Measured **2026-09-29** with OpenAI GPT-6 Sol and three Daytona CPU workers.
+Fifteen candidate attempts across fourteen original seeds produced eleven initial
+exports; ten passed final construction checks and one was retained for repair.
+Initial export yield was **73.3%**; final selection was **66.7%**. The checks evolved
+during development, so this is not an unattended production-yield estimate.
+
+| Cost component | Whole pilot | Per selected task |
+|---|---:|---:|
+| Recorded API usage | $5.27 | $0.527 |
+| Estimated compute | $0.34 | $0.034 |
+| Combined | $5.61 | $0.561 |
+
+Costs include failed candidates, formulation/infrastructure repair, feasibility
+recertification and two blind rollouts; only one rollout used a final bundle.
+Interactive assistant usage is excluded. Model costs use recorded usage and the
+configured rate table. Compute uses worker lifecycle duration and the
+[Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction;
+neither amount is an invoice reconciliation. All workers were terminated and all
+reservations settled. Full quality validation and publication are outside this
+sample. See the [task scores and findings](frontiersmith.md#measured-local-pilot)
+and [machine-readable evidence summary](../data/frontiersmith-pilot.json).

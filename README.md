@@ -143,6 +143,10 @@ names the generation family; a recipe selects its method.
 | `scaler` | `reasoning_synth` | Solve a reasoning instance generated from a problem family |
 | `frontiersmith` | `optimization_synth` | Improve an algorithm against deterministic graded objectives |
 
+The [FrontierSmith pilot](docs/pipelines/frontiersmith.md#measured-local-pilot) includes
+ten local Harbor tasks with construction checks, generated using OpenAI on Daytona.
+They retain `unverified` labels pending broader quality review.
+
 ```bash
 repo2rlenv pipelines describe repo_mutate --recipe swe_smith --json
 ```
