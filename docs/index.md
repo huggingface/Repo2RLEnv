@@ -118,6 +118,7 @@ requirements and upstream credits are in the linked guides.
 | [**tmax**](pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
 | [**endless_terminals**](pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
 | [**terminalworld**](pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [**frontiersmith**](pipelines/frontiersmith.md) | Optimize algorithmic solutions from mutated programming problems | Continuous deterministic score, [0,1] | Ten-task local pilot in progress |
 | [**scaler**](pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
 
 SCALER produces reasoning instances rather than repository coding tasks.
@@ -126,7 +127,7 @@ replacement prompts and still needs a fresh generation-quality pilot.
 
 The [release inventory](pipelines/releases.md) records **1,330 tasks across
 15 published Tasksmith/recipe datasets: 50 verified, 5 needing repair and 1,275 unverified**.
-The six earlier native datasets and the local CodeMidas campaign are outside these counts. Compare
+The six earlier native datasets and local CodeMidas/FrontierSmith campaigns are outside these counts. Compare
 [yield and cost](pipelines/economics.md), [evaluation labels](pipelines/task_evaluation_labels.md)
 and the [complete prompt reference](pipelines/prompt_reference.md).
 

@@ -343,5 +343,23 @@
     },
     "rfc": "0031-codemidas-recipe.md",
     "target": 100
+  },
+  {
+    "id": "frontiersmith",
+    "title": "FrontierSmith optimization synthesis",
+    "pipeline": "optimization_synth",
+    "source_kinds": [
+      "seeds"
+    ],
+    "summary": "Mutate closed-ended problems into optimization tasks, filter strategy diversity and validate deterministic graded rewards. Owned paper-inspired Python adaptation.",
+    "upstream": {
+      "paper": "https://arxiv.org/abs/2605.14445",
+      "repository": "https://github.com/FrontierCS/FrontierSmith",
+      "commit": "166c8be14a62b013ef78e6868e4355421c8c6456",
+      "license": "NOASSERTION",
+      "retained_material": false
+    },
+    "rfc": "docs/rfcs/0032-frontiersmith-recipe.md",
+    "target": 10
   }
 ]

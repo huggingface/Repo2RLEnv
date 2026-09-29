@@ -28,6 +28,7 @@ class PipelineName(StrEnum):
     TASK_EVOLVE = "task_evolve"
     ENV_REPAIR = "env_repair"
     REASONING_SYNTH = "reasoning_synth"
+    OPTIMIZATION_SYNTH = "optimization_synth"
 
 
 def _is_local_path(v: str, *, windows: bool) -> bool:

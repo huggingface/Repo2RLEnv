@@ -29,6 +29,7 @@ flowchart TD
   S --> TW["TerminalWorld: reconstruct a recording"]
   N --> TE["TMax / Endless Terminals: sample requirements"]
   N --> SC["SCALER: expand reasoning instances"]
+  S --> FS["FrontierSmith: synthesize optimization challenges"]
 ```
 
 | Walkthrough | `pipeline.name / recipe` | Input | Reference source |
@@ -47,11 +48,12 @@ flowchart TD
 | [TMax](tmax.md) | `terminal_synth / tmax` | Legacy taxonomy sampler | Generated reference guided by truth/tests |
 | [Endless Terminals](endless_terminals.md) | `terminal_synth / endless_terminals` | Category/complexity/scenario sampler | Generated reference guided by truth/tests |
 | [TerminalWorld](terminalworld.md) | `terminal_reconstruct / terminalworld` | Metadata and text transcript | Extracted, refined and replayed solution |
+| [FrontierSmith](frontiersmith.md) | `optimization_synth / frontiersmith` | Closed-ended seed problems | Best sampled solution; not a proven optimum |
 | [SCALER](scaler.md) | `reasoning_synth / scaler` | Released family JSON | Answer from supplied reference program |
 
 `pipeline.name` describes the generation family; `recipe` selects its
 research-inspired implementation. Existing native behavior remains available
-without a recipe. These 15 recipes are experimental. SEC-bench is deferred and is not implemented.
+without a recipe. These 16 recipes are experimental. SEC-bench is deferred and is not implemented.
 
 ```bash
 repo2rlenv pipelines list

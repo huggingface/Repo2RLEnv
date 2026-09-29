@@ -14,6 +14,7 @@ ByteDance attribution, and accompanies its exported verifier code.
 
 | Recipe | Referenced revision | Bundled material license | Scope and changes |
 |---|---|---|---|
+| `frontiersmith` | [166c8be14a62b013ef78e6868e4355421c8c6456](https://github.com/FrontierCS/FrontierSmith/tree/166c8be14a62b013ef78e6868e4355421c8c6456) | Apache-2.0 (original implementation) | [Provenance](src/repo2rlenv/pipelines/recipes/frontiersmith/provenance.md); method inspiration only, no upstream assets copied |
 | `codemidas` | [arXiv:2609.22068v1](https://arxiv.org/abs/2609.22068v1) | Apache-2.0 (our implementation; method reproduction) | [Provenance](src/repo2rlenv/pipelines/recipes/codemidas/provenance.md); no upstream code or prompt text bundled |
 | `swe_smith` | [9b74ac08118a](https://github.com/SWE-bench/SWE-smith/tree/9b74ac08118a85c39c356802f7961893af73e07f) | MIT | [Provenance](src/repo2rlenv/pipelines/recipes/swe_smith/provenance.md) |
 | `seta_seed2synth` | [e4715b01174e](https://github.com/camel-ai/seta/tree/e4715b01174e6c9503fc46120d81dd692ced75e6) | Apache-2.0 | [Provenance](src/repo2rlenv/pipelines/recipes/seta_seed2synth/provenance.md) |

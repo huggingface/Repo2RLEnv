@@ -120,7 +120,7 @@ which includes example inputs, provider setup and an explicit spending limit.
 
 ### Research recipes
 
-These **15 experimental recipes** adapt published methods into code owned by this
+These **16 experimental recipes** adapt published methods into code owned by this
 repository. No upstream research package is installed at runtime. A pipeline
 names the generation family; a recipe selects its method.
 
@@ -141,6 +141,7 @@ names the generation family; a recipe selects its method.
 | `endless_terminals` | `terminal_synth` | Solve a task sampled from categories and scenarios |
 | `terminalworld` | `terminal_reconstruct` | Reproduce an outcome from a terminal recording |
 | `scaler` | `reasoning_synth` | Solve a reasoning instance generated from a problem family |
+| `frontiersmith` | `optimization_synth` | Improve an algorithm against deterministic graded objectives |
 
 ```bash
 repo2rlenv pipelines describe repo_mutate --recipe swe_smith --json
@@ -165,7 +166,7 @@ limitations and upstream credits. Use its example config with
 Private solutions and tests belong to their respective execution phases; the
 whole task bundle is not the learner workspace. Task assets and reference formats
 vary by recipe. Most owned verifiers return deterministic 0/1 rewards; SCALER uses
-−1/+1, and native pipelines also support graded test and diff-similarity rewards.
+−1/+1, FrontierSmith uses continuous optimization scores, and native pipelines also support graded test and diff-similarity rewards.
 
 With the `harbor` extra and a configured runtime, execute a reference solution:
 
