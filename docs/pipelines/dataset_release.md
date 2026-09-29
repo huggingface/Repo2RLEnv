@@ -25,7 +25,7 @@ flowchart LR
   A[Selected task paths and expected hashes] --> B[Harbor parse and content checks]
   B --> C[Manifest, browsing index and archive]
   C --> D[Verify staged files]
-  D --> E[Publish under HuggingEnvs]
+  D --> E[Publish under FineEnvs]
   E --> F[Pin Harbor registry to upload commit]
   F --> G[Add dataset to collection]
 ```
@@ -41,7 +41,7 @@ rejected before any directories are created.
 
 ```json
 {
-  "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+  "repo_id": "FineEnvs/repo2rlenv-swe-smith",
   "recipe": "swe_smith",
   "title": "Repo2RLEnv SWE-smith",
   "description": "Coding tasks produced by owned procedural mutation.",
@@ -86,7 +86,7 @@ repo2rlenv release stage release-plan.json --out workspace/releases/swe-smith
 repo2rlenv release verify workspace/releases/swe-smith
 repo2rlenv release publish workspace/releases/swe-smith \
   --receipt workspace/releases/swe-smith-publication.json \
-  --collection HuggingEnvs/COLLECTION_SLUG
+  --collection FineEnvs/COLLECTION_SLUG
 ```
 
 `stage` and `verify` perform local reads, hashing, copying and archiving; they do

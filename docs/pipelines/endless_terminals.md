@@ -91,7 +91,7 @@ The builder can repair inconsistent fixtures or a failing reference within
 
 The [measured generation sample](economics.md)
 completed **100 tasks**, now published as
-[HuggingEnvs/repo2rlenv-endless-terminals](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals).
+[FineEnvs/repo2rlenv-endless-terminals](https://huggingface.co/datasets/FineEnvs/repo2rlenv-endless-terminals).
 All 80 newly generated tasks have hash-matched baseline-0/reference-1 controls;
 independent semantic quality evaluation and blind rollouts remain separate.
 Upstream's sampled solutions and training run are

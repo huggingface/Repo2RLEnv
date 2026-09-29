@@ -65,7 +65,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Private tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '50 verified tasks', href: hub('HuggingEnvs/HF_ML_Tasksmith') },
+    dataset: { label: '50 verified tasks', href: hub('FineEnvs/HF_ML_Tasksmith') },
   },
   {
     id: 'pr_runtime',
@@ -76,7 +76,7 @@ export const pipelines: Pipeline[] = [
     reward: 'f2p_rate × p2p_rate',
     runs: 'local',
     status: 'stable',
-    dataset: { label: '100 tasks', href: hub('AdithyaSK/repo2rlenv-pr-runtime') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-pr-runtime') },
     film: 'pr-runtime',
   },
   {
@@ -88,7 +88,7 @@ export const pipelines: Pipeline[] = [
     reward: 'f2p_rate × p2p_rate',
     runs: 'local',
     status: 'stable',
-    dataset: { label: '100 tasks', href: hub('AdithyaSK/repo2rlenv-commit-runtime') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-commit-runtime') },
     film: 'commit-runtime',
   },
   {
@@ -100,7 +100,7 @@ export const pipelines: Pipeline[] = [
     reward: 'f2p_rate × p2p_rate',
     runs: 'local',
     status: 'experimental',
-    dataset: { label: '19 tasks', href: hub('AdithyaSK/repo2rlenv-cve-patches') },
+    dataset: { label: '19 tasks', href: hub('FineEnvs/repo2rlenv-cve-patches') },
     film: 'cve-patches',
   },
   {
@@ -114,7 +114,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-swe-smith') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-swe-smith') },
   },
   {
     id: 'swe_next',
@@ -127,7 +127,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-swe-next') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-swe-next') },
   },
   {
     id: 'r2e_gym',
@@ -140,7 +140,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-r2e-gym') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-r2e-gym') },
   },
   // ---- implementation and reconstruction ----
   {
@@ -152,7 +152,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Hidden test passes (0/1)',
     runs: 'local',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('AdithyaSK/repo2rlenv-code-instruct') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-code-instruct') },
     film: 'code-instruct',
   },
   {
@@ -164,7 +164,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Hidden test passes (0/1)',
     runs: 'local',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('AdithyaSK/repo2rlenv-equivalence-tests') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-equivalence-tests') },
     film: 'equivalence-tests',
   },
   {
@@ -178,7 +178,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-r2e') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-r2e') },
   },
   {
     id: 'swe_flow',
@@ -191,7 +191,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-swe-flow') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-swe-flow') },
   },
   {
     id: 'swe_gen',
@@ -204,7 +204,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-swe-gen') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-swe-gen') },
   },
   {
     id: 'codemidas',
@@ -228,7 +228,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Diff similarity in [0, 1]',
     runs: 'local',
     status: 'stable',
-    dataset: { label: '181 tasks', href: hub('AdithyaSK/repo2rlenv-pr-diff') },
+    dataset: { label: '181 tasks', href: hub('FineEnvs/repo2rlenv-pr-diff') },
     film: 'pr-diff',
   },
   // ---- terminal tasks ----
@@ -243,7 +243,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-seta-seed2synth') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-seta-seed2synth') },
   },
   {
     id: 'seta_evol',
@@ -256,7 +256,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-seta-evol') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-seta-evol') },
   },
   {
     id: 'dataarc',
@@ -269,7 +269,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-dataarc') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-dataarc') },
   },
   {
     id: 'tmax',
@@ -282,7 +282,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '55 tasks', href: hub('HuggingEnvs/repo2rlenv-tmax') },
+    dataset: { label: '55 tasks', href: hub('FineEnvs/repo2rlenv-tmax') },
   },
   {
     id: 'endless_terminals',
@@ -295,7 +295,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-endless-terminals') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-endless-terminals') },
   },
   {
     id: 'terminalworld',
@@ -308,7 +308,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-terminalworld') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-terminalworld') },
   },
   {
     id: 'cli_gym',
@@ -321,7 +321,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '25 tasks', href: hub('HuggingEnvs/repo2rlenv-cli-gym') },
+    dataset: { label: '25 tasks', href: hub('FineEnvs/repo2rlenv-cli-gym') },
   },
   // ---- reasoning and optimization ----
   {
@@ -335,7 +335,7 @@ export const pipelines: Pipeline[] = [
     reward: 'Answer match (−1/+1)',
     runs: 'remote',
     status: 'experimental',
-    dataset: { label: '100 tasks', href: hub('HuggingEnvs/repo2rlenv-scaler') },
+    dataset: { label: '100 tasks', href: hub('FineEnvs/repo2rlenv-scaler') },
   },
   {
     id: 'frontiersmith',

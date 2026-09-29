@@ -7,11 +7,11 @@ self-instruct, in-depth evolution and in-breadth evolution. Recipe version 2
 keeps those stages and input options, using Repo2RLEnv-authored prompt wording.
 
 The September expansion completed **100 Harbor tasks** (20 retained, 80 new),
-published as [HuggingEnvs/repo2rlenv-dataarc](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc).
+published as [FineEnvs/repo2rlenv-dataarc](https://huggingface.co/datasets/FineEnvs/repo2rlenv-dataarc).
 All 80 new exports have hash-matched baseline reward 0 and reference reward 1.
 The expansion accounted for **$26.57**, approximately **$0.33 per new export**,
 including unsuccessful model attempts and estimated worker/build costs. The
-[published manifest](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-dataarc/resolve/main/manifest.json) separates those
+[published manifest](https://huggingface.co/datasets/FineEnvs/repo2rlenv-dataarc/resolve/main/manifest.json) separates those
 controls from independent quality acceptance, which remains unestablished.
 These results describe version 1. Version 2 has contract tests, but has not yet
 been evaluated in a paid generation campaign; the figures above are not a

@@ -19,7 +19,7 @@ Tasksmith turns one merged pull request into a verified [Harbor task](../concept
 | Quality | Built in: [controls](../concepts/glossary.mdx#controls), verifier [probes](../concepts/glossary.mdx#probe), a [blind rollout](../concepts/glossary.mdx#blind-rollout) by Sonnet, and bounded repair |
 | Execution | A remote Modal or Daytona [worker](../concepts/glossary.mdx#worker). GPU tasks run on native Modal with one or two L4 GPUs. Your machine only orchestrates |
 | Status | Experimental |
-| Reference dataset | [`HuggingEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith): 50 tasks, all labeled `verified` |
+| Reference dataset | [`FineEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith): 50 tasks, all labeled `verified` |
 
 ## How it works
 
@@ -209,7 +209,7 @@ Every worker, model call and trial reserves spend in the campaign ledger before 
 
 ## Results
 
-[`HuggingEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith) holds 50 tasks, all labeled `verified`, from Accelerate (13), Diffusers (9), PEFT (10), Transformers (5) and TRL (13). Thirty-nine request CPU only, six request one GPU and five request two. For example, [`tasksmith-03a6a091b12f`](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith/blob/main/tasks/tasksmith-03a6a091b12f/instruction.md) asks the learner to add TR-DPO-style reference-model synchronization to TRL's KTO trainer, matching its DPO implementation.
+[`FineEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith) holds 50 tasks, all labeled `verified`, from Accelerate (13), Diffusers (9), PEFT (10), Transformers (5) and TRL (13). Thirty-nine request CPU only, six request one GPU and five request two. For example, [`tasksmith-03a6a091b12f`](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith/blob/main/tasks/tasksmith-03a6a091b12f/instruction.md) asks the learner to add TR-DPO-style reference-model synchronization to TRL's KTO trainer, matching its DPO implementation.
 
 | Measure | Result |
 |---|---|
@@ -239,4 +239,4 @@ These numbers don't establish unattended conversion yield. The cohort came from 
 - [Review and repair](quality_loop.md) and [evaluation labels](task_evaluation_labels.md)
 - [Recipe and Tasksmith bundles](../concepts/tasks.mdx#recipe-and-tasksmith-bundles-schema-13): the schema 1.3 layout
 - [`tasksmith` CLI reference](../reference/cli.mdx#tasksmith)
-- [`HuggingEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/HuggingEnvs/HF_ML_Tasksmith)
+- [`FineEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith)

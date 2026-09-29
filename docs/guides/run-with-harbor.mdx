@@ -24,7 +24,7 @@ Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked wit
 Pull a published dataset from the Hugging Face Hub. `pull` flattens the published `tasks/` layout into one directory per task, which is what `harbor run -p` expects.
 
 ```bash
-repo2rlenv pull AdithyaSK/repo2rlenv-pr-runtime ./pr-runtime
+repo2rlenv pull FineEnvs/repo2rlenv-pr-runtime ./pr-runtime
 ```
 
 ```files
@@ -45,7 +45,7 @@ The [release index](../pipelines/releases.md) lists every published dataset. To 
 Datasets published with `repo2rlenv release` (the research recipes and Tasksmith) also ship `tasks.tar.gz`. It preserves executable file modes and each task's [bundle hash](../concepts/glossary.mdx#bundle-hash), so their dataset cards download it instead:
 
 ```bash
-hf download HuggingEnvs/repo2rlenv-swe-smith tasks.tar.gz --repo-type dataset --local-dir ./swe-smith
+hf download FineEnvs/repo2rlenv-swe-smith tasks.tar.gz --repo-type dataset --local-dir ./swe-smith
 tar -xzf ./swe-smith/tasks.tar.gz -C ./swe-smith
 ```
 

@@ -104,7 +104,7 @@ uncertain reservation**; it is not silently reported as either billed or free.
 All expansion workers are terminated. These costs exclude the 20 retained tasks
 and subsequent independent quality evaluation. See the
 [generation economics](economics.md) and
-[published Harbor dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-seta-evol).
+[published Harbor dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-seta-evol).
 
 Generation does not imply difficulty calibration or independent quality acceptance. See
 [RFC 0014](../rfcs/0014-seta-evol-recipe.md) and the packaged recipe's `provenance.md`.

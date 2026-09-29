@@ -22,7 +22,7 @@ including local checkouts with no pull-request history.
 | Hosts | GitHub, GitLab and local paths. Linked-issue text is fetched only from GitHub and GitLab |
 | Languages | The same test runners as `pr_runtime`: pytest, `go test`, `cargo test`, Jest, Mocha and Vitest. The reference dataset has Python and Go tasks |
 | Status | Stable |
-| Reference dataset | [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime): 100 tasks from 22 repositories |
+| Reference dataset | [`FineEnvs/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime): 100 tasks from 22 repositories |
 
 ## Quickstart
 
@@ -192,7 +192,7 @@ recovered. See [native results](native_results.md#commit-runtime).
 ## Related
 
 - [RFC 0003: commit_runtime](../rfcs/0003-commit-runtime.md)
-- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) and its [release history](native_results.md#commit-runtime)
+- [Reference dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime) and its [release history](native_results.md#commit-runtime)
 - [`pr_runtime`](pr_runtime.md): the PR-based sibling, with the verifier details
 - [`r2e_gym`](r2e_gym.md): the research recipe for commit history
 - [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)

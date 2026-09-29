@@ -90,7 +90,7 @@ All dependency installation happens during image build. The solver runs as
 Initial-state tests, final-state tests and the reference stay outside the
 learner image. The builder receives execution errors for bounded repairs.
 
-The [published dataset](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax)
+The [published dataset](https://huggingface.co/datasets/FineEnvs/repo2rlenv-tmax)
 contains 55 tasks. The measured sample added 35, averaging **$2.10 per new task**
 including failed attempts and estimated compute. See [economics](economics.md)
 for the sample denominator and unresolved charges.
