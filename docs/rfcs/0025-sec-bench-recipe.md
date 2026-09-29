@@ -1,4 +1,7 @@
-# RFC 0025: `sec_bench` recipe for `cve_patches`
+---
+title: "RFC 0025: sec_bench recipe for cve_patches"
+navTitle: "0025 \u00b7 sec_bench recipe"
+---
 
 > Deferred at the user's request. SEC-bench is excluded from the current owned
 > recipe integration and 20-task generation campaign. The design below is retained

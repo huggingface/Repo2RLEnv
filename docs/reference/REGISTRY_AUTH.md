@@ -1,4 +1,7 @@
-# Container registry authentication
+---
+title: "Container registry authentication"
+navTitle: "Registry auth"
+---
 
 `repo2rlenv push` (v0.8.2.post3+) uploads the bootstrap Docker image to an
 OCI registry alongside the HF Hub dataset so any consumer can `harbor run`

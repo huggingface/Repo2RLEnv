@@ -1,4 +1,6 @@
-# `pr_runtime` — graded F2P/P2P reward + scale audit (Arc 2)
+---
+title: "pr_runtime — graded F2P/P2P reward + scale audit (Arc 2)"
+---
 
 This release upgrades `pr_runtime` from a binary pass/fail test-execution reward to a **graded** reward that gives RL training a dense gradient while still serving strict SWE-bench evaluation, and ships **100 oracle-verified environments** as the reference dataset.
 

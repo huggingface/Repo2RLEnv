@@ -1,4 +1,7 @@
-# RFC 0010: `issue_runtime`
+---
+title: "RFC 0010: issue_runtime"
+navTitle: "0010 \u00b7 issue_runtime"
+---
 
 **Status:** draft
 **Author:** `@adithya-s-k`

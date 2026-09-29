@@ -1,0 +1,179 @@
+---
+title: "Quickstart"
+description: "Generate, validate and run your first Harbor environment from a real GitHub repository in about five minutes."
+---
+
+Turn recent merged PRs from [`pallets/click`](https://github.com/pallets/click) into Harbor tasks, check them, and score them with Harbor. You use the `pr_diff` pipeline, which needs no Docker and no LLM key to generate; running the tasks in step 5 needs Docker.
+
+You need Python 3.12 or later, Git, and the [GitHub CLI](https://cli.github.com) (`gh`).
+
+<Steps>
+<Step>
+
+### Install Repo2RLEnv
+
+```bash tab="pip"
+pip install repo2rlenv
+```
+
+```bash tab="uv"
+uv tool install repo2rlenv
+```
+
+Then sign in to GitHub. Repo2RLEnv uses `gh` to list merged PRs and fetch their diffs.
+
+```bash
+gh auth login
+```
+
+If you'd rather not sign in interactively, set `GITHUB_TOKEN` to a read-scoped token instead. [Installation](installation.mdx) covers extras and other credentials.
+
+</Step>
+<Step>
+
+### Generate tasks from three PRs
+
+```bash
+repo2rlenv generate \
+  --repo pallets/click \
+  --pipeline pr_diff \
+  --pipeline-opt limit=3 \
+  --out ./tasks
+```
+
+This lists the three most recently merged PRs, drops those that make weak tasks (more than five changed files, test-only or docs-only diffs, reverts, diffs under three changed lines), and writes one task per remaining PR to `./tasks`. The summary tells you what happened:
+
+```text
+candidates  3
+emitted     1
+skipped     2 ({'too_many_files': 2})
+```
+
+`limit` counts PRs listed, not tasks emitted, so you often get fewer tasks than the limit. If nothing is emitted, the command exits with status 1 — raise the limit (for example, `limit=10`) and run it again.
+
+</Step>
+<Step>
+
+### Look at what you made
+
+Each task is a directory named after its source PR:
+
+```files
+tasks
+└── pallets__click-<pr>
+    ├── task.toml
+    ├── instruction.md
+    ├── environment
+    │   └── Dockerfile
+    ├── solution
+    │   ├── patch.diff
+    │   └── solve.sh
+    └── tests
+        ├── test.sh
+        ├── verifier.py
+        ├── oracle.patch
+        └── instruction.md
+```
+
+| File | What it is |
+|---|---|
+| `task.toml` | Harbor configuration (`version = "1.0"`, the task name `default/pallets__click-<pr>`, timeouts) plus `[metadata.repo2env]`: the source PR, base commit, reward kind, difficulty and an evaluation label that starts as `unverified`. |
+| `instruction.md` | What the agent reads: the PR's title and description rewritten as an issue, with links to the PR and "Closes #N" references removed. |
+| `environment/Dockerfile` | A `python:3.12-slim` image with the repository checked out at the PR's base commit and later history removed. |
+| `solution/patch.diff` | The merged PR's diff — the reference solution, or [oracle](concepts/glossary.mdx#oracle). |
+| `solution/solve.sh` | Applies `patch.diff`. Harbor's `oracle` agent runs this script. |
+| `tests/test.sh` | The verifier entry point: captures the agent's changes as a diff against the base commit and runs the scorer. |
+| `tests/verifier.py` | The scorer. It writes the reward to `/logs/verifier/reward.txt` and a per-component breakdown to `reward-details.json`. |
+| `tests/oracle.patch` | The verifier's copy of the reference diff. |
+| `tests/instruction.md` | The verifier's copy of the instruction, used by the optional LLM judge. |
+
+Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1 — file targeting, region overlap, line similarity and patch size, plus an optional LLM judge. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
+
+</Step>
+<Step>
+
+### Validate the tasks
+
+```bash
+repo2rlenv validate ./tasks --oracle
+```
+
+This is a static check. It confirms each `task.toml` parses, the instruction, environment and verifier files exist, and `solution/solve.sh` and `solution/patch.diff` are present. It doesn't build the image or run anything — the next step does that.
+
+```text
+✓ default/pallets__click-<pr>
+✓ all 1 tasks valid
+```
+
+</Step>
+<Step>
+
+### Run the tasks with Harbor
+
+Install [Harbor](https://github.com/harbor-framework/harbor) and run the `oracle` agent first. It applies the reference solution, so every task should score 1.0; a lower score means the task is broken.
+
+```bash
+uv tool install harbor
+harbor run -p ./tasks -a oracle --env docker
+```
+
+The [`nop`](concepts/glossary.mdx#nop) agent changes nothing, so every task should score 0.0. Together these two runs are the task's controls.
+
+```bash
+harbor run -p ./tasks -a nop --env docker
+```
+
+Now run a real agent — Claude Code with Sonnet:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+harbor run -p ./tasks \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+```
+
+| Flag | Effect |
+|---|---|
+| `-a claude-code -m anthropic/claude-sonnet-4-6` | The agent harness and the model it uses. |
+| `--ak max_budget_usd=2.00` | An agent option: caps what Claude Code can spend on each task (its `--max-budget-usd`). |
+| `--ae KEY=VALUE` | Passes an environment variable to the agent. |
+| `--ve KEY=VALUE` | Passes an environment variable to the verifier. Here it turns on the `pr_diff` LLM judge; without it the judge is skipped and the other components are reweighted. |
+
+Harbor writes results to `./jobs/<timestamp>/`, with each trial's `verifier/reward.txt` and `verifier/reward-details.json`. Browse them with `harbor view jobs`. To run in a cloud sandbox instead of local Docker, replace `--env docker` with `--env modal`, `daytona`, `e2b` or `runloop`.
+
+</Step>
+<Step>
+
+### Push to the Hub (optional)
+
+```bash
+hf auth login
+repo2rlenv push ./tasks <you>/click-pr-diff
+```
+
+`push` creates the dataset repository (add `--private` for a private one) and uploads the tasks with a dataset card, a `manifest.json` and a Harbor-compatible `registry.json`. `pr_diff` tasks build from a public base image, so no container registry is involved. Anyone can download the dataset again with `repo2rlenv pull <you>/click-pr-diff`.
+
+</Step>
+</Steps>
+
+## Next steps
+
+`pr_diff` rewards textual closeness to the merged change. For rewards based on running the repository's tests, switch to `pr_runtime`. It needs Docker and an LLM key: an LLM agent builds a working container for the repository and caches the image for later runs. That bootstrap loop is capped at $5 by default (`--max-spend-usd`).
+
+```bash
+repo2rlenv generate \
+  --repo pallets/click \
+  --pipeline pr_runtime \
+  --pipeline-opt limit=10 \
+  --llm anthropic/claude-sonnet-4-6 \
+  --out ./tasks-runtime
+```
+
+<Cards>
+  <Card title="Test-based tasks with pr_runtime" href="pipelines/pr_runtime.md" description="Fail-to-pass tests from real PRs. Needs Docker and an LLM key for the bootstrap." />
+  <Card title="Choose a pipeline" href="choose-a-pipeline.mdx" description="Match your source material and infrastructure to a generator." />
+  <Card title="Run with Harbor" href="guides/run-with-harbor.mdx" description="Agents, sandboxes, remote environments and reading results." />
+</Cards>

@@ -1,4 +1,6 @@
-# `task_evolve` — SETA curriculum variants
+---
+title: "seta_evol"
+---
 
 `seta_evol` reads a complete parent Harbor task and applies an explicit evolution
 strategy before rebuilding its fixtures, instruction, reference and tests. Parent

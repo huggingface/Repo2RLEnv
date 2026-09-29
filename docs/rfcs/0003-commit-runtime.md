@@ -1,4 +1,7 @@
-# RFC 0003: `commit_runtime`
+---
+title: "RFC 0003: commit_runtime"
+navTitle: "0003 \u00b7 commit_runtime"
+---
 
 **Status:** implemented
 **Author:** `@adithya-s-k`

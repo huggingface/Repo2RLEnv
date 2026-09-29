@@ -1,4 +1,6 @@
-# `pr_diff` — Harbor-runnable env + 6-component reward
+---
+title: "pr_diff — Harbor-runnable env + 6-component reward"
+---
 
 This release lifts `pr_diff` from v0.1's text-only output to a **fully Harbor-runnable RL environment** with a multi-component diff-similarity verifier (5 deterministic components + LLM-as-judge). The PR ships **100 verified environments published to HF Hub** as the reference dataset.
 

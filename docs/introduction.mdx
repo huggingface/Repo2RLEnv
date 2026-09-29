@@ -1,0 +1,53 @@
+---
+title: "Introduction"
+description: "What Repo2RLEnv builds, why it exists, and where it fits next to Harbor."
+---
+
+Repo2RLEnv turns repositories, pull requests and task seeds into verifiable RL environments for coding agents. Each environment is a Harbor task — an instruction, a container, a hidden verifier and a reference solution — that you can run with any Harbor agent or feed to a trainer.
+
+<Film id="launch" />
+
+## Why it exists
+
+Reinforcement learning for coding agents needs tasks an agent can attempt and a reward a program can compute. Every task needs a reproducible environment, an instruction that doesn't give the answer away, a verifier that tells a correct change from an incorrect one, and a reference solution that proves the task is solvable.
+
+Building these by hand takes hours per task, and a useful training run needs thousands. Repo2RLEnv generates them from material that already exists — merged PRs, commit history, a library's own functions, security advisories, task seeds — and gives you the checks to decide which ones to keep.
+
+## What a Harbor task is
+
+[Harbor](https://github.com/harbor-framework/harbor) defines a task as a directory: `instruction.md` for the agent, `task.toml` for configuration and metadata, `environment/` for the starting container, `solution/` for the reference solution (the [oracle](concepts/glossary.mdx#oracle)), and `tests/` for the verifier. Harbor runs the agent inside the environment, then runs the verifier, which writes a reward to `/logs/verifier/reward.txt`. [Tasks](concepts/tasks.mdx) walks through the layout file by file.
+
+## Three ways to generate tasks
+
+- **[Native pipelines](concepts/glossary.mdx#native-pipeline)** — six built-in generators that mine a repository's PRs, commits, functions or CVEs and run on your machine (Docker for test-based tasks).
+- **[Tasksmith](pipelines/tasksmith.md)** — an agent investigates one merged PR, builds its environment, designs the task, then reviews and repairs it, on Modal or Daytona workers.
+- **[Research recipes](pipelines/owned_recipes.md)** — 16 in-repo implementations of published methods (SWE-smith, SWE-gen, R2E-Gym, SETA, SCALER, FrontierSmith and more) for repair, terminal and reasoning tasks, on Modal or Daytona workers.
+
+[Pipelines](pipelines/index.mdx) compares every route; [Choose a pipeline](choose-a-pipeline.mdx) helps you pick one.
+
+## Repo2RLEnv and Harbor
+
+Repo2RLEnv writes Harbor's task format directly. Its own provenance and quality labels live under `[metadata.repo2env]` in `task.toml`, so any Harbor-compatible runtime or trainer can consume the output unchanged.
+
+| | Repo2RLEnv | Harbor |
+|---|---|---|
+| Role | Authors, checks and publishes tasks | Defines the runtime contract and runs tasks |
+| Does | Mines sources; writes instructions, environments, verifiers and reference solutions; validates them; reviews and repairs them; records evaluation labels; pushes datasets to the Hugging Face Hub | Specifies the task format; builds sandboxes (Docker, Modal, Daytona, E2B, Runloop and others); runs agent harnesses (Claude Code, Codex, Gemini CLI, OpenHands and others); collects rewards |
+| You run | `repo2rlenv generate`, `validate`, `quality run`, `push` | `harbor run` |
+
+## Generated is not the same as verified
+
+An exported task is a generation result, not a guarantee. You establish its quality with controls — the reference solution should score 1 and an agent that does nothing ([nop](concepts/glossary.mdx#nop)) should score 0 — and with the [review and repair loop](pipelines/quality_loop.md), which checks the instruction, the verifier and leakage against real learner rollouts. The outcome is stored in the task as an [evaluation label](pipelines/task_evaluation_labels.md); every new task starts as `unverified`. [Quality](concepts/quality.mdx) explains the model.
+
+## Published datasets
+
+The [Repo2RLEnv collection](https://huggingface.co/collections/HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d) on the Hugging Face Hub holds six native datasets and 15 Tasksmith and recipe datasets. The 15 hold 1,330 tasks, each carrying its evaluation label; the [release inventory](pipelines/releases.md) records their counts, revisions and validation scope. Download any dataset with `repo2rlenv pull` and run it with `harbor run`.
+
+## Next steps
+
+<Cards>
+  <Card title="Quickstart" href="quickstart.mdx" description="Generate, validate and run your first environment in about five minutes." />
+  <Card title="Installation" href="installation.mdx" description="Requirements, optional extras and the credentials each command needs." />
+  <Card title="Choose a pipeline" href="choose-a-pipeline.mdx" description="Match your source material and infrastructure to a generator." />
+  <Card title="How it works" href="concepts/how-it-works.mdx" description="From source material to a labeled Harbor task, stage by stage." />
+</Cards>

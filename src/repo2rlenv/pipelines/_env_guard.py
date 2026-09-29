@@ -21,7 +21,7 @@ claude-code runnable (a full `allow_internet=false` block breaks the agent's
 own install + API access). The stricter, more robust form is a default-deny
 egress allowlist proxy (allow only the package manager + model API), or a
 PyPI mirror frozen to the task's base date so even the index lacks the fix.
-See docs/pipelines/README.md and plans/reward_hacking_writeups.md.
+See docs/concepts/tasks.mdx (contamination defenses).
 """
 
 from __future__ import annotations

@@ -1,4 +1,7 @@
-# Review and repair a Harbor task
+---
+title: "Review and repair a Harbor task"
+navTitle: "Review and repair"
+---
 
 `repo2rlenv quality run` reviews an existing Harbor task, optionally reuses its
 rollout, and can run missing validation and repair the task remotely. It is a

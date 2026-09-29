@@ -1,4 +1,7 @@
-# RFC 0028: Tasksmith PR pilot
+---
+title: "RFC 0028: Tasksmith PR pilot"
+navTitle: "0028 \u00b7 Tasksmith PR pilot"
+---
 
 Status: implemented. Tasksmith builds on the owned execution interfaces and the quality loop in RFC 0027. The [guide](../pipelines/tasksmith.md) describes its current scope and contracts.
 

@@ -1,4 +1,6 @@
-# `repo_reconstruct / swe_flow`
+---
+title: "swe_flow"
+---
 
 SWE-Flow creates reconstruction tasks from a working repository's execution
 dependencies. It does not need PR history.

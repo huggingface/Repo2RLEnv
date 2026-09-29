@@ -1,4 +1,7 @@
-# Python API reference
+---
+title: "Python API reference"
+navTitle: "API"
+---
 
 The CLI is a thin layer over the Python API. Anything the CLI does, you can do in code.
 
@@ -109,7 +112,7 @@ pipeline = cls(generation_input, options)
 result = pipeline.run(out_dir)   # returns PipelineResult(candidates, emitted, skipped, out_dir, skip_reasons)
 ```
 
-`Pipeline` is a `runtime_checkable` Protocol — every entry in `PIPELINES` duck-conforms. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](../pipelines/README.md) for per-pipeline docs.
+`Pipeline` is a `runtime_checkable` Protocol — every entry in `PIPELINES` duck-conforms. `PipelineResult` is the standard return shape across pipelines. See [pipelines/](../pipelines/index.mdx) for per-pipeline docs.
 
 ## `repo2rlenv.emitter.harbor`
 

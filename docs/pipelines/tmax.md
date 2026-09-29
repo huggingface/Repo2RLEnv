@@ -1,4 +1,6 @@
-# `terminal_synth / tmax`
+---
+title: "tmax"
+---
 
 TMax composes terminal skills into new tasks and checks that the starting
 environment contains the fixtures described by the task.

@@ -1,4 +1,6 @@
-# repo_mutate: SWE-smith procedural recipe
+---
+title: "swe_smith"
+---
 
 **Status:** experimental; owned generation and Harbor execution pilot. No claim
 of a completed 20/100-task quality campaign yet.

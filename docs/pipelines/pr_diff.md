@@ -1,283 +1,154 @@
-# `pr_diff`
+---
+title: "pr_diff"
+description: "Turn merged pull requests into tasks scored by how closely the agent's patch matches the real fix."
+film: pr-diff
+---
 
-**SWE-RL-inspired PR mining with a Harbor-runnable multi-component verifier.** Each emitted task is a real merged GitHub PR; the agent edits the repo and the verifier scores the diff with five deterministic components plus an LLM-as-judge.
+Each task is a merged pull request, rewound to its base commit: the agent gets the
+PR's title and description and edits the repository to resolve it. A verifier
+compares the agent's diff with the merged diff and, when you pass it a key, asks an
+LLM judge whether the patch addresses the issue. Generation needs no Docker and no
+LLM, so `pr_diff` is the cheapest way to get many tasks out of a repository.
+
+## At a glance
 
 | | |
 |---|---|
-| Status | **implemented** |
-| Sandbox required at gen | No (text-only generation; verifier runs in a thin `python:3.12-slim` container) |
-| LLM required at gen | No |
-| LLM required at verify | Optional — falls back to deterministic-only when no API key |
-| Reward kinds emitted | `diff_similarity` (scored via the 6-component verifier — see below) |
-| Inspiration | [SWE-RL](https://github.com/facebookresearch/swe-rl) (Meta, NeurIPS '25) |
-| Implementation | [`src/repo2rlenv/pipelines/pr_diff.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py), [`src/repo2rlenv/pipelines/_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) |
-| Options model | [`PRDiffOptions`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) |
-| Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) on HF Hub |
+| Input | A GitHub or GitLab repository with merged PRs |
+| Task | Resolve the issue described in a merged PR, starting from its base commit |
+| Reward | Weighted diff similarity in [0, 1] against the merged diff, plus an optional LLM judge |
+| Needs an LLM | No at generation. The judge is optional, at verify time |
+| Needs Docker | No at generation. Running a task builds a small `python:3.12-slim` image |
+| Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
+| Languages | Any, since scoring is text-based. The reference dataset spans Python, JavaScript/TypeScript, Go and Rust |
+| Status | Stable |
+| Reference dataset | [`AdithyaSK/repo2rlenv-pr-diff`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff): 181 tasks from 26 repositories |
 
-**Existing exports:** tasks generated before [#145](https://github.com/huggingface/Repo2RLEnv/pull/145) can expose the oracle patch inside the agent image. Updating the package does not repair those tasks or cached images. Regenerate affected exports and rebuild their images before using them for training or evaluation. Migration of the published reference dataset is tracked in [#155](https://github.com/huggingface/Repo2RLEnv/issues/155).
-
-## What it does
-
-```mermaid
-flowchart TD
-    A[Repo URL<br/>e.g. pallets/click] --> B[gh pr list<br/>--state merged]
-    B --> C{For each PR}
-    C --> D{Filters<br/>drafts? file count?<br/>test-only? docs-only?<br/>revert? min LOC?}
-    D -- skip --> Z[Count skip reason<br/>continue loop]
-    D -- pass --> E[gh pr diff #N]
-    E --> F[Strip info-leak from<br/>instruction title + body]
-    F --> G[Compute baseline reward<br/>+ difficulty bucket]
-    G --> H[Build Harbor task]
-    H --> I[task.toml<br/>+ instruction.md<br/>+ solution/patch.diff<br/>+ solution/solve.sh<br/>+ environment/Dockerfile<br/>+ tests/test.sh<br/>+ tests/verifier.py<br/>+ tests/oracle.patch]
-```
-
-For each merged PR within scope:
-
-1. List PRs via `gh pr list`, apply structural filters (date, draft, file count) + quality filters (drop test-only, docs-only, reverts, trivially-small diffs).
-2. Fetch the unified diff via `gh pr diff`.
-3. Strip leakage patterns from the PR title + body (eight pattern families — see [Instruction info-leak strip](#instruction-info-leak-strip) below).
-4. Compute the **calibration baseline** (the score an empty patch would get against this oracle) and the **difficulty bucket** by LOC changed.
-5. Emit a Harbor-spec task: `instruction.md`, `solution/{patch.diff, solve.sh}`, `environment/Dockerfile`, `tests/{test.sh, verifier.py, oracle.patch, instruction.md}`, `task.toml`. The oracle and verifier ship under `tests/`, which Harbor uploads only at verify time, so they never enter the agent's image.
-
-The environment is a thin, **agent-agnostic** `python:3.12-slim` image with git + the repo checked out at `base_commit` — no agent CLI is pre-installed, and **no oracle or verifier is baked in**. Harbor's agent adapter (`-a claude-code`, `-a openhands`, `-a codex`, `-a aider`, …) drops in the runtime its agent needs when the container starts. After the agent, Harbor uploads `tests/` (which carries `verifier.py`, `oracle.patch`, and `instruction.md`) and runs `tests/test.sh`, which computes the [multi-component reward](#multi-component-reward). Keeping the oracle in `tests/` rather than the image is what stops an agent from reading and re-applying it for a free score.
-
-**Source host and authentication:** the Dockerfile clones the original GitHub or GitLab repository over HTTPS, preserving its full path. Public repos need no token. The optional clone build arg is `GITHUB_TOKEN` for GitHub or `GITLAB_TOKEN` for GitLab; the consumer supplies it at build time, and the remote URL is scrubbed afterward. Private GitLab MR diff fetching during generation remains a separate unsupported case ([#65](https://github.com/huggingface/Repo2RLEnv/issues/65)); clone authentication alone does not enable end-to-end private GitLab mining. See [`reference/AUTH.md`](../reference/AUTH.md#private-repos-at-task-build-time).
-
-## Multi-component reward
-
-The verifier captures the agent's edits as a unified diff against `base_commit`, then scores it against the oracle (gold) diff using **six components, weighted sum**:
-
-| Component | Range | Default weight | What it captures |
-|---|:--:|--:|---|
-| `format_valid` | 0 or 1 | 0.00 | Does the predicted text parse as a unified diff? Always 1 for the `claude-code` adapter — kept as a guard, weight 0 because it carries no discriminative signal. |
-| `size_sanity` | [0, 1] | 0.08 | `min(oracle_loc, predicted_loc) / max(...)`. Catches "rampage through the codebase" and "no-op" failure modes. |
-| `file_targeting` | [0, 1] | 0.12 | F1 over the changed-file sets (not Jaccard — missing an oracle file is worse than touching one extra). |
-| `region_overlap` | [0, 1] | 0.20 | For each oracle hunk, did the predicted diff edit a line within 5 lines of that hunk in the same file? Strongest spatial-localization signal. |
-| `similarity` | [0, 1] | 0.10 | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no free credit for unchanged context). |
-| `llm_judge` | [0, 1] or null | 0.50 | An LLM rates "does this patch logically address the issue described?" — Anthropic Haiku by default, or any OpenAI-compatible server (vLLM, Ollama, a gateway) via `R2E_JUDGE_ENDPOINT` + `R2E_JUDGE_MODEL`. Most informative semantic signal. Null on missing API key / network error → remaining weights are re-normalized. |
-
-Final reward is clipped to `[0, 1]`. A **catastrophic-size hard cap** clamps the final to ≤ 0.40 when `size_sanity < 0.10` — stops a charitable judge from inflating scores on patches that are wildly the wrong size.
-
-The verifier writes `/logs/verifier/reward.txt` (the reward) and `/logs/verifier/reward-details.json` (the component breakdown). Before grading, the script removes stale text and JSON reward files, since Harbor gives `reward.json` priority when both formats exist.
-
-Weights are overridable per-task via `task.toml.metadata` or per-run via `R2E_W_{FORMAT,SIZE,FILE,REGION,SIM,JUDGE}` env vars passed to `harbor run --ve`.
-
-### Calibration baseline
-
-Each task carries `task.toml.metadata.repo2env.reward_calibration.baseline_reward` — the reward an empty predicted diff would get against this oracle. Consumers can normalize:
-
-```
-calibrated = (raw - baseline) / (1 - baseline)
-```
-
-`calibrated < 0` means the agent did *worse* than no-op. Useful for cross-task comparability since trivial 5-line fixes and 200-line refactors are no longer the same number.
-
-### Difficulty bucketing
-
-Each task carries `task.toml.metadata.difficulty` ∈ `{easy, small, medium, large}` based on oracle LOC changed (≤ 5, 6 – 20, 21 – 80, > 80 respectively), plus a raw `loc_changed` int. Lets training scripts weight or filter by difficulty.
-
-## Instruction info-leak strip
-
-PR descriptions often contain pointers to the answer. The pipeline strips eight pattern families from instructions before they reach the agent:
-
-| Pattern | Example |
-|---|---|
-| Multi-issue closes | `Closes #42`, `Fixes #1, #2, #3` |
-| `See` / `refs` / `follow-up to` linkbacks | `See #99`, `Follow-up to PR #42` |
-| Markdown issue links | `[#1234](https://github.com/x/y/issues/1234)` |
-| Closes with markdown-link refs | `Closes [#1234](url)` |
-| Descriptive markdown links to GH URLs | `[my analysis](https://github.com/x/y/pull/1234)` |
-| Bare GitHub URLs | `https://github.com/foo/bar/pull/42`, also `redirect.github.com` |
-| Commit trailers | `Co-authored-by:`, `Signed-off-by:` |
-| Title squash suffix | `Fix the bug (#1234)`, `(fixes #1800)` |
-
-Composite patterns are stripped before piece-wise patterns so we don't leave orphaned `Closes ` keywords or empty `[text]()` markdown brackets behind.
-
-## Options
-
-```python
-class PRDiffOptions(BaseModel):
-    limit: int = 50
-    since: date | None = None
-    until: date | None = None
-    state: Literal["merged", "all"] = "merged"
-    diff_format: Literal["unified", "search_replace"] = "unified"
-    max_files_per_pr: int = 5
-    skip_drafts: bool = True
-    emit_harbor_env: bool = True
-    min_loc_changed: int = 3
-```
-
-| Field | Default | Notes |
-|---|---|---|
-| `limit` | `50` | Max tasks emitted (over-fetched ~3× client-side to allow filtering). |
-| `since` / `until` | `None` | ISO date bounds applied to `mergedAt`. |
-| `state` | `"merged"` | Currently only `merged` is supported. |
-| `max_files_per_pr` | `5` | Drops sweeping refactors. |
-| `skip_drafts` | `True` | Drops draft PRs. |
-| `emit_harbor_env` | `True` | Emits `environment/Dockerfile` + `tests/test.sh` so `harbor run` works directly. Set False for the v0.1-style text-only output. |
-| `min_loc_changed` | `3` | Reject PRs whose oracle diff has fewer `+`/`-` lines than this — too trivial to be a meaningful task. |
-
-### Skip reasons
-
-A PR may not become a task. The pipeline records counts per reason:
-
-| Reason | Meaning |
-|---|---|
-| `draft` | `pr.is_draft and skip_drafts=True` |
-| `no_files` / `too_many_files` | Outside `max_files_per_pr` |
-| `not_merged` | No `mergedAt` timestamp |
-| `empty_diff` | `gh pr diff` returned an empty string |
-| `diff_fetch_failed` | `gh pr diff` raised |
-| `test_only_diff` | 100% of touched files are test files |
-| `docs_only_diff` | 100% of touched files are `.md` / `.rst` / `docs/` |
-| `revert_pr` | Title starts with `Revert ` |
-| `diff_too_small` | Fewer than `min_loc_changed` `+`/`-` lines |
-| `instruction_too_thin` | Empty body + short title after info-leak strip |
-
-## Yield
-
-**Yield = emitted tasks ÷ merged PRs examined.** `pr_diff` is the **highest-yield**
-pipeline (**~80–95%**) because there is *no execution gate* — any merged PR with a
-non-trivial diff and a usable problem statement becomes a task. Nothing is dropped
-for failing to build or run.
-
-| Knob | Default | Effect on yield |
-|---|:-:|---|
-| `min_loc_changed` | 3 | ↑ drops more trivial one-liner/typo PRs (lower yield, higher signal) |
-| `max_files_per_pr` | 5 | ↓ excludes sprawling PRs (lower yield) |
-| `state` | `merged` | `all` admits unmerged PRs (higher yield, noisier oracle) |
-| `skip_drafts` | True | drafts excluded |
-
-The only structural drops are the buckets in the table above (test/docs-only,
-reverts, too-small, too-thin) — typically **5–20% combined** on a healthy repo.
-
-**Worked example:** to ship 100 tasks at ~90% yield you need ~110 merged PRs —
-one mid-sized repo (or two small ones) clears it in a single pass. This is why
-the reference dataset (`AdithyaSK/repo2rlenv-pr-diff`, 100 envs) was built from
-just a handful of repos.
-
-## Example invocations
-
-### CLI
+## Quickstart
 
 ```bash
-# Generate one env from a single repo
 repo2rlenv generate \
   --repo pallets/click \
   --pipeline pr_diff \
   --pipeline-opt limit=5 \
-  --out ./datasets/click-prdiff
-
-# Run it through harbor with the oracle adapter (must score reward=1.0)
-harbor run -p ./datasets/click-prdiff -a oracle --env docker -n 1
-
-# Run it through harbor with a real agent.
-# The verifier's LLM judge also needs credentials — pass via --ve so they
-# reach the verifier container (the --ae key only reaches the agent).
-# Default judge: Anthropic Haiku via ANTHROPIC_API_KEY. Self-hosted judge:
-# R2E_JUDGE_ENDPOINT + R2E_JUDGE_MODEL, no key needed (Example 3).
-
-# Example 1: claude-code + Sonnet 4.6 (what we used to verify the
-# reference dataset).
-harbor run \
-  -p ./datasets/click-prdiff \
-  -a claude-code -m anthropic/claude-sonnet-4-6 \
-  --ak max_budget_usd=2.00 --ak max_turns=30 \
-  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --env docker -n 1
-
-# Example 2: same env, different agent — openhands + GPT-4o.
-harbor run \
-  -p ./datasets/click-prdiff \
-  -a openhands -m openai/gpt-4o \
-  --ae OPENAI_API_KEY=$OPENAI_API_KEY \
-  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --env docker -n 1
-
-# Example 3: a self-hosted judge. `vllm serve Qwen/Qwen3.5-4B --host 0.0.0.0
-# --port 8000` on the host, then route the verifier to it; ANTHROPIC_API_KEY
-# is not needed and is never sent there.
-harbor run \
-  -p ./datasets/click-prdiff \
-  -a claude-code -m anthropic/claude-sonnet-4-6 \
-  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 \
-  --ve R2E_JUDGE_MODEL=Qwen/Qwen3.5-4B \
-  --env docker -n 1
-#   ^ host.docker.internal is a Docker Desktop name (macOS / Windows / WSL2).
-#     On a bare Linux daemon it does not resolve: use the host's LAN IP
-#     instead, e.g. --ve R2E_JUDGE_ENDPOINT=http://$(hostname -I | cut -d' ' -f1):8000/v1
-
-# Harbor ships 25+ agent harnesses you can swap in here:
-#   claude-code · openhands / openhands-sdk · codex · aider · gemini-cli
-#   copilot-cli · opencode · cursor-cli · qwen-coder · kimi-cli · goose
-#   mini-swe-agent · swe-agent · nemo-agent · terminus-2 · trae-agent · ...
-# Each one expects its own provider env var via `--ae`. Run
-# `harbor run --help` to see the full list.
-
-# Generate locally, then push to HF Hub
-repo2rlenv push ./datasets/click-prdiff <your-org>/<dataset-name>
+  --out ./tasks/click-pr-diff
 ```
 
-### Python
-
-```python
-from pathlib import Path
-from repo2rlenv.spec.input import (
-    GenerationInput, RepoSpec, PipelineSpec, OutputSpec, PipelineName,
-)
-from repo2rlenv.spec.options import PRDiffOptions
-from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
-
-g = GenerationInput(
-    repo=RepoSpec(url="pallets/click", access="auto"),
-    pipeline=PipelineSpec(name=PipelineName.PR_DIFF, options={}),
-    output=OutputSpec(destination="./out", org="myorg", dataset_name="click-prdiff"),
-)
-options = PRDiffOptions(limit=5, max_files_per_pr=10)
-
-pipeline = PRDiffPipeline(g, options)
-result = pipeline.run(Path("./out"))
-
-print(result.candidates, result.emitted, result.skip_reasons)
-```
-
-## Pulling the reference dataset
-
-A verified reference dataset is published on HF Hub:
-
-**<https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff>**
+`limit` caps how many merged PRs are listed, so you get at most five tasks, one
+directory each (`./tasks/click-pr-diff/pallets__click-<pr>/`). The command exits
+with status 1 if every PR is filtered out. Check the tasks, then run the oracle,
+which applies the merged diff:
 
 ```bash
-repo2rlenv pull AdithyaSK/repo2rlenv-pr-diff /tmp/pr_diff-ref
-repo2rlenv validate /tmp/pr_diff-ref
-
-# Smoke-check with the oracle (must score reward=1.0)
-harbor run -p /tmp/pr_diff-ref -a oracle --env docker -n 1
+repo2rlenv validate ./tasks/click-pr-diff --oracle
+harbor run -p ./tasks/click-pr-diff -a oracle --env docker
 ```
 
-You can also browse it interactively via the Harbor Visualiser badge on the dataset card.
+To score a real agent, pass the judge key to the verifier with `--ve`; `--ae` only
+reaches the agent:
 
-## `[metadata.repo2env]` schema
+```bash
+harbor run -p ./tasks/click-pr-diff \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ak max_budget_usd=2.00 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --env docker
+```
 
-Each emitted task carries:
+## How it works
+
+```mermaid
+flowchart TD
+  A["Merged PRs, newest first"] --> B{"Draft, too many files,<br/>not merged?"}
+  B -- skip --> Z["Count skip reason"]
+  B -- keep --> C["Fetch the PR diff"]
+  C --> D{"Test-only, docs-only, revert,<br/>tiny diff, thin description?"}
+  D -- skip --> Z
+  D -- keep --> E["Strip fix pointers from<br/>title and description"]
+  E --> F["No-op baseline and<br/>difficulty bucket"]
+  F --> G["Harbor task: slim image,<br/>verifier and oracle in tests/"]
+```
+
+1. **List merged PRs.** `gh pr list --state merged` on GitHub, or the merge-request
+   API on GitLab, newest first. The listing over-fetches three times `limit` so that
+   draft and `since`/`until` filtering still leaves up to `limit` PRs.
+2. **Filter on metadata.** Skip drafts (`skip_drafts`), PRs with no changed files or
+   more than `max_files_per_pr`, and PRs without a merge timestamp.
+3. **Fetch the diff** with `gh pr diff` (or the GitLab equivalent). Empty diffs and
+   fetch failures are skipped.
+4. **Filter on content.** Skip diffs that only touch tests or only touch docs,
+   titles that start with `Revert `, diffs with fewer than `min_loc_changed` changed
+   lines, and PRs whose description is empty after stripping and whose title has
+   fewer than five words.
+5. **Write the instruction** from the PR title and description, with closing
+   keywords, issue and PR links, GitHub URLs, commit trailers and squash suffixes
+   removed (see [Implementation notes](#implementation-notes)).
+6. **Calibrate.** Compute the reward an empty patch would get (the no-op baseline)
+   and a difficulty bucket from the diff size.
+7. **Emit the task.** The environment is `python:3.12-slim` with git and the
+   repository checked out at the base commit, with git history past that commit
+   removed. The oracle and verifier go in `tests/`, which Harbor uploads only at
+   verify time, so the agent's image never contains the answer.
+
+## Options
+
+Pass each option with `--pipeline-opt key=value`.
+
+| Key | Default | What it does |
+|---|---|---|
+| `limit` | `50` | Maximum merged PRs to list. You get at most this many tasks |
+| `since` / `until` | none | ISO dates (`2026-01-31`) bounding the merge date |
+| `max_files_per_pr` | `5` | Skip PRs that change more files than this |
+| `min_loc_changed` | `3` | Skip PRs whose diff changes fewer `+`/`-` lines than this |
+| `skip_drafts` | `true` | Skip draft PRs |
+| `emit_harbor_env` | `true` | Write `environment/`, `tests/test.sh` and the verifier files. `false` writes text-only tasks (`task.toml`, `instruction.md`, `solution/`) for trainers that score diffs themselves |
+| `diff_format` | `unified` | Recorded in task metadata. The oracle is always the unified diff from the host |
+| `state` | `merged` | Accepts `merged` or `all`; listing currently always uses merged PRs |
+| `context_window_loc` | `200` | Accepted but not used by the current pipeline |
+
+## Output
+
+```files
+pallets__click-<pr>
+├── task.toml
+├── instruction.md
+├── environment
+│   └── Dockerfile
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    ├── verifier.py
+    ├── oracle.patch
+    └── instruction.md
+```
+
+- `task.toml`: Harbor 1.0 task (`name = "<org>/pallets__click-<pr>"`, agent timeout 1,800 s, verifier timeout 300 s) with provenance, calibration and an [evaluation label](task_evaluation_labels.md) under `[metadata.repo2env]`. The label starts as `unverified`.
+- `instruction.md`: the stripped PR title and description, plus a short task statement.
+- `environment/Dockerfile`: `python:3.12-slim`, git, and the repository at the base commit. An optional `GITHUB_TOKEN` or `GITLAB_TOKEN` build argument clones private repositories; the remote URL is reset afterwards.
+- `solution/patch.diff`: the merged diff (the [oracle](../concepts/glossary.mdx#oracle)).
+- `solution/solve.sh`: applies `patch.diff`; Harbor's oracle agent runs it.
+- `tests/test.sh`: captures the agent's edits with `git add -A` and `git diff --cached <base>`, then runs the verifier.
+- `tests/verifier.py`: the standalone six-component scorer (Python standard library only).
+- `tests/oracle.patch`: the reference diff the verifier compares against.
+- `tests/instruction.md`: the verifier's copy of the instruction, for the judge.
+
+The per-task metadata looks like this:
 
 ```toml
 [metadata.repo2env]
 pipeline = "pr_diff"
-pipeline_version = "0.3.0"
 repo = "pallets/click"
-ref = "<base_commit_sha>"
-reference = "https://github.com/pallets/click/pull/3508"
-built_at = "2026-05-26T..."
+ref = "<base commit sha>"
+reference = "https://github.com/pallets/click/pull/<pr>"
 reward_kinds = ["diff_similarity"]
 
 [metadata.repo2env.pr_diff]
-pr_merged_at = "2026-05-23T..."
+pr_merged_at = "<timestamp>"
 diff_format = "unified"
-context_files = ["src/click/shell_completion.py", "tests/test_shell_completion.py"]
+context_files = ["src/click/…", "tests/…"]
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -285,23 +156,167 @@ loc_changed = 95
 difficulty = "large"
 ```
 
-## Consuming the reward at training time
+## Multi-component reward
 
-Two paths:
+The verifier scores the agent's diff against the oracle with six components and
+combines them as a weighted average:
 
-**(a) Per-task reward via Harbor.** Use `harbor run` against the emitted task directory. The verifier writes `reward.txt` (single float) and `reward.json` (full breakdown). This is the production path for evals.
+| Component | Range | Weight | What it measures |
+|---|:-:|--:|---|
+| `format_valid` | 0 or 1 | 0.00 | The diff has a `diff --git` header and at least one change line. Kept as a guard |
+| `size_sanity` | [0, 1] | 0.08 | `min(oracle_lines, predicted_lines) / max(…)`. Catches no-op and sprawling patches |
+| `file_targeting` | [0, 1] | 0.12 | F1 over the sets of changed files, so missing an oracle file costs more than touching an extra one |
+| `region_overlap` | [0, 1] | 0.20 | Fraction of oracle hunks with a predicted edit within five lines in the same file |
+| `similarity` | [0, 1] | 0.10 | `difflib.SequenceMatcher` ratio over `+`/`-` lines only, so unchanged context earns nothing |
+| `llm_judge` | [0, 1] or none | 0.50 | An LLM rates whether the patch plausibly addresses the issue, without grading similarity to the oracle |
 
-**(b) Pure-text reward for SWE-RL-style training rollouts.** Score a candidate prediction against the oracle directly:
+The result is clipped to [0, 1]. If `size_sanity` is below 0.10, the reward is
+capped at 0.40, so a lenient judge can't inflate a patch that is wildly the wrong
+size. An empty patch scores 0.
+
+When the judge doesn't return a score, its weight is redistributed across the
+other components. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`,
+`R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, passed with
+`harbor run --ve`.
+
+The verifier removes any existing reward files, then writes the score to
+`/logs/verifier/reward.txt` and the breakdown (`final_reward`, `components`,
+`weights`, `judge_model`, `judge_endpoint`, `judge_status`) to
+`/logs/verifier/reward-details.json`.
+
+### LLM judge
+
+| Setting (via `--ve`) | Effect |
+|---|---|
+| `ANTHROPIC_API_KEY` | Enables the default judge, `claude-haiku-4-5-20251001` on the Anthropic API |
+| `R2E_JUDGE_MODEL` | Picks a different model |
+| `R2E_JUDGE_ENDPOINT` | Sends the request to an OpenAI-compatible server (`<endpoint>/chat/completions`, temperature 0) instead. `R2E_JUDGE_MODEL` is then required, and `ANTHROPIC_API_KEY` is never sent there |
+| `R2E_JUDGE_API_KEY` | Bearer token for the custom endpoint; a placeholder is sent when unset |
+
+`judge_status` records the outcome: `ok`, `no_api_key`, `no_judge_model`,
+`empty_predicted`, `network`, `parse` or `missing_score`. To use a self-hosted
+judge, start a server on the host and route the verifier to it:
+
+```bash
+harbor run -p ./tasks/click-pr-diff \
+  -a claude-code -m anthropic/claude-sonnet-4-6 \
+  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  --ve R2E_JUDGE_ENDPOINT=http://host.docker.internal:8000/v1 \
+  --ve R2E_JUDGE_MODEL=Qwen/Qwen3.5-4B \
+  --env docker
+```
+
+`host.docker.internal` resolves on Docker Desktop (macOS, Windows, WSL2). On a
+Linux Docker daemon, use the host's LAN IP instead.
+
+### Calibration baseline
+
+`reward_calibration.baseline_reward` is the reward an empty patch gets against
+the task's oracle, computed without the judge. Normalize with
+`calibrated = (raw - baseline) / (1 - baseline)`; a negative value means the agent
+did worse than doing nothing. With the current components the baseline is 0.
+
+### Difficulty bucketing
+
+`reward_calibration.difficulty` buckets the oracle by changed lines: `trivial`
+(5 or fewer), `small` (6–20), `medium` (21–80) and `large` (more than 80), with the
+raw count in `loc_changed`. `metadata.difficulty` in `task.toml` uses the same
+buckets, with `trivial` written as `easy`.
+
+### Scoring outside Harbor
+
+For text-only training loops, score a predicted diff directly. The single-component
+SWE-RL-style similarity is:
 
 ```python
 from repo2rlenv.reward import calculate_diff_similarity_reward
 
-oracle = (task_dir / "solution" / "patch.diff").read_text()
-reward, meta = calculate_diff_similarity_reward(oracle, prediction_diff)
+reward, meta = calculate_diff_similarity_reward(oracle_diff, predicted_diff)
 ```
 
-This is the (single-component, dense) signal SWE-RL trained on. For higher fidelity, run the predicted diff through the same six-component verifier — it's a pure-stdlib module at [`_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py) that can be imported directly.
+For the full six-component score, import the functions in
+[`_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py).
+See [Rewards](../concepts/rewards.mdx#diff-similarity) for how this compares with the test-based rewards.
 
-## Acknowledgments
+## Yield and cost
 
-The text-only PR-as-task formulation + the diff-similarity reward shape are inspired by **SWE-RL** (Wei et al., NeurIPS '25, arXiv:2502.18449). The LLM-as-judge component follows the constitutional-AI / RLAIF pattern. No code is copied from SWE-RL; the reward function is an independent reimplementation against the Python standard library and is released under Apache-2.0.
+No complete candidate count or generation cost was recovered for the reference
+dataset, so there's no measured yield. What drives it: there is no execution gate,
+so every listed PR that survives the filters becomes a task. The run summary
+counts each skip reason (`draft`, `too_many_files`, `test_only_diff`,
+`docs_only_diff`, `revert_pr`, `diff_too_small`, `instruction_too_thin`, and so on).
+Generation makes no model calls; the only model cost is one judge call per scored
+attempt.
+
+An earlier 23-trial Claude Sonnet 4.6 pilot on the first 100-task release had a
+median reward of 0.71 (range 0.16–0.98). These are continuous scores, not a solve
+rate. See [native results](native_results.md#pr-diff).
+
+## Limits
+
+- **A generated task isn't a verified environment.** Run the controls: the oracle
+  should score 1.0 (exactly 1.0 without a judge) and a no-op agent (`-a nop`) 0.
+  Record the outcome as an evaluation label; see [Quality](../concepts/quality.mdx).
+- **The published dataset predates oracle isolation.** Tasks generated before
+  [#145](https://github.com/huggingface/Repo2RLEnv/pull/145), including the 181-task
+  reference dataset, bake the oracle into the agent's image. Repairing that dataset
+  is tracked in [#155](https://github.com/huggingface/Repo2RLEnv/issues/155).
+  Regenerate tasks, and rebuild cached images, before you train or evaluate on them.
+- **Similarity isn't correctness.** A valid fix that differs from the merged one
+  scores lower on the deterministic components. The judge carries half the weight
+  to offset this, but judges are noisy, especially small self-hosted ones.
+- **No egress guard.** Git history is removed, but `pr_diff` doesn't ship the
+  network denylist the runtime pipelines use (see
+  [contamination defenses](../concepts/tasks.mdx#contamination-defenses)). An agent with web access can look up
+  the merged PR.
+- **The instruction is written by the fixer.** Stripping removes links and
+  references, not prose, so some descriptions still explain the approach.
+- **GitLab listing sees at most the newest 100 merged MRs**, so a `limit` above
+  about 33 won't reach older ones.
+
+## Related
+
+- [RFC 0001: pr_diff](../rfcs/0001-pr-diff.md)
+- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff) and its [release history](native_results.md#pr-diff)
+- [`pr_runtime`](pr_runtime.md): the same PRs, verified by running their tests
+- [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
+- Inspired by [SWE-RL](https://github.com/facebookresearch/swe-rl) (Wei et al., 2025). The verifier is an independent reimplementation.
+
+## Implementation notes
+
+Source: [`pipelines/pr_diff.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/pr_diff.py)
+and [`pipelines/_pr_diff_verifier.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_pr_diff_verifier.py).
+
+### Instruction info-leak strip
+
+The instruction builder removes these pattern families from the PR title and body.
+Composite forms run first, so no orphaned `Closes` keywords or empty `[text]()`
+brackets are left behind:
+
+| Pattern | Example |
+|---|---|
+| Closing keywords | `Closes #42`, `Fixes #1, #2` |
+| Linkbacks | `See #99`, `Refs #7`, `Follow-up to #42` |
+| Markdown issue links | `[#1234](https://github.com/o/r/issues/1234)`, `Closes [#1234](url)` |
+| Markdown links to GitHub PRs, issues or commits | `[my analysis](https://github.com/o/r/pull/1234)` |
+| Bare GitHub URLs | `https://github.com/o/r/pull/42`, including `redirect.github.com` |
+| Commit trailers | `Co-authored-by:`, `Signed-off-by:`, `Reviewed-by:`, `Acked-by:` |
+| Title squash suffixes | `Fix the bug (#1234)`, `(fixes #1800)` |
+
+### Environment and verifier details
+
+- The Dockerfile clones over HTTPS (SSH and `http://` inputs are rewritten), fetches
+  the base commit, runs `git reset --hard` and `git clean`, then scrubs history:
+  it removes `origin`, deletes every other branch and tag, expires the reflog and
+  garbage-collects, keeping only the base commit reachable.
+- No agent tooling is installed. Harbor's agent adapter installs what it needs when
+  the container starts, so the same task works with any harness.
+- `test.sh` stages new files before diffing (`git add -A`). Without that, files the
+  agent creates wouldn't count toward file targeting or region overlap.
+- The judge prompt truncates the instruction, oracle and prediction to 4,000
+  characters each and asks for a JSON `score`. The default Anthropic route keeps
+  the provider's sampling defaults, which the weights were tuned against; custom
+  endpoints are pinned to temperature 0.
+- The default weights were retuned after a 23-task pilot: `format_valid` was 1.0 on
+  every evaluated task (no signal), and `similarity` correlated strongly with
+  `region_overlap`, so the judge took the freed weight.

@@ -1,4 +1,7 @@
-# RFC NNNN: `<pipeline_name>`
+---
+title: "RFC NNNN: <pipeline_name>"
+navTitle: "Template"
+---
 
 **Status:** draft
 **Author:** `<your GH handle>`

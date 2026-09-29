@@ -1,4 +1,6 @@
-# `terminal_reconstruct / terminalworld`
+---
+title: "terminalworld"
+---
 
 TerminalWorld reconstructs executable tasks from real terminal recordings.
 Its tests are generated from the public goal and observed reference execution.

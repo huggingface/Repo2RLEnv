@@ -1,4 +1,6 @@
-# Version history
+---
+title: "Version history"
+---
 
 Current release highlights followed by historical notes. `CLAUDE.md` carries
 only the compressed summary; the detail lives here.
@@ -129,7 +131,7 @@ six native pipelines. Tasksmith uses LangGraph with Pi or OpenCode to investigat
 a merged PR, bootstrap its repository, design a task and private verifier, and
 run bounded review and repair. CPU execution supports Daytona and Modal; the
 implemented GPU route uses Modal L4 GPUs. Tasksmith and the recipes remain
-experimental; their current scope is documented in the [pipeline guide](../pipelines/README.md).
+experimental; their current scope is documented in the [pipeline guide](../pipelines/index.mdx).
 
 The owned recipes cover repository mutation, PR and commit mining, function
 reconstruction, terminal synthesis, task evolution, environment repair and

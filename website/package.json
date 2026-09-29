@@ -1,0 +1,38 @@
+{
+  "name": "repo2rlenv-website",
+  "private": true,
+  "description": "Repo2RLEnv documentation site (Fumadocs). Content lives in ../docs.",
+  "scripts": {
+    "generate": "cd .. && python3 docs/_tools/generate_prompt_reference.py",
+    "dev": "npm run generate && next dev",
+    "build": "npm run generate && next build",
+    "start": "serve out",
+    "types:check": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/player": "4.0.466",
+    "cn": "0.3.2",
+    "fumadocs-core": "16.15.17",
+    "fumadocs-mdx": "15.4.5",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.15.17",
+    "lucide-react": "1.47.0",
+    "mermaid": "12.0.0",
+    "next": "16.3.5",
+    "next-themes": "0.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "rehype-raw": "7.0.0",
+    "remotion": "4.0.466"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/mdx": "2.0.14",
+    "@types/node": "26.6.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "postcss": "8.5.28",
+    "serve": "14.2.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2"
+  }
+}

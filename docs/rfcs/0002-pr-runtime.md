@@ -1,4 +1,7 @@
-# RFC 0002: `pr_runtime`
+---
+title: "RFC 0002: pr_runtime"
+navTitle: "0002 \u00b7 pr_runtime"
+---
 
 **Status:** implemented
 **Author:** `@adithya-s-k`

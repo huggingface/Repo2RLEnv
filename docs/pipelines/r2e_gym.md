@@ -1,4 +1,6 @@
-# `commit_runtime / r2e_gym`
+---
+title: "r2e_gym"
+---
 
 R2E-Gym / SWEGEN turns real historical code changes into repository repair tasks.
 

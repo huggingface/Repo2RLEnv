@@ -1,4 +1,6 @@
-# `commit_runtime` — filter / leak / artifact fixes + 52-env reference dataset (Arc 3)
+---
+title: "commit_runtime — filter / leak / artifact fixes + 52-env reference dataset (Arc 3)"
+---
 
 This release sharpens `commit_runtime` end-to-end and ships **52 oracle-verified environments** as the reference dataset. Kept **experimental** for now — the underlying mining problem (commits without linked issues yield thinner instructions than PRs do) hasn't fully gone away, but every other lever has been pulled.
 

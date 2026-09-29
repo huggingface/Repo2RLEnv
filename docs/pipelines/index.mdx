@@ -1,0 +1,37 @@
+---
+title: "Pipelines"
+navTitle: "Overview"
+description: "Every way Repo2RLEnv turns repositories, pull requests and task seeds into Harbor tasks, grouped by the kind of task you get."
+full: true
+---
+
+A pipeline turns source material, such as a repository, its pull requests or an existing task, into [Harbor tasks](../concepts/tasks.mdx). They're grouped here by the kind of task they produce. Each card shows the reward, whether the pipeline runs on your machine or on a remote worker, and its status. Not sure which to use? Start with [Choose a pipeline](../choose-a-pipeline.mdx).
+
+<PipelineCatalog />
+
+## How you run each kind
+
+| Kind | Command | Where it runs |
+|---|---|---|
+| Native pipeline | `repo2rlenv generate --repo <repo> --pipeline <name>` | Your machine. `pr_diff` needs neither Docker nor an LLM; the others need Docker and `--llm` to [bootstrap](../reference/BOOTSTRAP.md) the repository once. |
+| Tasksmith | `repo2rlenv tasksmith run <panel> --campaign … --output … --runtime-wheel …` | A Modal or Daytona worker. See [Tasksmith](tasksmith.md). |
+| Research recipe | `repo2rlenv generate --config <file>` with `pipeline.name` and `pipeline.recipe` set | A Modal or Daytona worker; there's no local fallback. See [Run research recipes](owned_recipes.md). |
+
+The native datasets are historical inventories; [native results](native_results.md) records what was and wasn't validated. The recipe and Tasksmith datasets hold 1,330 tasks in 15 datasets, each with per-task [evaluation labels](task_evaluation_labels.md). CodeMidas and FrontierSmith collections are staged locally and reported separately. See [published datasets](releases.md) and [yield and cost](economics.md).
+
+## Planned or deferred
+
+| Proposal | What it would do | Status |
+|---|---|---|
+| [SEC-bench](../rfcs/0025-sec-bench-recipe.md) (`cve_patches` recipe) | Reconstruct a vulnerable build and reproduction input, then emit an isolated repair task | Deferred; not implemented |
+| [RFC 0007](../rfcs/0007-pr-to-env.md): native `pr_to_env` | One Harbor environment per PR URL you supply, verified like `pr_runtime` | Draft |
+| [RFC 0008](../rfcs/0008-env-setup.md): `env_setup` | Make a bare repository's test suite build and run from scratch | Draft |
+| [RFC 0009](../rfcs/0009-test-synthesis.md): `test_synthesis` | Write the test that catches a broken variant of a function | Draft |
+| [RFC 0010](../rfcs/0010-issue-runtime.md): `issue_runtime` | Mine closed issues linked to fixing PRs, graded by the PR's tests | Draft |
+
+## Where to go next
+
+- [Tasks](../concepts/tasks.mdx) and [Rewards](../concepts/rewards.mdx) explain the task layout and reward kinds every pipeline shares.
+- [Run with Harbor](../guides/run-with-harbor.mdx) runs any of these tasks with the oracle, a no-op agent or a real agent.
+- [Quality and verification](../concepts/quality.mdx) covers how a generated task becomes a verified one.
+- [Add a pipeline](../contributing/ADDING_A_PIPELINE.md) walks through the pipeline contract, options model, tests and doc page.

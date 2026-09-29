@@ -1,4 +1,7 @@
-# RFC 0030: Bounded expansion and immutable Harbor releases
+---
+title: "RFC 0030: Bounded expansion and immutable Harbor releases"
+navTitle: "0030 \u00b7 Bounded expansion and immutable Harbor releases"
+---
 
 Status: implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); generation and publication evidence are recorded per release.
 

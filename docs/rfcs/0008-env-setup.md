@@ -1,4 +1,7 @@
-# RFC 0008: `env_setup`
+---
+title: "RFC 0008: env_setup"
+navTitle: "0008 \u00b7 env_setup"
+---
 
 **Status:** draft
 **Author:** `@adithya-s-k`

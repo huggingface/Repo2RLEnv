@@ -1,4 +1,7 @@
-# Owned generation recipes
+---
+title: "Owned generation recipes"
+navTitle: "Run research recipes"
+---
 
 Owned recipes bring research methods into Repo2RLEnv without installing or cloning
 the upstream research implementations at runtime. Each recipe has its own source

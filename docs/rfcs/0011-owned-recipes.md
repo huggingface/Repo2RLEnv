@@ -1,4 +1,7 @@
-# RFC 0011: repository-owned generation recipes
+---
+title: "RFC 0011: repository-owned generation recipes"
+navTitle: "0011 \u00b7 repository-owned generation recipes"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); campaign evidence is published separately
 **Author:** @adithya-s-k
@@ -147,6 +150,6 @@ agent-driven construction route.
 
 ## Implementation
 
-Fourteen research recipes and Tasksmith are implemented. The [guides](../pipelines/README.md)
+Fourteen research recipes and Tasksmith are implemented. The [guides](../pipelines/index.mdx)
 describe their supported profiles. Generation exports, published artifacts and
 independent quality acceptance remain distinct.

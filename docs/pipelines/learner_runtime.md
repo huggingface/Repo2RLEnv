@@ -1,4 +1,6 @@
-# Learner Python runtime
+---
+title: "Learner Python runtime"
+---
 
 Repository tasks with `use_system_site_packages=true` install their dependencies in
 `/opt/tasksmith-venv`. The separate verifier already invokes that interpreter

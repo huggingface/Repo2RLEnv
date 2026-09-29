@@ -1,4 +1,7 @@
-# RFC 0021: `cli_gym` recipe for `env_repair`
+---
+title: "RFC 0021: cli_gym recipe for env_repair"
+navTitle: "0021 \u00b7 cli_gym recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

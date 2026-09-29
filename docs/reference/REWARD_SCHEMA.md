@@ -1,16 +1,21 @@
-# Reward Schema Reference
+---
+title: "Reward Schema Reference"
+navTitle: "Reward schema"
+---
 
 Every task emitted by Repo2RLEnv writes its reward to `/logs/verifier/` inside
 the container after the agent's patch is applied and the verifier runs. Harbor
-reads `reward.txt` as the primary training signal; `reward.json` carries the
-full breakdown for analysis, filtering, and debugging.
+reads `reward.txt` as the primary training signal. Native pipelines with a
+graded verifier also write `reward-details.json`, the full breakdown for
+analysis, filtering, and debugging.
 
 ## Files written per task
 
 | File | Always present? | Content |
 |---|:-:|---|
 | `/logs/verifier/reward.txt` | ✅ | Single float on one line, e.g. `0.842731` |
-| `/logs/verifier/reward.json` | Pipeline-dependent (see below) | Full breakdown as JSON |
+| `/logs/verifier/reward-details.json` | Pipeline-dependent (see below) | Full breakdown as JSON (`pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`) |
+| `/logs/verifier/result.json` | Research recipes and Tasksmith | The grader's outcome, e.g. `{"passed": true, "returncode": 0, "statuses": {…}}`; SCALER writes `{"score": …, "accuracy": …}`. CLI-Gym writes `reason.txt` instead when protected source was changed. |
 
 ---
 
@@ -20,11 +25,11 @@ full breakdown for analysis, filtering, and debugging.
 
 **`reward.txt`:** weighted combination of 6 components, clamped to `[0, 1]`.
 
-**`reward.json`:**
+**`reward-details.json`:**
 
 ```json
 {
-  "reward": 0.74,
+  "final_reward": 0.74,
   "components": {
     "format_valid":   1.0,
     "size_sanity":    0.85,
@@ -43,8 +48,7 @@ full breakdown for analysis, filtering, and debugging.
   },
   "judge_model":  "claude-haiku-4-5-20251001",
   "judge_endpoint": null,
-  "judge_status": "ok",
-  "capped":       false
+  "judge_status": "ok"
 }
 ```
 
@@ -52,7 +56,7 @@ full breakdown for analysis, filtering, and debugging.
 
 | Field | Type | Description |
 |---|---|---|
-| `reward` | float [0, 1] | Final score. Hard-capped to ≤ 0.40 when `size_sanity < 0.10` (catastrophic-size guard). |
+| `final_reward` | float [0, 1] | Final score, the same value as `reward.txt`. Hard-capped to ≤ 0.40 when `size_sanity < 0.10` (catastrophic-size guard); the breakdown has no separate flag for the cap, so check `components.size_sanity`. |
 | `components.format_valid` | 0 or 1 | Predicted output parses as a valid unified diff. Weight 0.00 — kept as a guard, not a scoring factor. |
 | `components.size_sanity` | [0, 1] | `min(oracle_loc, pred_loc) / max(oracle_loc, pred_loc)` — detects severe over- or under-generation. |
 | `components.file_targeting` | [0, 1] | F1 over the sets of changed files (not Jaccard — F1 gives partial credit for TP). |
@@ -63,7 +67,6 @@ full breakdown for analysis, filtering, and debugging.
 | `judge_model` | string or `null` | Model used for `llm_judge` as the serving API names it (e.g. `claude-haiku-4-5-20251001`, `Qwen/Qwen3.5-4B`), or `null` if the judge did not score. |
 | `judge_endpoint` | string or `null` | The OpenAI-compatible server the judge was routed to (`R2E_JUDGE_ENDPOINT`), or `null` on the default Anthropic route. |
 | `judge_status` | string | `"ok"` \| `"no_api_key"` \| `"no_judge_model"` \| `"empty_predicted"` \| `"network"` \| `"parse"` \| `"missing_score"` |
-| `capped` | bool | `true` if the hard size-sanity cap was applied (`reward` forced to ≤ 0.40). |
 
 **Weight override env vars** (set inside the verifier container via `--ve`):
 `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM`, `R2E_W_JUDGE`
@@ -78,7 +81,7 @@ full breakdown for analysis, filtering, and debugging.
 
 **`reward.txt`:** `f2p_rate × p2p_rate`, rounded to 6 decimal places.
 
-**`reward.json` (normal path — test output successfully parsed):**
+**`reward-details.json` (normal path — test output successfully parsed):**
 
 ```json
 {
@@ -101,7 +104,7 @@ full breakdown for analysis, filtering, and debugging.
 }
 ```
 
-**`reward.json` (fallback path — test output unrecognised, no per-test status):**
+**`reward-details.json` (fallback path — test output unrecognised, no per-test status):**
 
 ```json
 {
@@ -122,7 +125,7 @@ full breakdown for analysis, filtering, and debugging.
 | Field | Type | Description |
 |---|---|---|
 | `reward` | float [0, 1] | Dense training signal: `f2p_rate × p2p_rate`. Gold patch → 1.0. |
-| `resolved` | bool | **SWE-bench eval signal.** All F2P tests pass AND all P2P tests pass. Gold patch → `true`. Use this for benchmark-style scoring. |
+| `resolved` | bool | **SWE-bench eval signal.** At least one F2P test is declared, all F2P tests pass AND all P2P tests pass. Gold patch → `true`. Use this for benchmark-style scoring. |
 | `command_resolved` | bool | Stricter: `resolved` AND no untracked failures AND `exit_code == 0`. Filters tasks with pre-existing flaky tests outside F2P/P2P. |
 | `f2p_total` | int | Number of declared FAIL_TO_PASS tests. |
 | `f2p_passed` | int | F2P tests that passed after the agent's patch. |
@@ -153,7 +156,7 @@ full breakdown for analysis, filtering, and debugging.
 
 **`reward.txt`:** `1.0` (tests pass) or `0.0` (tests fail). Binary.
 
-**`reward.json`:** not written by these pipelines.
+**`reward-details.json`:** not written by these pipelines.
 
 The verifier runs the repo's test suite (or the generated pytest equivalence
 tests) and maps the exit code directly to reward. No per-component breakdown.
@@ -168,7 +171,7 @@ reward = float(open("/logs/verifier/reward.txt").read().strip())  # 1.0 or 0.0
 
 ## Per-pipeline summary
 
-| Pipeline | `reward.txt` | `reward.json` | Training signal | Eval signal |
+| Pipeline | `reward.txt` | `reward-details.json` | Training signal | Eval signal |
 |---|---|:-:|---|---|
 | `pr_diff` | weighted [0,1] | ✅ | `reward` | `components` breakdown |
 | `pr_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |

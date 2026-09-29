@@ -1,4 +1,7 @@
-# Retain every generated task, with evidence labels
+---
+title: "Retain every generated task, with evidence labels"
+navTitle: "Evaluation labels"
+---
 
 Every emitter writes the same `[metadata.repo2env.evaluation]` table in `task.toml`.
 Generation starts at `unverified`; a saved quality result can promote the task to

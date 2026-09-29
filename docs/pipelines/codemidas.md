@@ -1,4 +1,6 @@
-# CodeMidas
+---
+title: "codemidas"
+---
 
 CodeMidas turns **working source code into a reconstruction task**. An agent
 explores a feature, writes its behavioral contract, and removes the implementation.

@@ -1,4 +1,7 @@
-# Published Harbor datasets
+---
+title: "Published Harbor datasets"
+navTitle: "Published datasets"
+---
 
 Published results cover the six native pipelines, Tasksmith and 14 research recipes. Local collections are reported separately and are not included in published totals.
 

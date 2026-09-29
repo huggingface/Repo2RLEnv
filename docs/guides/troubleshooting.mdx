@@ -1,0 +1,215 @@
+---
+title: "Troubleshooting"
+description: "Symptoms, causes and fixes for the errors you're most likely to hit when generating, validating, running and publishing tasks."
+---
+
+Each entry starts from what you see, usually the exact message, then gives the cause and the fix. For any command, `repo2rlenv -v COMMAND …` adds debug logging and, on an error, the full traceback.
+
+## Generation
+
+### `generate` finishes with no tasks and exits 1
+
+**Cause.** The `limit` option counts candidates listed (for PR pipelines, merged PRs), not tasks emitted. Filters then drop candidates that make weak tasks, and `generate` exits `1` when nothing is left. The summary names each reason. For example, `pr_diff` skips PRs that touch more than five files (`too_many_files`), drafts, and diffs that are empty or can't be fetched.
+
+**Fix.** Read the `skipped` line of the summary, then raise the limit (`--pipeline-opt limit=50`) or relax the filter that dropped most candidates. Each pipeline page lists its options, for example [`pr_diff`](../pipelines/pr_diff.md) and [`pr_runtime`](../pipelines/pr_runtime.md).
+
+### `gh CLI not found on PATH; install it or use a different auth path`
+
+**Cause.** On GitHub sources, PR-based pipelines list PRs and fetch diffs through the GitHub CLI, so `gh` must be installed even when you authenticate with a token.
+
+**Fix.** Install `gh` from [cli.github.com](https://cli.github.com), then run `gh auth login`, or set `GITHUB_TOKEN` (Repo2RLEnv hands it to `gh`).
+
+### `private repo specified but no token resolved`
+
+**Cause.** `--access private` was set, and no token was found in `repo.auth_token_env`, `gh auth token` or `GITHUB_TOKEN` (or `GITLAB_TOKEN` for GitLab).
+
+**Fix.** Run `gh auth login`, or export a token with read access to the repository. A `401` means the token lacks scope; a `404` means it can't see the repository. [Authentication](../reference/AUTH.md#failure-modes) has the full table.
+
+### `pipeline '…' needs […], which a 'local' source does not provide`
+
+**Cause.** PR- and CVE-based pipelines need platform data (pull requests, the commit API) that a local path can't provide. The message also lists the pipelines that work on your source.
+
+**Fix.** Point `--repo` at the GitHub repository (`owner/name`), or choose one of the listed pipelines.
+
+### `Pipeline '…' requires […]; this repo is detected as '…'`
+
+**Cause.** The pipeline supports only some languages, and GitHub reports a different primary language for the repository.
+
+**Fix.** Use a language-agnostic pipeline (`pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`). `--force-language` skips the check, but the pipeline will likely emit nothing.
+
+### `… requires an explicit --recipe; see pipelines list`
+
+**Cause.** The pipeline has no native implementation; it runs only as a research recipe.
+
+**Fix.** Run `repo2rlenv pipelines list` to see its recipes, then follow [Remote execution](remote-execution.mdx) to run one.
+
+### `--max-spend-usd is only supported by native generation`
+
+**Cause.** Research recipes don't use the per-run bootstrap cap. Their spend is reserved against a campaign budget.
+
+**Fix.** Drop the flag, create a campaign with `repo2rlenv campaign init DIR --budget-usd N`, and set `execution.campaign_dir` in the recipe config. The reverse mistake, `--json` on a native pipeline, fails with `generate --json streams owned recipe events`; `--json` exists only for recipes.
+
+### `unrecognized arguments: --no-ui`
+
+**Cause.** Global flags (`--no-ui`, `-v`) were placed after the command.
+
+**Fix.** Put them first: `repo2rlenv --no-ui generate …`.
+
+## Bootstrap
+
+Test-based native pipelines first bootstrap a Docker image for the repository with an LLM agent, then cache it. [Bootstrap](../reference/BOOTSTRAP.md) explains the loop.
+
+### `Docker daemon is not running`
+
+**Cause.** Bootstrap builds images locally, and Docker isn't reachable.
+
+**Fix.** Start Docker Desktop or `dockerd` and retry. `pr_diff` generation needs no Docker.
+
+### `pipeline '…' requires --llm (bootstrap needs an LLM to build the sandbox image)`
+
+**Cause.** Every native pipeline except `pr_diff` bootstraps, and bootstrapping needs a model.
+
+**Fix.** Add `--llm provider/model`, such as `--llm anthropic/claude-sonnet-4-6`, and set that provider's key.
+
+### Bootstrap fails, or stops with `cost budget exceeded`
+
+**Cause.** The agent couldn't get the repository to build and pass its smoke test within its limits: 20 turns inside `generate` (25 for `repo2rlenv bootstrap`), 1,800 seconds, and $5 of LLM spend. When you didn't pin the language or base image, a wrong auto-detection is a common cause, and the error ends with a hint to set them.
+
+**Fix.** Try, in order:
+
+- Pin the environment: `--language python` (or `node`, `go`, `rust`, `java`, `c_cpp`), or `--base-image ubuntu:24.04`.
+- Give the agent more room: `--max-spend-usd 10` (`0` removes the cap) and `--bootstrap-opt max_iterations=30`.
+- Use a stronger model, or skip the agent with your own Dockerfile: `--bootstrap-opt user_dockerfile=./Dockerfile`.
+- Read the agent's transcript at `CACHE_DIR/<owner>__<name>/<short_commit>/transcript.jsonl`.
+
+Self-hosted models aren't in LiteLLM's price table, so their calls count as $0 and never trip the spend cap; the turn and time limits still apply.
+
+### A cached image is stale or broken
+
+**Cause.** Successful bootstraps are cached by repository, commit, base image and language, and reused on every later run. The cache lives in `./workspace/bootstrap`, or in `R2E_CACHE_DIR` when it's set.
+
+**Fix.** Add `--force-bootstrap` to rebuild. To keep separate caches, for example per model, set `R2E_CACHE_DIR` or pass `--bootstrap-opt cache_dir=DIR`.
+
+## Validation
+
+### `validate` rejects recipe or Tasksmith tasks with `missing top-level ['version']`
+
+**Cause.** A known bug. `validate` still requires the Harbor 1.0 `version` key, but research-recipe and Tasksmith output uses schema 1.3, which spells it `schema_version`. A fix is in progress.
+
+**Fix.** Use `validate` on native output only for now. For schema 1.3 bundles, the end-to-end check is an oracle run with Harbor ([Run tasks with Harbor](run-with-harbor.mdx#check-the-tasks-with-the-controls)); `release stage` also checks each bundle's hash and parses it with Harbor.
+
+### `no task.toml files found under …`
+
+**Cause.** No `task.toml` exists anywhere below the path: it's the wrong directory, or a release download whose `tasks.tar.gz` hasn't been extracted yet.
+
+**Fix.** Point `validate` at a dataset or task directory, and extract release archives first (`tar -xzf tasks.tar.gz`).
+
+## Running with Harbor
+
+### The oracle doesn't score 1.0
+
+**Cause.** The reference solution doesn't pass its own verifier in your environment, so the task can't separate a correct solution from a wrong one. Common reasons:
+
+- The trial has no reward at all: it failed before verification, usually while building the image. The trial's `result.json` has the error in `exception_info`.
+- The task was published in `inline_dockerfile` mode. It rebuilds from its recorded steps on every run, and a package mirror that changed since generation can break the build. `registry` mode tasks pull a pinned digest instead.
+- For test-based tasks, a reward between 0 and 1 means some fail-to-pass tests failed or some pass-to-pass tests regressed. `verifier/reward-details.json` lists the counts and `regressions`, and `verifier/test-stdout.txt` has the test output. Flaky or environment-dependent tests are the usual culprits.
+
+**Fix.** Exclude the task from evaluation (`-x NAME` on `harbor run`), or regenerate it. For research-recipe and Tasksmith tasks, the [quality loop](../pipelines/quality_loop.md) can diagnose and repair the task with fresh evidence; its remote validation doesn't accept native pipeline output. If `nop` scores above 0, the verifier accepts an unchanged repository, and the task should be dropped the same way.
+
+### The `pr_diff` judge is always `null`
+
+**Cause.** The LLM-judge component runs inside the verifier, which gets only the variables you pass with `--ve`. The verifier records `judge_status = "no_api_key"` and scores the other components.
+
+**Fix.** Add `--ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY` to `harbor run`, or `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…` for a self-hosted judge ([`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning)).
+
+## Publishing
+
+### `push failed: no HF token resolved`
+
+**Cause.** No Hub token was found in `~/.cache/huggingface/token` or `HF_TOKEN`.
+
+**Fix.** Run `hf auth login` with a token that has write access to the target namespace, or set `HF_TOKEN`.
+
+### `push` can't reach a container registry
+
+You see `WARN no verified registry; falling back to inline-Dockerfile mode (…)`, or, with `--require-registry`, `--require-registry: no verified registry available (…)`.
+
+**Cause.** No registry you're logged in to passed the write probe, so `push` can't upload bootstrap images. Without `--require-registry`, it publishes the tasks in `inline_dockerfile` mode instead.
+
+**Fix.** Run `repo2rlenv push --check-auth`. It probes each registry in `~/.docker/config.json` for reachability, authentication, read and write access, and prints a suggested fix where it has one. For GHCR, the usual fix is `gh auth refresh -h github.com -s write:packages` followed by `docker login ghcr.io`. If recipe-level reproducibility is enough, pass `--inline-dockerfile` to skip images. [Registry authentication](../reference/REGISTRY_AUTH.md) covers each registry.
+
+### `pull failed: … doesn't look like a Repo2RLEnv dataset`
+
+**Cause.** The Hub repository has no `tasks/` directory, which is the layout `push` and `release` publish.
+
+**Fix.** Check the dataset id. For a plain Harbor dataset in a registry, pull it with `harbor://name`.
+
+## Remote execution and budgets
+
+These apply to research recipes, Tasksmith and the quality loop. [Remote execution](remote-execution.mdx) walks through the setup.
+
+### `A new ledger requires an explicit spending limit`
+
+**Cause.** The directory passed as the campaign has no initialized ledger.
+
+**Fix.** Create it first: `repo2rlenv campaign init DIR --budget-usd N`.
+
+### `Existing campaign limit differs; refusing an implicit budget reset`
+
+**Cause.** `campaign init` ran on an existing campaign with a different amount. Limits are never changed implicitly.
+
+**Fix.** Keep the original amount, or start a new campaign directory.
+
+### A reservation is refused with `requested $…, remaining $…`
+
+**Cause.** The next operation's reservation would take accounted plus reserved spend past the limit. The reason in parentheses says why: `uncertain_reservations` means held reservations from unknown outcomes are what's blocking it.
+
+**Fix.** Run `repo2rlenv campaign status DIR --json`. Stop any workers you've finished with, then settle every `uncertain` operation with [`campaign settle`](../reference/cli.mdx#campaign-settle) and its evidence. If spend is genuinely exhausted, the run stops with its completed evidence kept.
+
+### `N operations need reconciliation; their reservations remain held.`
+
+**Cause.** A worker was stopped, or a provider outcome was interrupted, and its actual cost hasn't been recorded. Stopping a worker confirms cleanup, not cost.
+
+**Fix.** Make sure the worker is stopped (`repo2rlenv workers stop RECEIPT`), then record its cost with `repo2rlenv campaign settle DIR --operation ID --cost-usd N --evidence FILE`, using a provider usage receipt or a labeled conservative estimate.
+
+### `Worker creation is uncertain; resolve its provider identity before cleanup`
+
+**Cause.** Worker creation was interrupted before the provider returned an id, so the receipt can't say which worker to stop.
+
+**Fix.** Find the worker by name at the provider (Modal app `repo2rlenv-owned-generation`, or the Daytona label `repo2rlenv-worker=NAME`), terminate it there, then settle the operation. Start the next worker under a new name.
+
+### `Worker wheel is stale at repo2rlenv/…; run uv build`
+
+**Cause.** The runtime wheel doesn't match the installed package, usually because you changed code or pulled a commit after building it.
+
+**Fix.** Run `uv build --wheel` in the same checkout and pass the new wheel. A changed wheel needs a new `run_id` for recipe runs.
+
+### `Owned generation requires remote execution settings`
+
+**Cause.** A research recipe was run without an `execution:` block in its config.
+
+**Fix.** Add the block with `worker_receipt`, `runtime_wheel`, `campaign_dir` and `run_id` ([Run a recipe on the worker](remote-execution.mdx#run-a-recipe-on-the-worker)).
+
+### `Remote validation currently requires a single-container no-network Dockerfile task`
+
+**Cause.** `quality run --repair` or `--run-rollout` was given a task that doesn't set `network_mode = "no-network"` in `[environment]`, or that ships `environment/docker-compose.yaml`. Native pipeline output is in this group; research-recipe and Tasksmith bundles are not.
+
+**Fix.** Use remote validation on recipe and Tasksmith bundles only. For native tasks, run the controls with Harbor ([Run tasks with Harbor](run-with-harbor.mdx#check-the-tasks-with-the-controls)).
+
+### `CPU --repair and --run-rollout require --runtime-wheel (build with uv build)`
+
+**Cause.** `quality run` needs a remote worker to execute trials for CPU tasks, and the worker runs the runtime wheel.
+
+**Fix.** Build it with `uv build --wheel` and pass `--runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl`.
+
+## Environment and platform
+
+### Variables in `.env` aren't picked up
+
+**Cause.** The CLI looks for `.env` starting from the directory of the installed package, not your working directory. With a global tool install (`uv tool install`, `pipx`), a `.env` in your project isn't found.
+
+**Fix.** Export the variables in your shell (`set -a; . ./.env; set +a`), run from a source checkout with `uv run`, or pass `--env-file` where the command supports it. See [`.env` files](../reference/ENV.md#env-files).
+
+### Windows
+
+Windows CI tests the installed CLI, recipe discovery (`pipelines`), native task emission and `validate`, and local paths such as `C:\repo` are accepted as sources. Run Tasksmith, research recipes and the quality loop on Linux, macOS or WSL: their controllers depend on POSIX file permissions and process cleanup. Harbor tasks themselves run in Linux containers.

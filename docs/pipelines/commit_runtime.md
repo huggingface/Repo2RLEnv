@@ -1,106 +1,218 @@
-# `commit_runtime`
+---
+title: "commit_runtime"
+description: "Mine bug-fix commits, not pull requests, into tasks graded by the tests each commit makes pass."
+film: commit-runtime
+---
 
-R2E-Gym SWE-GEN-style PR mining: walk **commits**, not PRs. Trades signal quality for yield, and catches drive-by fixes that never went through a PR — repos that squash-merge or commit directly to main aren't reachable from `pr_runtime` at all.
+Each task is a bug-fix commit that changed both source and tests. The agent gets a
+problem statement an LLM rewrote from the commit message (or its linked issue) to
+describe only the symptom; the commit's own tests, hidden until verification,
+decide the reward. Use it on repositories whose fixes land as ordinary commits,
+including local checkouts with no pull-request history.
 
-**As of v0.8.4 the problem statement is LLM-synthesized** (`synthesize_with_llm`, default on): the commit/issue text is rewritten into a symptom-focused problem statement, with instructions to remove solution details. This addresses two failure modes of raw commit text: leakage from changelog bullets and insufficient detail in title-only subjects. A `min_problem_statement_words` floor drops near-empty commits, and `max_pass_to_pass` (default 50) caps the regression set to reduce flaky-reward risk. Individual tasks still need instruction and verifier review.
-
-**Reference dataset**: [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) — 100 tasks across 22 Python and Go repos, with generation-time verification metadata. A full 100-task Harbor oracle-gate receipt was not recovered. The earlier 52-task cohort has separate oracle evidence; see [native results](native_results.md#commit-runtime) for both cohorts and their limits.
+## At a glance
 
 | | |
 |---|---|
-| Status | **stable** (v0.8.4) |
-| Sandbox at generation | Yes — reuses the bootstrap image from `pr_runtime` |
-| LLM use | bootstrap-time (one-time env build, cached) **+ one synthesis call per emitted task** to write the leak-free problem statement (`synthesize_with_llm`). |
-| Reward | Graded F2P/P2P (`reward = f2p_rate × p2p_rate`) via the in-container verifier, identical to `pr_runtime`. Tracked / `command_resolved` / `eval_grade` split documented in [`pr_runtime`](./pr_runtime.md). |
-| Languages | Any (commit_runtime inherits language-agnostic bootstrap from `pr_runtime`) |
-| Inspired by | [R2E-Gym (SWE-GEN)](https://github.com/R2E-Gym/R2E-Gym) (Jain et al., COLM '25) |
+| Input | A GitHub or GitLab repository, or a local git checkout |
+| Task | Fix the bug a commit fixed, starting from its parent commit |
+| Reward | Graded `f2p_rate × p2p_rate`, plus strict `resolved` and `command_resolved` flags (the [`pr_runtime`](pr_runtime.md#reward) verifier) |
+| Needs an LLM | Yes: the one-time bootstrap (cached) and one call per emitted task to write the problem statement |
+| Needs Docker | Yes, for bootstrap, validation and running tasks |
+| Hosts | GitHub, GitLab and local paths. Linked-issue text is fetched only from GitHub and GitLab |
+| Languages | The same test runners as `pr_runtime`: pytest, `go test`, `cargo test`, Jest, Mocha and Vitest. The reference dataset has Python and Go tasks |
+| Status | Stable |
+| Reference dataset | [`AdithyaSK/repo2rlenv-commit-runtime`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime): 100 tasks from 22 repositories |
 
-## Why commits, not PRs
+## Quickstart
 
-R2E-Gym's headline finding: *"instead of using human-written PRs, good-quality execution environments can directly be curated from commits."* Commit-based curation:
-
-- **No PR-review bottleneck.** Works on any repo with commit history, including ones that never use PRs (research / internal / solo-maintained).
-- **Larger candidate pool.** 3-10× bigger than the PR list for most repos.
-- **Noisier signal.** No reviewer signed off; filters have to do all the work.
-
-`commit_runtime` is a **sibling** of `pr_runtime`, not a replacement. Each works best on different repo shapes:
-
-| Repo style | Better fit |
-|---|---|
-| Squash-merge + PR-first (pallets, Django, etc.) | `pr_runtime` — every fix is a PR; commits look like a wall of merge commits |
-| Direct-commit + squash-merge (Go projects, single-maintainer crates, internal repos) | `commit_runtime` — fixes land as plain commits, not behind PR merges |
-
-Arc 3's 52-env dataset is **Go-heavy** for exactly this reason: `urfave/cli` (15), `gin` (8), `mux` (6) are commit-friendly; `pallets/click` (7) is the Python exception with enough non-PR commits to mine.
-
-## Algorithm
-
-1. `git clone --depth N` (default `clone_depth=200`; bump for monthly mining).
-2. `git log --first-parent <since>..<until>` ⇒ candidate commit list.
-3. **Metadata filter** (`_metadata_filter`):
-   - Drop merge commits (`skip_merge_commits`)
-   - Drop excluded authors (bots)
-   - Drop short messages (< `min_message_words`, default 5)
-   - **Reject non-bugfix conventional-commit types** (`chore:` / `docs:` / `feat:` / `refactor:` / `style:` / `test:` / `ci:` / `build:` / `perf:` / `revert:`)
-   - **Require a bugfix-positive signal**: `fix:` prefix OR `Closes #N` issue trailer OR a bugfix keyword in the subject (`fix` / `bug` / `regression` / `crash` / `broken` / `incorrect` / `wrong` / `fail` / …)
-4. `git show <sha>` ⇒ split into `(source_patch, test_patch)` using `_split_patch_and_test_patch` from `pr_runtime`.
-5. **Structural filter** (`_structural_filter`): skip CI-only diffs, sweeping refactors (file count > `max_source_files_per_commit`), and commits without ≥1 new test function (`require_new_test_funcs`).
-6. **Validate inside the bootstrap sandbox** (`pr_runtime`'s `validate_pr` harness): pre-fix run discovers `FAIL_TO_PASS` + `PASS_TO_PASS` sets; post-fix run confirms the flip.
-7. **Build instruction** (`build_instruction_from_commit`):
-   - If `Closes #N` is present ⇒ fetch the GitHub issue body via `github.fetch_issue` and use it as the problem statement.
-   - Otherwise ⇒ commit subject + body, run through `_strip_info_leak` + `_reflow_pr_body` to remove cross-refs (SHAs, fix-PR links, `(#NNNN)` squash trailers, `repo#N` cross-repo refs) and trim template noise.
-8. Emit a Harbor task with the same shape as `pr_runtime`: `environment/Dockerfile`, `tests/test.sh`, `tests/verifier.py`, `tests/f2p.json`, `tests/p2p.json`, `solution/patch.diff`, and the full `[metadata.repo2env]` block including `reward_calibration` (`f2p_count`, `p2p_count`, `source_files`, `loc_changed`, `difficulty`).
-
-## Options (`CommitRuntimeOptions`)
-
-```python
-limit: int = 50                    # max candidate commits to walk
-since: date | None = None
-until: date | None = None
-branch: str = "HEAD"
-clone_depth: int = 200             # bump for monthly mining
-
-# Metadata filters (cheap, applied before validation)
-skip_merge_commits: bool = True
-min_message_words: int = 5
-max_source_files_per_commit: int = 10
-exclude_authors: list[str] = []    # e.g. ["dependabot[bot]@users.noreply.github.com"]
-require_new_test_funcs: bool = True
-skip_ci_only: bool = True
-
-# Validation
-require_fail_to_pass: bool = True
-min_fail_to_pass: int = 1
-validation_timeout_sec: int = 600
+```bash
+repo2rlenv generate \
+  --repo pallets/click \
+  --pipeline commit_runtime \
+  --pipeline-opt limit=100 \
+  --llm anthropic/claude-sonnet-4-6 \
+  --out ./tasks/click-commit-runtime
 ```
 
-## Yield
+`limit` is the number of commits walked, newest first, so you get at most that many
+tasks. The same `--llm` model bootstraps the repository (capped by
+`--max-spend-usd`, default 5.0, and cached) and writes the problem statements. Each
+task lands in `./tasks/click-commit-runtime/pallets__click-<sha12>/`. Run the
+oracle, which should score 1.0:
 
-**Yield = emitted tasks ÷ commits walked.** Expect **~10–35%** — same F2P
-execution gate as `pr_runtime`, applied to raw commits, so it's noisier and a
-notch lower. **The dominant factor is the repo's merge style:** on repos that
-squash- or merge-commit their PRs, the source change and its test live in *one*
-commit and the per-commit F2P check works; on repos where the fix and its test
-land in *separate* commits, neither commit shows a fail→pass transition and yield
-drops toward **0** (use `pr_runtime` there instead).
+```bash
+harbor run -p ./tasks/click-commit-runtime -a oracle --env docker
+```
 
-| Knob | Default | Effect on yield |
-|---|:-:|---|
-| `skip_merge_commits` | True | merge commits never carry a clean F2P; kept out |
-| `require_new_test_funcs` | True | ↑ drops commits that add no test function |
-| `require_fail_to_pass` | True | the gate — commits with no fail→pass test are dropped |
-| `min_message_words` | 5 | ↑ drops "wip"/"fmt"/"typo" commits |
-| `max_source_files_per_commit` | 10 | ↓ excludes sprawling refactors |
-| `synthesize_with_llm` | True | **raises usable yield** — rewrites thin/leaky commit messages into clean problem statements, so borderline commits become emittable instead of being dropped as `instruction_too_thin` |
+## How it works
 
-**Worked example:** at ~20% yield, 100 tasks ≈ 500 commits walked. The reference
-`…commit-runtime-test` (100 envs) was built from a wide multi-language pool at
-`clone_depth=200` per repo — budget ~15–25 CPU-clean, non-squash repos.
+```mermaid
+flowchart TD
+  A["git log on the branch"] --> B{"Merge commit, bot, short message,<br/>non-fix type, no fix signal?"}
+  B -- skip --> Z["Count skip reason"]
+  B -- keep --> C["git show: split into source<br/>patch and test patch"]
+  C --> D{"CI-only, too many files,<br/>no new test function?"}
+  D -- skip --> Z
+  D -- keep --> E["Run tests at parent, then<br/>at parent + commit"]
+  E --> F{"F2P found?"}
+  F -- no --> Z
+  F -- yes --> G["LLM rewrites commit or issue<br/>into a symptom-only statement"]
+  G --> H["Harbor task, same shape<br/>as pr_runtime"]
+```
 
-## Known limitations (Arc 3 audit)
+1. **Bootstrap** the repository once, as for `pr_runtime`. See
+   [Bootstrap](../reference/BOOTSTRAP.md).
+2. **Walk the history.** Clone `clone_depth` commits at `--ref` and list up to
+   `limit` commits on `branch` with `git log`, bounded by `since` and `until`. The
+   walk isn't first-parent, so it includes commits brought in by merges.
+3. **Filter on metadata.** Skip merge commits (`skip_merge_commits`), authors in
+   `exclude_authors`, and messages shorter than `min_message_words` or
+   `min_problem_statement_words`. Skip conventional-commit types that aren't fixes
+   (`chore`, `docs`, `feat`, `refactor`, `style`, `test`, `ci`, `build`, `perf`,
+   `revert`). Require a fix signal: a `fix:` prefix, a linked issue (`Fixes #12`), or
+   a word such as *fix*, *bug*, *regression*, *crash*, *broken*, *incorrect*, *wrong*
+   or *fail* in the subject.
+4. **Split the diff** from `git show` into a source patch and a test patch, with the
+   same path rules as `pr_runtime`. Skip the commit if either is empty.
+5. **Filter on structure.** Skip commits whose source changes are all under
+   `.github/`, that touch more than `max_source_files_per_commit` source files, or
+   whose test patch adds no test function. Skip commits with no parent.
+6. **Validate twice** in the bootstrap container at the parent commit: tests with
+   only the test patch, then with the whole commit. Keep the commit if at least
+   `min_fail_to_pass` tests flip, and cap the P2P set at `max_pass_to_pass`.
+7. **Write the instruction.** When the commit links an issue, fetch the issue. With
+   `synthesize_with_llm` on, an LLM rewrites the commit message and issue into a
+   short bug report: the symptom and expected behavior, with no fix, file names,
+   test names, hashes or issue numbers. If the call fails, the pipeline falls back to
+   the stripped commit or issue text.
+8. **Emit the task**, with the commit's source changes as the oracle.
 
-- **Thin instructions when no issue link.** ~30% of emitted tasks lacked a `Closes #N`, so the instruction is sourced from the commit subject + body — which can be a one-liner. `pr_runtime` is naturally better when there's an issue to fall back on.
-- **Lower yield on PR-driven repos.** Pallets/Django/Flask-style repos merge-commit their PRs; `commit_runtime` correctly rejects all those merge commits and so yields ~0 there. Use `pr_runtime` for those.
-- **Go-subtest parser over-counts untracked failures.** A handful of `stretchr/testify` tasks land tracked-resolved but **not** command_resolved because the verifier marks Go subtests as "untracked failed" when the parent test exited 0. Affects `command_resolved`/`eval_grade` only; gold-patch reward is still 1.0.
-- **No `commit_stream` / continuous variant.** `pr_stream` was removed in v0.8.3 as scope-creep; no plans to add a commit equivalent. If needed in future, it would be flags (`since=auto` + `state-file=…`) on `commit_runtime`, not a separate pipeline.
+## Options
 
-See [`findings-commit_runtime`](../release_notes/v0.8.3/findings-commit_runtime.md) for the full Arc 3 changelog + audit.
+Pass each option with `--pipeline-opt key=value`.
+
+| Key | Default | What it does |
+|---|---|---|
+| `limit` | `50` | Maximum commits to walk. You get at most this many tasks |
+| `since` / `until` | none | ISO dates (`2026-01-31`) bounding the commit date |
+| `branch` | `HEAD` | Branch or ref to walk |
+| `clone_depth` | `200` | History depth to clone. Raise it when `limit` or the date range reaches further back |
+| `skip_merge_commits` | `true` | Skip commits with more than one parent |
+| `min_message_words` | `5` | Skip commits whose message has fewer words |
+| `min_problem_statement_words` | `8` | A second word-count floor on the commit message, applied before synthesis. `0` disables it |
+| `max_source_files_per_commit` | `10` | Skip commits that touch more source files |
+| `exclude_authors` | `[]` | Author emails to skip, as JSON: `'exclude_authors=["bot@example.com"]'` |
+| `require_new_test_funcs` | `true` | Require the test patch to add at least one test function |
+| `skip_ci_only` | `true` | Skip commits whose source changes are all under `.github/` |
+| `require_fail_to_pass` | `true` | Skip commits with fewer than `min_fail_to_pass` F2P tests |
+| `min_fail_to_pass` | `1` | Minimum number of F2P tests |
+| `max_pass_to_pass` | `50` | Cap on the P2P set. `0` keeps all of them |
+| `validation_timeout_sec` | `600` | Timeout for each of the two validation test runs |
+| `skip_validation` | `false` | Emit without running tests, with a pass/fail exit-code reward. For debugging |
+| `synthesize_with_llm` | `true` | Rewrite the commit or issue into a symptom-only problem statement |
+| `llm_temperature` | `0.3` | Sampling temperature for the rewrite |
+| `max_llm_tokens` | `1024` | Output token limit for the rewrite |
+
+## Output
+
+```files
+pallets__click-<sha12>
+├── task.toml
+├── instruction.md
+├── environment
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    ├── verifier.py
+    ├── f2p.json
+    └── p2p.json
+```
+
+The files match [`pr_runtime`'s output](pr_runtime.md#output): an environment
+`FROM` the bootstrap image at the parent commit with history scrubbed and an
+egress guard, the commit's source changes as `solution/patch.diff`, and the hidden
+test patch plus graded verifier under `tests/`. `task.toml` carries
+`[metadata.repo2env.commit_runtime]`: commit and parent SHAs, author date and email,
+subject, F2P and P2P lists, `validation_status`, the bootstrap image digest,
+`instruction_synthesized` and `llm_cost_usd`. For a local checkout, the
+`reference` URL is omitted. The [evaluation label](task_evaluation_labels.md)
+starts as `unverified`.
+
+## Reward
+
+Identical to [`pr_runtime`](pr_runtime.md#reward): `f2p_rate × p2p_rate` in
+`reward.txt` for training, and `resolved` and `command_resolved` in
+`reward-details.json` for evaluation. The test files are restored and the hidden
+test patch re-applied before scoring, so editing tests doesn't help.
+
+## Yield and cost
+
+No generation denominator or cost ledger was recovered, so yield is unmeasured.
+The main driver is how a repository lands its fixes. A commit yields a task only
+when it carries both the fix and a test that exercises it. Squash-merged pull
+requests and direct commits usually do. Merge commits themselves are skipped, and
+branches merged with merge commits often split the fix and its test into separate
+commits, so neither shows a failing-to-passing test. On those repositories, use
+[`pr_runtime`](pr_runtime.md). Repository health matters as much as it does for
+`pr_runtime`: the suite has to run in the bootstrap container.
+
+Cost is one bootstrap per repository, two test runs per candidate, and one
+problem-statement call per emitted task.
+
+All 100 reference tasks carry generation-time `validation_status = "verified"`,
+but a Harbor oracle run over all 100 wasn't recovered. An earlier 52-task cohort,
+built before instruction synthesis, has separate evidence: 52 oracle passes, 47
+clean-command passes and 47 with a regression guard. No reliable solve rate was
+recovered. See [native results](native_results.md#commit-runtime).
+
+## Limits
+
+- **A generated task isn't a verified environment.** Run the controls: the oracle
+  should score 1.0 and a no-op agent (`-a nop`) 0. Record the outcome as an
+  evaluation label; see [Quality](../concepts/quality.mdx).
+- **Commits are unreviewed.** Nobody signed off on a commit the way a PR is
+  reviewed, so the filters and validation do all the work. Review instructions and
+  verifiers before you rely on a task.
+- **The problem statement is model-written.** The rewrite is told to describe only
+  the symptom, but it can still leak the fix or come out vague.
+- **History is shallow.** Only `clone_depth` commits are cloned, and the oldest
+  commit in a shallow clone has no parent, so it's skipped.
+- **Runtime limits carry over.** Python needs pytest output
+  ([#167](https://github.com/huggingface/Repo2RLEnv/issues/167)), and the egress
+  guard doesn't block the Go module proxy or crates.io
+  ([#160](https://github.com/huggingface/Repo2RLEnv/issues/160)).
+- **`llm_cost_usd` is cumulative for the run**, not the cost of that task.
+- **Tasks depend on a local image** until you publish them with `repo2rlenv push`.
+
+## Related
+
+- [RFC 0003: commit_runtime](../rfcs/0003-commit-runtime.md)
+- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime) and its [release history](native_results.md#commit-runtime)
+- [`pr_runtime`](pr_runtime.md): the PR-based sibling, with the verifier details
+- [`r2e_gym`](r2e_gym.md): the research recipe for commit history
+- [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
+- Inspired by the SWE-GEN curation in [R2E-Gym](https://github.com/R2E-Gym/R2E-Gym) (Jain et al., 2025). No code is copied.
+
+## Implementation notes
+
+Source: [`pipelines/commit_runtime.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/commit_runtime.py)
+and [`git_local.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/git_local.py).
+Patch splitting, validation, the eval script and the verifier are reused from
+`pr_runtime`.
+
+- The walk runs `git log --max-count=<limit>` on `branch` in the shallow clone. The
+  pipeline warns when the candidate count reaches `clone_depth`, since the clone may
+  be truncating history.
+- When the P2P set exceeds `max_pass_to_pass`, tests whose names mention a changed
+  file are kept first, then the rest fill up to the cap.
+- The synthesized statement must be at least 10 words, or the pipeline uses the
+  fallback text. The fallback strips the conventional-commit prefix, closing
+  keywords, commit hashes, PR and issue links, `(#123)` squash suffixes and
+  `owner/repo#123` cross-references, then trims template sections.
+- Task IDs are `<owner>__<repo>-<first 12 characters of the SHA>`. The `reference`
+  URL points at `github.com/<owner>/<repo>/commit/<sha>`, or `/-/commit/` on GitLab.

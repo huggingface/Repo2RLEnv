@@ -1,0 +1,126 @@
+---
+title: "Rewards"
+description: "How each task family is scored, where the score is written, and how to use it for evaluation and RL training."
+---
+
+Every task's [verifier](glossary.mdx#verifier) writes one number to `/logs/verifier/reward.txt`, and Harbor records it as the trial's reward. What the number means depends on the task family. Repo2RLEnv uses four scoring schemes, and this page explains each one so you can compare scores, pick a training signal and debug surprising results.
+
+## At a glance
+
+| Scheme | `reward_kinds` | Families | Values | Breakdown file |
+|---|---|---|---|---|
+| [Diff similarity](#diff-similarity) | `diff_similarity` | `pr_diff` | 0 to 1 | `reward-details.json` |
+| [Graded test execution](#graded-test-execution) | `test_execution` | `pr_runtime`, `commit_runtime`, `cve_patches` | 0 to 1 | `reward-details.json` |
+| [Binary test execution](#binary-test-execution) | `test_execution` | `code_instruct`, `equivalence_tests`, repository and terminal recipes, CLI-Gym, Tasksmith | 0 or 1 | `result.json` for most recipe graders |
+| [Answer equivalence](#answer-equivalence) | `answer_equivalence` | SCALER | −1 or +1 | `result.json` |
+| [Optimization score](#optimization-score) | `optimization_score` | FrontierSmith | 0 to 1, continuous | `scores.json` |
+
+The runtime pipelines also list `diff_similarity` in `reward_kinds` because they ship the oracle as `solution/patch.diff`, so you can score a predicted diff against it yourself. Their verifier writes the graded test reward.
+
+## Where the reward is written
+
+| File | Written by | Contents |
+|---|---|---|
+| `/logs/verifier/reward.txt` | Every verifier | One number. Harbor reads it and stores it in the trial's `result.json` as `verifier_result.rewards.reward` |
+| `/logs/verifier/reward-details.json` | `pr_diff` and the graded runtime verifiers | The full breakdown. Harbor's own `reward.json` must be a flat map of numbers, so the nested breakdown goes in this sidecar file |
+| `/logs/verifier/result.json` | Most recipe and Tasksmith graders | Pass or fail, the test command's exit code and per-test statuses |
+
+Harbor mounts `/logs/verifier` into the trial directory, so after a run you find these files under `<trial>/verifier/`. Recipe graders write the failing score before they start, so a crash or a timeout inside the grader leaves the minimum. The field-by-field schema is in the [reward schema reference](../reference/REWARD_SCHEMA.md).
+
+## Diff similarity
+
+`pr_diff` compares the agent's diff (captured with `git diff` against the base commit) with the merged PR's diff. Five deterministic components and an optional [LLM judge](glossary.mdx#llm-judge) combine as a weighted average:
+
+| Component | Default weight | Measures |
+|---|--:|---|
+| `format_valid` | 0.00 | The output is a unified diff. Kept as a guard |
+| `size_sanity` | 0.08 | Ratio of the smaller to the larger changed-line count |
+| `file_targeting` | 0.12 | F1 over the sets of changed files |
+| `region_overlap` | 0.20 | Predicted hunks near the oracle's hunks |
+| `similarity` | 0.10 | Sequence similarity over changed lines only |
+| `llm_judge` | 0.50 | A model rates whether the patch addresses the issue |
+
+The result is clipped to [0, 1], and capped at 0.40 when `size_sanity` is below 0.10. An empty diff scores 0. The judge runs at verify time only when it gets credentials through `harbor run --ve` (`ANTHROPIC_API_KEY`, or `R2E_JUDGE_ENDPOINT` and `R2E_JUDGE_MODEL` for an OpenAI-compatible server). Without a judge score, its weight is redistributed over the other components. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, also passed with `--ve`.
+
+With the judge disabled, the oracle diff scores exactly 1. With it enabled, the judge's rating is part of the score, so an oracle run can land slightly below 1. See [the pr_diff guide](../pipelines/pr_diff.md#multi-component-reward) for how each component is computed and for the calibration baseline.
+
+## Graded test execution
+
+`pr_runtime`, `commit_runtime` and `cve_patches` tasks carry two lists of test IDs, validated at generation time: [FAIL_TO_PASS and PASS_TO_PASS](glossary.mdx#f2p-and-p2p). `test.sh` restores the test files to the base commit, applies the hidden test patch, runs the tests and hands the log to `tests/verifier.py`:
+
+```text
+f2p_rate = F2P tests now passing / F2P tests
+p2p_rate = P2P tests still passing / P2P tests     (1.0 when there are none)
+reward   = f2p_rate × p2p_rate
+```
+
+A patch that fixes four of five failing tests without breaking anything scores 0.8, where a binary grader would give it 0. `reward-details.json` also records two strict pass/fail flags:
+
+| Field | Meaning | Use it for |
+|---|---|---|
+| `reward` | The graded score, also written to `reward.txt` | Training |
+| `resolved` | True when every F2P test passes and every P2P test still passes | Benchmark-style evaluation, as in SWE-bench |
+| `command_resolved` | True when `resolved` holds, no other test in the command failed, and the command exited 0 | Strict evaluation that also requires a clean test command |
+
+The gold patch always gives `reward = 1` and `resolved = true`. If the runner's output can't be parsed into per-test statuses, the verifier falls back to the exit code (1 or 0), sets `parse_status = "fallback_exitcode"`, and never reports `resolved` for a task that has an F2P list. A task generated without an F2P list gets a plain exit-code reward. A task with no P2P tests has no regression guard. Check `p2p_total` in `reward-details.json`, or `reward_calibration.p2p_count` in `task.toml` for `pr_runtime` and `commit_runtime`.
+
+## Binary test execution
+
+These verifiers award 1 only when everything required passes, and 0 otherwise:
+
+| Family | Passes when |
+|---|---|
+| `code_instruct`, `equivalence_tests` | The test command exits 0 |
+| Repository recipes and Tasksmith | In the separate verifier container, the selected tests run as an unprivileged user, the command exits 0, and the set of passing test IDs equals the expected F2P and P2P IDs in `tests/contract.json` |
+| Terminal recipes (SETA, DataArc, TMax, Endless Terminals, TerminalWorld) | Every expected generated check in `tests/` runs and passes |
+| CLI-Gym | The environment's healthy tests pass again and protected source is unchanged |
+
+Binary rewards are sparse: a partly correct attempt earns nothing. Recorded test weights in terminal recipes don't make the current grader fractional.
+
+## Answer equivalence
+
+SCALER tasks ask for an answer in `/workspace/answer.txt`. The grader compares it with the reference answer, using the task's typed answer contract when it has one and math expression equivalence otherwise. An equivalent answer scores +1. A wrong, missing or unparseable answer scores −1. The task metadata records `reward_min = -1` and `reward_max = 1`, and the nop control scores −1 instead of 0. Rescale with `(reward + 1) / 2` if your trainer expects [0, 1].
+
+
+## Optimization score
+
+[FrontierSmith](../pipelines/frontiersmith.md) tasks ask for a program, `/workspace/solution.py`, that does as well as it can on a graded objective with no known optimum. The verifier runs it on every generated case in an isolated process. Each case scores between 0 and 1; infeasible, malformed or missing output scores 0. The reward is the mean over cases, written to `reward.txt`, with the per-case scores and feasibility in `scores.json`.
+
+There is no LLM judge. The no-op control scores 0, and a reference solution scoring below 1 is normal: the reference only has to beat the task's simple baseline and repeat its own scores. Treat the reward as a continuous signal rather than pass or fail.
+
+## Using rewards in training
+
+Harbor returns the scalar for each trial. Read it from the trial results of a job:
+
+```python
+import json
+from pathlib import Path
+
+job = Path("jobs/my-job")
+for result in sorted(job.glob("*/result.json")):
+    trial = json.loads(result.read_text())
+    reward = ((trial.get("verifier_result") or {}).get("rewards") or {}).get("reward")
+    print(trial["task_name"], reward)
+```
+
+A trial that fails before verification has no `verifier_result`. Treat it as an infrastructure failure, not a score of 0. [Read the results](../guides/run-with-harbor.mdx#read-the-results) shows the full job layout. Then pick the signal that fits:
+
+- **Graded runtime tasks.** Train on `reward` and evaluate on `resolved`.
+- **`pr_diff`.** The reward is dense but partly text-based, and the judge adds cost and variance. `reward_calibration.baseline_reward` gives the no-op score for normalizing: `(raw - baseline) / (1 - baseline)`.
+- **Binary and SCALER tasks.** Expect sparse rewards. Group rollouts per task, as in GRPO, to get a useful gradient.
+
+For text-only loops you can score a predicted diff in-process, without a container:
+
+```python
+from repo2rlenv.reward import calculate_diff_similarity_reward
+
+reward, meta = calculate_diff_similarity_reward(oracle_diff, predicted_diff)
+```
+
+This is the single sequence-similarity score in the style of SWE-RL, not the six-component `pr_diff` verifier. Read the oracle from the task's `solution/patch.diff`. `repo2rlenv.reward.grade_test_execution(fail_to_pass, pass_to_pass, test_status)` gives the F2P and P2P rates for a test status map you already have.
+
+## Limits
+
+- Rewards measure what the verifier checks. A weak verifier passes wrong solutions, and the controls alone cannot detect that. The [quality loop](quality.mdx#review-and-repair) probes it with a deliberately wrong solution.
+- The `pr_diff` score rewards resemblance to one merged change. A correct but different fix can score low on the deterministic components; the judge offsets this only partly.
+- Graded partial credit depends on parsing test output for pytest, Go, Cargo or Jest. Other runners fall back to the exit code.

@@ -1,195 +1,224 @@
-# `equivalence_tests`
+---
+title: "equivalence_tests"
+description: "Extract real functions from a repository and have an LLM write tests that check a reimplementation against the original."
+film: equivalence-tests
+---
 
-R2E-style function-level synthesis. Extract a real Python function from the
-target repo as a frozen oracle (`reference_<name>`); ask the LLM to write
-equivalence tests that compare a `<name>` candidate against the oracle on
-crafted inputs; emit a Harbor task whose gold patch fills in the candidate
-with the original implementation.
+Each task stubs out a real function from the repository. The agent gets its
+signature and docstring and must implement it so it behaves exactly like
+`reference_<name>`, the original kept alongside it. An LLM writes the equivalence
+test; the pipeline keeps it only if it fails against the stub and passes against
+the original. Because the ground truth is working code rather than a model's
+invention, these tasks vary less than [`code_instruct`](code_instruct.md)'s.
+
+## At a glance
 
 | | |
 |---|---|
-| Status | **shipped (v0.7), hardened v0.8.7** — Python module-level functions |
-| Sandbox required at gen | Yes |
-| LLM required at gen | Yes (writes the test only; retries with feedback on failure) |
-| Reward kinds emitted | `test_execution` |
-| Reference dataset | [`AdithyaSK/repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) — 100 tasks across seven utility-oriented repos in the retained publication staging; [generation and solver evidence](native_results.md#equivalence-tests) |
-| Inspiration | [R2E](https://github.com/r2e-project/r2e) (ICML '24) |
+| Input | A Python repository on GitHub, GitLab or a local path |
+| Task | Implement a stubbed function in `task_module.py` so its outputs match `reference_<name>` |
+| Reward | Binary: 1.0 if the hidden equivalence test passes, else 0.0 |
+| Needs an LLM | Yes: the one-time bootstrap (cached) and one call per test attempt |
+| Needs Docker | Yes, for bootstrap, validation and running tasks |
+| Hosts | GitHub, GitLab and local paths |
+| Languages | Python only (module-level functions). On GitHub, the primary language is checked first (`--force-language` skips the check) |
+| Status | Experimental |
+| Reference dataset | [`AdithyaSK/repo2rlenv-equivalence-tests`](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests): 100 tasks from seven utility libraries |
 
-## What's different vs `code_instruct`
-
-| | `code_instruct` | `equivalence_tests` |
-|---|---|---|
-| Seed | LLM-invented problem | **Real function** from the repo |
-| LLM writes | problem + test + solution | **test only** (we already have the solution) |
-| Failure surface | LLM might invent unsolvable / wrong problems | LLM might write a bad test (filtered) |
-| Yield per repo | one per seed snippet | **one per qualifying function** |
-
-`equivalence_tests` is lower-variance because the ground truth is real
-working code, not LLM-imagined behavior.
-
-## Algorithm
-
-```mermaid
-flowchart TD
-    A[Repo URL] --> B[bootstrap: build env at HEAD]
-    B --> C[Walk Python files → extract module-level fns<br/>matching LOC + purity + self-containment filters]
-    C --> D[LLM: write pytest test<br/>importing <name> and reference_<name> from task_module]
-    D --> E[Syntactic: test uses both names?]
-    E --> F[Equivalence-test-strength gate:<br/>≥5 distinct test_* fns, no assert True]
-    F --> G[Dedup: fn-name + test-body fingerprint]
-    G --> H[Pre-flight: strip annotations, verify importability]
-    H --> I[Stage A: <name> stubbed → test must FAIL]
-    I --> J[Stage B: <name> = reference_<name> = original<br/>→ test must PASS]
-    J --> K{gate/verify OK?}
-    K -- no --> D
-    K -- yes --> L[Emit Harbor task]
-```
-
-**Quality gates (added v0.8.7)** — the v0.7 pipeline emitted the full source in the instruction (leak) and never retried a failing candidate. Baseline audit found 97% of extracted candidates failed Stage-B with `oracle_does_not_satisfy_test` because the standalone `task_module.py` we bake couldn't import (referenced click-internal types like `Argument`, `FC`). The v0.8.7 pass layers:
-
-- **Leak-free instruction** — signature + docstring + `...` body only (via `signature_only_source` in `_eval_script.py`). Agent no longer sees the reference implementation in `instruction.md`.
-- **Recursion-safe rename** — `rename_function_ast` uses `ast.unparse` instead of a regex on the `def` line, so recursive functions actually recurse on the renamed name.
-- **Annotation strip at bake time** — `def foo(x: Argument) -> FC` → `def foo(x)` before writing `task_module.py`. Annotations are decorative at runtime, so this doesn't change behaviour, but it makes the standalone module importable even when the original signature referenced repo-internal types.
-- **Purity + self-containment filter** — extractor now rejects functions whose bodies reference names outside stdlib + own args + a small allowlist. Turns off the whole "task_module.py fails to import" tail. On click this cuts extractable candidates 32 → 2, but every survivor is actually verifiable.
-- **`is_module_importable` pre-flight** — before spending sandbox time, compile the baked stub and check every top-level Name resolves. Catches remaining bad candidates cheaply.
-- **Retry with feedback** — `max_attempts_per_function` (default now `3`, was documented but not wired pre-v0.8.7). On Stage-B failure, the last 1200 chars of the failure log are fed back to the LLM in the next attempt so it can pick better inputs.
-- **Test-strength gate** — `check_equivalence_test_strength` rejects tests with fewer than 5 `def test_*` functions, functions that don't reference both names, or `assert True` / trivial constant asserts.
-- **Task dedup** — `_equivalence_fingerprint` (function name + normalized test-body hash) catches the LLM re-emitting the same test suite on retry.
-- **Debug dumps** — every skipped candidate writes its last-attempt test + Stage-B log to `<out_dir>/.debug_skips/<fn_name>/` so failure-mode audits don't need a full pipeline re-run.
-
-## Function extractor (R2E-style filters)
-
-Walks `clone_dir.glob("**/*.py")`, applies in order:
-
-1. Exclude path globs (`tests/**`, `docs/**`, `**/__init__.py`, ...)
-2. AST parse; skip on `SyntaxError`
-3. Module-level `FunctionDef` only (no class methods in v0.7)
-4. No `async def`
-5. Drop names: dunder, `test_*`, `main`, `setup`, `run`, `init`, `cli`, `wrapper`, `_*`
-6. Must have ≥1 positional/keyword arg (no zero-arg)
-7. Body LOC ∈ `[min_loc, max_loc]` (default 5–60)
-8. Must contain `return <expr>` (not bare `return`)
-9. Body must NOT contain side-effect markers (`open(`, `subprocess.`,
-   `os.environ`, `requests.`, `print(`, `sys.exit`, `input(`, ...)
-
-Filters are conservative — they keep the candidate pool small but
-high-quality. Use `--pipeline-opt min_loc=1 --pipeline-opt max_loc=200`
-to loosen for low-LOC repos.
-
-## Reference oracle pattern
-
-The emitted `task_module.py` ships **two** function definitions:
-
-```python
-def reference_<name>(...):
-    # original implementation, frozen — used as the oracle
-    ...
-
-def <name>(...):
-    # in the environment image: stubbed (raise NotImplementedError)
-    # after the gold patch: identical to reference_<name>
-    ...
-```
-
-The LLM-generated test imports both and asserts equality across multiple
-inputs:
-
-```python
-from task_module import <name>, reference_<name>
-
-def test_basic():
-    assert <name>(1, 2) == reference_<name>(1, 2)
-
-def test_edge_zero():
-    assert <name>(0, 0) == reference_<name>(0, 0)
-```
-
-## Verification (two-stage)
-
-| Stage | Module state | Required outcome |
-|---|---|---|
-| A — stub | `<name>` raises `NotImplementedError`; `reference_<name>` is original | FAIL (else the test is trivial) |
-| B — oracle | `<name>` = `reference_<name>` = original | PASS (else the test is buggy) |
-
-Stage A catches the LLM "cheating" with a test that doesn't call `<name>`.
-Stage B catches buggy tests (e.g., asserts on outputs that aren't
-deterministic across re-runs).
-
-## Options
-
-See `EquivalenceTestsOptions` in `src/repo2rlenv/spec/options.py`.
-
-| Field | Default | Notes |
-|---|---|---|
-| `limit` | 50 | max emitted tasks |
-| `min_loc` / `max_loc` | 5 / 60 | body-LOC range |
-| `file_glob` / `exclude_glob` | `**/*.py` / tests/etc. | source selection |
-| `seed` | `None` | RNG seed for reproducibility |
-| `llm_temperature` | 0.5 | lower than `code_instruct` — tests should be stable |
-| `require_test_fails_with_stub` | `True` | Stage A invariant |
-| `require_test_passes_with_oracle` | `True` | Stage B invariant |
-| `validation_timeout_sec` | 90 | per-candidate test run cap |
-| `skip_validation` | `False` | debug; emits without sandbox run |
-
-## Yield
-
-**Yield = emitted tasks ÷ functions extracted.** Expect **~30–60%**. A function
-survives only if the LLM writes an equivalence test that **fails when `<name>` is
-stubbed and passes against the frozen `reference_<name>` oracle**. Pure, total
-functions (deterministic, no I/O, no global state) convert well; functions with
-side effects, randomness, or heavy dependencies usually fail the gate and are
-dropped.
-
-| Knob | Default | Effect on yield |
-|---|:-:|---|
-| `max_attempts_per_function` | 1 | ↑ retries failed synthesis → higher yield, more spend |
-| `min_loc` / `max_loc` | 5 / 60 | the band that balances "too trivial to test" vs "too complex to cover" |
-| `exclude_glob` | tests/docs/`__init__`/setup | keeps extraction on real logic |
-| LLM model quality | — | stronger models craft discriminating inputs more often |
-| `llm_temperature` | 0.5 | lower than `code_instruct` on purpose — we want *stable* tests, which also helps yield |
-
-Function **purity is the dominant factor**: a repo of pure utility functions
-(parsers, encoders, math) yields far above one dominated by I/O-bound or
-stateful code. Repo test health doesn't gate (the verifier is self-contained),
-but the env must bootstrap.
-
-**Worked example:** at ~45% yield, 100 tasks ≈ ~220 qualifying functions across
-one or two utility-heavy repos. Raising `max_attempts_per_function` to 2 trades
-spend for ~10–15 points of yield.
-
-## End-to-end smoke
+## Quickstart
 
 ```bash
 repo2rlenv generate \
-  --repo pallets/click \
+  --repo pytoolz/toolz \
   --pipeline equivalence_tests \
-  --pipeline-opt limit=1 --pipeline-opt seed=42 \
+  --pipeline-opt limit=5 \
+  --pipeline-opt seed=42 \
   --llm anthropic/claude-sonnet-4-6 \
-  --out ./datasets/click-eqv
-
-harbor run -a oracle -p ./datasets/click-eqv/<task-id>
-# Mean reward 1.000
+  --out ./tasks/toolz-equivalence
 ```
 
-## Known v0.7 trade-offs (to revisit)
+The example uses `pytoolz/toolz` because the pipeline only accepts
+self-contained, side-effect-free functions: utility libraries have many, while
+framework code such as `pallets/click` has few. `limit` is the number of tasks to
+emit; `seed` makes the candidate order repeatable. The first run bootstraps the
+repository (capped by `--max-spend-usd`, default 5.0, and cached). Each task lands
+in `./tasks/toolz-equivalence/pytoolz__toolz-eqv-<hash>/`. Run the oracle, which
+should score 1.0:
 
-- **Module-level only.** Class methods (with `self` / `cls`) need either
-  dependency slicing (include class context) or method-to-function
-  conversion. Deferred to v0.8.
-- **Recursion.** `_rename_function_source` rewrites only the `def` line;
-  if a function calls itself by name, the renamed `reference_<name>`
-  still calls `<name>` internally — usually trips Stage B and the
-  candidate is dropped. Acceptable skip rate in practice.
-- **No iterative test refinement** (R2E's "feedback → fix_error → improve_coverage"
-  loop). Single LLM call per candidate; if the LLM writes a flaky or buggy
-  test, we skip rather than retry. The retry loop is on the v0.8 roadmap.
+```bash
+harbor run -p ./tasks/toolz-equivalence -a oracle --env docker
+```
 
-## What we adapted from `references/r2e/`
+## How it works
 
-- Function extractor filter set (`repo_builder/fut_extractor/extract_base.py`):
-  LOC bounds, must-have-return, name + decorator + side-effect exclusions.
-- The reference-oracle test pattern (`generators/testgen/prompt.py:27-28`):
-  `reference_<name>` naming convention; test imports BOTH names.
-- The "test must exercise candidate" syntactic guard.
+```mermaid
+flowchart TD
+  A["Walk Python files: module-level,<br/>pure, self-contained functions"] --> B["LLM writes a test comparing<br/>name(x) with reference_name(x)"]
+  B --> C{"Both names used, 5+ tests,<br/>no trivial asserts, not a duplicate"}
+  C -- fail --> R["Retry with feedback,<br/>up to 3 attempts"]
+  R --> B
+  C -- pass --> D{"Sandbox: fails with the stub,<br/>passes with the original?"}
+  D -- no --> R
+  D -- yes --> F["Harbor task: stub baked in image,<br/>test hidden in tests/"]
+```
 
-No code is copied. The implementation is original Python stdlib.
+1. **Bootstrap** the repository once and shallow-clone it at `--ref`. See
+   [Bootstrap](../reference/BOOTSTRAP.md).
+2. **Extract candidates.** Walk files matching `file_glob` and not `exclude_glob`,
+   and keep module-level functions that take at least one argument, have a body of
+   `min_loc` to `max_loc` lines, return a value, show no side effects (file,
+   network, process, logging, printing, clock, randomness, framework context), and
+   reference only their own arguments and locals, builtins and a small set of
+   standard-library modules. Async functions and names that start with `_` or
+   `test_` (or are `main`, `setup`, `run`, `init`, `cli`, `wrapper`) are skipped.
+   Candidates are shuffled.
+3. **Write the test.** The LLM gets the function's source and writes 5–10
+   `test_*` functions, each asserting `name(x) == reference_name(x)` on one input.
+4. **Gate the test.** Reject it if it doesn't import and use both names, has fewer
+   than five test functions, has a test function that doesn't call both, contains a
+   constant assert, or duplicates an earlier test suite.
+5. **Verify in the sandbox.** Build `task_module.py` twice, with type annotations
+   stripped so the module imports on its own. With `name` stubbed to raise
+   `NotImplementedError`, the test must not pass. With `name` set to the original
+   implementation, it must pass.
+6. **Retry with feedback.** When a gate or sandbox check fails, the next attempt
+   includes the reason and the last 1,200 characters of the failure log, up to
+   `max_attempts_per_function` attempts.
+7. **Emit the task.** The stub module is baked into the image; the instruction
+   shows the signature and docstring only.
+
+## Options
+
+Pass each option with `--pipeline-opt key=value`.
+
+| Key | Default | What it does |
+|---|---|---|
+| `limit` | `50` | Number of tasks to emit |
+| `min_loc` / `max_loc` | `5` / `60` | Function body size, in lines |
+| `file_glob` | `**/*.py` | Files to extract functions from |
+| `exclude_glob` | tests, `test_*`, `*_test.py`, `conftest.py`, `docs/`, `examples/`, `__init__.py`, `setup.py` | Files never used |
+| `seed` | none | Random seed for the candidate order |
+| `max_attempts_per_function` | `3` | Test-writing attempts per function, each with feedback from the last failure |
+| `llm_temperature` | `0.5` | Sampling temperature. Lower than `code_instruct`'s, for stable tests |
+| `max_llm_tokens` | `1500` | Output token limit per attempt |
+| `require_test_fails_with_stub` | `true` | Reject tests that pass against the stub |
+| `require_test_passes_with_oracle` | `true` | Reject tests that fail against the original |
+| `validation_timeout_sec` | `90` | Timeout for each sandbox test run |
+| `skip_validation` | `false` | Emit without running the sandbox checks. For debugging |
+
+## Output
+
+```files
+pytoolz__toolz-eqv-<hash>
+├── task.toml
+├── instruction.md
+├── environment
+│   └── Dockerfile
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    └── test_r2e_<hash>.py
+```
+
+- `task.toml`: Harbor 1.0 task. `reference` links to the function's lines; `[metadata.repo2env.equivalence_tests]` records the function name, source path and lines, body size, argument names, test file name, bootstrap image and `llm_cost_usd`. The [evaluation label](task_evaluation_labels.md) starts as `unverified`.
+- `instruction.md`: the function's signature and docstring, where to implement it, and how grading works.
+- `environment/Dockerfile`: `FROM` the bootstrap image, writing `/workspace/task_module.py` with `reference_<name>` and a stub `<name>`.
+- `solution/patch.diff`: replaces the stub with the original implementation (the [oracle](../concepts/glossary.mdx#oracle)); `solve.sh` applies it.
+- `tests/test_r2e_<hash>.py`: the equivalence test, delivered by Harbor at verify time.
+- `tests/test.sh`: copies the test into `/workspace` and runs `python -m pytest` on it.
+
+The output directory also gets a `.debug_skips/<function>/` folder for each
+rejected candidate, with its last test and sandbox logs. These aren't tasks.
+
+## Reward
+
+`tests/test.sh` writes 1.0 to `/logs/verifier/reward.txt` when every equivalence
+assertion holds and 0.0 otherwise. There is no partial credit and no
+`reward-details.json`. A no-op agent scores 0, because the stub raises. See
+[Rewards](../concepts/rewards.mdx#binary-test-execution).
+
+## Yield and cost
+
+Completed generation summaries account for at least 200 candidate functions for
+the 100 reference tasks, including runs on mpmath, setuptools and black that
+produced none. Other runs lack a final summary, so the overall yield is unknown.
+Productive runs recorded at least $2.51 in synthesis cost (at least $0.025 per
+task), a partial floor that excludes the empty runs, bootstrap and compute.
+
+Solver samples on the reference dataset used different tasks per model, so they
+aren't a leaderboard:
+
+| Model and agent | Tasks | Outcome |
+|---|---:|---|
+| Claude Sonnet 4.6, Claude Code | 5 | 4 scored 1 after setup retries; 1 failed while installing the agent |
+| GPT-5.3-Codex, Codex | 5 | 5 scored 1 |
+| Qwen3.6-35B-A3B, OpenHands SDK | 5 | 5 scored 1 |
+
+See [native results](native_results.md#equivalence-tests). What moves yield:
+repository shape first, since the purity and self-containment filters leave few
+candidates in framework code; then the model's choice of inputs the original
+handles cleanly, which the feedback loop improves. Cost scales with candidates ×
+`max_attempts_per_function` calls.
+
+## Limits
+
+- **A generated task isn't a verified environment.** Run the controls: the oracle
+  should score 1.0 and a no-op agent (`-a nop`) 0. Record the outcome as an
+  evaluation label; see [Quality](../concepts/quality.mdx).
+- **The reference is visible by design.** `reference_<name>` sits in the agent's
+  `task_module.py`, and the instruction says reading it is the intended way to
+  solve the task. The test checks only that outputs match, so a solution that calls
+  or copies the reference also scores 1.0. Treat these as function-reconstruction
+  exercises.
+- **Equality is the only check.** Functions whose results don't compare with `==`,
+  or that raise on most inputs, rarely make it through; the test covers only the
+  inputs the model chose.
+- **Module-level functions only.** Methods, async functions and anything that
+  touches files, network, time or global state are excluded.
+- **Python and pytest only.**
+- **`llm_cost_usd` is cumulative for the run**, not the cost of that task.
+- **Tasks depend on a local image** until you publish them with `repo2rlenv push`.
+
+## Related
+
+- [RFC 0005: equivalence_tests](../rfcs/0005-equivalence-tests.md)
+- [Reference dataset](https://huggingface.co/datasets/AdithyaSK/repo2rlenv-equivalence-tests) and its [generation evidence](native_results.md#equivalence-tests)
+- [`r2e`](r2e.md): the research recipe with coverage-guided test repair and a private verifier
+- [`code_instruct`](code_instruct.md): tasks invented from a snippet instead of extracted
+- [Tasks](../concepts/tasks.mdx), [Rewards](../concepts/rewards.mdx) and [Run with Harbor](../guides/run-with-harbor.mdx)
+- Adapted from [R2E](https://github.com/r2e-project/r2e) (Jain et al., 2024): the function filters and the `reference_<name>` test pattern. No code is copied.
+
+## Implementation notes
+
+Source: [`pipelines/equivalence_tests.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/equivalence_tests.py),
+[`pipelines/_function_extractor.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_function_extractor.py)
+and [`pipelines/_eval_script.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/_eval_script.py).
+
+The module the agent starts from looks like this:
+
+```python
+def reference_<name>(...):
+    ...  # the original implementation, annotations stripped
+
+def <name>(<args>):
+    raise NotImplementedError("implement <name>")
+```
+
+- The rename to `reference_<name>` rewrites the AST, including recursive calls, so
+  a recursive reference calls itself rather than the stub.
+- Type annotations are stripped from both functions because annotations such as
+  `def f(x: Argument) -> FC` name repository types that don't exist in the
+  standalone module, which would fail at import.
+- Before any sandbox run, both modules are compiled and their top-level names
+  resolved against builtins (`stub_module_not_importable`,
+  `oracle_module_not_importable`).
+- Skip reasons include `llm_parse_failed`, `test_missing_both_names`,
+  `too_few_test_functions:<n><5`, `test_fn_missing_both_names:<test>`,
+  `trivial_assert_present`, `duplicate_task`, `test_passes_with_stub` and
+  `oracle_does_not_satisfy_test`.
+- The duplicate check hashes the function name with the whitespace-normalized,
+  lower-cased test body.
+- The gold patch fills in `<name>` in the baked module rather than adding files, so
+  the reference is present for every agent, not only Harbor's oracle agent.

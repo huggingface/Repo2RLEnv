@@ -1,4 +1,6 @@
-# Native pipeline results
+---
+title: "Native pipeline results"
+---
 
 The six original pipelines have **600 task entries in the recovered reference
 inventories**: PR diff 181, PR runtime 100, commit runtime 100, code instruct 100,
