@@ -148,7 +148,7 @@ output:
   dataset_name: CodeMidas
 execution:
   worker_receipt: workspace/codemidas/workers/worker.json
-  runtime_wheel: dist/repo2rlenv-0.9.2-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.3-py3-none-any.whl
   campaign_dir: workspace/codemidas
   run_id: library-pilot-01
   timeout_sec: 3600
@@ -161,7 +161,7 @@ repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
   --controls workspace/codemidas/runs/RUN/tasks/CANDIDATE \
   --campaign workspace/codemidas \
   --worker-receipt workspace/codemidas/workers/worker.json \
-  --runtime-wheel dist/repo2rlenv-0.9.2-py3-none-any.whl \
+  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl \
   --out workspace/codemidas/audits/TASK
 ```
 

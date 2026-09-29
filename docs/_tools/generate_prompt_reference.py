@@ -15,6 +15,12 @@ SOURCE_URL = "https://github.com/huggingface/Repo2RLEnv/blob/main/"
 
 # Full call-site code includes dynamic additions, user-message construction and schemas.
 ASSEMBLY = {
+    "frontiersmith": [
+        "frontiersmith/prompts.py",
+        "frontiersmith/models.py",
+        "frontiersmith/export.py",
+        "frontiersmith/pipeline.py",
+    ],
     "codemidas": ["codemidas/models.py", "codemidas/pipeline.py", "codemidas/audit.py"],
     "swe_smith": ["swe_smith/issue.py"],
     "seta_seed2synth": ["seta_seed2synth/recipe.py"],
@@ -32,6 +38,7 @@ ASSEMBLY = {
     "scaler": ["scaler/families.py"],
 }
 GUIDES = {
+    "frontiersmith": "frontiersmith",
     "codemidas": "codemidas",
     "swe_smith": "repo_mutate",
     "seta_seed2synth": "terminal_synth",

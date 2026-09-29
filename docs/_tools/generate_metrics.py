@@ -128,7 +128,106 @@ def codemidas_tables(row: dict) -> tuple[list[str], list[str]]:
     return releases, costs
 
 
-def render(data: dict) -> dict[str, str]:
+def frontiersmith_tables(row: dict) -> tuple[list[str], list[str]]:
+    """Report local construction evidence without inflating published/verified totals."""
+    n = row["selected_tasks"]
+    model = Decimal(row["model_usd"])
+    compute = Decimal(row["estimated_compute_usd"])
+    total = Decimal(row["total_usd"])
+    attempted = row["candidate_attempts"]
+    exported = row["initial_exports"]
+    if (
+        not 0 < n <= exported <= attempted
+        or n != len(row["tasks"])
+        or len({task["task"] for task in row["tasks"]}) != n
+        or total != model + compute
+        or row["full_quality_verified"] != 0
+        or any(task["quality_status"] != "unverified" for task in row["tasks"])
+    ):
+        raise ValueError("FrontierSmith counts, labels or costs disagree")
+    rollouts = sum(task["rollout_status"] == "completed" for task in row["tasks"])
+    if row.get("measurement_kind") == "pilot_and_expansion":
+        if not row["all_workers_terminated"]:
+            raise ValueError("The final campaign report still has live workers")
+        unknown = Decimal(row["reserved_usd"])
+        releases = [
+            f"[FrontierSmith](frontiersmith.md#measured-100-task-collection) has **{n} local construction-checked Harbor tasks** across {len(row['families'])} problem families, measured {row['measured_on']}. All retain `unverified` labels; {rollouts}/{n} final bundles have a completed blind OpenAI rollout. These artifacts have not been published and are excluded from the totals above.",
+            "",
+        ]
+        costs = [
+            "## FrontierSmith optimization synthesis",
+            "",
+            f"Measured **{row['measured_on']}** with OpenAI `{row['model']}` and Daytona CPU workers. {attempted} candidate attempts across {row['distinct_seeds']} distinct seeds produced {exported} initial exports; {n} were selected after construction and collection review. Initial export yield was **{100 * exported / attempted:.1f}%**; final selection was **{100 * n / attempted:.1f}%**.",
+            "",
+            "| Cost component | Whole collection | Per selected task |",
+            "|---|---:|---:|",
+            f"| Recorded API usage | ${model:.2f} | ${model / n:.3f} |",
+            f"| Estimated compute | ${compute:.2f} | ${compute / n:.3f} |",
+            f"| Accounted combined | ${total:.2f} | ${total / n:.3f} |",
+            f"| Unknown API charges reserved separately | ${unknown:.2f} | ${unknown / n:.3f} |",
+            "",
+            "| Measurement scope | Attempts | Initial exports | Selected | Combined cost |",
+            "|---|---:|---:|---:|---:|",
+        ]
+        for phase in row["campaigns"]:
+            costs.append(
+                f"| {phase['name']} | {phase['candidate_attempts']} | {phase['initial_exports']} | {phase['selected_tasks']} | ${Decimal(phase['total_usd']):.2f} |"
+            )
+        stage_names = {
+            "seed_authoring": "Original seed descriptions",
+            "formulation_and_review": "Task formulation and review",
+            "baseline_and_sampled_programs": "Baseline and sampled programs",
+            "semantic_diversity_review": "Sample algorithm diversity review",
+            "infrastructure_and_bounded_repair": "Test infrastructure and bounded repair",
+            "blind_rollouts": "Blind agent rollouts",
+            "collection_contract_review": "Finished-task contract review",
+            "collection_diversity_review": "Collection diversity review",
+            "post_construction_repair": "Post-construction generator repair",
+            "other_development_calls": "Other development calls",
+        }
+        costs.extend(
+            [
+                "",
+                "| Model-call stage | Recorded API cost |",
+                "|---|---:|",
+                *[
+                    f"| {stage_names.get(stage, stage)} | ${Decimal(amount):.2f} |"
+                    for stage, amount in row["model_costs_by_stage"].items()
+                ],
+            ]
+        )
+        costs.extend(
+            [
+                "",
+                f"Costs include original seed authoring, failed candidates, bounded repair, construction trials, collection reviews and sample rollouts. The ten-task development pilot used evolving checks; the expansion used the recorded fixed recipe. This is a measured assisted campaign, not a guarantee of future yield. {rollouts}/{n} selected bundles have blind rollout evidence; full quality acceptance remains pending.",
+                "",
+                "Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated. Lost API responses retain their conservative reservations rather than being counted as free or silently retried. See the [collection audit](frontiersmith.md#measured-100-task-collection) and [machine-readable results](../data/frontiersmith-campaign.json).",
+                "",
+            ]
+        )
+        return releases, costs
+    releases = [
+        f"[FrontierSmith](frontiersmith.md#measured-local-pilot) has **{n} local construction-checked Harbor tasks** from its {row['measured_on']} pilot. All retain `unverified` labels; {rollouts} final-bundle blind OpenAI rollout was completed. A further candidate is retained as `needs_repair`. These artifacts have not been published and are excluded from the totals above.",
+        "",
+    ]
+    costs = [
+        "## FrontierSmith development pilot",
+        "",
+        f"Measured **{row['measured_on']}** with OpenAI `{row['model']}` and Daytona CPU workers. {attempted} candidate attempts across {row['distinct_seeds']} original seeds produced {exported} initial exports; {n} passed final construction checks and one was retained for repair. Initial export yield was **{100 * exported / attempted:.1f}%**; final selection was **{100 * n / attempted:.1f}%**. The checks evolved during development, so this is not an unattended production-yield estimate.",
+        "",
+        "| Cost component | Whole pilot | Per selected task |",
+        "|---|---:|---:|",
+        f"| Recorded API usage | ${model:.2f} | ${model / n:.3f} |",
+        f"| Estimated compute | ${compute:.2f} | ${compute / n:.3f} |",
+        f"| Combined | ${total:.2f} | ${total / n:.3f} |",
+        "",
+        "Costs include failed candidates, formulation/infrastructure repair, feasibility recertification and two blind rollouts; only one rollout used a final bundle. Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated and all reservations settled. Full quality validation and publication are outside this sample. See the [task scores and findings](frontiersmith.md#measured-local-pilot) and [machine-readable evidence summary](../data/frontiersmith-pilot.json).",
+        "",
+    ]
+    return releases, costs
+
+
+def render(data: dict, frontiersmith: dict | None = None) -> dict[str, str]:
     rows = data["pipelines"]
     by_name = {row["recipe"]: row for row in rows}
     if len(by_name) != len(rows):
@@ -138,6 +237,10 @@ def render(data: dict) -> dict[str, str]:
     observed = data["tasksmith_observation"]
     native_releases, native_economics = native_tables(data["native_history"])
     local_releases, local_economics = codemidas_tables(data["codemidas_campaign"])
+    if frontiersmith is not None:
+        pilot_releases, pilot_economics = frontiersmith_tables(frontiersmith)
+        local_releases.extend(pilot_releases)
+        local_economics.extend(pilot_economics)
     labels_total = {}
     for row in rows:
         if sum(row["quality_counts"].values()) != row["published_tasks"]:
@@ -163,7 +266,7 @@ def render(data: dict) -> dict[str, str]:
     releases = [
         "# Published Harbor datasets",
         "",
-        "Published results cover the six native pipelines, Tasksmith and 14 research recipes. The local CodeMidas collection is reported separately and is not included in published totals.",
+        "Published results cover the six native pipelines, Tasksmith and 14 research recipes. Local collections are reported separately and are not included in published totals.",
         "",
         f"Browse the [HuggingEnvs collection](https://huggingface.co/collections/{data['collection']}). The native datasets retain their existing owners.",
         "",
@@ -261,7 +364,11 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     data = json.loads((ROOT / "docs/data/pipelines.json").read_text())
-    for name, text in render(data).items():
+    campaign = ROOT / "docs/data/frontiersmith-campaign.json"
+    frontiersmith = json.loads(
+        (campaign if campaign.exists() else ROOT / "docs/data/frontiersmith-pilot.json").read_text()
+    )
+    for name, text in render(data, frontiersmith).items():
         path = ROOT / "docs/pipelines" / name
         if args.check:
             if not path.exists() or path.read_text() != text:

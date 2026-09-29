@@ -70,6 +70,39 @@ Measured **2026-09-25** using GPT-6 Luna/Sol and Daytona. This whole-campaign sa
 
 Compute is an estimate, not an invoice. The construction denominator includes two candidates stopped after the goal was met. The 100 curated tasks remain adversarial-blocked; there is no cost per fully accepted task. See [stage costs and limitations](codemidas.md#measured-economics).
 
+## FrontierSmith optimization synthesis
+
+Measured **2026-09-29** with OpenAI `gpt-6-sol` and Daytona CPU workers. 153 candidate attempts across 152 distinct seeds produced 101 initial exports; 100 were selected after construction and collection review. Initial export yield was **66.0%**; final selection was **65.4%**.
+
+| Cost component | Whole collection | Per selected task |
+|---|---:|---:|
+| Recorded API usage | $64.66 | $0.647 |
+| Estimated compute | $3.76 | $0.038 |
+| Accounted combined | $68.42 | $0.684 |
+| Unknown API charges reserved separately | $0.67 | $0.007 |
+
+| Measurement scope | Attempts | Initial exports | Selected | Combined cost |
+|---|---:|---:|---:|---:|
+| Development pilot | 15 | 11 | 10 | $5.61 |
+| Expansion and collection review | 138 | 90 | 90 | $62.81 |
+
+| Model-call stage | Recorded API cost |
+|---|---:|
+| Baseline and sampled programs | $25.52 |
+| Blind agent rollouts | $2.86 |
+| Finished-task contract review | $1.58 |
+| Collection diversity review | $0.51 |
+| Task formulation and review | $5.70 |
+| Test infrastructure and bounded repair | $24.10 |
+| Other development calls | $0.56 |
+| Post-construction generator repair | $0.15 |
+| Original seed descriptions | $0.54 |
+| Sample algorithm diversity review | $3.14 |
+
+Costs include original seed authoring, failed candidates, bounded repair, construction trials, collection reviews and sample rollouts. The ten-task development pilot used evolving checks; the expansion used the recorded fixed recipe. This is a measured assisted campaign, not a guarantee of future yield. 21/100 selected bundles have blind rollout evidence; full quality acceptance remains pending.
+
+Interactive assistant usage is excluded. Model costs use recorded usage and the configured rate table. Compute uses worker lifecycle duration and the [Daytona resource rates](https://www.daytona.io/pricing), with no free-tier deduction; neither amount is an invoice reconciliation. All workers were terminated. Lost API responses retain their conservative reservations rather than being counted as free or silently retried. See the [collection audit](frontiersmith.md#measured-100-task-collection) and [machine-readable results](../data/frontiersmith-campaign.json).
+
 ## Native pipeline measurements
 
 These May–July 2026 runs have less complete accounting. **Recorded synthesis cost excludes bootstrap, compute and solver evaluation**; it is not comparable to the total generation costs above. — means unavailable. See [historical results](native_results.md) for the evidence and sample boundaries.

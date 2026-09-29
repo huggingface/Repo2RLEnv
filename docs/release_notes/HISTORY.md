@@ -6,6 +6,45 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## v0.9.3 — FrontierSmith optimization synthesis
+
+Released September 29, 2026.
+
+Adds the experimental `optimization_synth / frontiersmith` recipe: original seed
+problems become standalone Harbor optimization tasks with deterministic continuous
+rewards. OpenAI authors and reviews formulations, independent solution samples,
+and private test infrastructure; Daytona runs construction checks and optional
+blind rollouts. Bounded repair and durable API receipts retain uncertain-call
+reservations without blindly redispatching requests.
+
+The local collection contains **100 tasks across 20 problem families**, selected
+from 153 candidate attempts (65.4% yield). All passed construction checks; blind
+rollouts completed with fully feasible solutions on 21 of 24 tested tasks, with
+three command timeouts. All tasks remain `unverified`, stage `construction`;
+sampled references are not proven optima. Accounted generation, review and compute
+cost was $68.42, with $0.67 reserved for unresolved API responses. These are
+estimates, not reconciled invoices. The task collection remains local and is not
+included in the package or published to the Hub.
+
+The [pipeline guide](../pipelines/frontiersmith.md) includes diagrams, prompt
+contracts, costs and validation limits. [RFC 0032](../rfcs/0032-frontiersmith-recipe.md)
+records the differences from FrontierSmith: this is a credited, independent
+Python adaptation, not the withheld upstream orchestrator or a reproduction of
+its training results. No upstream research package is required.
+
+Also includes runtime fixes for Mocha spec-reporter parsing
+([#162](https://github.com/huggingface/Repo2RLEnv/pull/162)) and validation of test
+output written to stderr ([#164](https://github.com/huggingface/Repo2RLEnv/pull/164)),
+plus the setup-uv workflow update
+([#169](https://github.com/huggingface/Repo2RLEnv/pull/169)). Existing generated
+datasets are unchanged; regenerate affected runtime tasks and rerun their
+baseline/oracle checks to adopt the parser fixes.
+
+Upgrade with `pip install --upgrade repo2rlenv==0.9.3`, adding the extras your
+pipeline needs. Python 3.12–3.14 remain supported; use Linux, macOS or WSL for
+research generation. The shared fixed-success-reward quality loop does not yet
+provide full acceptance for continuous optimization tasks.
+
 ## v0.9.2 — CodeMidas and runtime correctness
 
 Released September 26, 2026.

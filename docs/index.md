@@ -35,7 +35,7 @@ repo2rlenv generate \
 
     ---
 
-    Six native pipelines, 15 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
+    Six native pipelines, 16 research-inspired recipes, and Tasksmith — covering repository repair, terminal tasks and reasoning environments.
 
     [:octicons-arrow-right-24: Browse the pipelines](pipelines/README.md)
 
@@ -63,7 +63,7 @@ Repo2RLEnv authors and checks tasks; Harbor defines their runtime contract and e
 
 | Layer | Repo2RLEnv ships | We rely on |
 |---|---|---|
-| **Generation** | Native pipelines, 15 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
+| **Generation** | Native pipelines, 16 owned recipes, Tasksmith, shared bootstrap and review/repair | — |
 | **Spec** | The `[metadata.repo2env]` extension to `task.toml` — source lineage, artifact identities and evaluation labels | [Harbor's task spec](https://www.harborframework.com/docs/tasks) |
 | **Consumption** | HF Hub push bridge (`repo2rlenv push`), Harbor-compatible `registry.json` | [Harbor's runtime](https://github.com/harbor-framework/harbor) — sandbox providers and coding-agent integrations |
 
@@ -99,7 +99,7 @@ measure that cohort, not unattended success on arbitrary PRs.
 
 ### Research-inspired recipes — experimental
 
-All 15 recipes below are implemented. Their stage diagrams, prompts, input
+All 16 recipes below are implemented. Their stage diagrams, prompts, input
 requirements and upstream credits are in the linked guides.
 
 | Recipe | Task shape | Reward | Reference dataset |
@@ -118,6 +118,7 @@ requirements and upstream credits are in the linked guides.
 | [**tmax**](pipelines/tmax.md) | Solve a terminal task sampled from a skill taxonomy | State tests, 0/1 | [55 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-tmax) |
 | [**endless_terminals**](pipelines/endless_terminals.md) | Solve a task sampled from categories, complexity and scenarios | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-endless-terminals) |
 | [**terminalworld**](pipelines/terminalworld.md) | Reproduce an outcome reconstructed from a terminal recording | State tests, 0/1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-terminalworld) |
+| [**frontiersmith**](pipelines/frontiersmith.md) | Optimize algorithmic solutions from mutated programming problems | Continuous deterministic score, [0,1] | 100 local tasks; construction checked, 21 completed blind rollouts, full quality pending |
 | [**scaler**](pipelines/scaler.md) | Solve a concrete reasoning instance from a problem family | Answer equivalence, −1/+1 | [100 tasks](https://huggingface.co/datasets/HuggingEnvs/repo2rlenv-scaler) |
 
 SCALER produces reasoning instances rather than repository coding tasks.
@@ -126,7 +127,7 @@ replacement prompts and still needs a fresh generation-quality pilot.
 
 The [release inventory](pipelines/releases.md) records **1,330 tasks across
 15 published Tasksmith/recipe datasets: 50 verified, 5 needing repair and 1,275 unverified**.
-The six earlier native datasets and the local CodeMidas campaign are outside these counts. Compare
+The six earlier native datasets and local CodeMidas/FrontierSmith campaigns are outside these counts. Compare
 [yield and cost](pipelines/economics.md), [evaluation labels](pipelines/task_evaluation_labels.md)
 and the [complete prompt reference](pipelines/prompt_reference.md).
 
