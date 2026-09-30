@@ -176,7 +176,7 @@ def parse_cargo_test(log: str) -> dict[str, str]:
     return out
 
 
-_JEST_FILE_RE = re.compile(r"^ ?(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b")
+_JEST_FILE_RE = re.compile(r"^ ?(?:PASS|FAIL)\s+(?:\S+\s+)*?(?P<path>\S+\.[mc]?[jt]sx?)(?=\s|$)")
 _JEST_FILE_MARKER_RE = re.compile(_JEST_FILE_RE.pattern, re.MULTILINE)
 _JEST_TEST_RE = re.compile(
     r"^(?P<indent>\s*)(?P<glyph>✓|√|✕|×|✗|○|◯)\s+(?P<name>.+?)(?:\s+\(\d+(?:\.\d+)?\s*m?s\))?$"

@@ -68,8 +68,10 @@ from repo2rlenv.log_parsers.pytest_parser import TestStatus
 # File header: `PASS src/foo.test.ts (123 ms)` or `FAIL src/foo.test.ts`.
 # Captures the file path so we can prefix it onto test names.
 # With color, the label is padded (` FAIL `), leaving one leading space.
+# With `projects`, a `displayName` sits between the label and the path
+# (`PASS unit src/foo.test.ts`). Extensions follow jest's default testMatch.
 _JEST_FILE_RE = re.compile(
-    r"^ ?(?:PASS|FAIL)\s+(?P<path>\S+\.(?:ts|tsx|js|jsx|mjs|cjs))\b",
+    r"^ ?(?:PASS|FAIL)\s+(?:\S+\s+)*?(?P<path>\S+\.[mc]?[jt]sx?)(?=\s|$)",
 )
 # Same header, searched across the log to tell jest from mocha.
 _JEST_FILE_MARKER_RE = re.compile(_JEST_FILE_RE.pattern, re.MULTILINE)
