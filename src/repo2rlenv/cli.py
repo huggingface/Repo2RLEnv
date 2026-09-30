@@ -25,13 +25,26 @@ logger = logging.getLogger("repo2rlenv")
 
 
 def _load_dotenv_if_present() -> None:
-    """Load .env so OPENAI_API_KEY / ANTHROPIC_API_KEY / HF_TOKEN are available."""
-    try:
-        from dotenv import load_dotenv
+    """Load .env so OPENAI_API_KEY / ANTHROPIC_API_KEY / HF_TOKEN are available.
 
-        load_dotenv()
+    The search starts in the working directory: a bare `load_dotenv()` starts from
+    this module's install location, which misses the user's `.env` under
+    `uv tool install` or any venv outside the project.
+    """
+    try:
+        from dotenv import find_dotenv, load_dotenv
     except ImportError:
-        pass
+        return
+    try:
+        path = find_dotenv(usecwd=True)
+    except OSError:  # the working directory no longer exists
+        return
+    # Any parent of the working directory can supply the file, so a bad one must
+    # not take down every command, --help and --version included.
+    try:
+        load_dotenv(path)
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("could not load %s: %s", path, exc, extra={"markup": False})
 
 
 def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
