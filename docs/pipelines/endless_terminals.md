@@ -103,3 +103,9 @@ Credit: [Endless Terminals](https://github.com/kanishkg/endless-terminals)
 (Apache-2.0), commit `99f4c74b75faacf21e53d3dc01df170902e924cb`.
 See [RFC 0020](../rfcs/0020-endless-terminals-recipe.md) and the packaged
 `recipes/endless_terminals/provenance.md` for the source map and adaptations.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[endless-terminals accounting](experiment_accounting.md#endless-terminals) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

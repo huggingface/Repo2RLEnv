@@ -83,3 +83,9 @@ Credit: [SCALER](https://github.com/ALEX-nlp/SCALER) (Apache-2.0), commit
 `60c6c5037866c718f4c001ea338f9c5a91cb01ae`.
 [RFC 0026](../rfcs/0026-scaler-recipe.md) and the packaged
 `recipes/scaler/provenance.md` map the source and runtime adaptations.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[scaler accounting](experiment_accounting.md#scaler) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

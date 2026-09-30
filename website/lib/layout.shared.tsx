@@ -1,5 +1,6 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { appName, githubUrl } from './shared';
+import { GitHubStars } from '@/components/github-stars';
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -10,7 +11,14 @@ export function baseOptions(): BaseLayoutProps {
       { text: 'Docs', url: '/introduction/', active: 'nested-url' },
       { text: 'Pipelines', url: '/pipelines/', active: 'nested-url' },
       { text: 'Reference', url: '/reference/cli/', active: 'nested-url' },
+      {
+        type: 'icon',
+        text: 'Star on GitHub',
+        url: githubUrl,
+        label: 'Star Repo2RLEnv on GitHub',
+        icon: <GitHubStars />,
+        external: true,
+      },
     ],
-    githubUrl,
   };
 }

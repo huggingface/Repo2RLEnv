@@ -109,3 +109,9 @@ credited, and existing version 1 artifacts keep their historical provenance. See
 [RFC 0022](../rfcs/0022-dataarc-terminal-recipe.md) and
 [`provenance.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/recipes/dataarc/provenance.md)
 for the source and licensing boundary.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[dataarc accounting](experiment_accounting.md#dataarc) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

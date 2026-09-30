@@ -1,5 +1,6 @@
 ---
 title: "Native pipeline results"
+resultsVisual: native
 ---
 
 The six original pipelines have **600 task entries in the recovered reference

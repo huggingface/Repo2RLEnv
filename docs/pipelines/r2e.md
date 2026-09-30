@@ -96,3 +96,9 @@ Credit: [R2E](https://github.com/r2e-project/r2e) (MIT), commit
 and the packaged `recipes/r2e/provenance.md` for the source map and adaptations.
 The execution report uses Coverage.py's [branch measurement](https://coverage.readthedocs.io/en/latest/branch.html)
 and [JSON reporting](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html).
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[r2e accounting](experiment_accounting.md#r2e) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

@@ -107,3 +107,9 @@ Credit: [SWE-Flow](https://github.com/Hambaobao/SWE-Flow) (MIT), commit
 [SWE-Flow-Trace](https://github.com/Hambaobao/SWE-Flow-Trace). See
 [RFC 0016](../rfcs/0016-swe-flow-recipe.md) and the packaged
 `recipes/swe_flow/provenance.md` for how this implementation differs.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[swe-flow accounting](experiment_accounting.md#swe-flow) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

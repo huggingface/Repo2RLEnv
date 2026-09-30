@@ -77,18 +77,44 @@ Keep shared execution and quality contracts in their common guides and RFCs.
 
 ## Update measured results
 
-Review the evidence and update `docs/data/pipelines.json`, then run:
+Review the evidence and update `docs/data/pipelines.json` for cohort/yield definitions,
+`docs/data/experiment-economics.json` for scoped ledger, model, token and resource
+accounting, and `docs/data/frontiersmith-campaign.json` for that collection. Then run:
 
 ```bash
 python3 docs/_tools/generate_metrics.py
 python3 docs/_tools/generate_metrics.py --check
 ```
 
-Keep only sanitized aggregate measurements and public dataset revisions in this
-file. Count retries under their candidate identity, separate retained tasks, and
+Keep only sanitized measurements, source fingerprints and public dataset revisions
+in these files. Count retries under their candidate identity, separate retained tasks, and
 keep generation, quality evaluation and solver outcomes distinct. Costs must
 name their sample and include failures; unavailable compute or yield is not zero.
 Keep raw evidence locally or with an appropriate dataset/release artifact.
+The generator checks stage/model sums, unknown-call holds and shared-cost scopes.
+Never add a parent budget transfer to its child spending, or add pilot and expansion
+subsets to an already inclusive program total. The generated
+[accounting detail](../pipelines/experiment_accounting.md) records these boundaries.
+
+The economics and native-results pages set `resultsVisual: economics` or
+`resultsVisual: native` in front matter. Their charts in
+`website/components/results-visuals.tsx` read the same measurement JSON as the
+tables. Keep shared compute pooled, show missing yield as unknown, and label
+nested oracle gates as cumulative conditions. The Markdown tables remain the
+portable source for readers on GitHub. Check each chart in light/dark mode and
+on a narrow screen; visible values must explain it without hover or colour.
+At phone widths, wide comparison tables and diagrams scroll inside their own
+containers. Diagrams fit the screen first and expand to their readable intrinsic
+width on request. Allow page actions
+to wrap, and use `min-width: 0` and explicit grid columns for flexible cards.
+Check the home page, a pipeline guide and both results pages at 320px, 390px,
+768px and desktop widths. The document itself must not scroll horizontally.
+
+The GitHub action in both layouts reads the public repository API in the browser,
+caches a successful count for one hour, and animates it unless reduced motion is
+requested. No API key or build-time network request is needed. On failure it
+keeps a timestamped cached count, or an em dash if none exists; the repository
+link remains usable. Do not hard-code a star count into a release.
 
 Historical native-pipeline records live in the same file under `native_history`.
 Preserve their evidence scope: a cached inventory, a generation-time verification

@@ -91,3 +91,9 @@ Credit: [R2E-Gym / SWEGEN](https://github.com/R2E-Gym/R2E-Gym) (Apache-2.0),
 commit `0d94c4eb9431cd195c55a7ea3abd54006c9a1735`. See
 [RFC 0024](../rfcs/0024-r2e-gym-recipe.md), the packaged `recipes/r2e_gym/provenance.md`,
 and the [shared CLI and cloud guide](owned_recipes.md).
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[r2e-gym accounting](experiment_accounting.md#r2e-gym) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

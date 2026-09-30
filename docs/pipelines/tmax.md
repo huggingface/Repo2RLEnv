@@ -106,3 +106,9 @@ Modal or Daytona. Credit: [TMax](https://github.com/hamishivi/tmax) (Apache-2.0)
 commit `7387d2f9142397a458dc39f0827a2ab0b4c03cda`. See
 [RFC 0018](../rfcs/0018-tmax-recipe.md) and the packaged
 `recipes/tmax/provenance.md` for the retained files and adaptations.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[tmax accounting](experiment_accounting.md#tmax) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

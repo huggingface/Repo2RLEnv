@@ -88,7 +88,7 @@ export default function HomePage() {
               View on GitHub
             </a>
           </div>
-          <div className="mt-6">
+          <div className="mt-6 max-w-full">
             <InstallCommand command="pip install repo2rlenv" />
           </div>
         </div>
@@ -169,11 +169,11 @@ export default function HomePage() {
           </h2>
           <div className="mt-10 grid gap-px overflow-hidden rounded-xl border bg-fd-border sm:grid-cols-3">
             {steps.map((s) => (
-              <div key={s.n} className="flex flex-col bg-fd-background p-6">
+              <div key={s.n} className="flex min-w-0 flex-col bg-fd-background p-6">
                 <span className="font-mono text-xs text-fd-muted-foreground">{s.n}</span>
                 <h3 className="mt-3 font-medium">{s.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-fd-muted-foreground">{s.body}</p>
-                <code className="mt-5 block truncate rounded-md bg-fd-muted px-3 py-2 font-mono text-xs text-fd-foreground">
+                <code className="mt-5 block overflow-x-auto whitespace-pre rounded-md bg-fd-muted px-3 py-2 font-mono text-xs text-fd-foreground">
                   {s.cmd}
                 </code>
               </div>
@@ -184,7 +184,7 @@ export default function HomePage() {
 
       {/* ---------- the output ---------- */}
       <section className="border-b">
-        <div className="mx-auto grid max-w-5xl items-center gap-12 px-6 py-20 lg:grid-cols-2">
+        <div className="mx-auto grid min-w-0 max-w-5xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-2">
           <div>
             <p className="eyebrow">the output</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -202,13 +202,13 @@ export default function HomePage() {
               Read the task spec <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           </div>
-          <div className="rounded-xl border bg-fd-card p-5 font-mono text-sm">
+          <div className="min-w-0 rounded-xl border bg-fd-card p-5 font-mono text-sm">
             <div className="text-fd-muted-foreground">org__service-412/</div>
             <ul className="mt-2 space-y-2">
               {taskTree.map(([name, note]) => (
-                <li key={name} className="flex items-baseline justify-between gap-4 pl-4">
+                <li key={name} className="flex min-w-0 flex-col gap-1 pl-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4 sm:pl-4">
                   <span>{name}</span>
-                  <span className="truncate text-right text-xs text-fd-muted-foreground">{note}</span>
+                  <span className="min-w-0 text-xs text-fd-muted-foreground sm:text-right">{note}</span>
                 </li>
               ))}
             </ul>

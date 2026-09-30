@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 
 
-def with_title(text: str, *, nav_title: str | None = None) -> str:
+def with_title(
+    text: str, *, nav_title: str | None = None, results_visual: str | None = None
+) -> str:
     """Move a leading ``# Heading`` into YAML front matter.
 
     The docs site renders ``title`` itself, so pages carry it as front matter
@@ -18,5 +20,7 @@ def with_title(text: str, *, nav_title: str | None = None) -> str:
     fields = {"title": heading[2:].strip()}
     if nav_title:
         fields["navTitle"] = nav_title
+    if results_visual:
+        fields["resultsVisual"] = results_visual
     matter = "".join(f"{k}: {json.dumps(v, ensure_ascii=False)}\n" for k, v in fields.items())
     return f"---\n{matter}---\n\n{body.lstrip()}"

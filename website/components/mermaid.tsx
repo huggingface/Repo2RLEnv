@@ -102,6 +102,7 @@ function cachePromise<T>(key: string, create: () => Promise<T>): Promise<T> {
 
 function MermaidContent({ chart }: { chart: string }) {
   const id = useId();
+  const [expanded, setExpanded] = useState(false);
   const { resolvedTheme } = useTheme();
   const scheme = resolvedTheme === 'dark' ? 'dark' : 'light';
   const { default: mermaid } = use(cachePromise('mermaid', () => import('mermaid')));
@@ -134,14 +135,36 @@ function MermaidContent({ chart }: { chart: string }) {
   );
 
   return (
-    <figure className="r2r-mermaid not-prose">
+    <figure className={`r2r-mermaid not-prose${expanded ? ' r2r-mermaid--expanded' : ''}`}>
       <div
+        id={`diagram-${id}`}
         className="r2r-mermaid__canvas"
+        role="region"
+        aria-label="Pipeline diagram; scroll horizontally if needed"
+        tabIndex={0}
         ref={(container) => {
-          if (container) bindFunctions?.(container);
+          if (container) {
+            bindFunctions?.(container);
+            const drawing = container.querySelector('svg');
+            const width = drawing?.viewBox.baseVal.width;
+            if (width) container.style.setProperty('--diagram-width', `${width}px`);
+          }
         }}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
+      <figcaption className="r2r-mermaid__hint">
+        <span>
+          {expanded ? 'Scroll to explore the diagram.' : 'Expand to read diagram labels.'}
+        </span>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={`diagram-${id}`}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Fit to screen' : 'Expand diagram'}
+        </button>
+      </figcaption>
     </figure>
   );
 }

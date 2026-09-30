@@ -89,3 +89,9 @@ that review yet.
 Credit: [SWE-gen](https://github.com/abundant-ai/SWE-gen) (Apache-2.0), commit
 `14e185f413f7bff03f8f9fec6fb246681bf61d74`. See [RFC 0015](../rfcs/0015-swe-gen-recipe.md)
 and the packaged `recipes/swe_gen/provenance.md` for the source map and deviations.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[swe-gen accounting](experiment_accounting.md#swe-gen) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

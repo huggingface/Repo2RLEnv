@@ -242,3 +242,9 @@ These numbers don't establish unattended conversion yield. The cohort came from 
 - [Recipe and Tasksmith bundles](../concepts/tasks.mdx#recipe-and-tasksmith-bundles-schema-13): the schema 1.3 layout
 - [`tasksmith` CLI reference](../reference/cli.mdx#tasksmith)
 - [`FineEnvs/HF_ML_Tasksmith`](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith)
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[tasksmith accounting](experiment_accounting.md#tasksmith-development-and-quality-work) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.
