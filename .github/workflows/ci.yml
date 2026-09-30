@@ -93,7 +93,9 @@ jobs:
         working-directory: website
         env:
           NEXT_PUBLIC_BASE_PATH: /Repo2RLEnv
-        run: node tools/check-links.mjs
+        run: |
+          node tools/check-links.mjs
+          node tools/check-tutorials.mjs
       - name: No tracked files changed during build
         run: git diff --exit-code
 

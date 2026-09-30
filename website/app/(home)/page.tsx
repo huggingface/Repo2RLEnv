@@ -111,6 +111,9 @@ export default function HomePage() {
           </p>
           <div className="mt-10">
             <TasksmithFeature />
+            <Link href="/tutorials/evaluate-your-codebase/" className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline">
+              Build an evaluation suite for your codebase <ArrowRight className="size-4 shrink-0" aria-hidden />
+            </Link>
           </div>
         </div>
       </section>

@@ -41,6 +41,7 @@ npm ci
 npm run dev                  # http://localhost:3000, hot reload
 npm run build                # static site in website/out
 node tools/check-links.mjs   # every internal link and #anchor must resolve
+node tools/check-tutorials.mjs # article metadata, discovery and feed coverage
 ```
 
 `npm run dev` and `npm run build` first regenerate `docs/pipelines/prompts/` from
@@ -74,6 +75,42 @@ Each pipeline guide should explain its inputs, show one stage diagram, map model
 calls to their inputs and outputs, and describe verification and bounded repair.
 Link to canonical prompts, upstream credits, measured economics and the dataset.
 Keep shared execution and quality contracts in their common guides and RFCs.
+
+## Publish a tutorial
+
+Tutorials live in `docs/tutorials/` and use the existing static docs renderer,
+search index and social-image generator. Add the article to `tutorials/meta.json`
+and include this metadata alongside its title and description:
+
+```yaml
+tutorial:
+  author:
+    name: "Your name"
+    url: "https://github.com/your-handle"
+  published: "2026-09-30"
+  testedVersion: "0.9.3"
+```
+
+Add `updated: "YYYY-MM-DD"` only when the article changes meaningfully; it controls
+the visible update date, Article structured data and sitemap modification date.
+The landing page and `/tutorials/feed.xml` list tutorial articles automatically.
+The full text also enters site search and the Markdown/LLM exports. All files in
+this content tree are public at deployment; keep unfinished drafts in ignored
+`workspace/` until they are ready for a PR.
+
+Write around a reader's outcome and a specific supported path. Verify commands
+against the named package version, keep maintained options in `examples/tutorials/`,
+and distinguish historical measurements, illustrative examples and newly executed
+runs. Budget values are limits, not price estimates. Include diagrams with a text
+explanation and review the rendered page on mobile. Author names and dates must
+match the visible byline and structured data.
+
+After the static build, check internal links and tutorial metadata/feed integrity.
+After deployment, inspect the public page and its canonical URL, confirm the
+sitemap includes it, then use an authorized Search Console account to submit the
+sitemap and request indexing. Deployment and a sitemap make content discoverable;
+search engines decide whether and when to index it. See
+[Google's article guidance](https://developers.google.com/search/docs/appearance/structured-data/article).
 
 ## Update measured results
 

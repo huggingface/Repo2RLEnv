@@ -1,3 +1,5 @@
+import { TutorialByline } from '@/components/tutorials';
+import { readingMinutes } from '@/lib/tutorials';
 import { source } from '@/lib/source';
 import {
   DocsBody,
@@ -47,6 +49,14 @@ export default async function Page(props: Props) {
       />
       <DocsTitle>{page.data.title}</DocsTitle>
       {description ? <DocsDescription className="mb-0">{description}</DocsDescription> : null}
+      {page.data.tutorial ? (
+        <TutorialByline
+          tutorial={page.data.tutorial}
+          minutes={readingMinutes(
+            page.data.structuredData.contents.map((part) => part.content).join(' '),
+          )}
+        />
+      ) : null}
       {pipeline ? <PipelineHeader pipeline={pipeline} /> : null}
       <div className="docs-page-actions flex flex-wrap items-center gap-2 border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
@@ -85,7 +95,21 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   return {
     title,
     description,
-    alternates: { canonical: pageUrl(page.url) },
+    ...(page.data.tutorial
+      ? { authors: [{ name: page.data.tutorial.author.name, url: page.data.tutorial.author.url }] }
+      : {}),
+    alternates: {
+      canonical: pageUrl(page.url),
+      ...(page.slugs[0] === 'tutorials'
+        ? {
+            types: {
+              'application/rss+xml': [
+                { url: absoluteUrl('/tutorials/feed.xml'), title: 'Repo2RLEnv Tutorials' },
+              ],
+            },
+          }
+        : {}),
+    },
     openGraph: {
       type: 'article',
       siteName: 'Repo2RLEnv',
@@ -93,6 +117,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
       title,
       description,
       images: image,
+      ...(page.data.tutorial
+        ? {
+            publishedTime: `${page.data.tutorial.published}T00:00:00Z`,
+            modifiedTime: `${page.data.tutorial.updated ?? page.data.tutorial.published}T00:00:00Z`,
+            authors: [page.data.tutorial.author.url],
+          }
+        : {}),
     },
     twitter: { card: 'summary_large_image', title, description, images: image },
   };

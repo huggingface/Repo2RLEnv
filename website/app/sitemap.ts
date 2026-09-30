@@ -10,7 +10,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: absoluteUrl('/'), priority: 1 },
     ...source.getPages().map((page) => ({
       url: pageUrl(page.url),
-      priority: page.path.startsWith('pipelines/prompts/') || page.path.startsWith('rfcs/') ? 0.3 : 0.7,
+      ...(page.data.tutorial
+        ? { lastModified: page.data.tutorial.updated ?? page.data.tutorial.published }
+        : {}),
+      priority:
+        page.path.startsWith('pipelines/prompts/') || page.path.startsWith('rfcs/') ? 0.3 : 0.7,
     })),
   ];
 }

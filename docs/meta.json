@@ -5,6 +5,7 @@
     "quickstart",
     "installation",
     "choose-a-pipeline",
+    "tutorials",
     "---Tasksmith---",
     "pipelines/tasksmith",
     "pipelines/tasksmith_parallel_campaigns",

@@ -17,6 +17,14 @@ export const docs = defineDocs({
       // A shorter label for the sidebar when the title is a full sentence.
       navTitle: z.string().optional(),
       resultsVisual: z.enum(['economics', 'native']).optional(),
+      tutorial: z
+        .object({
+          author: z.object({ name: z.string().min(1), url: z.string().url() }),
+          published: z.string().date(),
+          updated: z.string().date().optional(),
+          testedVersion: z.string().min(1),
+        })
+        .optional(),
     }),
     postprocess: {
       includeProcessedMarkdown: true,

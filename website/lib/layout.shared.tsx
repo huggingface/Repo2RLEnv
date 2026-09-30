@@ -9,6 +9,7 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       { text: 'Docs', url: '/introduction/', active: 'nested-url' },
+      { text: 'Tutorials', url: '/tutorials/', active: 'nested-url' },
       { text: 'Pipelines', url: '/pipelines/', active: 'nested-url' },
       { text: 'Reference', url: '/reference/cli/', active: 'nested-url' },
       {
