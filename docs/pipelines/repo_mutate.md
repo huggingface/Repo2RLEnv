@@ -150,3 +150,9 @@ training-quality acceptance or population yield.
 The first generation campaign has 24 distinct exports from 29 mutation attempts.
 Twenty of them have also passed fresh Harbor checks on Modal (nop 0, oracle 1).
 These are generation results; quality acceptance is still pending.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[swe-smith accounting](experiment_accounting.md#swe-smith) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

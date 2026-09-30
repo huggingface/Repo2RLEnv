@@ -163,3 +163,9 @@ Credit: [TerminalWorld](https://github.com/EuniAI/TerminalWorld) (Apache-2.0),
 commit `784698ba93735470ce1664bff2ec44bcd7b28e15`. See
 [RFC 0019](../rfcs/0019-terminalworld-recipe.md) and the packaged
 `recipes/terminalworld/provenance.md` for the exact source map and adaptations.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[terminalworld accounting](experiment_accounting.md#terminalworld) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

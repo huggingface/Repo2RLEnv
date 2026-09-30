@@ -98,3 +98,9 @@ Credit: [CLI-Gym](https://github.com/LiberCoders/CLI-Gym) (MIT), commit
 `48bb920b728a25a55a5b442303e901919654599e`. See
 [RFC 0021](../rfcs/0021-cli-gym-recipe.md) and the packaged
 `recipes/cli_gym/provenance.md` for the source mapping and profile restrictions.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[cli-gym accounting](experiment_accounting.md#cli-gym) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

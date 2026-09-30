@@ -77,18 +77,24 @@ Keep shared execution and quality contracts in their common guides and RFCs.
 
 ## Update measured results
 
-Review the evidence and update `docs/data/pipelines.json`, then run:
+Review the evidence and update `docs/data/pipelines.json` for cohort/yield definitions,
+`docs/data/experiment-economics.json` for scoped ledger, model, token and resource
+accounting, and `docs/data/frontiersmith-campaign.json` for that collection. Then run:
 
 ```bash
 python3 docs/_tools/generate_metrics.py
 python3 docs/_tools/generate_metrics.py --check
 ```
 
-Keep only sanitized aggregate measurements and public dataset revisions in this
-file. Count retries under their candidate identity, separate retained tasks, and
+Keep only sanitized measurements, source fingerprints and public dataset revisions
+in these files. Count retries under their candidate identity, separate retained tasks, and
 keep generation, quality evaluation and solver outcomes distinct. Costs must
 name their sample and include failures; unavailable compute or yield is not zero.
 Keep raw evidence locally or with an appropriate dataset/release artifact.
+The generator checks stage/model sums, unknown-call holds and shared-cost scopes.
+Never add a parent budget transfer to its child spending, or add pilot and expansion
+subsets to an already inclusive program total. The generated
+[accounting detail](../pipelines/experiment_accounting.md) records these boundaries.
 
 Historical native-pipeline records live in the same file under `native_history`.
 Preserve their evidence scope: a cached inventory, a generation-time verification

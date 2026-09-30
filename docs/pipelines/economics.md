@@ -2,57 +2,111 @@
 title: "Yield and cost per task"
 ---
 
-Observed samples measured on **2026-09-14**. Use these as measured examples, not price guarantees. A task is one exported Harbor environment; an export is not independent quality acceptance.
+Evidence audited **2026-09-30**. Recipe/Tasksmith samples were measured September 14, CodeMidas September 25, and FrontierSmith September 29, 2026. These are historical experiments on different inputs and checks, not a controlled price or quality ranking.
+
+Read the [stage costs, models, tokens and compute](experiment_accounting.md) for each recipe, or the [published inventory](releases.md) for dataset versions and quality labels.
+
+```mermaid
+flowchart TD
+    A[Candidate discovery and screening] --> B[Author task and verifier]
+    B --> C[Bootstrap and construction checks]
+    C --> D[Export Harbor task]
+    C --> R[Bounded repair]
+    R --> B
+    C --> X[Retain rejected candidates and diagnostics]
+    D --> E[Independent review and blind rollout]
+    E --> F[Select and label task]
+    G[Model usage + worker lifetime + unresolved calls] -. account at each stage .-> C
+```
+
+## Measurement definitions
+
+| Term | Definition |
+|---|---|
+| Candidate yield | Exports divided by distinct recorded candidates in the same sample; retries do not become new candidates. The recipe can start counting before design screening. |
+| Attempt yield | Used explicitly for CodeMidas/FrontierSmith: exports or selections divided by recorded attempts; historical revisions and repeated seeds are identified. |
+| Export / selected / accepted | A written Harbor bundle / a curated subset / a task that passed its named quality profile. These are different denominators. |
+| Accounted cost | Recorded API-usage estimates plus attributable compute estimates, including unsuccessful attempts and repairs within the stated scope. |
+| Held cost | Unresolved or reserved charges, reported separately from accounted spend; not evidence of a paid invoice. |
+| Per-task cost | The stated sample cost divided by its new outputs. Retained tasks and later validation must not silently enter the denominator. |
+| n/a | Evidence unavailable or not safely attributable. It never means free. |
+
+## Recorded experiment spend
+
+**$1,586.71 accounted, plus $31.72 unresolved/reserved**, across the disjoint scopes below. The combined accounting exposure is $1,618.43. This is a recovered experiment subtotal, not an invoice or a complete lifetime project bill. Older native-pipeline costs and interactive assistant usage are outside it.
+
+| Measurement scope | Accounted | Held separately | What it paid for |
+|---|---:|---:|---|
+| Initial research pilots + Tasksmith development/evaluation | $972.45 | $21.07 | 291 recipe exports + 50 final Tasksmith tasks; includes failures, shared work and $22.43 prior spend |
+| Research-recipe expansion | $445.94 | $8.50 | 989 new exports across 14 recipes; earlier retained tasks excluded |
+| CodeMidas campaign | $99.91 | $1.47 | 100 curated tasks; includes historical pilots, generation and evaluation |
+| FrontierSmith campaign | $68.42 | $0.67 | 100 selected tasks; includes pilot, expansion and sample evaluation |
+
+Do not add the Tasksmith expansion, original recipe pilots, or per-stage tables again: they are subsets of these rows. Parent-to-child budget transfers were excluded. The [accounting detail](experiment_accounting.md#how-the-total-is-reconciled) explains scope, attribution and evidence.
 
 ## Research recipes and Tasksmith generation
 
-Costs include unsuccessful attempts and bounded repairs within each sample. Model and estimated compute costs are separate; the total is shown only when both are attributable. **n/a means unavailable, not zero.**
+These 14 generation samples added **989 tasks** to 291 retained recipe tasks. The final published recipe inventory is 1,280 tasks. Costs include failed generation and bounded repairs, but independent quality-pilot costs belong to the earlier program and are reported separately.
 
-| Pipeline | Attempted candidates | New tasks | Yield | Model / task | Compute / task | Total generation / task |
-|---|---:|---:|---:|---:|---:|---:|
-| [swe-smith](repo_mutate.md) | n/a | 76 | n/a | $0.03 | n/a | n/a |
-| [r2e](r2e.md) | n/a | 80 | n/a | $0.22 | n/a | n/a |
-| [swe-gen](pr_to_env.md) | n/a | 80 | n/a | $0.02 | n/a | n/a |
-| [swe-next](swe_next.md) | n/a | 80 | n/a | $0.09 | n/a | n/a |
-| [r2e-gym](r2e_gym.md) | n/a | 80 | n/a | $0.04 | n/a | n/a |
-| [scaler](scaler.md) | n/a | 80 | n/a | $0.00 | n/a | n/a |
-| [endless-terminals](endless_terminals.md) | 99 | 80 | 80.8% | $0.37 | $0.15 | $0.52 |
-| [cli-gym](env_repair.md) | n/a | 5 | n/a | $0.71 | $0.43 | $1.14 |
-| [swe-flow](repo_reconstruct.md) | n/a | 76 | n/a | $0.05 | $0.25 | $0.30 |
-| [seta-seed2synth](terminal_synth.md) | 112 | 77 | 68.8% | $0.54 | $0.17 | $0.71 |
-| [seta-evol](task_evolve.md) | 92 | 80 | 87.0% | $0.38 | $0.17 | $0.56 |
-| [tmax](tmax.md) | 104 | 35 | 33.7% | $1.68 | $0.42 | $2.10 |
-| [terminalworld](terminalworld.md) | 1293 | 80 | 6.2% | $0.68 | $0.58 | $1.26 |
-| [dataarc](dataarc.md) | 83 | 80 | 96.4% | $0.18 | $0.15 | $0.33 |
-| [tasksmith](tasksmith.md) | n/a | 26 | n/a | n/a | n/a | n/a |
+| Recipe | Candidate denominator | New / final tasks | Export yield |
+|---|---:|---:|---:|
+| [swe-smith](repo_mutate.md) | n/a | 76 / 100 | n/a |
+| [r2e](r2e.md) | n/a | 80 / 100 | n/a |
+| [swe-gen](pr_to_env.md) | n/a | 80 / 100 | n/a |
+| [swe-next](swe_next.md) | n/a | 80 / 100 | n/a |
+| [r2e-gym](r2e_gym.md) | n/a | 80 / 100 | n/a |
+| [scaler](scaler.md) | n/a | 80 / 100 | n/a |
+| [endless-terminals](endless_terminals.md) | 99 | 80 / 100 | 80.8% |
+| [cli-gym](env_repair.md) | n/a | 5 / 25 | n/a |
+| [swe-flow](repo_reconstruct.md) | n/a | 76 / 100 | n/a |
+| [seta-seed2synth](terminal_synth.md) | 112 | 77 / 100 | 68.8% |
+| [seta-evol](task_evolve.md) | 92 | 80 / 100 | 87.0% |
+| [tmax](tmax.md) | 104 | 35 / 55 | 33.7% |
+| [terminalworld](terminalworld.md) | 1293 | 80 / 100 | 6.2% |
+| [dataarc](dataarc.md) | 83 | 80 / 100 | 96.4% |
 
-## How to read the measurements
+The first six repository recipes and CLI-Gym/SWE-flow lack a reliable deduplicated attempt denominator for these cost samples. Hitting a 100-task target is not 100% yield. TerminalWorld counted 1,293 recordings before suitability screening; 1,145 were screened out, leaving 148 candidates and 80 exports (54.1% after screening). SETA Evol includes one unfinished candidate; TMax includes eight.
 
-**Yield = new exports / distinct recorded task candidates.** Count a candidate once across retries. The available terminal-generator counts start before design screening; filtered and interrupted candidates remain in the denominator. Failures before a candidate identity exists are not counted as candidates, although their costs are included. Older repository runs do not retain a consistently deduplicated denominator, so their yield is unavailable. Reaching a dataset target is not a yield measurement.
+| Recipe | API total | Compute total | Held | API / new task | Combined / new task |
+|---|---:|---:|---:|---:|---:|
+| [swe-smith](experiment_accounting.md#swe-smith) | $2.41 | n/a | $0.00 | $0.032 | n/a |
+| [r2e](experiment_accounting.md#r2e) | $17.73 | n/a | $1.50 | $0.222 | n/a |
+| [swe-gen](experiment_accounting.md#swe-gen) | $1.63 | n/a | $0.00 | $0.020 | n/a |
+| [swe-next](experiment_accounting.md#swe-next) | $7.51 | n/a | $0.00 | $0.094 | n/a |
+| [r2e-gym](experiment_accounting.md#r2e-gym) | $3.52 | n/a | $0.75 | $0.044 | n/a |
+| [scaler](experiment_accounting.md#scaler) | $0.00 | n/a | $0.00 | $0.000 | n/a |
+| [endless-terminals](experiment_accounting.md#endless-terminals) | $29.47 | $12.05 | $0.00 | $0.368 | $0.519 |
+| [cli-gym](experiment_accounting.md#cli-gym) | $3.54 | $2.17 | $0.00 | $0.709 | $1.142 |
+| [swe-flow](experiment_accounting.md#swe-flow) | $4.05 | $18.86 | $0.00 | $0.053 | $0.301 |
+| [seta-seed2synth](experiment_accounting.md#seta-seed2synth) | $41.74 | $12.90 | $0.00 | $0.542 | $0.710 |
+| [seta-evol](experiment_accounting.md#seta-evol) | $30.75 | $13.97 | $1.25 | $0.384 | $0.559 |
+| [tmax](experiment_accounting.md#tmax) | $58.83 | $14.68 | $5.00 | $1.681 | $2.100 |
+| [terminalworld](experiment_accounting.md#terminalworld) | $54.34 | $46.13 | $0.00 | $0.679 | $1.256 |
+| [dataarc](experiment_accounting.md#dataarc) | $14.53 | $12.04 | $0.00 | $0.182 | $0.332 |
 
-TerminalWorld's yield includes recordings rejected as unsuitable; it is not the success rate among already approved designs. SETA Evol includes 1 unfinished candidate and TMax 8 when generation stopped. These input domains are not a controlled ranking of algorithms.
+The six repository recipes share **$43.09 compute**, without a defensible per-recipe allocation. Their combined 476 new exports cost **$75.90**, or **$0.159/task**. SCALER has zero generation API spend, not zero runtime cost.
 
-SWE-smith, R2E, SWE-gen, SWE-Next, R2E-Gym and SCALER shared workers. Together their 476 new exports cost **$75.90, or $0.159 per task**, including estimated compute. Per-recipe compute was not allocated. SCALER uses no generation-model calls, but still incurs compute cost.
-
-The CLI-Gym cost sample has 5 new tasks; its published dataset contains 25. Earlier retained-task costs and interactive assistant usage are excluded from these older generation samples. Most recipe samples used CPU workers on Daytona; Tasksmith also used native Modal GPU execution. These measurements include development retries and do not establish unattended production cost.
-
-The primary recipe author was `claude-sonnet-4-6`; TMax also includes a small unsuccessful `gpt-5.4-mini` comparison. SCALER used no generation model. Configured model identities are retained in the summary; these are not cross-model quality comparisons.
-
-Uncertain model charges remain excluded from recorded totals: $2.25 for recipes sharing workers, $1.25 for SETA Evol and $5.00 for TMax. They may increase the final cost. Compute figures are resource estimates, not provider invoices.
+Most expansion calls used `claude-sonnet-4-6`; TMax also tried `gpt-5.4-mini`. The earlier pilots used Sonnet and Opus in different proportions. Repository expansion started with six Modal workers, then used 26 Daytona workers; terminal/reconstruction expansion used Daytona. All were CPU workers. See the [per-recipe detail](experiment_accounting.md#per-recipe-generation-detail) for stages, exact model identifiers, calls and tokens.
 
 ## Tasksmith and optional evaluation
 
-Tasksmith's measured expansion added **26 accepted PR tasks** and also repaired/revalidated retained tasks. Its **$15.08 per added accepted task** includes authoring, quality review, rollouts and compute. It is not a generation-only price and is excluded from the generation-cost columns above.
+The final cohort contains **50 verified tasks and 19 full Sonnet solves**. It came from assisted development; neither the archived PR inventory nor the 50-task target establishes unattended conversion yield.
 
-| Component | Recorded cost per added accepted task |
-|---|---:|
-| Authoring model | $2.46 |
-| Review and repair models | $3.31 |
-| Blind solver model | $0.82 |
-| Compute across generation and evaluation | $8.49 |
-| Total | $15.08 |
+| Cost scope | Accounted | Denominator | Cost per task |
+|---|---:|---|---:|
+| Direct operations attributed to the final 50 | $649.56 | 50 accepted tasks | $12.991 |
+| Expansion, including retained-task repair/revalidation | $392.01 | 26 additional accepted tasks | $15.077 |
 
-A further $4.98 remains unresolved for this sample. The final published Tasksmith cohort has 50 verified tasks, including 19 full Sonnet solves. Solver success, generation yield and quality acceptance are separate measures. Comparable independent evaluation costs have not been established for the other full datasets.
+These are overlapping views, not additive bills. Direct attribution excludes shared/unattributed costs and rejected PRs; expansion cost includes unsuccessful attempts and work on previously retained tasks. Do not call either a complete marginal production price.
+
+| Expansion component | Total | Per added accepted task |
+|---|---:|---:|
+| Authoring model | $63.91 | $2.458 |
+| Review and repair models | $86.06 | $3.310 |
+| Blind solver model | $21.20 | $0.815 |
+| Compute, including validation | $220.83 | $8.494 |
+
+A further $4.98 is held in that expansion scope. Authoring and blind solving used Sonnet 4.6; the larger program also used Opus 4.6 and GPT-6 Astra for review/repair. The final task requirements comprise 39 CPU tasks and 11 L4 GPU tasks. Cloud controllers, learner resources and model API inference are separate costs. See [Tasksmith accounting and interventions](experiment_accounting.md#tasksmith-development-and-quality-work).
 
 ## CodeMidas generation and evaluation
 
@@ -122,9 +176,9 @@ Code-instruct's complete generation log records 136 candidates, correcting the e
 
 ## Measurement source
 
-The [sanitized summary](../data/pipelines.json) contains sample sizes, cost scopes, candidate-count definitions and pinned dataset manifests. No private campaign folder is needed to rebuild this page. To update both tables after reviewing new measurements:
+Tables are generated from [pipeline measurements](../data/pipelines.json), [reconciled experiment evidence](../data/experiment-economics.json), and the [FrontierSmith collection report](../data/frontiersmith-campaign.json). The [accounting guide](experiment_accounting.md#evidence-and-refresh) describes the source fingerprints and refresh procedure. Raw generated tasks, receipts and campaign scripts remain outside Git.
 
 ```bash
-python docs/_tools/generate_metrics.py
-python docs/_tools/generate_metrics.py --check
+python3 docs/_tools/generate_metrics.py
+python3 docs/_tools/generate_metrics.py --check
 ```

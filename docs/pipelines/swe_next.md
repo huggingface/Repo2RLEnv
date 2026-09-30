@@ -87,3 +87,9 @@ Credit: [SWE-Next](https://github.com/TIGER-AI-Lab/SWE-Next) (Apache-2.0),
 commit `b55c0841f364f9fe7363b2012cd0ae8d8afdf872`. See
 [RFC 0023](../rfcs/0023-swe-next-recipe.md), the packaged `recipes/swe_next/provenance.md`,
 and the [shared CLI and cloud guide](owned_recipes.md).
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[swe-next accounting](experiment_accounting.md#swe-next) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

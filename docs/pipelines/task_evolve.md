@@ -112,3 +112,9 @@ kept tasks and any later independent quality evaluation. See the
 Generating a task doesn't mean its difficulty is calibrated or its quality
 independently accepted. See [RFC 0014](../rfcs/0014-seta-evol-recipe.md) and the
 packaged recipe's `provenance.md`.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[seta-evol accounting](experiment_accounting.md#seta-evol) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.

@@ -143,3 +143,9 @@ method.
 See [RFC 0013](../rfcs/0013-seta-seed2synth-recipe.md) and the packaged
 `pipelines/recipes/seta_seed2synth/provenance.md` for the source mapping and
 notices.
+
+## Cost evidence
+
+See the [measured yield and cost](economics.md) and
+[seta-seed2synth accounting](experiment_accounting.md#seta-seed2synth) for the pilot/expansion
+scope, model identities, stage costs, compute resources and validation limits.
