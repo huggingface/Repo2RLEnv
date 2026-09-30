@@ -98,6 +98,12 @@ The full text also enters site search and the Markdown/LLM exports. All files in
 this content tree are public at deployment; keep unfinished drafts in ignored
 `workspace/` until they are ready for a PR.
 
+For an illustrated thumbnail, place a PNG in `website/public/images/tutorials/`
+and set `tutorial.thumbnail` with `src` (the `/images/tutorials/…png` URL), `alt`,
+`width` and `height`. It appears on the tutorial card, article and social previews.
+Keep text in the page title rather than embedding it in the artwork, and record
+generated artwork's prompt and tool in that asset directory's README.
+
 Write around a reader's outcome and a specific supported path. Verify commands
 against the named package version, keep maintained options in `examples/tutorials/`,
 and distinguish historical measurements, illustrative examples and newly executed

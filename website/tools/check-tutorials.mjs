@@ -1,6 +1,6 @@
 // Check the deployed artifacts, including the GitHub Pages path prefix.
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const out = join(import.meta.dirname, '..', 'out');
@@ -14,11 +14,20 @@ const search = readFileSync(join(out, 'api/search.json'), 'utf8');
 const xml = (value) =>
   value.replace(
     /[<>&"']/g,
-    (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char],
+    (char) =>
+      ({
+        '<': '&lt;',
+        '>': '&gt;',
+        '&': '&amp;',
+        '"': '&quot;',
+        "'": '&apos;',
+      })[char],
   );
 let checked = 0;
 
-for (const entry of readdirSync(join(out, 'tutorials'), { withFileTypes: true })) {
+for (const entry of readdirSync(join(out, 'tutorials'), {
+  withFileTypes: true,
+})) {
   if (!entry.isDirectory()) continue;
   const html = readFileSync(join(out, 'tutorials', entry.name, 'index.html'), 'utf8');
   const data = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].flatMap(
@@ -45,7 +54,21 @@ for (const entry of readdirSync(join(out, 'tutorials'), { withFileTypes: true })
     new RegExp(`<time[^>]+datetime="${article.datePublished.slice(0, 10)}"`, 'i').test(html),
     'Publication date must be visible',
   );
-  assert(article.image.startsWith(`${base}/og/tutorials/`), 'Missing tutorial social image');
+  const imagePath = article.image.slice(base.length);
+  assert(
+    article.image.startsWith(`${base}/og/tutorials/`) ||
+      article.image.startsWith(`${base}/images/tutorials/`),
+    'Missing tutorial social image',
+  );
+  assert(existsSync(join(out, imagePath)), 'Social image file was not exported');
+  assert(
+    html.includes(`<meta property="og:image" content="${article.image}"`),
+    'Social image disagrees',
+  );
+  if (imagePath.startsWith('/images/tutorials/')) {
+    assert(html.includes(imagePath), 'Thumbnail absent from article');
+    assert(index.includes(imagePath), 'Thumbnail absent from tutorial index');
+  }
   assert(
     data.some(
       (item) =>

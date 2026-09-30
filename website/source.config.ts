@@ -23,6 +23,14 @@ export const docs = defineDocs({
           published: z.string().date(),
           updated: z.string().date().optional(),
           testedVersion: z.string().min(1),
+          thumbnail: z
+            .object({
+              src: z.string().regex(/^\/images\/tutorials\/[a-z0-9-]+\.png$/),
+              alt: z.string().min(1),
+              width: z.number().int().positive(),
+              height: z.number().int().positive(),
+            })
+            .optional(),
         })
         .optional(),
     }),

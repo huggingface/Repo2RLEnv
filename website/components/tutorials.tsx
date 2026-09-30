@@ -1,13 +1,30 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { tutorialPages, dateLabel, readingMinutes } from '@/lib/tutorials';
+import { basePath } from '@/lib/shared';
 
 type Tutorial = {
   author: { name: string; url: string };
   published: string;
   updated?: string;
   testedVersion: string;
+  thumbnail?: { src: string; alt: string; width: number; height: number };
 };
+
+export function TutorialThumbnail({ tutorial }: { tutorial: Tutorial }) {
+  const thumbnail = tutorial.thumbnail;
+  if (!thumbnail) return null;
+  return (
+    <Image
+      src={`${basePath}${thumbnail.src}`}
+      alt={thumbnail.alt}
+      width={thumbnail.width}
+      height={thumbnail.height}
+      className="h-auto w-full rounded-xl border"
+    />
+  );
+}
 
 export function TutorialByline({ tutorial, minutes }: { tutorial: Tutorial; minutes: number }) {
   return (
@@ -44,6 +61,11 @@ export function TutorialIndex() {
             href={page.url}
             className="group rounded-xl border bg-fd-card p-5 transition-colors hover:border-fd-primary/50 sm:p-7"
           >
+            {meta.thumbnail ? (
+              <div className="mb-5">
+                <TutorialThumbnail tutorial={meta} />
+              </div>
+            ) : null}
             <p className="eyebrow">Hands-on tutorial</p>
             <h2 className="mt-3 text-xl font-semibold tracking-tight">{page.data.title}</h2>
             <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">

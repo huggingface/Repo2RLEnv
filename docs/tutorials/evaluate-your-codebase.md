@@ -8,6 +8,11 @@ tutorial:
     url: "https://huggingface.co/AdithyaSK"
   published: "2026-09-30"
   testedVersion: "0.9.3"
+  thumbnail:
+    src: "/images/tutorials/evaluate-your-codebase.png"
+    alt: "Abstract layers of code flowing into an orderly grid of evaluation tiles, in teal and ivory."
+    width: 1734
+    height: 907
 ---
 
 Your repository's merged pull requests contain examples of work that mattered to

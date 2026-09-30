@@ -93,14 +93,22 @@ export function articleJsonLd(page: Page) {
           author: { '@type': 'Person', ...page.data.tutorial.author },
           datePublished: `${page.data.tutorial.published}T00:00:00Z`,
           dateModified: `${page.data.tutorial.updated ?? page.data.tutorial.published}T00:00:00Z`,
-          image: absoluteUrl(getPageImageUrl(page).url),
+          image: socialImageUrl(page),
           mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl(page.url) },
           articleSection: 'Tutorials',
         }
       : {}),
     isPartOf: { '@type': 'WebSite', name: 'Repo2RLEnv', url: absoluteUrl('/') },
-    publisher: { '@type': 'Organization', name: 'Hugging Face', url: 'https://huggingface.co' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Hugging Face',
+      url: 'https://huggingface.co',
+    },
   };
+}
+
+export function socialImageUrl(page: Page): string {
+  return absoluteUrl(page.data.tutorial?.thumbnail?.src ?? getPageImageUrl(page).url);
 }
 
 export function softwareJsonLd(version: string) {
@@ -118,7 +126,11 @@ export function softwareJsonLd(version: string) {
     downloadUrl: 'https://pypi.org/project/repo2rlenv/',
     codeRepository: 'https://github.com/huggingface/Repo2RLEnv',
     programmingLanguage: 'Python',
-    author: { '@type': 'Organization', name: 'Hugging Face', url: 'https://huggingface.co' },
+    author: {
+      '@type': 'Organization',
+      name: 'Hugging Face',
+      url: 'https://huggingface.co',
+    },
   };
 }
 
