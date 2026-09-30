@@ -10,6 +10,7 @@ import {
 } from 'fumadocs-ui/layouts/docs/page';
 import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/components/mdx';
+import { ResultsVisuals } from '@/components/results-visuals';
 import { Film } from '@/components/film';
 import { PipelineHeader } from '@/components/pipeline-header';
 import {
@@ -47,13 +48,14 @@ export default async function Page(props: Props) {
       <DocsTitle>{page.data.title}</DocsTitle>
       {description ? <DocsDescription className="mb-0">{description}</DocsDescription> : null}
       {pipeline ? <PipelineHeader pipeline={pipeline} /> : null}
-      <div className="flex flex-row items-center gap-2 border-b pb-6">
+      <div className="docs-page-actions flex flex-wrap items-center gap-2 border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
         <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubEditUrl(page.path)} />
         <EditOnGitHub href={githubEditUrl(page.path)} className="ms-auto" />
       </div>
       {page.data.film ? <Film id={page.data.film} /> : null}
       <DocsBody>
+        {page.data.resultsVisual ? <ResultsVisuals kind={page.data.resultsVisual} /> : null}
         <MDX
           components={getMDXComponents({
             // Resolve relative .md links (the MkDocs convention) to page URLs.

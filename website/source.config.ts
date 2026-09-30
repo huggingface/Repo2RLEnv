@@ -16,6 +16,7 @@ export const docs = defineDocs({
       film: z.string().optional(),
       // A shorter label for the sidebar when the title is a full sentence.
       navTitle: z.string().optional(),
+      resultsVisual: z.enum(['economics', 'native']).optional(),
     }),
     postprocess: {
       includeProcessedMarkdown: true,

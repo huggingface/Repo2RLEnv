@@ -263,7 +263,7 @@ def overview(data: dict, audit: dict, frontier: dict, local: list[str], native: 
         "```",
         "",
     ]
-    return with_title("\n".join(lines))
+    return with_title("\n".join(lines), results_visual="economics")
 
 
 STAGES = {

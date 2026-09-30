@@ -1,5 +1,6 @@
 ---
 title: "Yield and cost per task"
+resultsVisual: "economics"
 ---
 
 Evidence audited **2026-09-30**. Recipe/Tasksmith samples were measured September 14, CodeMidas September 25, and FrontierSmith September 29, 2026. These are historical experiments on different inputs and checks, not a controlled price or quality ranking.
