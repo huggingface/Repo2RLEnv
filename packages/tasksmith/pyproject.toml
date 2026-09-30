@@ -1,0 +1,27 @@
+[project]
+name = "tasksmith"
+version = "0.0.1"
+description = "Generate verifiable Harbor coding tasks from pull requests with Repo2RLEnv Tasksmith."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "adithya-s-k", email = "adithyaskolavi@gmail.com" }]
+dependencies = ["repo2rlenv[tasksmith,daytona,harbor]>=0.9.3,<0.10"]
+keywords = ["coding-agents", "evaluation", "harbor", "reinforcement-learning"]
+
+[project.optional-dependencies]
+modal = ["repo2rlenv[modal]>=0.9.3,<0.10"]
+
+[project.scripts]
+tasksmith = "tasksmith:main"
+
+[project.urls]
+Homepage = "https://github.com/huggingface/Repo2RLEnv"
+Documentation = "https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/"
+Repository = "https://github.com/huggingface/Repo2RLEnv/tree/main/packages/tasksmith"
+Issues = "https://github.com/huggingface/Repo2RLEnv/issues"
+
+[build-system]
+requires = ["uv_build>=0.11.2,<0.13.0"]
+build-backend = "uv_build"
