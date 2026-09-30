@@ -1,0 +1,16 @@
+{
+  "provider": "daytona",
+  "gpus": 0,
+  "author_runtime": "pi",
+  "author_model": "anthropic/claude-sonnet-4-6",
+  "max_stage_attempts": 3,
+  "max_spend_usd": "50.00",
+  "quality": {
+    "repair": true,
+    "run_rollout": true,
+    "max_repairs": 3,
+    "max_probes": 4,
+    "max_turns": 20,
+    "max_spend_usd": "20.00"
+  }
+}

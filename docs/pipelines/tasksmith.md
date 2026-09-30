@@ -8,6 +8,10 @@ Tasksmith turns one merged pull request into a verified [Harbor task](../concept
 
 Deterministic mining keeps a PR only when it already fits one shape. [`pr_runtime`](pr_runtime.md), for example, needs the PR's own tests to flip from failing to passing in one repository-wide image. Tasksmith adapts to each PR instead. It picks the dependencies, tests and GPU count that PR needs, and writes behavioral tests where the PR's own tests fall short.
 
+> [!TIP]
+> Start with [Build an evaluation suite for your codebase](../tutorials/evaluate-your-codebase.md)
+> for a complete walkthrough from selecting your own PR to comparing agent runs.
+
 ## At a glance
 
 | | |

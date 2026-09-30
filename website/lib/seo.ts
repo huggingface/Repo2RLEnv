@@ -1,3 +1,4 @@
+import { getPageImageUrl } from './shared';
 import { byPage, groups } from './catalog';
 import type { source } from './source';
 
@@ -56,6 +57,9 @@ export function displayDescription(page: Page): string | undefined {
 export function breadcrumbJsonLd(page: Page) {
   const items = [{ name: 'Docs', url: absoluteUrl('/introduction/') }];
   const p = pipelineFor(page);
+  if (page.slugs[0] === 'tutorials' && page.slugs.length > 1) {
+    items.push({ name: 'Tutorials', url: absoluteUrl('/tutorials/') });
+  }
   if (page.slugs[0] === 'pipelines' && page.slugs.length > 1) {
     items.push({ name: 'Pipelines', url: absoluteUrl('/pipelines/') });
     if (p) {
@@ -79,14 +83,32 @@ export function breadcrumbJsonLd(page: Page) {
 export function articleJsonLd(page: Page) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'TechArticle',
+    '@type': page.data.tutorial ? 'Article' : 'TechArticle',
     headline: page.data.title,
     description: describe(page),
     url: pageUrl(page.url),
     inLanguage: 'en',
+    ...(page.data.tutorial
+      ? {
+          author: { '@type': 'Person', ...page.data.tutorial.author },
+          datePublished: `${page.data.tutorial.published}T00:00:00Z`,
+          dateModified: `${page.data.tutorial.updated ?? page.data.tutorial.published}T00:00:00Z`,
+          image: socialImageUrl(page),
+          mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl(page.url) },
+          articleSection: 'Tutorials',
+        }
+      : {}),
     isPartOf: { '@type': 'WebSite', name: 'Repo2RLEnv', url: absoluteUrl('/') },
-    publisher: { '@type': 'Organization', name: 'Hugging Face', url: 'https://huggingface.co' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Hugging Face',
+      url: 'https://huggingface.co',
+    },
   };
+}
+
+export function socialImageUrl(page: Page): string {
+  return absoluteUrl(page.data.tutorial?.thumbnail?.src ?? getPageImageUrl(page).url);
 }
 
 export function softwareJsonLd(version: string) {
@@ -104,10 +126,13 @@ export function softwareJsonLd(version: string) {
     downloadUrl: 'https://pypi.org/project/repo2rlenv/',
     codeRepository: 'https://github.com/huggingface/Repo2RLEnv',
     programmingLanguage: 'Python',
-    author: { '@type': 'Organization', name: 'Hugging Face', url: 'https://huggingface.co' },
+    author: {
+      '@type': 'Organization',
+      name: 'Hugging Face',
+      url: 'https://huggingface.co',
+    },
   };
 }
 
 /** Render JSON-LD safely inside a <script> tag. */
-export const jsonLd = (data: unknown) =>
-  JSON.stringify(data).replace(/</g, '\\u003c');
+export const jsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, '\\u003c');
