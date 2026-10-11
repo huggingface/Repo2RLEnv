@@ -1,4 +1,7 @@
-# RFC 0031: CodeMidas source-to-environment recipe
+---
+title: "RFC 0031: CodeMidas source-to-environment recipe"
+navTitle: "0031 \u00b7 CodeMidas source-to-environment recipe"
+---
 
 **Status:** implemented in 0.9.2 via [PR #165](https://github.com/huggingface/Repo2RLEnv/pull/165); 100 tasks staged locally, adversarial checks blocked
 

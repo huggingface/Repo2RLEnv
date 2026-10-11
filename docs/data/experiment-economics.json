@@ -1,0 +1,4910 @@
+{
+  "accounting_rules": {
+    "expansion_reconciliation": "Exclude subcampaign transfer rows from the parent, use child operation costs once. Initial and expansion operation ID sets were disjoint. Aggregate model and held amounts matched every published recipe cost sample exactly.",
+    "hardware_basis": "Configured resources and started/stopped worker lifetime, not measured CPU/GPU utilization or end-to-end task latency. Workers are shared across candidates; lifetimes include setup, idle time and repairs.",
+    "recipe_pilot": "Earlier API costs and five-task solver samples are nested inside the initial program ledger; do not add them again. Equal allocation of shared compute and old forecasts were deliberately excluded.",
+    "stage_basis": "Stage names for recipe expansion are operation-ID prefixes. A build stage can include initial generation and repair; a design stage can include screening/retries. These are cost buckets, not distinct task counts.",
+    "token_basis": "Reported input/output and cache fields from recoverable settled LiteLLM receipts; cache fields are subsets, never extra tokens to add. Unknown/failed responses lack usage and retain budget holds. Cost aggregation uses stored ledger charges rather than repricing these token totals."
+  },
+  "audited_on": "2026-09-30",
+  "codemidas": {
+    "attempts_including_historical": 233,
+    "exports_including_historical": 137,
+    "source": "codemidas/workspace/codemidas-100/report-summary.json",
+    "stages": {
+      "adversarial_attempt": {
+        "accounted_micros": 389094,
+        "held_micros": 0,
+        "operations": 8
+      },
+      "compute_estimate": {
+        "accounted_micros": 11706568,
+        "held_micros": 0,
+        "operations": 5
+      },
+      "construction_design": {
+        "accounted_micros": 2583310,
+        "held_micros": 0,
+        "operations": 1229
+      },
+      "construction_review": {
+        "accounted_micros": 28324767,
+        "held_micros": 888753,
+        "operations": 386
+      },
+      "construction_tests": {
+        "accounted_micros": 4137533,
+        "held_micros": 34166,
+        "operations": 1367
+      },
+      "frontier_screen": {
+        "accounted_micros": 23139154,
+        "held_micros": 0,
+        "operations": 428
+      },
+      "ordinary_solver": {
+        "accounted_micros": 2130831,
+        "held_micros": 0,
+        "operations": 546
+      },
+      "other": {
+        "accounted_micros": 4593,
+        "held_micros": 0,
+        "operations": 5
+      },
+      "rollout_review": {
+        "accounted_micros": 27489603,
+        "held_micros": 551433,
+        "operations": 1368
+      }
+    },
+    "workers": [
+      {
+        "cpus": 4,
+        "disk_gb": 30,
+        "gpu": null,
+        "lifetime_seconds": null,
+        "memory_mb": 8192,
+        "provider": "daytona",
+        "source": "codemidas/workspace/codemidas-100/workers/codemidas-pilot-01.json",
+        "state": "rejected"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 11578.630716,
+        "memory_mb": 8192,
+        "provider": "daytona",
+        "source": "codemidas/workspace/codemidas-100/workers/codemidas-pilot-02.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 11092.130464,
+        "memory_mb": 8192,
+        "provider": "daytona",
+        "source": "codemidas/workspace/codemidas-100/workers/codemidas-scale-01.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 10738.194188,
+        "memory_mb": 8192,
+        "provider": "daytona",
+        "source": "codemidas/workspace/codemidas-100/workers/codemidas-scale-02.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 8406.377925,
+        "memory_mb": 8192,
+        "provider": "daytona",
+        "source": "codemidas/workspace/codemidas-100/workers/codemidas-scale-03.json",
+        "state": "terminated"
+      }
+    ]
+  },
+  "compute_examples": [
+    {
+      "basis": "Conservative reserved-resource lifetime estimate, not a provider invoice",
+      "cpus": 4,
+      "disk_gb": 10,
+      "image_build_allowance_usd": "1",
+      "memory_mb": 8192,
+      "pricing_checked_at": "2026-09-14",
+      "pricing_source": "https://www.daytona.io/pricing",
+      "provider": "daytona",
+      "rate_usd_per_second": "0.00009215",
+      "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-01-cost.json"
+    },
+    {
+      "basis": "Conservative reserved-resource lifetime estimate, not a provider invoice",
+      "cpus": 4,
+      "disk_gb": 10,
+      "image_build_allowance_usd": "1",
+      "memory_mb": 8192,
+      "pricing_checked_at": "2026-09-14",
+      "pricing_source": "https://www.daytona.io/pricing",
+      "provider": "daytona",
+      "rate_usd_per_second": "0.00009215",
+      "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-pilot01-cost.json"
+    },
+    {
+      "build_allowance_usd": "1",
+      "kind": "conservative_estimate_not_invoice",
+      "pricing_source": "https://www.daytona.io/pricing",
+      "pricing_verified_at": "2026-09-24T20:23:00Z",
+      "rate_per_hour": "0.331740",
+      "safety_factor": 2,
+      "source": "codemidas/workspace/codemidas-100/workers/codemidas-pilot-02.cost.json"
+    }
+  ],
+  "expansion_groups": [
+    {
+      "accounted_usd": "75.899214",
+      "held_usd": "2.250000",
+      "id": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "32.805526",
+          "cost_bases": {
+            "litellm_estimate": 730
+          },
+          "held_usd": "2.250000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 733,
+          "receipts_with_tokens": 730,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 5358585,
+            "output": 1115308
+          },
+          "settled_calls": 730
+        }
+      ],
+      "operations": 765,
+      "sources": [
+        "owned/workspace/owned-wave1-100/budget.sqlite3"
+      ],
+      "stages": {
+        "instruction": {
+          "accounted_usd": "1.634643",
+          "held_usd": "0.000000",
+          "operations": 81
+        },
+        "issue": {
+          "accounted_usd": "2.407499",
+          "held_usd": "0.000000",
+          "operations": 119
+        },
+        "r2e-spec": {
+          "accounted_usd": "2.126558",
+          "held_usd": "0.000000",
+          "operations": 80
+        },
+        "r2e-test": {
+          "accounted_usd": "15.598866",
+          "held_usd": "1.500000",
+          "operations": 287
+        },
+        "r2e_gym": {
+          "accounted_usd": "3.523542",
+          "held_usd": "0.750000",
+          "operations": 81
+        },
+        "swe_next": {
+          "accounted_usd": "7.514418",
+          "held_usd": "0.000000",
+          "operations": 85
+        },
+        "worker": {
+          "accounted_usd": "43.093688",
+          "held_usd": "0.000000",
+          "operations": 32
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 8340.946299,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 7942.205735,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 4835.001039,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-03.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 4561.084104,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-04.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 4561.476567,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-05.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 7938.701408,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-06.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3654.53111,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-07.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5498.600137,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-08.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3656.131183,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-09.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3655.64452,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-10.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3656.941181,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-11.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3658.437255,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-12.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 7006.915413,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-13.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3634.564293,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-14.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3634.341963,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-15.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3634.111569,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-daytona-16.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3203.0205,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3201.412374,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2793.291506,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-03.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2251.360215,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-04.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2217.022573,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-05.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1767.849133,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-06.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1674.483754,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-07.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1530.514935,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-expand02-08.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2178.174477,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-recover-packaging-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 950.368588,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-recover-toolz-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1492.166361,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-repo-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1460.429775,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-repo-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1351.329791,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-repo-03.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1193.846906,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-repo-04.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1194.938265,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-repo-05.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1494.408168,
+          "memory_mb": 8192,
+          "provider": "modal",
+          "source": "owned/workspace/owned-wave1-100/workers/wave1-scaler-01.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "47.226687",
+      "held_usd": "0.000000",
+      "id": "terminal-expansion",
+      "models": [
+        {
+          "accounted_usd": "33.011805",
+          "cost_bases": {
+            "litellm_estimate": 499
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 499,
+          "receipts_with_tokens": 499,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 3463040,
+            "output": 1508172
+          },
+          "settled_calls": 499
+        }
+      ],
+      "operations": 511,
+      "sources": [
+        "owned/workspace/owned-wave2-pilot/budget.sqlite3",
+        "owned/workspace/owned-wave2-expand01/budget.sqlite3",
+        "owned/workspace/owned-wave2-expand02/budget.sqlite3",
+        "owned/workspace/owned-wave2-finish100/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "18.262846",
+          "held_usd": "0.000000",
+          "operations": 162
+        },
+        "cli-gym": {
+          "accounted_usd": "3.543614",
+          "held_usd": "0.000000",
+          "operations": 48
+        },
+        "design": {
+          "accounted_usd": "11.205345",
+          "held_usd": "0.000000",
+          "operations": 289
+        },
+        "worker": {
+          "accounted_usd": "14.214882",
+          "held_usd": "0.000000",
+          "operations": 12
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1520.270133,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-pilot/workers/wave2-cli-gym-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1562.900115,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-pilot/workers/wave2-endless-terminals-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1742.40614,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1398.714438,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1540.583307,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-03.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 308.574435,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-04.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1894.93808,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand02/workers/wave2-expand02-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1997.049542,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-expand02/workers/wave2-expand02-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3992.128604,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3050.635943,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2689.671911,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-03.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2337.67757,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-04.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "22.906998",
+      "held_usd": "0.000000",
+      "id": "swe-flow-expansion",
+      "models": [
+        {
+          "accounted_usd": "4.049313",
+          "cost_bases": {
+            "litellm_estimate": 152
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 152,
+          "receipts_with_tokens": 152,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 667339,
+            "output": 136484
+          },
+          "settled_calls": 152
+        }
+      ],
+      "operations": 170,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/swe-flow/budget.sqlite3"
+      ],
+      "stages": {
+        "docstring": {
+          "accounted_usd": "0.855079",
+          "held_usd": "0.000000",
+          "operations": 76
+        },
+        "specification": {
+          "accounted_usd": "3.194234",
+          "held_usd": "0.000000",
+          "operations": 76
+        },
+        "worker": {
+          "accounted_usd": "18.857685",
+          "held_usd": "0.000000",
+          "operations": 18
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 444.437999,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1099.483106,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 795.750172,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 73.327912,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 61.780357,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1201.176207,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 632.131286,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 817.055558,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 792.758658,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 52.077857,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale009.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 606.59965,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale010.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 61.928489,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale011.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 51.885555,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale012.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 51.747287,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale013.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1080.308627,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale014.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 132.508264,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale015.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1056.582469,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale016.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 295.850915,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale017.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "54.637122",
+      "held_usd": "0.000000",
+      "id": "seta-seed2synth-expansion",
+      "models": [
+        {
+          "accounted_usd": "41.740588",
+          "cost_bases": {
+            "litellm_estimate": 617
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 617,
+          "receipts_with_tokens": 617,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 5478964,
+            "output": 1686904
+          },
+          "settled_calls": 617
+        }
+      ],
+      "operations": 627,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "28.578925",
+          "held_usd": "0.000000",
+          "operations": 241
+        },
+        "design": {
+          "accounted_usd": "6.832461",
+          "held_usd": "0.000000",
+          "operations": 112
+        },
+        "review": {
+          "accounted_usd": "6.329202",
+          "held_usd": "0.000000",
+          "operations": 264
+        },
+        "worker": {
+          "accounted_usd": "12.896534",
+          "held_usd": "0.000000",
+          "operations": 10
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2314.782772,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3391.098614,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2225.234681,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3341.50834,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3277.705299,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3983.098405,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3935.62729,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3208.186167,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2455.609757,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 3299.905811,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale009.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "44.720351",
+      "held_usd": "1.250000",
+      "id": "seta-evol-expansion",
+      "models": [
+        {
+          "accounted_usd": "30.750897",
+          "cost_bases": {
+            "litellm_estimate": 391
+          },
+          "held_usd": "1.250000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 392,
+          "receipts_with_tokens": 391,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 3825329,
+            "output": 1284989
+          },
+          "settled_calls": 391
+        }
+      ],
+      "operations": 404,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/seta-evol/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "20.457936",
+          "held_usd": "1.250000",
+          "operations": 154
+        },
+        "design": {
+          "accounted_usd": "6.546181",
+          "held_usd": "0.000000",
+          "operations": 92
+        },
+        "review": {
+          "accounted_usd": "3.746780",
+          "held_usd": "0.000000",
+          "operations": 146
+        },
+        "worker": {
+          "accounted_usd": "13.969454",
+          "held_usd": "0.000000",
+          "operations": 12
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1494.240383,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2066.162649,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 332.655144,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1906.306555,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2165.879657,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1957.891904,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2560.011647,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1986.422007,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2155.362483,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2433.192037,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale009.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1820.095506,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale010.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 493.98228,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale011.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "73.511497",
+      "held_usd": "5.000000",
+      "id": "tmax-expansion",
+      "models": [
+        {
+          "accounted_usd": "58.531897",
+          "cost_bases": {
+            "litellm_estimate": 733
+          },
+          "held_usd": "5.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 737,
+          "receipts_with_tokens": 733,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 6698349,
+            "output": 2562447
+          },
+          "settled_calls": 733
+        },
+        {
+          "accounted_usd": "0.301081",
+          "cost_bases": {
+            "litellm_estimate": 27
+          },
+          "held_usd": "0.000000",
+          "model": "openai/gpt-5.4-mini",
+          "operations": 27,
+          "receipts_with_tokens": 27,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 146473,
+            "output": 49404
+          },
+          "settled_calls": 27
+        }
+      ],
+      "operations": 775,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/tmax/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "38.219349",
+          "held_usd": "5.000000",
+          "operations": 241
+        },
+        "design": {
+          "accounted_usd": "13.990801",
+          "held_usd": "0.000000",
+          "operations": 309
+        },
+        "review": {
+          "accounted_usd": "6.622828",
+          "held_usd": "0.000000",
+          "operations": 214
+        },
+        "worker": {
+          "accounted_usd": "14.678519",
+          "held_usd": "0.000000",
+          "operations": 11
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5946.180988,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5947.854821,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5920.89747,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5995.044087,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 5944.503656,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 4131.768373,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2342.056723,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1787.885811,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 336.0968,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 783.293689,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale009.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 783.171695,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale010.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "100.474361",
+      "held_usd": "0.000000",
+      "id": "terminalworld-expansion",
+      "models": [
+        {
+          "accounted_usd": "54.342498",
+          "cost_bases": {
+            "litellm_estimate": 2381
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 2381,
+          "receipts_with_tokens": 2381,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 12131699,
+            "output": 1196456
+          },
+          "settled_calls": 2381
+        }
+      ],
+      "operations": 2424,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/terminalworld/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "20.596068",
+          "held_usd": "0.000000",
+          "operations": 498
+        },
+        "design": {
+          "accounted_usd": "29.916594",
+          "held_usd": "0.000000",
+          "operations": 1679
+        },
+        "review": {
+          "accounted_usd": "3.810846",
+          "held_usd": "0.000000",
+          "operations": 203
+        },
+        "tests": {
+          "accounted_usd": "0.018990",
+          "held_usd": "0.000000",
+          "operations": 1
+        },
+        "worker": {
+          "accounted_usd": "46.131863",
+          "held_usd": "0.000000",
+          "operations": 43
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 151.15834,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-empty-context-recovery01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 122.89281,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-empty-context-recovery02.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 774.435743,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1810.922347,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 925.205227,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 984.804352,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2503.860595,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1129.963562,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1211.179872,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1696.099594,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2133.5485,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1310.428214,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale009.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1287.733673,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale010.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1804.994803,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale011.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 942.691656,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale012.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 56.150581,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale013.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 209.232308,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale014.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 647.510163,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale015.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 519.665179,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale016.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1164.367393,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale017.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 237.080963,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale018.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 2230.091566,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale019.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 626.07247,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale020.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 38.232623,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale021.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 45.338199,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale022.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 69.268147,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale023.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1058.24337,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale024.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 75.719962,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale025.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1034.904463,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale026.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 695.466103,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale027.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 691.728674,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale028.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 470.222101,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale029.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1244.405401,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale030.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 695.301478,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale031.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 620.479039,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale032.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 56.496406,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale033.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 696.976932,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale034.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 785.515625,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale035.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 432.299412,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale036.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 113.820315,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale037.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 62.07061,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale038.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 36.021151,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale039.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 583.721037,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale040.json",
+          "state": "terminated"
+        }
+      ]
+    },
+    {
+      "accounted_usd": "26.567285",
+      "held_usd": "0.000000",
+      "id": "dataarc-expansion",
+      "models": [
+        {
+          "accounted_usd": "14.530915",
+          "cost_bases": {
+            "litellm_estimate": 224
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 224,
+          "receipts_with_tokens": 224,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 1607392,
+            "output": 647246
+          },
+          "settled_calls": 224
+        }
+      ],
+      "operations": 235,
+      "sources": [
+        "owned/workspace/owned-waves34-100/campaigns/dataarc/budget.sqlite3"
+      ],
+      "stages": {
+        "build": {
+          "accounted_usd": "11.797753",
+          "held_usd": "0.000000",
+          "operations": 113
+        },
+        "review": {
+          "accounted_usd": "2.733162",
+          "held_usd": "0.000000",
+          "operations": 111
+        },
+        "worker": {
+          "accounted_usd": "12.036370",
+          "held_usd": "0.000000",
+          "operations": 11
+        }
+      },
+      "workers": [
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1144.209185,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-pilot01.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 885.118025,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale001.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 915.389714,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale002.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 893.843322,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale003.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1251.804832,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale004.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1262.337756,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale005.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 893.538576,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale006.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 914.833193,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale007.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1569.258582,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale008.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 1053.292566,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale009.json",
+          "state": "terminated"
+        },
+        {
+          "cpus": 4,
+          "disk_gb": 10,
+          "gpu": null,
+          "lifetime_seconds": 462.882364,
+          "memory_mb": 8192,
+          "provider": "daytona",
+          "source": "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale010.json",
+          "state": "terminated"
+        }
+      ]
+    }
+  ],
+  "frontiersmith": {
+    "ledger_groups": [
+      {
+        "accounted_usd": "5.606553",
+        "held_usd": "0.000000",
+        "operations": 180,
+        "sources": [
+          "frontiersmith/workspace/frontiersmith/budget.sqlite3"
+        ],
+        "workers": [
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 2971.465706,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith/workers/frontiersmith-pilot-01.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 2195.058461,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith/workers/frontiersmith-scale-01.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 2079.66161,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith/workers/frontiersmith-scale-02.json",
+            "state": "terminated"
+          }
+        ]
+      },
+      {
+        "accounted_usd": "62.811044",
+        "held_usd": "0.673513",
+        "operations": 1904,
+        "sources": [
+          "frontiersmith/workspace/frontiersmith-scale/budget.sqlite3"
+        ],
+        "workers": [
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 8328.966319,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-audit-repair.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 10049.216109,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-01.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 7856.216143,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-02.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 7135.293438,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-03.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 9443.836538,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-04.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 7069.886786,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-05.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 9232.679565,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-06.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 5654.981355,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-07.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 7005.74669,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-08.json",
+            "state": "terminated"
+          },
+          {
+            "cpus": 2,
+            "disk_gb": 10,
+            "gpu": null,
+            "lifetime_seconds": 2193.824434,
+            "memory_mb": 4096,
+            "provider": "daytona",
+            "source": "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-family-rollouts.json",
+            "state": "terminated"
+          }
+        ]
+      }
+    ]
+  },
+  "initial_program": {
+    "automated_repair_tasks": 35,
+    "direct_cost_by_population": {
+      "final50": {
+        "booked_plus_held_usd": "659.091994",
+        "booked_usd": "649.564637",
+        "held_usd": "9.527357",
+        "operations": 3159,
+        "reserved_usd": "0.982418",
+        "uncertain_usd": "8.544939"
+      },
+      "other_tasksmith_prs": {
+        "booked_plus_held_usd": "56.816936",
+        "booked_usd": "56.023559",
+        "held_usd": "0.793377",
+        "operations": 526,
+        "reserved_usd": "0",
+        "uncertain_usd": "0.793377"
+      },
+      "reproduction_candidates": {
+        "booked_plus_held_usd": "66.507288",
+        "booked_usd": "58.507288",
+        "held_usd": "8",
+        "operations": 653,
+        "reserved_usd": "0",
+        "uncertain_usd": "8"
+      },
+      "shared_or_unattributed": {
+        "booked_plus_held_usd": "188.670395",
+        "booked_usd": "185.920395",
+        "held_usd": "2.75",
+        "operations": 666,
+        "reserved_usd": "0",
+        "uncertain_usd": "2.75"
+      }
+    },
+    "final_verified": 50,
+    "manual_categories": {
+      "design_and_bootstrap_preparation": 4,
+      "no_confirmed_task_specific_intervention": 15,
+      "operational_or_review_continuation": 1,
+      "task_or_verifier_edit": 28,
+      "validation_control_repair": 2
+    },
+    "measured_on": "2026-09-14",
+    "phase_models": {
+      "authoring_and_investigation": {
+        "anthropic/claude-sonnet-4-6": {
+          "accounted_usd": "99.565292",
+          "held_usd": "2.320734",
+          "operations": 2211
+        }
+      },
+      "blind_solver_model": {},
+      "compute_estimates": {},
+      "other_unattributed": {
+        "anthropic/claude-opus-4-6": {
+          "accounted_usd": "104.848134",
+          "held_usd": "2.250000",
+          "operations": 816
+        },
+        "anthropic/claude-sonnet-4-6": {
+          "accounted_usd": "19.288915",
+          "held_usd": "0.000000",
+          "operations": 301
+        },
+        "openai/gpt-5-mini": {
+          "accounted_usd": "0.019048",
+          "held_usd": "0.500000",
+          "operations": 6
+        }
+      },
+      "quality_review_and_repair": {
+        "anthropic/claude-opus-4-6": {
+          "accounted_usd": "65.004687",
+          "held_usd": "0.000000",
+          "operations": 245
+        },
+        "anthropic/claude-sonnet-4-6": {
+          "accounted_usd": "52.513493",
+          "held_usd": "0.000000",
+          "operations": 323
+        },
+        "openai/gpt-6-astra": {
+          "accounted_usd": "141.213613",
+          "held_usd": "1.000000",
+          "operations": 314
+        }
+      }
+    },
+    "phases": {
+      "authoring_and_investigation": {
+        "booked_plus_held_usd": "101.886026",
+        "booked_usd": "99.565292",
+        "held_usd": "2.320734",
+        "operations": 2211,
+        "reserved_usd": "0.982418",
+        "uncertain_usd": "1.338316"
+      },
+      "blind_solver_model": {
+        "booked_plus_held_usd": "48.405121",
+        "booked_usd": "36.405121",
+        "held_usd": "12",
+        "operations": 176,
+        "reserved_usd": "0",
+        "uncertain_usd": "12"
+      },
+      "compute_estimates": {
+        "booked_plus_held_usd": "416.149782",
+        "booked_usd": "413.149782",
+        "held_usd": "3",
+        "operations": 593,
+        "reserved_usd": "0",
+        "uncertain_usd": "3"
+      },
+      "other_unattributed": {
+        "booked_plus_held_usd": "144.913891",
+        "booked_usd": "142.163891",
+        "held_usd": "2.75",
+        "operations": 1142,
+        "reserved_usd": "0",
+        "uncertain_usd": "2.75"
+      },
+      "quality_review_and_repair": {
+        "booked_plus_held_usd": "259.731793",
+        "booked_usd": "258.731793",
+        "held_usd": "1",
+        "operations": 882,
+        "reserved_usd": "0",
+        "uncertain_usd": "1"
+      }
+    },
+    "pilot_workers": [
+      {
+        "cpus": 2,
+        "disk_gb": null,
+        "gpu": null,
+        "lifetime_seconds": null,
+        "memory_mb": 4096,
+        "provider": "daytona",
+        "source": "owned/workspace/owned-campaign/workers/owned-daytona-01.json",
+        "state": "creation_uncertain"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 33.080634,
+        "memory_mb": 4096,
+        "provider": "daytona",
+        "source": "owned/workspace/owned-campaign/workers/owned-daytona-02.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": null,
+        "memory_mb": 4096,
+        "provider": "daytona",
+        "source": "owned/workspace/owned-campaign/workers/owned-daytona-03.json",
+        "state": "creation_uncertain"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 23945.762031,
+        "memory_mb": 4096,
+        "provider": "daytona",
+        "source": "owned/workspace/owned-campaign/workers/owned-daytona-04.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 18649.2147,
+        "memory_mb": 4096,
+        "provider": "daytona",
+        "source": "owned/workspace/owned-campaign/workers/owned-daytona-05.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": null,
+        "gpu": null,
+        "lifetime_seconds": 3362.029161,
+        "memory_mb": 4096,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-01.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 9176.924842,
+        "memory_mb": 4096,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-02.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-03.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-04.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-05.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 4096,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-06.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-07.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 14400.0,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-08.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 1937.424652,
+        "memory_mb": 4096,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-09.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 2,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 1299.505925,
+        "memory_mb": 4096,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-10.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 1664.262769,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-11.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 2441.487224,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-12.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 4260.4659,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-13.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 147.682079,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-14.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 7.96425,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-15.json",
+        "state": "terminated"
+      },
+      {
+        "cpus": 4,
+        "disk_gb": 10,
+        "gpu": null,
+        "lifetime_seconds": 505.459308,
+        "memory_mb": 8192,
+        "provider": "modal",
+        "source": "owned/workspace/owned-campaign/workers/owned-modal-16.json",
+        "state": "terminated"
+      }
+    ],
+    "recipe_exports": 291,
+    "recipe_pilots": [
+      {
+        "calls": 28,
+        "control_pairs_passed": 5,
+        "exports": 24,
+        "generation_api_usd": 0.647217,
+        "mean_sonnet_api_usd": 0.06848529,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 1,
+          "LLM anthropic/claude-sonnet-4-6": 27
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "swe-smith",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 20,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 0.379468,
+        "mean_sonnet_api_usd": 0.13767738000000002,
+        "models": {
+          "LLM anthropic/claude-sonnet-4-6": 20
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "swe-gen",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 48,
+        "control_pairs_passed": 5,
+        "exports": 24,
+        "generation_api_usd": 1.117561,
+        "mean_sonnet_api_usd": 0.27363536999999993,
+        "models": {
+          "LLM anthropic/claude-sonnet-4-6": 48
+        },
+        "original_sonnet_reward_1": 4,
+        "recipe": "swe-flow",
+        "sample_size": 5,
+        "selected_with_revisions": 3,
+        "sonnet_statuses": {
+          "completed": 4,
+          "trial_exception": 1
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 20,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 1.220574,
+        "mean_sonnet_api_usd": 0.08151599999999999,
+        "models": {
+          "LLM anthropic/claude-sonnet-4-6": 20
+        },
+        "original_sonnet_reward_1": 4,
+        "recipe": "swe-next",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 47,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 1.461069,
+        "mean_sonnet_api_usd": 0.16179567,
+        "models": {
+          "LLM anthropic/claude-sonnet-4-6": 47
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "r2e",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 20,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 1.310737,
+        "mean_sonnet_api_usd": 0.07555716000000001,
+        "models": {
+          "LLM anthropic/claude-sonnet-4-6": 20
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "r2e-gym",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 131,
+        "control_pairs_passed": 5,
+        "exports": 23,
+        "generation_api_usd": 20.991889,
+        "mean_sonnet_api_usd": 0.07564683000000001,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 57,
+          "LLM anthropic/claude-sonnet-4-6": 74
+        },
+        "original_sonnet_reward_1": 4,
+        "recipe": "seta-seed2synth",
+        "sample_size": 5,
+        "selected_with_revisions": 3,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 68,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 9.771736,
+        "mean_sonnet_api_usd": 0.04532409,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 25,
+          "LLM anthropic/claude-sonnet-4-6": 43
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "seta-evol",
+        "sample_size": 5,
+        "selected_with_revisions": 3,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 105,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 10.765184,
+        "mean_sonnet_api_usd": 0.06290504999999999,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 105
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "endless-terminals",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 150,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 22.538768,
+        "mean_sonnet_api_usd": 0.08562921,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 150
+        },
+        "original_sonnet_reward_1": 4,
+        "recipe": "tmax",
+        "sample_size": 5,
+        "selected_with_revisions": 1,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 239,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 12.314589,
+        "mean_sonnet_api_usd": 0.06452822999999999,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 239
+        },
+        "original_sonnet_reward_1": 4,
+        "recipe": "terminalworld",
+        "sample_size": 5,
+        "selected_with_revisions": 1,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 1.25
+      },
+      {
+        "calls": 175,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 22.987653,
+        "mean_sonnet_api_usd": 0.05814774,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 175
+        },
+        "original_sonnet_reward_1": 0,
+        "recipe": "cli-gym",
+        "sample_size": 5,
+        "selected_with_revisions": 5,
+        "sonnet_statuses": {
+          "completed": 5
+        },
+        "unresolved_generation_reserve_usd": 1.0
+      },
+      {
+        "calls": 63,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 18.548052,
+        "mean_sonnet_api_usd": 0.14131857,
+        "models": {
+          "LLM anthropic/claude-opus-4-6": 63
+        },
+        "original_sonnet_reward_1": 5,
+        "recipe": "dataarc",
+        "sample_size": 5,
+        "selected_with_revisions": 0,
+        "sonnet_statuses": {
+          "completed": 4,
+          "trial_exception": 1
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      },
+      {
+        "calls": 0,
+        "control_pairs_passed": 5,
+        "exports": 20,
+        "generation_api_usd": 0.0,
+        "mean_sonnet_api_usd": 0.07609995,
+        "models": {},
+        "original_sonnet_reward_1": 4,
+        "recipe": "scaler",
+        "sample_size": 5,
+        "selected_with_revisions": 4,
+        "sonnet_statuses": {
+          "completed": 4,
+          "trial_exception": 1
+        },
+        "unresolved_generation_reserve_usd": 0.0
+      }
+    ],
+    "sonnet_solved": 19,
+    "sources": [
+      "tasksmith/workspace/tasksmith-retrospective-20260914/report-data.json",
+      "tasksmith/workspace/tasksmith-retrospective-20260914/ledger-attributed.json"
+    ],
+    "tasksmith_tasks": [
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 6.266079,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 51,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-5d12db5414d2",
+        "url": "https://github.com/huggingface/accelerate/pull/3075"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 3.318474,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 25,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-ae8f12dc63d0",
+        "url": "https://github.com/huggingface/accelerate/pull/3098"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 4,
+        "direct_booked_usd": 32.748894,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 149,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-5db757e91a6e",
+        "url": "https://github.com/huggingface/accelerate/pull/3142"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 6.447846,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 41,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-3960c9b5f1c6",
+        "url": "https://github.com/huggingface/accelerate/pull/3150"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 4.385268,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 27,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-58e016fc946a",
+        "url": "https://github.com/huggingface/accelerate/pull/3251"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 10.067976,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 64,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-c98f3a4a299d",
+        "url": "https://github.com/huggingface/accelerate/pull/3529"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 4,
+        "direct_booked_usd": 20.343516,
+        "direct_held_usd": 3.544939,
+        "direct_operation_count": 77,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-64b21f14793e",
+        "url": "https://github.com/huggingface/accelerate/pull/3674"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 8.219352,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 27,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-e38398f4d9df",
+        "url": "https://github.com/huggingface/accelerate/pull/3684"
+      },
+      {
+        "automated_repair_versions": 6,
+        "cpus": 2,
+        "direct_booked_usd": 28.178834,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 103,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 2,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 8192,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-b1dd32dfa88b",
+        "url": "https://github.com/huggingface/accelerate/pull/3720"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 2.986,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 25,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-3d762a2acfee",
+        "url": "https://github.com/huggingface/accelerate/pull/3850"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 7.118417,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 29,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-f1fb6bb8619d",
+        "url": "https://github.com/huggingface/accelerate/pull/3969"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 4,
+        "direct_booked_usd": 21.404847,
+        "direct_held_usd": 2.0,
+        "direct_operation_count": 88,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 2,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/accelerate",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-3c27383dd8c3",
+        "url": "https://github.com/huggingface/accelerate/pull/4015"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 4,
+        "direct_booked_usd": 11.621226,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 57,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 16384,
+        "repository": "huggingface/accelerate",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-6313a21e3910",
+        "url": "https://github.com/huggingface/accelerate/pull/4059"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 12.503996,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 51,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-f40a643a6ef9",
+        "url": "https://github.com/huggingface/diffusers/pull/11281"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 12.795309,
+        "direct_held_usd": 0.982418,
+        "direct_operation_count": 61,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-48efdcc71e7d",
+        "url": "https://github.com/huggingface/diffusers/pull/11602"
+      },
+      {
+        "automated_repair_versions": 3,
+        "cpus": 1,
+        "direct_booked_usd": 10.685693,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 46,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-9ca70b8463d4",
+        "url": "https://github.com/huggingface/diffusers/pull/11812"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 9.373392,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 46,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "design_and_bootstrap_preparation",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-83a0918520ec",
+        "url": "https://github.com/huggingface/diffusers/pull/12619"
+      },
+      {
+        "automated_repair_versions": 3,
+        "cpus": 1,
+        "direct_booked_usd": 15.60994,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 73,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-1c5704b1f07f",
+        "url": "https://github.com/huggingface/diffusers/pull/12703"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 14.135077,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 127,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-d977e5ab6579",
+        "url": "https://github.com/huggingface/diffusers/pull/13168"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 15.700506,
+        "direct_held_usd": 2.0,
+        "direct_operation_count": 65,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-deb681b2c96c",
+        "url": "https://github.com/huggingface/diffusers/pull/13226"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 11.186889,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 57,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-7bc616ce49d7",
+        "url": "https://github.com/huggingface/diffusers/pull/13921"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 9.650345,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 46,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/diffusers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-ee553a5e62c1",
+        "url": "https://github.com/huggingface/diffusers/pull/14045"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 14.90025,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 53,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-955732fda55e",
+        "url": "https://github.com/huggingface/peft/pull/2661"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 10.349484,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 55,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-ecb1931929df",
+        "url": "https://github.com/huggingface/peft/pull/2939"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 17.226511,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 62,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-9aea936e30e4",
+        "url": "https://github.com/huggingface/peft/pull/2952"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 10.658052,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 57,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-e1ba3292a5bc",
+        "url": "https://github.com/huggingface/peft/pull/2962"
+      },
+      {
+        "automated_repair_versions": 5,
+        "cpus": 4,
+        "direct_booked_usd": 31.150654,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 107,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 2,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-a27f5bd16532",
+        "url": "https://github.com/huggingface/peft/pull/3079"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 6.607019,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 39,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-f71b564d1bc2",
+        "url": "https://github.com/huggingface/peft/pull/3083"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 7.266995,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 68,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "design_and_bootstrap_preparation",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-c488fc138ba1",
+        "url": "https://github.com/huggingface/peft/pull/3098"
+      },
+      {
+        "automated_repair_versions": 3,
+        "cpus": 1,
+        "direct_booked_usd": 8.532359,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 52,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-35c1a487454c",
+        "url": "https://github.com/huggingface/peft/pull/3212"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 7.047662,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 55,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-749ff8d440e1",
+        "url": "https://github.com/huggingface/peft/pull/3302"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 12.383317,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 76,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/peft",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-0d2d1e298e86",
+        "url": "https://github.com/huggingface/peft/pull/3350"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 9.792967,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 44,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/transformers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-5dd11b34cce1",
+        "url": "https://github.com/huggingface/transformers/pull/35348"
+      },
+      {
+        "automated_repair_versions": 3,
+        "cpus": 1,
+        "direct_booked_usd": 25.840755,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 80,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/transformers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-333d8be2d5aa",
+        "url": "https://github.com/huggingface/transformers/pull/35669"
+      },
+      {
+        "automated_repair_versions": 4,
+        "cpus": 1,
+        "direct_booked_usd": 15.700904,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 70,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/transformers",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-e0f68dd4420c",
+        "url": "https://github.com/huggingface/transformers/pull/36521"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 13.975867,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 81,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/transformers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-441eeab80047",
+        "url": "https://github.com/huggingface/transformers/pull/36790"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 4,
+        "direct_booked_usd": 11.943463,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 33,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/transformers",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-5cbfd9f64dbc",
+        "url": "https://github.com/huggingface/transformers/pull/39826"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 4,
+        "direct_booked_usd": 25.149565,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 70,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-4fc63afb85cd",
+        "url": "https://github.com/huggingface/trl/pull/5349"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 8.812409,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 66,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-0ea2241cceeb",
+        "url": "https://github.com/huggingface/trl/pull/5501"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 4,
+        "direct_booked_usd": 21.839396,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 67,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 1,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-1c108f674e97",
+        "url": "https://github.com/huggingface/trl/pull/5575"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 1,
+        "direct_booked_usd": 6.870033,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 66,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "validation_control_repair",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-150751b5c0ba",
+        "url": "https://github.com/huggingface/trl/pull/5791"
+      },
+      {
+        "automated_repair_versions": 9,
+        "cpus": 1,
+        "direct_booked_usd": 25.653812,
+        "direct_held_usd": 1.0,
+        "direct_operation_count": 104,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-0df9b3cd6191",
+        "url": "https://github.com/huggingface/trl/pull/6001"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 10.324859,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 53,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "no_confirmed_task_specific_intervention",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-b71e9e0a47b6",
+        "url": "https://github.com/huggingface/trl/pull/6066"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 10.622717,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 71,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "design_and_bootstrap_preparation",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-5b4f21a2a450",
+        "url": "https://github.com/huggingface/trl/pull/6078"
+      },
+      {
+        "automated_repair_versions": 1,
+        "cpus": 4,
+        "direct_booked_usd": 20.901696,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 83,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 2,
+        "manual_category": "design_and_bootstrap_preparation",
+        "memory_mb": 16384,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-b3c12843c3fb",
+        "url": "https://github.com/huggingface/trl/pull/6139"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 1,
+        "direct_booked_usd": 4.227425,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 51,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-466b1e8e082b",
+        "url": "https://github.com/huggingface/trl/pull/6150"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 6.663166,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 59,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-03a6a091b12f",
+        "url": "https://github.com/huggingface/trl/pull/6152"
+      },
+      {
+        "automated_repair_versions": 0,
+        "cpus": 4,
+        "direct_booked_usd": 15.381693,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 91,
+        "gpu_types": [
+          "L4"
+        ],
+        "gpus": 2,
+        "manual_category": "task_or_verifier_edit",
+        "memory_mb": 16384,
+        "repository": "huggingface/trl",
+        "reward": 1.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-fa1a9b35ff39",
+        "url": "https://github.com/huggingface/trl/pull/6187"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 8.204471,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 62,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "validation_control_repair",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-9f3fb07e5766",
+        "url": "https://github.com/huggingface/trl/pull/6206"
+      },
+      {
+        "automated_repair_versions": 2,
+        "cpus": 1,
+        "direct_booked_usd": 6.78926,
+        "direct_held_usd": 0.0,
+        "direct_operation_count": 49,
+        "gpu_types": [],
+        "gpus": 0,
+        "manual_category": "operational_or_review_continuation",
+        "memory_mb": 2048,
+        "repository": "huggingface/trl",
+        "reward": 0.0,
+        "solver_model": "anthropic/claude-sonnet-4-6",
+        "task_id": "tasksmith-1fe00f939ab9",
+        "url": "https://github.com/huggingface/trl/pull/6228"
+      }
+    ],
+    "tasksmith_unique_prs": 56,
+    "whole_program": {
+      "booked_including_external_usd": "972.445879",
+      "booked_plus_held_including_external_usd": "993.516613",
+      "booked_plus_held_usd": "971.086613",
+      "booked_usd": "950.015879",
+      "external_prior_usd": "22.43",
+      "held_usd": "21.070734",
+      "ledger_cap_usd": "1002.57",
+      "operations": 5004,
+      "overall_cap_usd": "1025.00",
+      "remaining_after_actual_holds_usd": "31.483387",
+      "reserved_usd": "0.982418",
+      "uncertain_usd": "20.088316"
+    }
+  },
+  "measurement_window": "2026-09-14 through 2026-09-29; native historical samples are earlier",
+  "native_model_metadata": [
+    {
+      "hash_method": "SHA256 of sorted task.toml relative-path TAB file-SHA256 NEWLINE records",
+      "metadata_tree_sha256": "cbd6d65e12925414ab2b0bd52170670c9c84c79d232a7f73dc67512fe1f33b10",
+      "pipeline": "commit_runtime",
+      "source": "original/workspace/datasets/commit-runtime-100",
+      "synthesis_models": {
+        "anthropic/claude-sonnet-4-6": 100
+      },
+      "tasks": 100
+    },
+    {
+      "hash_method": "SHA256 of sorted task.toml relative-path TAB file-SHA256 NEWLINE records",
+      "metadata_tree_sha256": "8b19e9c0f5c509354a8b5493a64b68ef43231f728e7a07e36082df0a07ca233d",
+      "pipeline": "code_instruct",
+      "source": "original/workspace/datasets/cinst-100-flat",
+      "synthesis_models": {
+        "anthropic/claude-sonnet-4-6": 100
+      },
+      "tasks": 100
+    },
+    {
+      "hash_method": "SHA256 of sorted task.toml relative-path TAB file-SHA256 NEWLINE records",
+      "metadata_tree_sha256": "ef3105cca87dd4a35aed7bae55ed0f071cd4e0be6dcc8f797ed5b53eb652779d",
+      "pipeline": "equivalence_tests",
+      "source": "original/workspace/datasets/eqv-100-flat",
+      "synthesis_models": {
+        "anthropic/claude-sonnet-4-6": 100
+      },
+      "tasks": 100
+    }
+  ],
+  "recipe_expansion": {
+    "cli-gym": {
+      "accounted_usd": "3.543614",
+      "held_usd": "0.000000",
+      "ledger_group": "terminal-expansion",
+      "models": [
+        {
+          "accounted_usd": "3.543614",
+          "cost_bases": {
+            "litellm_estimate": 48
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 48,
+          "receipts_with_tokens": 48,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 874797,
+            "output": 61281
+          },
+          "settled_calls": 48
+        }
+      ],
+      "operations": 48,
+      "stages": {
+        "cli-gym": {
+          "accounted_usd": "3.543614",
+          "held_usd": "0.000000",
+          "operations": 48
+        }
+      }
+    },
+    "dataarc": {
+      "accounted_usd": "14.530915",
+      "held_usd": "0.000000",
+      "ledger_group": "dataarc-expansion",
+      "models": [
+        {
+          "accounted_usd": "14.530915",
+          "cost_bases": {
+            "litellm_estimate": 224
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 224,
+          "receipts_with_tokens": 224,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 1607392,
+            "output": 647246
+          },
+          "settled_calls": 224
+        }
+      ],
+      "operations": 224,
+      "stages": {
+        "build": {
+          "accounted_usd": "11.797753",
+          "held_usd": "0.000000",
+          "operations": 113
+        },
+        "review": {
+          "accounted_usd": "2.733162",
+          "held_usd": "0.000000",
+          "operations": 111
+        }
+      }
+    },
+    "endless-terminals": {
+      "accounted_usd": "29.468191",
+      "held_usd": "0.000000",
+      "ledger_group": "terminal-expansion",
+      "models": [
+        {
+          "accounted_usd": "29.468191",
+          "cost_bases": {
+            "litellm_estimate": 451
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 451,
+          "receipts_with_tokens": 451,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 2588243,
+            "output": 1446891
+          },
+          "settled_calls": 451
+        }
+      ],
+      "operations": 451,
+      "stages": {
+        "build": {
+          "accounted_usd": "18.262846",
+          "held_usd": "0.000000",
+          "operations": 162
+        },
+        "design": {
+          "accounted_usd": "11.205345",
+          "held_usd": "0.000000",
+          "operations": 289
+        }
+      }
+    },
+    "r2e": {
+      "accounted_usd": "17.725424",
+      "held_usd": "1.500000",
+      "ledger_group": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "17.725424",
+          "cost_bases": {
+            "litellm_estimate": 365
+          },
+          "held_usd": "1.500000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 367,
+          "receipts_with_tokens": 365,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 1724935,
+            "output": 836703
+          },
+          "settled_calls": 365
+        }
+      ],
+      "operations": 367,
+      "stages": {
+        "r2e-spec": {
+          "accounted_usd": "2.126558",
+          "held_usd": "0.000000",
+          "operations": 80
+        },
+        "r2e-test": {
+          "accounted_usd": "15.598866",
+          "held_usd": "1.500000",
+          "operations": 287
+        }
+      }
+    },
+    "r2e-gym": {
+      "accounted_usd": "3.523542",
+      "held_usd": "0.750000",
+      "ledger_group": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "3.523542",
+          "cost_bases": {
+            "litellm_estimate": 80
+          },
+          "held_usd": "0.750000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 81,
+          "receipts_with_tokens": 80,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 863442,
+            "output": 62213
+          },
+          "settled_calls": 80
+        }
+      ],
+      "operations": 81,
+      "stages": {
+        "r2e_gym": {
+          "accounted_usd": "3.523542",
+          "held_usd": "0.750000",
+          "operations": 81
+        }
+      }
+    },
+    "scaler": {
+      "accounted_usd": "0.000000",
+      "held_usd": "0.000000",
+      "ledger_group": "repository-expansion",
+      "models": [],
+      "operations": 0,
+      "stages": {}
+    },
+    "seta-evol": {
+      "accounted_usd": "30.750897",
+      "held_usd": "1.250000",
+      "ledger_group": "seta-evol-expansion",
+      "models": [
+        {
+          "accounted_usd": "30.750897",
+          "cost_bases": {
+            "litellm_estimate": 391
+          },
+          "held_usd": "1.250000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 392,
+          "receipts_with_tokens": 391,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 3825329,
+            "output": 1284989
+          },
+          "settled_calls": 391
+        }
+      ],
+      "operations": 392,
+      "stages": {
+        "build": {
+          "accounted_usd": "20.457936",
+          "held_usd": "1.250000",
+          "operations": 154
+        },
+        "design": {
+          "accounted_usd": "6.546181",
+          "held_usd": "0.000000",
+          "operations": 92
+        },
+        "review": {
+          "accounted_usd": "3.746780",
+          "held_usd": "0.000000",
+          "operations": 146
+        }
+      }
+    },
+    "seta-seed2synth": {
+      "accounted_usd": "41.740588",
+      "held_usd": "0.000000",
+      "ledger_group": "seta-seed2synth-expansion",
+      "models": [
+        {
+          "accounted_usd": "41.740588",
+          "cost_bases": {
+            "litellm_estimate": 617
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 617,
+          "receipts_with_tokens": 617,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 5478964,
+            "output": 1686904
+          },
+          "settled_calls": 617
+        }
+      ],
+      "operations": 617,
+      "stages": {
+        "build": {
+          "accounted_usd": "28.578925",
+          "held_usd": "0.000000",
+          "operations": 241
+        },
+        "design": {
+          "accounted_usd": "6.832461",
+          "held_usd": "0.000000",
+          "operations": 112
+        },
+        "review": {
+          "accounted_usd": "6.329202",
+          "held_usd": "0.000000",
+          "operations": 264
+        }
+      }
+    },
+    "swe-flow": {
+      "accounted_usd": "4.049313",
+      "held_usd": "0.000000",
+      "ledger_group": "swe-flow-expansion",
+      "models": [
+        {
+          "accounted_usd": "4.049313",
+          "cost_bases": {
+            "litellm_estimate": 152
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 152,
+          "receipts_with_tokens": 152,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 667339,
+            "output": 136484
+          },
+          "settled_calls": 152
+        }
+      ],
+      "operations": 152,
+      "stages": {
+        "docstring": {
+          "accounted_usd": "0.855079",
+          "held_usd": "0.000000",
+          "operations": 76
+        },
+        "specification": {
+          "accounted_usd": "3.194234",
+          "held_usd": "0.000000",
+          "operations": 76
+        }
+      }
+    },
+    "swe-gen": {
+      "accounted_usd": "1.634643",
+      "held_usd": "0.000000",
+      "ledger_group": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "1.634643",
+          "cost_bases": {
+            "litellm_estimate": 81
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 81,
+          "receipts_with_tokens": 81,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 280792,
+            "output": 52817
+          },
+          "settled_calls": 81
+        }
+      ],
+      "operations": 81,
+      "stages": {
+        "instruction": {
+          "accounted_usd": "1.634643",
+          "held_usd": "0.000000",
+          "operations": 81
+        }
+      }
+    },
+    "swe-next": {
+      "accounted_usd": "7.514418",
+      "held_usd": "0.000000",
+      "ledger_group": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "7.514418",
+          "cost_bases": {
+            "litellm_estimate": 85
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 85,
+          "receipts_with_tokens": 85,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 2122461,
+            "output": 76468
+          },
+          "settled_calls": 85
+        }
+      ],
+      "operations": 85,
+      "stages": {
+        "swe_next": {
+          "accounted_usd": "7.514418",
+          "held_usd": "0.000000",
+          "operations": 85
+        }
+      }
+    },
+    "swe-smith": {
+      "accounted_usd": "2.407499",
+      "held_usd": "0.000000",
+      "ledger_group": "repository-expansion",
+      "models": [
+        {
+          "accounted_usd": "2.407499",
+          "cost_bases": {
+            "litellm_estimate": 119
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 119,
+          "receipts_with_tokens": 119,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 366955,
+            "output": 87107
+          },
+          "settled_calls": 119
+        }
+      ],
+      "operations": 119,
+      "stages": {
+        "issue": {
+          "accounted_usd": "2.407499",
+          "held_usd": "0.000000",
+          "operations": 119
+        }
+      }
+    },
+    "terminalworld": {
+      "accounted_usd": "54.342498",
+      "held_usd": "0.000000",
+      "ledger_group": "terminalworld-expansion",
+      "models": [
+        {
+          "accounted_usd": "54.342498",
+          "cost_bases": {
+            "litellm_estimate": 2381
+          },
+          "held_usd": "0.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 2381,
+          "receipts_with_tokens": 2381,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 12131699,
+            "output": 1196456
+          },
+          "settled_calls": 2381
+        }
+      ],
+      "operations": 2381,
+      "stages": {
+        "build": {
+          "accounted_usd": "20.596068",
+          "held_usd": "0.000000",
+          "operations": 498
+        },
+        "design": {
+          "accounted_usd": "29.916594",
+          "held_usd": "0.000000",
+          "operations": 1679
+        },
+        "review": {
+          "accounted_usd": "3.810846",
+          "held_usd": "0.000000",
+          "operations": 203
+        },
+        "tests": {
+          "accounted_usd": "0.018990",
+          "held_usd": "0.000000",
+          "operations": 1
+        }
+      }
+    },
+    "tmax": {
+      "accounted_usd": "58.832978",
+      "held_usd": "5.000000",
+      "ledger_group": "tmax-expansion",
+      "models": [
+        {
+          "accounted_usd": "58.531897",
+          "cost_bases": {
+            "litellm_estimate": 733
+          },
+          "held_usd": "5.000000",
+          "model": "anthropic/claude-sonnet-4-6",
+          "operations": 737,
+          "receipts_with_tokens": 733,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 6698349,
+            "output": 2562447
+          },
+          "settled_calls": 733
+        },
+        {
+          "accounted_usd": "0.301081",
+          "cost_bases": {
+            "litellm_estimate": 27
+          },
+          "held_usd": "0.000000",
+          "model": "openai/gpt-5.4-mini",
+          "operations": 27,
+          "receipts_with_tokens": 27,
+          "reported_tokens": {
+            "cache_read": 0,
+            "cache_write": 0,
+            "input": 146473,
+            "output": 49404
+          },
+          "settled_calls": 27
+        }
+      ],
+      "operations": 764,
+      "stages": {
+        "build": {
+          "accounted_usd": "38.219349",
+          "held_usd": "5.000000",
+          "operations": 241
+        },
+        "design": {
+          "accounted_usd": "13.990801",
+          "held_usd": "0.000000",
+          "operations": 309
+        },
+        "review": {
+          "accounted_usd": "6.622828",
+          "held_usd": "0.000000",
+          "operations": 214
+        }
+      }
+    }
+  },
+  "repository_expansion_controls": {
+    "checked_at": "2026-09-14T15:21:46.633105+00:00",
+    "scope": "Local identities, Harbor parsing and hash-matched execution receipts. No task execution or model calls. Not independent quality acceptance. Retained execution evidence is outside this campaign audit.",
+    "source": "owned/workspace/owned-wave1-100/reports/completion-600.json",
+    "summary": {
+      "r2e": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 80,
+        "new_matched_baseline_reference": 80,
+        "retained_exports": 20,
+        "total_exports": 100
+      },
+      "r2e-gym": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 80,
+        "new_matched_baseline_reference": 80,
+        "retained_exports": 20,
+        "total_exports": 100
+      },
+      "scaler": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 80,
+        "new_matched_baseline_reference": 0,
+        "retained_exports": 20,
+        "total_exports": 100
+      },
+      "swe-gen": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 80,
+        "new_matched_baseline_reference": 80,
+        "retained_exports": 20,
+        "total_exports": 100
+      },
+      "swe-next": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 80,
+        "new_matched_baseline_reference": 80,
+        "retained_exports": 20,
+        "total_exports": 100
+      },
+      "swe-smith": {
+        "integrity_or_parse_errors": 0,
+        "new_exports": 76,
+        "new_matched_baseline_reference": 68,
+        "retained_exports": 24,
+        "total_exports": 100
+      }
+    }
+  },
+  "schema_version": 1,
+  "scope": "Read-only reconciliation of saved local evidence. No new generation, cloud jobs, model calls or invoice reconciliation. Amounts are historical configured-rate estimates. No raw responses, credentials or worker identifiers are included.",
+  "sources": {
+    "codemidas/workspace/codemidas-100/budget.sqlite3": {
+      "sha256": "08151ededa2aabb83dafd9d0a2b26977de2fbe0c8e8439a476789deaf0f173b3"
+    },
+    "codemidas/workspace/codemidas-100/report-summary.json": {
+      "sha256": "e10fdd84558713c390077759057154e49856f839c22d533eee9664945c19b80f"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-pilot-01.json": {
+      "sha256": "fed6b136a5e17ee4d5f013d019dbab872be24b1c52be5c26e96a4d4a57c474da"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-pilot-02.cost.json": {
+      "sha256": "f6c29f3879e72a3de4ac0b61db247fd85cafd1f1db541f31a76bb32824c39a8e"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-pilot-02.json": {
+      "sha256": "bf2875940fdbd92b5a73e7f6111030a258e0962b64572e63ce7190f83e702f11"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-scale-01.json": {
+      "sha256": "b230c23e76c5c1d8063255c0c1abf1df0a60cbbc53b51facd12c7837299c8fc4"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-scale-02.json": {
+      "sha256": "88ba08e37291267c1773f281978417c0a16ffba5c659f5aba31b93cf7472b8a7"
+    },
+    "codemidas/workspace/codemidas-100/workers/codemidas-scale-03.json": {
+      "sha256": "ceb1f7f2295057f682fb64041d71a3505f30409bdbae469c993b1862712e52cf"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/budget.sqlite3": {
+      "sha256": "b112f785b504393634cf7ccce6e14171f97c68584a9ae0c7c76a7aca1655504d"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-audit-repair.json": {
+      "sha256": "9801b0dc3064496f1d5bc6536a570bc9af98f2780ae553f6f7ffc57551498b8b"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-01.json": {
+      "sha256": "2d9df2f0a6e58af2505f593c97c08ad295d0378f7276885ff7cb51e67ecde2a4"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-02.json": {
+      "sha256": "593d386b46cc6682380b676afa73b12020db45f31c63e2931164bf3436d2cde0"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-03.json": {
+      "sha256": "3eda989681e27642e6e96805d094cc2a0d4ca6805aac14380e074d69a5dbbab4"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-04.json": {
+      "sha256": "6ab52f9c8546db84f4fdbe7cbdd3aa412390bcca8344e2b83e73dd374480d4cd"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-05.json": {
+      "sha256": "3d7abcd3e146393e2c2cafa3e647d431a832e4e7b58bd17448fc4d04f01cf0dd"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-06.json": {
+      "sha256": "17b5d9fe50c8324ff6c88715223b6dc2ef28c538b868c0eea1d4917b7c4258f7"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-07.json": {
+      "sha256": "9d307dc1bde096281a6f1620a9a12732c47d39cb9c9768bffbbf6402815ccc17"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-expand-08.json": {
+      "sha256": "4e07f486c7cbb42f189b983482e074d91861d2ff335fc31c500a8f5cbcf8acd9"
+    },
+    "frontiersmith/workspace/frontiersmith-scale/workers/frontiersmith-family-rollouts.json": {
+      "sha256": "d6ac31c8324e3644ef17d633040b433844ec64f1fb24382fdcd8b7cb7d822c81"
+    },
+    "frontiersmith/workspace/frontiersmith/budget.sqlite3": {
+      "sha256": "26d7c7e8fb5479eccb9b0f9086ea26bdebd45807312baa47e6e1eb34586d5fb3"
+    },
+    "frontiersmith/workspace/frontiersmith/workers/frontiersmith-pilot-01.json": {
+      "sha256": "f7dfa41d8b1ccd6d57936352b0a193b14ff79627385ffc89c58dd2a8d3182f11"
+    },
+    "frontiersmith/workspace/frontiersmith/workers/frontiersmith-scale-01.json": {
+      "sha256": "bd75de875387ba3b7e2c20ed706ff88e5106a288caea8979b54a1cf0704aae9a"
+    },
+    "frontiersmith/workspace/frontiersmith/workers/frontiersmith-scale-02.json": {
+      "sha256": "6b2a20b6403c2dd1b5464b5598460871292ee7895dee364c6472c52caf9565c4"
+    },
+    "owned/workspace/owned-campaign/workers/owned-daytona-01.json": {
+      "sha256": "d46722eb1c34d8410a0d9ae1556d6f872dce01eed88814e8c5c9ab35fedceef7"
+    },
+    "owned/workspace/owned-campaign/workers/owned-daytona-02.json": {
+      "sha256": "cad863721be6a56b3aa61c303554053431f2da90cb9cbb995fea4c86f1a4aa02"
+    },
+    "owned/workspace/owned-campaign/workers/owned-daytona-03.json": {
+      "sha256": "bdd4717fe7c9f14beba7d3dc4a2103ed4ee3ed3a02ae2d2a83c5ea52de56aa9f"
+    },
+    "owned/workspace/owned-campaign/workers/owned-daytona-04.json": {
+      "sha256": "1d8490c934a7ebb535caabe03e19ba6fb3ad507a34cbdd6a0f3fd69227985f34"
+    },
+    "owned/workspace/owned-campaign/workers/owned-daytona-05.json": {
+      "sha256": "2c6abef3281f316a3d957913268e8c9503dee41edbe9b142910f6c4c0de8fb3d"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-01.json": {
+      "sha256": "4304c54b566f9f1d3c667a6eba1e5a4f666d7a09e3a66d7e757c67930ef0873a"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-02.json": {
+      "sha256": "03dd05f02195d8db862aaf196bc64703b34ce51d0a6641fde8a87b44df06c134"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-03.json": {
+      "sha256": "859badb065a0a6889aa7af269b6aa297a8b66978be00761d0178290050a557fb"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-04.json": {
+      "sha256": "2fcb040446e35108df7662115d5b7a3dce1987c173c5b8034b78a52d0a2326dc"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-05.json": {
+      "sha256": "b5b50f5570d01a34c580f06fe596ba47aeec88282f7923e02033d2c635dc103c"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-06.json": {
+      "sha256": "b6d564a8567be23987de4153cc6cd16da11551c0ab5a2a75ad1cb8ec05355ad1"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-07.json": {
+      "sha256": "4fa5db9807a912dace891bb40487de9e3eeb8e2306a552e59db633ee09e3a8ce"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-08.json": {
+      "sha256": "f22a56da5d839e29aed4b27f0ff47ca8338002a7ee5c4a8e82e731e7f46736f6"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-09.json": {
+      "sha256": "c4b1c1c2c2db5a7559c0569d42502037e9489acd0f5ff63a471e6abf34c042de"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-10.json": {
+      "sha256": "a6c24df879c4183d20ccff65b9240fc2abce6ebbc48f4c8e12f0a43a8867e654"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-11.json": {
+      "sha256": "60f113d0f5add9317fa4eae2054bba9791ca43c6c8ef4cc83125a1c0adcae0af"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-12.json": {
+      "sha256": "931accd9978b46f870d25e04af9230c64f14a53769f8809554d97d49e7ba4808"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-13.json": {
+      "sha256": "90aba1edbd1e51e758eda43a208652d62ec91e4e6a68e2e4a9d62141bc14577d"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-14.json": {
+      "sha256": "0594e6a94081464c43fd89e52f8671c5c8b90fde1e1898234d3ffcd23c1d7bfb"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-15.json": {
+      "sha256": "6b2439efb51fdef97fa43ba660147df243f74eb3bdcbeab23b2414e37c8d32b5"
+    },
+    "owned/workspace/owned-campaign/workers/owned-modal-16.json": {
+      "sha256": "6b847966760079b8a80dedb6534f9298f42c039067448c39d149ad365feab824"
+    },
+    "owned/workspace/owned-wave1-100/budget.sqlite3": {
+      "sha256": "55057dea1500569717c3a5af576e56c8371fa8865c19874f26485d7ea62ceec8"
+    },
+    "owned/workspace/owned-wave1-100/reports/completion-600.json": {
+      "sha256": "14e0b2c24f50852b93224e18c85f40022850fcd406c0bb64c5850b1b2719f405"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-01-cost.json": {
+      "sha256": "6c375b4fc60e0e34f89222990b4eb2f7ac514bb72c4b90ae36d0baa9968ca43d"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-01.json": {
+      "sha256": "b706731ddba056a54f4f137cffdbf3c9cf6a2ff772f006a50bdae4ee97029b84"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-02.json": {
+      "sha256": "f9041c84c0cd879f5f0c7ff4e0bcec1f5e3f44a5603f7a3e727eb006f6b6bebe"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-03.json": {
+      "sha256": "04ab030044d1c1f0673244586183bb765a6503de11e1093409f3cdbca42a9a03"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-04.json": {
+      "sha256": "35f41c681954db716dba3d1cd20b45f34895c94de64f3d5d69dd8dc90510bfb1"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-05.json": {
+      "sha256": "149fa2d342e9a64d92a8bcd1df766aaabab2134dc1315a957333795c7855bb3a"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-06.json": {
+      "sha256": "cff114dc72e0006578485e55178524eb1c98a27982ffe90f86e8af0abbe8767b"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-07.json": {
+      "sha256": "49997f6b965283d219b52167330abbd0b0a59b80577bec055f647b4cdeb70ec6"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-08.json": {
+      "sha256": "415465b4b772a54fdb7e0c13ee34f504f0cab4493b0267fbb95fb0832e9c6e9c"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-09.json": {
+      "sha256": "809f18fae04fe22a484e22ead832764cccf99ba5a7b5173a2dc07cdb91db4955"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-10.json": {
+      "sha256": "ec767e713669cb24797580087bebfa5538eb46a665bdfca8c3eec5131b5cbdd7"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-11.json": {
+      "sha256": "2d2dd36d0ee68924a6aa625b1b37216e56a90852194e6c6ad8e909a7672cf539"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-12.json": {
+      "sha256": "8111230615bf4d1f76c091d439379a5d05ae84be0cc7bd665001876ad0b5c059"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-13.json": {
+      "sha256": "49de6b7a0abdf920fa4866fa314da18169be9cdce4b0db5d35fe94600a2b774f"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-14.json": {
+      "sha256": "8b73b8b4ba91f0bf4b00e5ca6067fd247dab60ca22acc0fae319c985e6510f0c"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-15.json": {
+      "sha256": "8f0d4ff1f4fea67d5317a27b24e7fc885e9a6fe780c2b057224d1c383450680b"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-daytona-16.json": {
+      "sha256": "458cfdf31c01483e4a8da47ff17ebdb2c69774d565e32f287df8327ec80a23c9"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-01.json": {
+      "sha256": "f47e02d04bd1788dcebb5eb5e026589cc52e1083772f4002c743aa7c99a4f9ad"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-02.json": {
+      "sha256": "badd17aaa4943811276d235211616c4ad3e876503131758e89577f294347a669"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-03.json": {
+      "sha256": "b5f4550c54933d98ae613b630648ece4968db5be5f8e2f101bae061850923c23"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-04.json": {
+      "sha256": "f05d4322c34b3671d89401b0e8b4bcb533cb19f80ed26811204815c3657f5520"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-05.json": {
+      "sha256": "adc7e798d0ab127bd3c8e48193f3b3b25d69fbb8cf1405642750a51352070e3b"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-06.json": {
+      "sha256": "38db4c245afdf6aff0485c0cf597d4d2ef4ebdfdc4adbbe601868ecb304409ed"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-07.json": {
+      "sha256": "abdcf9e1c96bf25562049d5cf46d6001680fcf5bd2bf0db7ba703d79d729a192"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-expand02-08.json": {
+      "sha256": "025b7442e915905be47b06a5ddb4ca23e18748b0786fef1970471e36c907076e"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-recover-packaging-02.json": {
+      "sha256": "bef5d7cc6ed7b31f5e03d6a874550d1df3246fa3b4c845d90e0503e3148656fd"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-recover-toolz-02.json": {
+      "sha256": "b7f043ec27593466e8318dc2b94a04ebfef855c7ab8a39d31f2323eecac32b56"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-repo-01.json": {
+      "sha256": "26c009aad0c88972fd410775fb8121a55c5e53f1286cb187238239c4c8bdabab"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-repo-02.json": {
+      "sha256": "d1f25bedfbdca6e115b65a88160a35512509dbed2cbe7b3a276584e4bfa6cc2c"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-repo-03.json": {
+      "sha256": "2ea605ec63550b559d97b3ec4521e2218bd039e69a345d9214e9866e40ca8274"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-repo-04.json": {
+      "sha256": "224124e6f06e0469a54907d2b41e0259d7ef6df32ed03a3e46d95a4e68ffb671"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-repo-05.json": {
+      "sha256": "b7734902cf8378a872b4e1c4da9a1cbda15310a1c32379fb1bd8adaa88f25723"
+    },
+    "owned/workspace/owned-wave1-100/workers/wave1-scaler-01.json": {
+      "sha256": "090c1f955033bd2566ace5acc0233bab9070acf6da3663fe8b5d7efb1c883296"
+    },
+    "owned/workspace/owned-wave2-expand01/budget.sqlite3": {
+      "sha256": "8677ffcb18c6a062e8f68176b799da49121877ae367a4ca4ebedd53766f1cd13"
+    },
+    "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-01.json": {
+      "sha256": "4d0cc40c7dd842363d204db2554f5be18d8faf40a2f1e97a3aabedb6e5768308"
+    },
+    "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-02.json": {
+      "sha256": "f41ff431d39cf2ed69245aaf16b9948e36448579151754dc7db374b8f4ebf8b8"
+    },
+    "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-03.json": {
+      "sha256": "6ff95c21e6ab99d82a8da04ba585e6e26dbf99a5f75f6ab51397de370e203fb9"
+    },
+    "owned/workspace/owned-wave2-expand01/workers/wave2-expand01-04.json": {
+      "sha256": "dee6e091b555b717c6b80ff00b98c081b72027137e9b3a1aba6e0a9d18d7f0a4"
+    },
+    "owned/workspace/owned-wave2-expand02/budget.sqlite3": {
+      "sha256": "f58e6f880591c659e86a259204ada01c12e2128d29c1e39c00ded24b751794df"
+    },
+    "owned/workspace/owned-wave2-expand02/workers/wave2-expand02-01.json": {
+      "sha256": "4a4acbb2fabbe73d4dafb023033d1daacca5013efc74c32433e535b6235b6a2f"
+    },
+    "owned/workspace/owned-wave2-expand02/workers/wave2-expand02-02.json": {
+      "sha256": "4b5596c5e82cd73172a07268149f13fcf8a50f2e7b2cb7868e1a909eef5fc621"
+    },
+    "owned/workspace/owned-wave2-finish100/budget.sqlite3": {
+      "sha256": "a751e6f38609fe80604127c225f76901cde6c198c14b79c5a44bed3d385c3801"
+    },
+    "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-01.json": {
+      "sha256": "78401fe4875c1fe061980077942989a4d6960e81f8f59a803e9808db1fb7281d"
+    },
+    "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-02.json": {
+      "sha256": "ca4dbb9d62e1c6b2172c29ead90838d11c2cf0bbf90a462fdd5cbf1964afa327"
+    },
+    "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-03.json": {
+      "sha256": "f892b13f95ed6e526a9fba564f1431317240f03bd1fcca8050b45479251ab2c2"
+    },
+    "owned/workspace/owned-wave2-finish100/workers/wave2-finish100-04.json": {
+      "sha256": "36792a68cf76c49153b46bfdb94529e184465e0b3e836b46d83babe9e7721968"
+    },
+    "owned/workspace/owned-wave2-pilot/budget.sqlite3": {
+      "sha256": "7426378e0915ee2227731d17437c97c599768baa43a7fba8959473c3f2feb4b6"
+    },
+    "owned/workspace/owned-wave2-pilot/workers/wave2-cli-gym-01.json": {
+      "sha256": "4302ba782a2f68023a5aedb71d6ebcc4db2e8deddb131325861b93745052e5db"
+    },
+    "owned/workspace/owned-wave2-pilot/workers/wave2-endless-terminals-01.json": {
+      "sha256": "eb8dd0abc3b40180f340a2c82f55b18e939ea2644b94aeb78f03b10e485c9d03"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/budget.sqlite3": {
+      "sha256": "e9a68a677ace7355297f06d5d49704cfd4c13636175906c2fdee085b22065707"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-pilot01.json": {
+      "sha256": "1a201668d168aa707a87af9f5a872a2d32913ea719edfe06115374251b6deb3c"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale001.json": {
+      "sha256": "5161e32e4f34a015c043c6f7a09ed2de775384e87386837ee81f1850de7e7595"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale002.json": {
+      "sha256": "229d51c8471b85e0eccac3cfe0f6cca838444c50d1e058e581d239e8478214e6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale003.json": {
+      "sha256": "29fce43a2c7aa41ad88c3ce6c10b2132808a97ffffd42b3792f33647a0c5ea9a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale004.json": {
+      "sha256": "d501e96b7e77522e0441b56da19f259245b3c0d6f5fee0e16c5f76a9568ca127"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale005.json": {
+      "sha256": "6db9f22ede8c0fc7ce20dc54467087786b079c1b4fe9e927f4d33836c4b65f21"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale006.json": {
+      "sha256": "55d84001ff6fdca036c98f84e06d64234e603685330a2af894cccf51ad1382b6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale007.json": {
+      "sha256": "82eb6cfe535ad11cf721f8a1154b8f295dfc4371c41032de37691ac1298edff7"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale008.json": {
+      "sha256": "be27ce2c72997574dc7ae07ae305f4f99dfb134e54e91d0f600ee05ac3c46520"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale009.json": {
+      "sha256": "ed64ff28be013a97f80d7bf76911c1852c24f61002034c3fb61aac27a5a153ec"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/dataarc/workers/dataarc-scale010.json": {
+      "sha256": "3f5acf86443587d710635c9d669f8a60a4cccd7848e76ab2c4421a7e97b34902"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/budget.sqlite3": {
+      "sha256": "92e059927acfbce20776f30f99ca12ef4d92fb48a2c6c22eb08ded1c4bc546fe"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-pilot01.json": {
+      "sha256": "1e5c88004ad0f40ec645f812f33dd406aa5faa03d85b95d8ba31ad9d9b2c2e5a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale001.json": {
+      "sha256": "c3bc3bb7ffb9695bd35fef7d6eba6536bb5cc005faf43b8a359c6092d7a061c7"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale002.json": {
+      "sha256": "b6bfc4c31e064124f814ef37ecd18057388ceb2711157be48c54cf1c49452a34"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale003.json": {
+      "sha256": "889026fb4ae90d3eebb4a05632d35ebacfcc31dd33ce7069fd28ddef70ecec41"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale004.json": {
+      "sha256": "d69498625283afacf3138726c030fbb417dd955f7e27794c0743888718278e18"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale005.json": {
+      "sha256": "b4042f76695396f3cae77e9e65064f870a2959a1dd30b7b19d2f83e087dca33c"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale006.json": {
+      "sha256": "5eedb929ffa64bc065a51a1efa4f0e322a4d9bb13d1e5d88e5bf0bb4bb72b67c"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale007.json": {
+      "sha256": "00f3ac47916e780ff9775a3d029c095f48db481a7ef0a1055dbe7ee1167bb43a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale008.json": {
+      "sha256": "edabb46260311bf3fc6ffb4b0fa2645de5a1106e45339ef52f744f51d9c95714"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale009.json": {
+      "sha256": "c851abc91dba44fdf9cd3563f46544a03ecf52af8dfc01078e6963eeb25c8b25"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale010.json": {
+      "sha256": "e0f9558a7349a4cc3f07605711673c7e51d1db4afbc373f9acab973e0e752402"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-evol/workers/seta-evol-scale011.json": {
+      "sha256": "a1e5768819bd0f38d0b214a55b72906f16d8347ae8b151db7397da1c7bcbfb7a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/budget.sqlite3": {
+      "sha256": "4743982d02e38337fb72e1afc3436c96e03c0811cadabe81b42b4ec696f7ce65"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-pilot01.json": {
+      "sha256": "a93368f5da13eab6e6fa1df0feb82da4aa98d2d78fdec4342ce0ee755268d4f6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale001.json": {
+      "sha256": "bdcd2843844b60cbed9bb81868c015233c06469ff6b07330a0b2f1d71f370f4c"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale002.json": {
+      "sha256": "23a4b6f8ab43281ba13f7d81fb4fd7357fc4a0429b99901605af172bab8d1161"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale003.json": {
+      "sha256": "796e8cff56ec420adb89632b8e07c31a4108f76c4511ca3a9e2e4c082d939688"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale004.json": {
+      "sha256": "b56e5f24b7fba1340f1de0a1a78a636cf8058038a6eb0caea8a609b6d7e879bf"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale005.json": {
+      "sha256": "a74bf561c27d30035edd982ce7c86c7aad8527b018e15e45f6716512c9efd002"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale006.json": {
+      "sha256": "c87c4b2d655105a2dd30717dfe7e177fe2afd935b87569ba53b4e46d348b95f1"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale007.json": {
+      "sha256": "5dcd3e9cad244ef083b3c431931f8390f8e49a1b62dc57374945febe22d65169"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale008.json": {
+      "sha256": "7d7975084c2e854a36f6ea61d34c17d18ef17cea08691fda4d356364cfc03357"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/seta-seed2synth/workers/seta-seed2synth-scale009.json": {
+      "sha256": "ddd693a427eabfe5e68a9c725b300721ba7b8ef3109c49ac0485d197fabb49df"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/budget.sqlite3": {
+      "sha256": "94f0526832ea8cd07a02541fba87ac3c20fa9a37853d972cddac33f9ce95e646"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-pilot01.json": {
+      "sha256": "44596144dd2f5ffe121a3448d943a5877b4d2495ce7b3c16ce0590385c9420cf"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale001.json": {
+      "sha256": "2d5af3dc0fd2d22cc591a2a8405f31b0eb2f836032339a70d0fd890f10baeda0"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale002.json": {
+      "sha256": "93bc5394dbe5f94c6f1b0165b2205801e2637ce5b124be70ef97b2bc976e4b8f"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale003.json": {
+      "sha256": "8a5d9c161fd49a86aadf61f06155e869a4d43dcdd8610e833ea3e41d9326ed88"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale004.json": {
+      "sha256": "cd7ffed90ec29ccfded8a8bd88952a6612ea708b1fbc6de35b3f49c8fc372fc3"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale005.json": {
+      "sha256": "081a4ff97c1e25f49f692701b8796e25776c5ea716a0348e6e185e9c4707d289"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale006.json": {
+      "sha256": "552fb04c65f653c31aae90858cb7168a3094b7eb621406becfbddb13befa7520"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale007.json": {
+      "sha256": "2f5e082b7e699770621a918f92b1a1466c9f7999a9504903b75b382469454891"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale008.json": {
+      "sha256": "4a9b320c1c19c6b25491aac1c33b3257a73b2fe86eebe19896c365c231cf9f6d"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale009.json": {
+      "sha256": "44e883ac7fbc2c28dc3f1e97388fc5c02673a315dba3cd25baaea8ecbb647ba6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale010.json": {
+      "sha256": "90c40f7650e60de83f65fe6d403e0e7566cefea68da0f8031c320ce2895fb025"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale011.json": {
+      "sha256": "afaab2fd17dfbe53e8ec12925af47d0401375802b5a465a33cc6c2ba90279e9a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale012.json": {
+      "sha256": "58e0bb1d4fafa37bd0366c87254ff9d74268d7bec895cabd264cec4ae6a25ccc"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale013.json": {
+      "sha256": "0be44cc9be7fce42d4c96f1ec479225e4ee7d792c27492f06a8e77c455eeb989"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale014.json": {
+      "sha256": "6b307e5fa3c904b480da19f120e9d339feea8016002a4ef4185a55167df83993"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale015.json": {
+      "sha256": "963b86ca1d1c64a83e2c27504ba475b96108ac4ecc99e2fce45061ed3bc4c927"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale016.json": {
+      "sha256": "46638d9ba3571e76dabc83d1a523ace28cbd77ee667d0601b1946eaa96472fb3"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/swe-flow/workers/swe-flow-scale017.json": {
+      "sha256": "c3d6cee47c806f39b4e60cc1b433c3db3cbe4a52e4a01695f921857ef07c6e4a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/budget.sqlite3": {
+      "sha256": "57baca00b449ed2f983fc1cdf444eebc18085ec64013478e9eab61f738508ab0"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-empty-context-recovery01.json": {
+      "sha256": "ae2323f3e401522c594c483dcfcdf2711269d5be2150933439ee9d516b133134"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-empty-context-recovery02.json": {
+      "sha256": "ad415e325063ffce00742aa2d9086e1d495b345e1aee203fd2112d13d89be42d"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-pilot01.json": {
+      "sha256": "a973b03d5c89a8560a500eeb10121c8ba4c2ce2aa0d15e50a612ad4de5c823d3"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale001.json": {
+      "sha256": "0b80f977c79ecee472b8b7f76bc545eb0e51770415f7c7bc46dd4d027180f275"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale002.json": {
+      "sha256": "601771bd975378eaa2c5f20ac527cfbc7236a04d0968eedd75601ceed9d4a0cd"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale003.json": {
+      "sha256": "dd77bc84b9786bc83d31db92634fc17ee9ad133b542f8bdffe4c7e8980b64767"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale004.json": {
+      "sha256": "9e18c7ea87c2ab8c63561e3436442605d5e649ba2c3542e6077a0bb37a81d887"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale005.json": {
+      "sha256": "43edafff69a40f7c84a160337fb47d47e9577223ff00e7c44d62b077a33365fd"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale006.json": {
+      "sha256": "d7bfcd8dc3e4b17b9edf4905f9513ea4a16db95b9582860726cf45beadc3a34d"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale007.json": {
+      "sha256": "acb8c20b5903d4052ad7024a53e28282c15e6a54c25eb763fc6d9b0a2db71296"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale008.json": {
+      "sha256": "61a758031ea7e1019e9f410fe455c594868a92c14627ddc86f837e37b52b7593"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale009.json": {
+      "sha256": "babb5770217f009ffd99335a2cf718df05becc76d70d093966560e1738488260"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale010.json": {
+      "sha256": "cfe6652a30ab537d1e35199bd6196f0b8a8a31dac3b8af7296d887a640931080"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale011.json": {
+      "sha256": "24de68b6168167288833596b0700d9fe6e5210c6a0b68ffaae8322b20bd29998"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale012.json": {
+      "sha256": "22b675df36568504d01dcb648be7bc21b9d4407ebed4929a50ae7ddcb76f990a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale013.json": {
+      "sha256": "fc08402b748361a82ce2af3a35a861ab5cc058f2c0b59546e42f2f8aa1b379c6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale014.json": {
+      "sha256": "0a9952e21969a5dbed8a26f5d6acc45320bf22e07b11149f70ff7f0962bff04f"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale015.json": {
+      "sha256": "5faa3c7b210db201d2b702f63d40b863993197b5b21b4252936703e975cff877"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale016.json": {
+      "sha256": "117f252103c6f03cfe9dace07c0b980b07e02afb40057927970a909a91ee1131"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale017.json": {
+      "sha256": "6cea665f885d445323c0bdfaa91fee9b5eafce8bc2421030e1244350b6f281d9"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale018.json": {
+      "sha256": "b1dea406f07c34ccd4f8dc176fb665eff6fc028d2d4e62b97afc06b758f2a8db"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale019.json": {
+      "sha256": "76894dadf44053f2966ae8afd92909d0a35e849647f4733f09f1dc44449a57b9"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale020.json": {
+      "sha256": "6a06964692e7cc7b568728b8340f617ded5f579c95598ce650c8633d49868020"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale021.json": {
+      "sha256": "dc1fb2036a43acfeb3434aee2eb02db1a0a71bdb5e9d43176c3b0f1d941e7e60"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale022.json": {
+      "sha256": "d9564ff063a548a964e6d0129f80c07e77894c5e32e4bbf5546e6035eef36b0a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale023.json": {
+      "sha256": "cacde40c3e3ac0cee4a604d06bad36848909a87f7c3f06960a85af8f62fa38ee"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale024.json": {
+      "sha256": "60017964cec36aa9792fa9daa7db4523bf5b59c33f6f4027958e7ef90f90ecf3"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale025.json": {
+      "sha256": "79a1a50cdb25282c2a3517ba73a8dba05e520f108f9cd6cd9f9bb51be964999a"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale026.json": {
+      "sha256": "0cdf985d116c77844c2f887b2953bfdc553961c6255df694c931fa1e55de0682"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale027.json": {
+      "sha256": "75a50042012105f997f377eb562e0a09fa53522e1c71529083ddad2ba3b07446"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale028.json": {
+      "sha256": "d309cb85164214929fa60bafef41921e317043fe10ef1a968f84be3e6ec83406"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale029.json": {
+      "sha256": "89575697f04a1892bd3d87edca3c8381df54694b7463ea20a0a3d82941978627"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale030.json": {
+      "sha256": "75c9abd13e24d9d26b10effea6336eb01a90180f6c8a150e58b1436fba063f24"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale031.json": {
+      "sha256": "b02c69a71b6e7a60f22e800225d2c8586dcc6a1c5a47116ffa039a19794aee42"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale032.json": {
+      "sha256": "7bd64444a73c53b959343568addd63777285ee860d2f406b8769c65f244542ea"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale033.json": {
+      "sha256": "891db9c4bfd680bb1e12190b3a26d0959f43fa39b991a2732384f94dec0d258f"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale034.json": {
+      "sha256": "b068f06dd1a9aa5808f2ab720dd4e16d5fcea0a8793eff84ce56b0cca8639697"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale035.json": {
+      "sha256": "1115f8aaef8380a5f62d3b1a666d8bb2467cee7e1d9ada2ee94951097f02f825"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale036.json": {
+      "sha256": "85ce8cd7f55ab59598ac8490d670570c488d1cc5c6164c9c0c3b37fee680d547"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale037.json": {
+      "sha256": "cfe18c5f1cbf7f8e746d3ecda48d55ee0531a04ce388c26d7a2661895d286b25"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale038.json": {
+      "sha256": "1c4d3b6cb120a05f8fcea945ad6e7a56eab1c89520aa4faf7bf30fc1c6d9a16e"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale039.json": {
+      "sha256": "4283a9fc024c0718d82d7728141cdaa289f9676bd3382ce2451f4e244c84c211"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/terminalworld/workers/terminalworld-scale040.json": {
+      "sha256": "e70c990cf5ffb0a86fdd1511f324be54eea59a4d23a1356728f7f2ffbd08ea0c"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/budget.sqlite3": {
+      "sha256": "0d5dfbb2fabf9520fc6954f9be005a0a0aa51893474aa0309cba6fe04d32f373"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-pilot01-cost.json": {
+      "sha256": "af861c7f1f843ef72e1446619fa7a7e7d3c26e5382a35eb50349981ebb7db92e"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-pilot01.json": {
+      "sha256": "f35e6a8df4ca9cdb1fa19678f7ef7ac5ae0d1b1d42cf7a68865d8f5768ebe313"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale001.json": {
+      "sha256": "f17d325652766251d8338712cc3c97d41e9f096434d421d2bcb7c0460007e8b0"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale002.json": {
+      "sha256": "cd63e02d5fd87939839f630d3a7e6061fb2b51bb6f242c53ef53a56203ca65a0"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale003.json": {
+      "sha256": "a47f2e09ff627ed8686a3ac9126ce87bf59304743f5aa078aef7339c86d624d1"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale004.json": {
+      "sha256": "09aeaa9ad6fdf4f154394cd7357c78a3614e19a63d2ba3961a49e6bd19b27d30"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale005.json": {
+      "sha256": "d7422fc26e1cf42076d168c9de26957d51e8b1555feb61c46ccb81353248e1cd"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale006.json": {
+      "sha256": "638768b44873400aeff8da75eb25b9beb9d64f690c77c3ed61fe391c3258a8d7"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale007.json": {
+      "sha256": "80660864491cf1ef65a28709680694478aa1d759d147d94fc6001961761ba177"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale008.json": {
+      "sha256": "d81f86fefb29aaebb59472aa0be74145fa1d2bfdd796c09866318a6a163e35d6"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale009.json": {
+      "sha256": "429e98edd574a04a7ed7c189dcebf87006944bf4da0d7d39ad6bb65250a811e0"
+    },
+    "owned/workspace/owned-waves34-100/campaigns/tmax/workers/tmax-scale010.json": {
+      "sha256": "7a5c945c5a9194cea6802e64c173958139c8b675b960abc7422fc5e64c03dd03"
+    },
+    "tasksmith/workspace/tasksmith-retrospective-20260914/ledger-attributed.json": {
+      "sha256": "658eb1bfe380cf835869ccaa797670389f392dc3ccd202cf355c4eb898a6421a"
+    },
+    "tasksmith/workspace/tasksmith-retrospective-20260914/report-data.json": {
+      "sha256": "51e1b784a26e3cc33e4a2f2ab2620d6f722e9b090b5988c946ba4a8eafba6e08"
+    }
+  }
+}

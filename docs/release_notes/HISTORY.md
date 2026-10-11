@@ -1,4 +1,6 @@
-# Version history
+---
+title: "Version history"
+---
 
 Current release highlights followed by historical notes. `CLAUDE.md` carries
 only the compressed summary; the detail lives here.
@@ -6,7 +8,46 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
-## v0.9.2 — CodeMidas and runtime correctness
+## v0.9.3: FrontierSmith optimization synthesis
+
+Released September 29, 2026.
+
+Adds the experimental `optimization_synth / frontiersmith` recipe: original seed
+problems become standalone Harbor optimization tasks with deterministic continuous
+rewards. OpenAI authors and reviews formulations, independent solution samples,
+and private test infrastructure; Daytona runs construction checks and optional
+blind rollouts. Bounded repair and durable API receipts retain uncertain-call
+reservations without blindly redispatching requests.
+
+The local collection contains **100 tasks across 20 problem families**, selected
+from 153 candidate attempts (65.4% yield). All passed construction checks; blind
+rollouts completed with fully feasible solutions on 21 of 24 tested tasks, with
+three command timeouts. All tasks remain `unverified`, stage `construction`;
+sampled references are not proven optima. Accounted generation, review and compute
+cost was $68.42, with $0.67 reserved for unresolved API responses. These are
+estimates, not reconciled invoices. The task collection remains local and is not
+included in the package or published to the Hub.
+
+The [pipeline guide](../pipelines/frontiersmith.md) includes diagrams, prompt
+contracts, costs and validation limits. [RFC 0032](../rfcs/0032-frontiersmith-recipe.md)
+records the differences from FrontierSmith: this is a credited, independent
+Python adaptation, not the withheld upstream orchestrator or a reproduction of
+its training results. No upstream research package is required.
+
+Also includes runtime fixes for Mocha spec-reporter parsing
+([#162](https://github.com/huggingface/Repo2RLEnv/pull/162)) and validation of test
+output written to stderr ([#164](https://github.com/huggingface/Repo2RLEnv/pull/164)),
+plus the setup-uv workflow update
+([#169](https://github.com/huggingface/Repo2RLEnv/pull/169)). Existing generated
+datasets are unchanged; regenerate affected runtime tasks and rerun their
+baseline/oracle checks to adopt the parser fixes.
+
+Upgrade with `pip install --upgrade repo2rlenv==0.9.3`, adding the extras your
+pipeline needs. Python 3.12–3.14 remain supported; use Linux, macOS or WSL for
+research generation. The shared fixed-success-reward quality loop does not yet
+provide full acceptance for continuous optimization tasks.
+
+## v0.9.2: CodeMidas and runtime correctness
 
 Released September 26, 2026.
 
@@ -56,7 +97,7 @@ changed verifier, parser or image behavior, regenerate affected tasks and rerun
 baseline/oracle checks before publishing a new dataset revision. Full native
 Windows research-pipeline execution remains unsupported; use Linux, macOS or WSL.
 
-## v0.9.1 — Windows CLI startup and release checks
+## v0.9.1: Windows CLI startup and release checks
 
 Released September 15, 2026.
 
@@ -81,7 +122,7 @@ runtime dependency updates merged after 0.9.0. Upgrade with
 extras your pipeline needs. The Windows CLI/locking fix does not require changes
 to existing generated datasets. Versioned examples use the 0.9.1 runtime wheel.
 
-## v0.9.0 — Tasksmith and owned generation recipes
+## v0.9.0: Tasksmith and owned generation recipes
 
 Released September 15, 2026.
 
@@ -90,7 +131,7 @@ six native pipelines. Tasksmith uses LangGraph with Pi or OpenCode to investigat
 a merged PR, bootstrap its repository, design a task and private verifier, and
 run bounded review and repair. CPU execution supports Daytona and Modal; the
 implemented GPU route uses Modal L4 GPUs. Tasksmith and the recipes remain
-experimental; their current scope is documented in the [pipeline guide](../pipelines/README.md).
+experimental; their current scope is documented in the [pipeline guide](../pipelines/index.mdx).
 
 The owned recipes cover repository mutation, PR and commit mining, function
 reconstruction, terminal synthesis, task evolution, environment repair and
@@ -145,57 +186,57 @@ instead of falling back to a different key. Default hosted endpoints are unchang
 
 ---
 
-## v0.1.0 — first release
+## v0.1.0: first release
 
 `pr_diff` (originally `pr_mining_lite`) + HF Hub publish + diff-similarity
 reward.
 
-## v0.2 — bootstrap
+## v0.2: bootstrap
 
 Merged into `main` (not separately released): bootstrap phase, Rich UI module,
 cost tracking, content-addressed cache keyed on bootstrap options.
 
-## v0.3.0 — sandbox verification
+## v0.3.0: sandbox verification
 
 `pr_runtime` (sandbox-verified PR mining) + auto-trigger bootstrap from
 `generate` + structural quality filters + targeted test invocation + CI/CD
 (ruff + matrix tests + release workflow).
 
-## v0.4.0 — polyglot + Harbor compliance
+## v0.4.0: polyglot + Harbor compliance
 
 Polyglot log parsers (Go / Cargo / Jest) + Harbor end-to-end compliance fixes:
 `task.name` format, `solve.sh` shim, `/logs/verifier/reward.txt`, PATH prelude
 for non-Python toolchains, defensive git install.
 
-## v0.5.0 — commit-level mining
+## v0.5.0: commit-level mining
 
 `pr_stream` (continuous PR mining with watermark state) + `commit_runtime`
 (commit-level mining, SWE-GEN style). Both Harbor-verified.
 
-`pr_stream` was **removed in v0.8.3** as scope-creep — `pr_runtime` handles the
+`pr_stream` was **removed in v0.8.3** as scope-creep: `pr_runtime` handles the
 same niche on its own.
 
-## v0.6.0 — first LLM-synthesized pipelines
+## v0.6.0: first LLM-synthesized pipelines
 
 `mutation_bugs` (procedural AST bug injection, inspired by SWE-smith) +
 `code_instruct` (repo-anchored OSS-Instruct with executable verifiers, inspired
 by Magicoder). Both Harbor-verified on `pallets/click` (mean reward 1.000).
 
-## v0.7.0 — function-level synthesis + CVEs
+## v0.7.0: function-level synthesis + CVEs
 
-`equivalence_tests` (R2E-style function-level synthesis — extract a real
+`equivalence_tests` (R2E-style function-level synthesis: extract a real
 function, LLM writes an equivalence test against a `reference_<name>` oracle,
 gold patch fills the candidate) + `cve_patches` (OSV-driven CVE → fix-commit
 pipeline, reuses the `pr_runtime` validation harness). Both Harbor-verified.
 
-## v0.8.0 — refactor mining
+## v0.8.0: refactor mining
 
-`refactor_synthesis` (Python-native rename-refactor mining — drops the
+`refactor_synthesis` (Python-native rename-refactor mining, dropping the
 v1.0-planned JVM RefactoringMiner dependency; commit-message regex + diff
 verification + multi-criteria structural+behavioral verifier). Harbor-verified
 on `pallets/click` (mean reward 1.000).
 
-## v0.8.3 — pipeline audit
+## v0.8.3: pipeline audit
 
 **Removed `mutation_bugs` + `refactor_synthesis`.** Both were binary-reward,
 Python-only, and the lowest-signal pipelines in the set: synthetic AST bugs are
@@ -205,7 +246,7 @@ same pass.
 Shared helpers (`make_unified_diff`, `build_binary_eval_script`) moved from
 `mutation_bugs.py` into `pipelines/_eval_script.py`.
 
-## v0.8.4 — input sources + GitLab
+## v0.8.4: input sources + GitLab
 
 Input-source abstraction (GitHub / GitLab / local, capability-gated) + GitLab MR
 mining for `pr_diff` / `pr_runtime` (#62) + **`commit_runtime` promoted to
@@ -218,13 +259,13 @@ dataset: `…commit-runtime-test` (100 envs).
 
 ## Anti-contamination pass (PR #69)
 
-Sandbox-verified tasks were gameable — an agent could fetch the published fix
+Sandbox-verified tasks were gameable: an agent could fetch the published fix
 (and the hidden tests) for the repo it was asked to fix. Now baked into the
 emitter for **every** task via `pipelines/_env_guard.py`:
 
-- **git-history scrub** — strip the repo to `base_commit`: remove `origin`,
+- **git-history scrub:** strip the repo to `base_commit`: remove `origin`,
   prune future refs/commits, gc.
-- **egress guard** — `environment/docker-compose.yaml` blackholes PyPI + GitHub
+- **egress guard:** `environment/docker-compose.yaml` blackholes PyPI + GitHub
   hosts so `pip download` / `git fetch` / web-fetch fail. Model API and agent
   install stay up.
 
@@ -233,7 +274,7 @@ Also in this pass:
 - `cve_patches` ships a **graded F2P/P2P verifier** (was binary whole-suite,
   which scored the gold patch 0.0 on unrelated suite failures).
 - A **leak-stripped instruction** for `cve_patches`.
-- **Agentic PoC-test synthesis** (`_poc_agent.py`) — an LLM with shell access in
+- **Agentic PoC-test synthesis** (`_poc_agent.py`): an LLM with shell access in
   the vulnerable sandbox writes a regression test for no-test CVEs.
 - `bootstrap` re-bootstraps when a cache hit points at an evicted image.
 
@@ -241,15 +282,15 @@ Reference dataset `…-cve-patches` (19 verified envs).
 
 **The principle: the environment enforces, the prompt never asks.**
 
-## v0.8.6 — `code_instruct` self-improvement
+## v0.8.6: `code_instruct` self-improvement
 
 The v0.6 prompt explicitly *forbade* using repo APIs, producing generic
 Codeforces-lite tasks (baseline audit: mean repo-anchoring 1.4/5; zero of 20
 tasks imported the target package).
 
 Reoriented around genuine repo anchoring with four post-synthesis gates in
-`_oss_instruct.py` — `check_repo_anchoring`, `check_symbol_collision`,
-`check_test_strength`, `task_fingerprints` — plus `max_attempts_per_seed`
+`_oss_instruct.py` (`check_repo_anchoring`, `check_symbol_collision`,
+`check_test_strength`, `task_fingerprints`), plus `max_attempts_per_seed`
 retries (default 1 → 3). Post-fix audit: RA = 4.95, TR = 4.95, zero scores ≤ 2.
 
 Multi-agent validation (claude-code + Sonnet 4.6, codex + GPT-5.3-Codex,
@@ -260,11 +301,11 @@ collection with `ModuleNotFoundError`. Fix: append a `task_module.py`
 delivery-contract paragraph to the emitted `instruction.md`. Solve rate
 40% → 80% at fixed dataset size.
 
-Reference dataset `…-code-instruct` (100 envs across 5 Python repos) — the first
+Reference dataset `…-code-instruct` (100 envs across 5 Python repos), the first
 published dataset for this pipeline. `code_instruct` stays **experimental**
 pending graded reward + polyglot support.
 
-## v0.8.7 — `equivalence_tests` self-improvement
+## v0.8.7: `equivalence_tests` self-improvement
 
 The v0.7 pipeline had a full-source-in-instruction leak **and** a 97% Stage-B
 failure rate on click. Root cause: extracted functions referenced repo-internal
@@ -275,24 +316,24 @@ Landed: leak-free instruction (`signature_only_source`), annotation-strip at
 bake time (`strip_annotations`), scope-aware purity + self-containment filter in
 the extractor (`_references_only_safe_names`), `is_module_importable` pre-flight,
 recursion-safe rename (`rename_function_ast`), feedback-driven retry
-(`max_attempts_per_function` default 1 → 3 — documented but not previously
+(`max_attempts_per_function` default 1 → 3, documented but not previously
 wired), test-strength gate (`check_equivalence_test_strength`), task dedup
 (`_equivalence_fingerprint`), a sharper prompt, `.debug_skips` dumps, and
 `all_tests_passed` moved to the shared `_eval_script.py`.
 
 **Reference dataset deferred.** The 5-repo click/flask/requests/attrs/starlette
-survey yielded only ~8 pure candidates combined — framework-heavy repos are
+survey yielded only ~8 pure candidates combined. Framework-heavy repos are
 structurally weak fits for equivalence testing. v0.8.7 is pipeline-hardening
 only; the dataset ships once we survey utility-heavy libs (packaging,
 itsdangerous, markupsafe, dateutil, …). `equivalence_tests` stays
 **experimental**.
 
-## v0.8.8 — docs site
+## v0.8.8: docs site
 
 Version bump + docs site published, Google Search Console verification, README
 pointed at the live site, `scripts/` untracked.
 
-## In progress — `pr_to_env` (RFC 0007)
+## In progress: `pr_to_env` (RFC 0007)
 
 Designed, not yet on `main`. The **import-shape** sibling of `pr_runtime`:
 consumes an explicit list of curated PR URLs rather than mining a repo's
@@ -305,9 +346,9 @@ gate list lives in RFC 0007.
 
 ## Planned
 
-- `env_setup` (RFC 0008) — Repo2Run / SetupBench-style: the agent makes a bare
+- `env_setup` (RFC 0008): Repo2Run / SetupBench-style. The agent makes a bare
   repo's tests run green.
-- `test_synthesis` (RFC 0009) — SWE-Flow-style TDD.
+- `test_synthesis` (RFC 0009): SWE-Flow-style TDD.
 - `issue_runtime` (RFC 0010).
 - Graded rewards for the binary synthesis pipelines.
 - LLM-judged QA gate.

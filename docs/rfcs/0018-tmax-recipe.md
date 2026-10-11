@@ -1,4 +1,7 @@
-# RFC 0018: `tmax` recipe for `terminal_synth`
+---
+title: "RFC 0018: tmax recipe for terminal_synth"
+navTitle: "0018 \u00b7 tmax recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!/website/lib/
 lib64/
 parts/
 sdist/
@@ -242,7 +243,8 @@ site/
 # Local helper scripts (not for distribution)
 scripts/
 
-# Generated prompt reference; MkDocs builds it from canonical source files.
-/docs/pipelines/prompts/
+# Generated prompt reference; the docs build regenerates it from canonical source files.
+/docs/pipelines/prompts/*
+!/docs/pipelines/prompts/meta.json
 # Raw campaign evidence belongs in workspace/, not in public documentation.
 /docs/pipelines/evidence/

@@ -1,4 +1,7 @@
-# RFC 0027: Harbor task review and repair
+---
+title: "RFC 0027: Harbor task review and repair"
+navTitle: "0027 \u00b7 Harbor task review and repair"
+---
 
 **Status:** implemented
 **Created:** 2026-09-12

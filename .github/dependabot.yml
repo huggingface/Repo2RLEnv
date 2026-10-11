@@ -31,3 +31,21 @@ updates:
     groups:
       coding-runtimes:
         patterns: ["*"]
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      docs-site-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      docs-site:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Remotion must match the version the vendored films were built with
+      # (hf-motion embed/build.mjs); bump it together with a rebuilt films.mjs.
+      - dependency-name: "remotion"
+      - dependency-name: "@remotion/*"

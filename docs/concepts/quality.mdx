@@ -1,0 +1,178 @@
+---
+title: "Quality and verification"
+description: "How a generated task becomes a verified one: controls, the review and repair loop, and evaluation labels."
+---
+
+An exported task is a generation result: it passed the checks its generator runs, and nothing more. Quality is established afterward, by controls (the [oracle](glossary.mdx#oracle) scores 1 and the [nop](glossary.mdx#nop) scores 0) and by the review and repair loop. The outcome is recorded as an [evaluation label](glossary.mdx#evaluation-label) bound to the task's exact content. This page explains each layer and what it can and can't tell you.
+
+## Generated vs verified
+
+| Level | Established by | What it tells you |
+|---|---|---|
+| Exported | `repo2rlenv generate`, `repo2rlenv tasksmith run` | The generator's own checks passed. For example, the fix flips the F2P tests (`pr_runtime`), or the reference passes where the defective source fails (repository recipes) |
+| Statically valid | `repo2rlenv validate --deep --oracle` | Files and metadata are complete and well-formed |
+| Controls pass | Harbor `nop` and `oracle` runs | The task isn't already solved, and the reference solves it in this environment |
+| Verified | `repo2rlenv quality run`, recorded as an evaluation label | Instruction, verifier and leakage were reviewed. The verifier rejects a wrong solution and accepts a valid alternative, and a blind solver's attempt was reviewed as legitimate. All of this is bound to the current [bundle hash](glossary.mdx#bundle-hash) |
+
+> [!NOTE]
+> Solve rate is not the quality criterion. A verified task can defeat the solver, and a task the solver passes can still be broken. `verified` is a claim about the task and its verifier.
+
+## Controls
+
+### Static validation
+
+`repo2rlenv validate` reads task files and metadata. It never builds or runs anything.
+
+```bash
+repo2rlenv validate ./tasks            # each task.toml parses and names its task
+repo2rlenv validate ./tasks --deep     # plus instruction, environment, tests/test.sh, verifier files, reproducibility
+repo2rlenv validate ./tasks --oracle   # --deep, plus solution/solve.sh and solution/patch.diff
+```
+
+Use it on native output. For recipe and Tasksmith bundles, rely on the Harbor controls below.
+
+### Nop and oracle runs
+
+The nop agent does nothing, and the oracle agent runs `solution/solve.sh`. Run both before you trust a dataset:
+
+```bash
+harbor run -p ./tasks -a nop --env docker      # every task should score 0
+harbor run -p ./tasks -a oracle --env docker   # every task should score 1
+```
+
+| Symptom | Likely cause |
+|---|---|
+| Nop scores above 0 | The verifier doesn't check the change. The starting state already passes, or the grader succeeds on an error |
+| Oracle scores below 1 | The reference doesn't pass in this environment. Common causes are a flaky or network-dependent test, a broken image or a stale F2P list |
+| Oracle slightly below 1 on `pr_diff` only | The LLM judge is enabled, and its rating is part of the score. See [Rewards](rewards.mdx#diff-similarity) |
+
+SCALER tasks score −1 and +1 instead of 0 and 1. Controls are necessary but not sufficient: a verifier that checks too little passes both of them, which is why the loop below also probes with a wrong solution.
+
+## Review and repair
+
+`repo2rlenv quality run` takes an existing Harbor task and establishes whether it is sound. It is a shared component, not a generator, and it never edits its input: each repair produces a new task directory.
+
+<Steps>
+<Step>
+
+### Bind the evidence
+
+The loop snapshots and hashes the task. Any evidence you supply with `--baseline`, `--oracle` or `--rollout` must belong to this exact content, or it is rejected.
+
+</Step>
+<Step>
+
+### Review statically
+
+A reviewer model scores three criteria from 0 to 4: the task (is the instruction clear and fair?), the verifier (does it test what the instruction promises?) and leakage (can the answer be found?). Every claim must quote the files it cites. The reviewer can request bounded file reads and escalate once to a stronger model.
+
+</Step>
+<Step>
+
+### Run the controls
+
+Fresh nop and oracle trials run on the worker, unless trials bound to this task are already available.
+
+</Step>
+<Step>
+
+### Probe the verifier
+
+The reviewer writes two [probes](glossary.mdx#probe): a plausibly wrong solution and a valid alternative. Each is installed privately after the reference solution. The wrong solution must fail and the alternative must pass. The instruction, environment and verifier stay byte-identical.
+
+</Step>
+<Step>
+
+### Roll out blind
+
+A solver model (Sonnet 4.6 by default) attempts the task from the public instruction alone. The reviewer classifies its trace as a legitimate success or failure, a reward hack, a task defect or an infrastructure problem.
+
+</Step>
+<Step>
+
+### Repair
+
+A defect grounded in evidence leads to targeted text edits, written as a new immutable revision. That revision gets fresh controls, probes and a rollout. The default limit is three repairs.
+
+</Step>
+</Steps>
+
+The flags choose how far the loop goes:
+
+| Flags | What runs | Where |
+|---|---|---|
+| None | Review only. Model calls, no trials, no edits | Controller |
+| `--run-rollout` | Adds any missing controls, the probes and a blind solver | Remote worker |
+| `--repair` | Adds up to `--max-repairs` repairs, each validated from scratch | Remote worker |
+
+```bash
+repo2rlenv campaign init ./workspace/my-campaign --budget-usd 25
+repo2rlenv quality run ./tasks/swe-smith-4f1c2a \
+  --campaign ./workspace/my-campaign \
+  --out ./workspace/reviews/swe-smith-4f1c2a \
+  --repair --provider modal \
+  --runtime-wheel ./dist/repo2rlenv-0.9.3-py3-none-any.whl \
+  --max-repairs 3 --max-spend-usd 15
+repo2rlenv quality show ./workspace/reviews/swe-smith-4f1c2a
+```
+
+Every run ends in one disposition, stored as `status` in `result.json`:
+
+| Status | Meaning |
+|---|---|
+| `usable` | All three review criteria pass. The nop fails, the oracle passes, the wrong solution fails, the valid alternative passes, and the blind rollout was reviewed as legitimate |
+| `reviewed` | The review is sound, but some execution evidence is missing or unresolved |
+| `needs_repair` | Concrete task, reference, packaging or verifier defects remain |
+| `needs_evidence` | Parsing, evidence binding, provider execution or infrastructure needs diagnosis |
+| `budget_exhausted` | The run or campaign allowance stopped the next paid step |
+
+The command exits 0 for `usable` and `reviewed`, 1 for the other dispositions, and 2 for setup errors. Automation that needs validated tasks must check `status == "usable"`, not the exit code. Code derives the disposition from evidence, so a model declaring success cannot override a failed control or probe. See [Review and repair a Harbor task](../pipelines/quality_loop.md) for models, budgets, resumption and the output layout, and the [CLI reference](../reference/cli.mdx#quality-run) for every flag.
+
+## Evaluation labels
+
+Every emitter writes an `[metadata.repo2env.evaluation]` table into `task.toml` at export time, with status `unverified`, stage `generation` and reason code `validation_not_run`. The label changes only when evidence changes it.
+
+| Status | Meaning |
+|---|---|
+| `unverified` | Generated, partly checked, or missing decisive evidence |
+| `verified` | A retained quality result and its execution evidence meet the stated profile (`practical-generation-v1`) |
+| `needs_repair` | Review or execution found a task, reference, verifier or probe defect |
+| `blocked` | An operational limit prevented finishing the attempt |
+
+A quality result maps onto a label like this:
+
+| Quality `status` | Label `status` | `stage` | Reason code |
+|---|---|---|---|
+| `usable` | `verified` | `complete` | `quality_verified` |
+| `reviewed` | `unverified` | `review` | `validation_incomplete` |
+| `needs_evidence` | `unverified` | `review` | `evidence_missing` |
+| `needs_repair` | `needs_repair` | `repair` | `quality_defect` |
+| `budget_exhausted` | `blocked` | `review` | `budget_exhausted` |
+
+`verified` can only come from a saved quality result. The importer rechecks that result against the task's bundle hash, the nop and oracle contrast, both probe kinds, the reviewed rollout and the digest of every trial file. If any of that evidence is missing or altered, the task cannot be labeled `verified`. The attempt is kept with an `evidence_unavailable` reason instead.
+
+`quality run` writes a labeled copy of its final revision under `OUT/labeled/<result-digest>/<task-name>`. Use `repo2rlenv tasks` to label, inspect and filter tasks yourself:
+
+```bash
+# Import a saved quality result as a label on a new copy
+repo2rlenv tasks label ./workspace/reviews/swe-smith-4f1c2a/revisions/r1/swe-smith-4f1c2a \
+  --out ./catalog/swe-smith-4f1c2a \
+  --quality-result ./workspace/reviews/swe-smith-4f1c2a/result.json
+
+# Record an operational diagnosis without evidence
+repo2rlenv tasks label ./attempt/swe-smith-9b07d3 --out ./catalog/swe-smith-9b07d3 \
+  --status blocked --stage bootstrap --reason-code runtime_incompatible \
+  --detail "Verifier used the wrong interpreter; rebuild and rerun controls."
+
+repo2rlenv tasks show ./catalog/swe-smith-4f1c2a
+repo2rlenv tasks list ./catalog --status needs_repair
+```
+
+`tasks label` always writes a new directory and never overwrites one. The label is excluded from the bundle hash, so labeling doesn't change a task's identity. It does change Harbor's own directory checksum, because that covers `task.toml`. `--status verified` is deliberately unavailable. See [Evaluation labels](../pipelines/task_evaluation_labels.md) for the stored fields and the identity rules.
+
+## Limits
+
+- The loop's remote execution (controls, probes, rollout and repair) currently accepts only single-container, no-network Dockerfile tasks. That is the shape of recipe and Tasksmith bundles. Native tasks allow network access, and the runtime ones ship a compose overlay, so they can get a review-only pass but not a `usable` result yet. Run their controls with Harbor directly.
+- Probes are two targeted counterexamples, not an exhaustive adversarial suite. A verifier can still miss a requirement that neither probe exercises.
+- The campaign budget is an accounting limit, not a bill cap enforced by the provider.
+- A label describes the evidence it references. Reading a label does not prove that the evidence is still present, so keep quality results and trial files with any labeled corpus you distribute.

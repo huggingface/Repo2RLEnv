@@ -315,3 +315,22 @@ class TaskEvolutionOptions(TerminalSynthesisOptions):
         min_length=1,
     )
     variants_per_parent: int = Field(default=1, ge=1, le=20)
+
+
+class FrontierSmithOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: int = Field(default=10, ge=1, le=1000)
+    max_candidates: int = Field(default=20, ge=1, le=2000)
+    solutions: int = Field(default=3, ge=2, le=10)
+    max_repairs: int = Field(default=2, ge=0, le=4)
+    seed: int = 42
+    min_divergence: float = Field(default=0.3, ge=0, le=1)
+    min_score_spread: float = Field(default=0.001, gt=0, le=1)
+    max_tokens: int = Field(default=8192, ge=2048, le=8192)
+    rollout_tasks: int = Field(default=1, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def enough_candidates(self):
+        if self.max_candidates < self.target:
+            raise ValueError("max_candidates must be at least target")
+        return self

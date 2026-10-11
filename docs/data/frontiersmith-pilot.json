@@ -1,0 +1,196 @@
+{
+  "measured_on": "2026-09-29",
+  "recipe": "frontiersmith",
+  "pipeline": "optimization_synth",
+  "provider": "daytona",
+  "model": "gpt-6-sol",
+  "scope": "Assisted development pilot, including rejected attempts, changed construction gates and certification reruns; not unattended production yield. Usage-based API costs and resource-duration compute estimates, not invoices. Interactive assistant usage excluded.",
+  "candidate_attempts": 15,
+  "distinct_seeds": 14,
+  "initial_exports": 11,
+  "selected_tasks": 10,
+  "full_quality_verified": 0,
+  "model_usd": "5.271053",
+  "estimated_compute_usd": "0.335500",
+  "total_usd": "5.606553",
+  "reserved_usd": "0.000000",
+  "per_selected_task_usd": "0.5606553",
+  "pricing_source": "https://www.daytona.io/pricing",
+  "tasks": [
+    {
+      "task": "frontiersmith-bipartite-matching",
+      "bundle_hash": "sha256:b108cb05e3fd12136cfab08588a449ba8d1370282d7ab4e83595fec7d0f85d0c",
+      "baseline_reward": 0.8943583931614444,
+      "reference_reward": 0.9155688045662076,
+      "sample_rewards": [
+        0.9119678362560281,
+        0.9155688045662076,
+        0.9152906641938348
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-cache-replacement",
+      "bundle_hash": "sha256:671db179e73f500382d0f7be96c2455723083d8eb1a7ff50f1fdb93a86fce8ab",
+      "baseline_reward": 0.32769539666084824,
+      "reference_reward": 0.5765826528942969,
+      "sample_rewards": [
+        0.041666666666666664,
+        0.56004049732422,
+        0.5765826528942969
+      ],
+      "feasible_samples": 2,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-edit-distance",
+      "bundle_hash": "sha256:702caeacb861894c28110367e9f3f5dbc0e4c44e832434acad0fb0231af097c3",
+      "baseline_reward": 0.10479852984065538,
+      "reference_reward": 0.8228177815797185,
+      "sample_rewards": [
+        0.8228177815797185,
+        0.7777250068596604,
+        0.8171847504125821
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-load-balancing",
+      "bundle_hash": "sha256:c16ae4f23f2ef425d8a4e75c873365d2fb8287a46182aece6701ffe49c751a41",
+      "baseline_reward": 0.5829557413303806,
+      "reference_reward": 0.7971088093837767,
+      "sample_rewards": [
+        0.7966341035775523,
+        0.7971088093837767,
+        0.7944264554813105
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-matrix-chain",
+      "bundle_hash": "sha256:f4dcf011dae5fb5b78f895298ba49b1736a1d66e1c4aa348d8393e0778ef2dfd",
+      "baseline_reward": 0.5,
+      "reference_reward": 0.9201658444557049,
+      "sample_rewards": [
+        0.9201658444557049,
+        0.9181700763212881,
+        0.9148391354034161
+      ],
+      "feasible_samples": 3,
+      "cases": 14,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-rectangle-packing",
+      "bundle_hash": "sha256:36322cf6e367b8f9c32b2c6387877f239ed615833decac420f51fc4a5a202726",
+      "baseline_reward": 0.8526288934244508,
+      "reference_reward": 0.9124108882395614,
+      "sample_rewards": [
+        0.8986237722446547,
+        0.9040292755798557,
+        0.9124108882395614
+      ],
+      "feasible_samples": 3,
+      "cases": 15,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-set-coverage",
+      "bundle_hash": "sha256:69f385863900800a6e27ef4fa7c37091918a1559de9cad6ec789a9ddf34c20c0",
+      "baseline_reward": 0.5123369773943293,
+      "reference_reward": 0.6279810461326308,
+      "sample_rewards": [
+        0.6271137621573502,
+        0.6242592034595369,
+        0.6279810461326308
+      ],
+      "feasible_samples": 3,
+      "cases": 13,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "completed",
+      "rollout_reward": 0.6279810461326308
+    },
+    {
+      "task": "frontiersmith-spanning-tree",
+      "bundle_hash": "sha256:63585ecfbd9d28be591443e3c63717a3ba9d15cb11bd336fb65e2941fef62e98",
+      "baseline_reward": 0.1847808088667342,
+      "reference_reward": 0.5415383030905573,
+      "sample_rewards": [
+        0.5378672668237873,
+        0.5342329019840716,
+        0.5415383030905573
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-string-compression",
+      "bundle_hash": "sha256:5db3466019d39bd1e275f4077f33df743302a5780b6569d85d994068b33c8cf5",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.3689193019941663,
+      "sample_rewards": [
+        0.3689193019941663,
+        0.34897441084195807,
+        0.34298881632113387
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    },
+    {
+      "task": "frontiersmith-topological-order",
+      "bundle_hash": "sha256:f7d4140e5791fc79e3e5844d8688e23043d7e76899b83d75bbf620fa339a0885",
+      "baseline_reward": 0.0,
+      "reference_reward": 0.6382300718456796,
+      "sample_rewards": [
+        0.6142114427909249,
+        0.6382300718456796,
+        0.6171799507354055
+      ],
+      "feasible_samples": 3,
+      "cases": 12,
+      "quality_status": "unverified",
+      "stage": "construction",
+      "rollout_status": "not_run_on_recertified_bundle",
+      "rollout_reward": null
+    }
+  ],
+  "excluded_candidate": {
+    "task": "frontiersmith-graph-coloring",
+    "label": "needs_repair",
+    "reason": "Only one fully feasible sampled strategy; generator range boundary also identified."
+  }
+}

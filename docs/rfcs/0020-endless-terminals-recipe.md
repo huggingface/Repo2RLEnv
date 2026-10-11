@@ -1,4 +1,7 @@
-# RFC 0020: `endless_terminals` recipe for `terminal_synth`
+---
+title: "RFC 0020: endless_terminals recipe for terminal_synth"
+navTitle: "0020 \u00b7 endless_terminals recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

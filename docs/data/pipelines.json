@@ -2,7 +2,7 @@
   "schema_version": 1,
   "measured_on": "2026-09-14",
   "scope": "Observed generation samples, excluding retained task costs and interactive assistant usage. Compute is estimated, not invoiced. Independent quality evaluation is separate. Missing values are unavailable, never zero.",
-  "collection": "HuggingEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
+  "collection": "FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d",
   "shared_compute": {
     "recipes": [
       "swe-smith",
@@ -23,7 +23,7 @@
     {
       "recipe": "swe-smith",
       "guide": "repo_mutate.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-swe-smith",
+      "repo_id": "FineEnvs/repo2rlenv-swe-smith",
       "artifact_commit": "70449d9e6e0cfb10fd40c5ed0ad13649a4f23393",
       "published_tasks": 100,
       "quality_counts": {
@@ -41,7 +41,7 @@
     {
       "recipe": "r2e",
       "guide": "r2e.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-r2e",
+      "repo_id": "FineEnvs/repo2rlenv-r2e",
       "artifact_commit": "3371888a7fbc24f777e012b266ddfc64860f1970",
       "published_tasks": 100,
       "quality_counts": {
@@ -59,7 +59,7 @@
     {
       "recipe": "swe-gen",
       "guide": "pr_to_env.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-swe-gen",
+      "repo_id": "FineEnvs/repo2rlenv-swe-gen",
       "artifact_commit": "46f70216c01db67966cb5f8dc58f83357f5cf1c7",
       "published_tasks": 100,
       "quality_counts": {
@@ -77,7 +77,7 @@
     {
       "recipe": "swe-next",
       "guide": "swe_next.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-swe-next",
+      "repo_id": "FineEnvs/repo2rlenv-swe-next",
       "artifact_commit": "917f48135e7368c42b962860c2475975d0b87b12",
       "published_tasks": 100,
       "quality_counts": {
@@ -95,7 +95,7 @@
     {
       "recipe": "r2e-gym",
       "guide": "r2e_gym.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-r2e-gym",
+      "repo_id": "FineEnvs/repo2rlenv-r2e-gym",
       "artifact_commit": "2f7877053cb5dc13205b19bb972356c8cb0d5587",
       "published_tasks": 100,
       "quality_counts": {
@@ -113,7 +113,7 @@
     {
       "recipe": "scaler",
       "guide": "scaler.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-scaler",
+      "repo_id": "FineEnvs/repo2rlenv-scaler",
       "artifact_commit": "f5596a59fda8e0a129600a0283a4695c4089d3aa",
       "published_tasks": 100,
       "quality_counts": {
@@ -129,7 +129,7 @@
     {
       "recipe": "endless-terminals",
       "guide": "endless_terminals.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-endless-terminals",
+      "repo_id": "FineEnvs/repo2rlenv-endless-terminals",
       "artifact_commit": "80adde1459f297bac72cf95467d28a2c064231ee",
       "published_tasks": 100,
       "quality_counts": {
@@ -152,7 +152,7 @@
     {
       "recipe": "cli-gym",
       "guide": "env_repair.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-cli-gym",
+      "repo_id": "FineEnvs/repo2rlenv-cli-gym",
       "artifact_commit": "cd2c470fe2a8f285f1689d70bef4ed70e9972a1d",
       "published_tasks": 25,
       "quality_counts": {
@@ -172,7 +172,7 @@
     {
       "recipe": "swe-flow",
       "guide": "repo_reconstruct.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-swe-flow",
+      "repo_id": "FineEnvs/repo2rlenv-swe-flow",
       "artifact_commit": "b128e025e07bc2e2cd5b74f32accb02b04552b8a",
       "published_tasks": 100,
       "quality_counts": {
@@ -193,7 +193,7 @@
     {
       "recipe": "seta-seed2synth",
       "guide": "terminal_synth.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-seta-seed2synth",
+      "repo_id": "FineEnvs/repo2rlenv-seta-seed2synth",
       "artifact_commit": "b754de9fb40fd0f9e0ea6222fa850273b20f61ff",
       "published_tasks": 100,
       "quality_counts": {
@@ -216,7 +216,7 @@
     {
       "recipe": "seta-evol",
       "guide": "task_evolve.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-seta-evol",
+      "repo_id": "FineEnvs/repo2rlenv-seta-evol",
       "artifact_commit": "eb7b37ad9703bd79357fb078991fb606029d07ed",
       "published_tasks": 100,
       "quality_counts": {
@@ -239,7 +239,7 @@
     {
       "recipe": "tmax",
       "guide": "tmax.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-tmax",
+      "repo_id": "FineEnvs/repo2rlenv-tmax",
       "artifact_commit": "bfb4c83ebf4e9f932169f1b55c507ce11a97e0cc",
       "published_tasks": 55,
       "quality_counts": {
@@ -263,7 +263,7 @@
     {
       "recipe": "terminalworld",
       "guide": "terminalworld.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-terminalworld",
+      "repo_id": "FineEnvs/repo2rlenv-terminalworld",
       "artifact_commit": "9e6460a5e2a3bfe5a59b87512c3df95117160667",
       "published_tasks": 100,
       "quality_counts": {
@@ -287,7 +287,7 @@
     {
       "recipe": "dataarc",
       "guide": "dataarc.md",
-      "repo_id": "HuggingEnvs/repo2rlenv-dataarc",
+      "repo_id": "FineEnvs/repo2rlenv-dataarc",
       "artifact_commit": "eec33b1d7cafd420a2ad05eacabc2023e85bdd6c",
       "published_tasks": 100,
       "quality_counts": {
@@ -310,7 +310,7 @@
     {
       "recipe": "tasksmith",
       "guide": "tasksmith.md",
-      "repo_id": "HuggingEnvs/HF_ML_Tasksmith",
+      "repo_id": "FineEnvs/HF_ML_Tasksmith",
       "artifact_commit": "2961be38506e8990656a67a21b9d8d5dd6606ec5",
       "published_tasks": 50,
       "quality_counts": {
@@ -341,7 +341,7 @@
       {
         "pipeline": "pr_diff",
         "guide": "pr_diff.md",
-        "repo_id": "AdithyaSK/repo2rlenv-pr-diff",
+        "repo_id": "FineEnvs/repo2rlenv-pr-diff",
         "tasks": 181,
         "repo_distribution": {
           "BurntSushi/ripgrep": 8,
@@ -375,7 +375,7 @@
         "sources": [
           "pr-diff-manifest"
         ],
-        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json",
+        "manifest_url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json",
         "validation_summary": "181 listed; no per-task validation in this snapshot. Earlier 100-task release reported oracle passes.",
         "solver_summary": "Earlier 23-trial Sonnet pilot: median reward 0.71; not a binary solve rate.",
         "attempted_candidates": null,
@@ -385,7 +385,7 @@
       {
         "pipeline": "pr_runtime",
         "guide": "pr_runtime.md",
-        "repo_id": "AdithyaSK/repo2rlenv-pr-runtime",
+        "repo_id": "FineEnvs/repo2rlenv-pr-runtime",
         "tasks": 100,
         "repo_distribution": {
           "pallets/click": 28,
@@ -406,7 +406,7 @@
         "sources": [
           "pr-runtime-manifest"
         ],
-        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json",
+        "manifest_url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json",
         "validation_summary": "100 oracle/tracked passes; 88 clean commands; 87 with a regression guard.",
         "solver_summary": "Release report: approximately 55\u201360% solved in a ~20-task Sonnet pilot; raw final sample not recovered.",
         "attempted_candidates": null,
@@ -416,7 +416,7 @@
       {
         "pipeline": "commit_runtime",
         "guide": "commit_runtime.md",
-        "repo_id": "AdithyaSK/repo2rlenv-commit-runtime",
+        "repo_id": "FineEnvs/repo2rlenv-commit-runtime",
         "tasks": 100,
         "repo_distribution": {
           "encode/httpx": 1,
@@ -447,7 +447,7 @@
           "commit-runtime-v2-manifest",
           "commit-runtime-100"
         ],
-        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json",
+        "manifest_url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json",
         "validation_summary": "100 generation-time verified stamps. Full 100-task oracle gate not recovered; older 52-task gate is separate.",
         "solver_summary": "No reliable final-cohort solve rate recovered; retained development runs mix revisions and setup failures.",
         "attempted_candidates": null,
@@ -457,7 +457,7 @@
       {
         "pipeline": "code_instruct",
         "guide": "code_instruct.md",
-        "repo_id": "AdithyaSK/repo2rlenv-code-instruct",
+        "repo_id": "FineEnvs/repo2rlenv-code-instruct",
         "tasks": 100,
         "repo_distribution": {
           "encode/starlette": 20,
@@ -481,7 +481,7 @@
       {
         "pipeline": "equivalence_tests",
         "guide": "equivalence_tests.md",
-        "repo_id": "AdithyaSK/repo2rlenv-equivalence-tests",
+        "repo_id": "FineEnvs/repo2rlenv-equivalence-tests",
         "tasks": 100,
         "repo_distribution": {
           "Suor/funcy": 7,
@@ -506,7 +506,7 @@
       {
         "pipeline": "cve_patches",
         "guide": "cve_patches.md",
-        "repo_id": "AdithyaSK/repo2rlenv-cve-patches",
+        "repo_id": "FineEnvs/repo2rlenv-cve-patches",
         "tasks": 19,
         "repo_distribution": {
           "Pylons/waitress": 8,
@@ -520,7 +520,7 @@
         "sources": [
           "cve-patches-manifest"
         ],
-        "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json",
+        "manifest_url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json",
         "validation_summary": "19 listed; validation fields absent. A 19-task oracle or independent quality gate was not recovered.",
         "solver_summary": "No cohort-matched solver result recovered.",
         "attempted_candidates": null,
@@ -538,7 +538,7 @@
       "tasks": 52,
       "included_in_inventory_total": false,
       "source": "commit-runtime-manifest",
-      "manifest_url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json",
+      "manifest_url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json",
       "validation": {
         "resolved": 52,
         "command_resolved": 47,
@@ -931,27 +931,27 @@
       "pr-diff-manifest": {
         "filename": "manifest.json",
         "sha256": "f9cac67fb978e7073c2569a82e2018f731a14965dcb5a2c5c884397f0ca8083e",
-        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json"
+        "url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-diff/resolve/46562965fb50991185a1df142fbf8a48e33f6feb/manifest.json"
       },
       "pr-runtime-manifest": {
         "filename": "manifest.json",
         "sha256": "31a8d0289c70758b8c2a36f8f34883acad3a07f8a6002ef9e595a01f5ad0ef6e",
-        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json"
+        "url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-runtime/resolve/2e7b836c8e1450d12535f7cd598a4705d51fceac/manifest.json"
       },
       "commit-runtime-manifest": {
         "filename": "manifest.json",
         "sha256": "f4e077ccbdf1881b9f6615ea0d645b0919b49ade71786436b26b736a1c39555c",
-        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json"
+        "url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime/resolve/2ac27044da5c4ac72e2accdd2ad554263229bebd/manifest.json"
       },
       "commit-runtime-v2-manifest": {
         "filename": "manifest.json",
         "sha256": "e882108799e9cec07fbb49b7c07edaa259fdf34dca751a969cf34b3517dcaecb",
-        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json"
+        "url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-commit-runtime-v2/resolve/84cfe388c88594380902d6e86e31a066f461437c/manifest.json"
       },
       "cve-patches-manifest": {
         "filename": "manifest.json",
         "sha256": "cd21029f3cc3ab3549a04b4176cd707b5448a450efd164982f9bdbdea2bc9342",
-        "url": "https://huggingface.co/datasets/AdithyaSK/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json"
+        "url": "https://huggingface.co/datasets/FineEnvs/repo2rlenv-cve-patches/resolve/bf9df9dcaf5bc9e77136140c3a60aa2348131c59/manifest.json"
       },
       "commit-runtime-100": {
         "directory": "workspace/datasets/commit-runtime-100",

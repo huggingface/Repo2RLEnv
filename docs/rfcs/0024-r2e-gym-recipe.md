@@ -1,4 +1,7 @@
-# RFC 0024: `r2e_gym` recipe for `commit_runtime`
+---
+title: "RFC 0024: r2e_gym recipe for commit_runtime"
+navTitle: "0024 \u00b7 r2e_gym recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

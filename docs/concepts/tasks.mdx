@@ -1,0 +1,215 @@
+---
+title: "Anatomy of a task"
+description: "What each file in a Harbor task does, who can see it, and what Repo2RLEnv records in task.toml."
+---
+
+Every generator emits [Harbor tasks](glossary.mdx#harbor-task): directories that Harbor builds, hands to an agent and grades. Harbor defines the layout and the reward contract. Repo2RLEnv fills them in and records provenance under `[metadata.repo2env]` in `task.toml`. Read this page when you inspect a generated task, debug a verifier, or build tooling on top of a dataset.
+
+## Files and who sees them
+
+| Path | Purpose | Visible to the agent |
+|---|---|---|
+| `instruction.md` | The request the agent receives | Yes |
+| `environment/` | The Dockerfile and build context for the agent's container. This is the starting state | Yes, as the container the agent works in |
+| `task.toml` | Harbor configuration (name, timeouts, resources, network) plus Repo2RLEnv metadata | No. Harbor reads it on the host |
+| `solution/` | The reference solution. `solve.sh` is what Harbor's [oracle](glossary.mdx#oracle) agent runs | No. Uploaded only for oracle runs |
+| `tests/` | The [verifier](glossary.mdx#verifier): `test.sh` plus the data and scripts it needs | No. Uploaded after the agent finishes |
+
+A trial runs in this order:
+
+1. Harbor builds `environment/` and starts the agent's container.
+2. The agent reads the instruction and works in `/workspace`. For an oracle run, Harbor uploads `solution/` and runs `solve.sh` instead.
+3. Harbor uploads `tests/` to `/tests` and runs `tests/test.sh`. Bundles with a separate verifier build a fresh container from `tests/` for this step instead.
+4. The verifier writes the score to `/logs/verifier/reward.txt`, and Harbor records it as the trial's reward.
+
+"Private" means hidden from the agent during a trial. Anyone who downloads a published dataset can read its tests and solutions.
+
+## Native output (Harbor 1.0)
+
+[Native pipelines](glossary.mdx#native-pipeline) write the Harbor 1.0 layout. This is a `pr_runtime` task:
+
+```files
+org__service-412
+├── task.toml
+├── instruction.md
+├── environment
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── solution
+│   ├── patch.diff
+│   └── solve.sh
+└── tests
+    ├── test.sh
+    ├── verifier.py
+    ├── f2p.json
+    └── p2p.json
+```
+
+`solution/patch.diff` is the reference change (for `pr_runtime`, the merged PR without its test changes), and `solve.sh` applies it with `git apply`. The verifier files differ by pipeline:
+
+| Pipeline | `environment/` | `tests/` besides `test.sh` |
+|---|---|---|
+| `pr_diff` | `Dockerfile`: `python:3.12-slim` with the repository at the base commit | `verifier.py`, `oracle.patch`, and `instruction.md` (the judge's copy) |
+| `pr_runtime`, `commit_runtime`, `cve_patches` | `Dockerfile` built from the [bootstrap](glossary.mdx#bootstrap) image and reset to the base commit, plus the `docker-compose.yaml` egress guard | `verifier.py`, `f2p.json`, `p2p.json`. `test.sh` carries the hidden test patch and applies it before running the tests |
+| `code_instruct`, `equivalence_tests` | `Dockerfile` built from the bootstrap image. `equivalence_tests` also bakes in a stub `task_module.py` | The generated test file |
+
+With `--pipeline-opt emit_harbor_env=false`, `pr_diff` writes a text-only task: `task.toml`, `instruction.md` and `solution/`, with no environment or verifier. You score it yourself, as described in [Rewards](rewards.mdx#using-rewards-in-training).
+
+A trimmed `task.toml` for the task above:
+
+```toml
+version = "1.0"
+
+[task]
+name = "default/org__service-412"
+description = "Retry loop ignores the configured timeout"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = ["service", "pr_runtime"]
+
+[metadata.repo2env]
+pipeline = "pr_runtime"
+pipeline_version = "0.3.0"
+repo = "org/service"
+ref = "3f2a9c1e…"                    # base commit
+reference = "https://github.com/org/service/pull/412"
+synthesis_llm = "anthropic/claude-sonnet-4-6"
+reward_kinds = ["test_execution", "diff_similarity"]
+spec_version = "0.2.0"
+content_hash = "sha256:…"
+
+[metadata.repo2env.pr_runtime]
+base_commit = "3f2a9c1e…"
+fail_to_pass = ["tests/test_retry.py::test_timeout_is_respected"]
+pass_to_pass = ["tests/test_retry.py::test_default_backoff"]
+reward_mode = "graded"
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"                  # `repo2rlenv push` rewrites this
+image_ref = "local/r2e-bootstrap/org__service:3f2a9c1e…"
+image_visibility = "private"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = ["validation_not_run"]
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0
+```
+
+## Recipe and Tasksmith bundles (schema 1.3)
+
+[Research recipes](glossary.mdx#research-recipe) and [Tasksmith](glossary.mdx#tasksmith) write general bundles in Harbor's schema 1.3, with networking off for both the agent and the verifier. Repository recipes, Tasksmith and SCALER grade in a separate container: Harbor collects the files listed in `artifacts` from the agent's container and grades them in a fresh container built from `tests/` (with `tests/Dockerfile`). Terminal recipes and CLI-Gym grade the final state of the agent's own container instead. This is a repository recipe task:
+
+```files
+swe-smith-4f1c2a
+├── task.toml
+├── instruction.md
+├── environment
+│   ├── Dockerfile
+│   └── source/
+├── solution
+│   ├── solve.sh
+│   └── reference.py
+└── tests
+    ├── Dockerfile
+    ├── test.sh
+    ├── grade.py
+    ├── test_driver.py
+    ├── test_results.py
+    ├── contract.json
+    └── source/
+```
+
+`environment/source/` is the learner's snapshot of the repository, with private tests removed and no `.git` directory. `tests/source/` is the verifier's full copy, including the private tests. `contract.json` names the files the agent may submit, the test selectors and the exact test IDs that must pass. `solve.sh` copies the reference source into place. Multi-file references live under `solution/reference/`. Terminal recipes ship generated pytest checks in `tests/` instead. SCALER ships a reference answer.
+
+A trimmed `task.toml`:
+
+```toml
+schema_version = "1.3"
+artifacts = [{ source = "/workspace/service/retry.py" }]
+
+[task]
+name = "repo2rlenv/swe-smith-4f1c2a"
+
+[metadata.repo2env]
+recipe = "swe_smith"
+recipe_version = "2"
+pipeline = "repo_mutate"
+repository = "https://github.com/org/service"
+source_revision = "3f2a9c1e…"
+reward_kinds = ["test_execution"]
+quality_status = "exported"
+fail_to_pass_count = 3
+pass_to_pass_count = 41
+bundle_hash = "sha256:…"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = ["validation_not_run"]
+subject_bundle_hash = "sha256:…"
+
+[environment]
+cpus = 1
+memory_mb = 2048
+build_timeout_sec = 600
+network_mode = "no-network"
+
+[agent]
+timeout_sec = 600
+user = "learner"
+network_mode = "no-network"
+
+[verifier]
+timeout_sec = 120                    # test timeout + 30 s
+user = "root"
+network_mode = "no-network"
+environment_mode = "separate"
+
+[verifier.environment]
+network_mode = "no-network"
+cpus = 1
+memory_mb = 2048
+```
+
+## The `[metadata.repo2env]` extension
+
+Harbor leaves `[metadata]` free-form, and Repo2RLEnv namespaces everything it adds under `repo2env`. Harbor ignores these fields. They exist for you, for `push` and `release`, and for the quality loop.
+
+| Field or table | Native | Recipes and Tasksmith | What it tells you |
+|---|---|---|---|
+| Lineage | `pipeline`, `pipeline_version`, `repo`, `ref`, `reference`, `built_at`, `synthesis_llm`, and a per-pipeline table such as `[metadata.repo2env.pr_runtime]` | `recipe`, `recipe_version`, `pipeline`, source fields such as `repository` and `source_revision`, plus recipe-specific fields | Where the task came from and how it was made |
+| `reward_kinds` | `diff_similarity` for `pr_diff`; `test_execution` and `diff_similarity` for the runtime pipelines; `test_execution` for `code_instruct` and `equivalence_tests` | `test_execution`, or `answer_equivalence` for SCALER | Which [reward kinds](glossary.mdx#reward-kind) the task supports |
+| `reward_calibration` | `pr_diff`, `pr_runtime` and `commit_runtime`: changed lines and a difficulty bucket, plus F2P and P2P counts for the runtime pipelines and `baseline_reward` for `pr_diff` | Not used. Bundles record `fail_to_pass_count` and `pass_to_pass_count` instead | How to slice or normalize rewards |
+| `reproducibility` | `mode`, `image_ref`, `image_visibility`, and push details | Not used. Bundles build from their own Dockerfiles | Whether the environment can be rebuilt elsewhere; see [reproducibility mode](glossary.mdx#reproducibility-mode) |
+| `evaluation` | Written by every emitter | Written by every emitter | The advisory [evaluation label](glossary.mdx#evaluation-label); see [Quality and verification](quality.mdx#evaluation-labels) |
+| `bundle_hash` | Not written. Native tasks carry `content_hash` over the instruction and oracle | `sha256:` over the configuration and every file's content and mode | The executable identity that evidence and releases bind to; see [bundle hash](glossary.mdx#bundle-hash) |
+
+The full contract, including conformance rules and image distribution, is in the [specification](../reference/SPEC.md).
+
+## Contamination defenses
+
+A fix that has been published can often be found from inside the task: in the repository's git history, on the package index, or through links in the PR text. Each generator closes the paths it can:
+
+| Defense | What it does | Applies to |
+|---|---|---|
+| Oracle kept out of the image | The reference solution and verifier ship in `solution/` and `tests/`, which Harbor uploads only when it needs them. They are never baked into the agent's image | All tasks; see the `equivalence_tests` note below |
+| Git-history scrub | The Dockerfile removes the remote, deletes every other branch and tag, expires the reflog and garbage-collects. Only the base commit stays reachable, so `git log --all` or `git show origin/main:…` reveals nothing | `pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches` |
+| Egress guard | `environment/docker-compose.yaml` maps PyPI and the GitHub hosts (plus `gitlab.com` for GitLab sources) to `0.0.0.0` in the agent's container. `pip download` of the fixed release and `git fetch` fail, while the model API, the agent's installer and apt stay reachable | `pr_runtime`, `commit_runtime`, `cve_patches` |
+| Instruction leak stripping | Removes closing keywords, issue and PR references, GitHub PR, issue and commit URLs, commit SHAs, and squash suffixes. `pr_runtime` and `commit_runtime` also drop sections such as "Tests added", which would name the tests that grade the task. `cve_patches` drops fix-oriented sections, advisory IDs and URLs | `pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches` |
+| Offline execution | The agent and verifier both run with `no-network`. Repository snapshots have no `.git` directory and exclude private tests, which only the separate verifier container receives | Recipe and Tasksmith bundles |
+
+## Limits
+
+- The egress guard is a denylist. It blocks the hosts that serve a published fix, but general internet access stays up so hosted agents can install themselves and reach their model API. Hosts that are not on the list, such as mirrors, are not blocked. Recipe and Tasksmith bundles run fully offline instead.
+- Leak stripping is pattern-based. A PR description that explains the fix in prose still explains the fix. The [quality loop](quality.mdx#review-and-repair) reviews leakage explicitly.
+- `pr_diff`, `code_instruct` and `equivalence_tests` tasks do not get the egress guard. In `equivalence_tests`, the reference implementation is part of the starting state by design: the agent must write a function that behaves the same as it.

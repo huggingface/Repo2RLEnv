@@ -1,0 +1,1602 @@
+[
+  {
+    "id": "network-design-bridge-repair",
+    "title": "Repair Every Bridge",
+    "problem": "Input a connected simple undirected graph with 2\u20137 vertices and at most 10 existing edges, plus at most 10 distinct absent edges, each with a positive installation cost. Choose candidate edges so that the resulting graph has no bridges. Output the minimum total cost and the chosen candidate indices in ascending order; break cost ties by the lexicographically smallest index list. Output -1 if no choice works.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-periodic-road-delays",
+    "title": "Earliest arrival through periodic congestion",
+    "problem": "Input a directed network with at most 7 vertices and 12 roads, a start, a destination, and a period P at most 6. Each road gives a base travel time from 1 to 4 and one nonnegative delay for each departure time modulo P. A traveler starts at time 0 and may wait any whole number of time units at vertices. Output the earliest arrival time at the destination by time 36, or -1 if none is possible.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-weighted-late-jobs",
+    "title": "Weighted tardiness on one machine",
+    "problem": "Input: up to 6 jobs, each with an integer release time (0\u201310), processing time (1\u20134), due date (0\u201320), and positive weight (1\u20135). One machine runs one nonpreemptive job at a time and may idle. Output the minimum sum of weight \u00d7 max(0, completion time \u2212 due date) over schedules that complete every job.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-contiguous-cake-cuts",
+    "title": "Divide a Row of Pieces",
+    "problem": "Input: 3 to 9 ordered pieces and three agents\u2019 nonnegative integer values for each piece. Give each agent one nonempty contiguous segment, in agent order, using two cuts. Output the largest possible minimum value received by an agent and the two cut positions. Break ties by the lexicographically smallest cut pair.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-segment-arrangement-faces",
+    "title": "Bounded faces of a segment arrangement",
+    "problem": "Input up to eight line segments with integer endpoints. All endpoints are distinct; no endpoint lies on another segment, no segments overlap, and no three meet at one point. Output the number of bounded regions formed by their union in the plane.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-typed-run-encoding",
+    "title": "Shortest typed run encoding",
+    "problem": "Input a string of at most 20 characters over a\u2013c. Encode it as consecutive chunks. A literal chunk containing nonempty text x is written L{x}; a repeat chunk containing k copies of one character c, with k \u2265 2, is written R{k:c}. Minimize the total number of characters in the encoding and output that length.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-weighted-extent-order",
+    "title": "Order contiguous file extents",
+    "problem": "Input file lengths and a matrix W where W[i][j] counts transitions from file i to file j. Place each file in one contiguous extent, starting at block 0 with no gaps. Minimize the sum of W[i][j] times the absolute difference between the starting blocks of i and j. Output the minimum cost and, among optimal layouts, the lexicographically smallest file order. There are at most 7 files; enumerate their orders exactly.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-binary-join-tree",
+    "title": "Cheapest Binary Join Tree",
+    "problem": "Input gives 2\u20136 named relations and the exact output row count for every nonempty subset of them. A leaf costs zero; joining trees for disjoint subsets A and B costs their two plan costs plus rows(A) \u00d7 rows(B). Find the minimum-cost binary tree using every relation once. Output its cost and parenthesized tree, breaking ties lexicographically among trees with the smaller-named subset on the left.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-weighted-interval-spills",
+    "title": "Minimum spill cost for fixed live ranges",
+    "problem": "Input consists of at most 10 values, each with an inclusive integer live interval [start, end] and a positive spill cost, plus 1 to 3 registers. A value either occupies one register throughout its interval or is spilled and incurs its cost. Overlapping intervals cannot share a register. Output the minimum total spill cost.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-lightest-cnf-model",
+    "title": "Lightest satisfying assignment",
+    "problem": "Input a CNF formula on at most 14 Boolean variables and one satisfying assignment. Output a satisfying assignment with the fewest true variables, breaking ties by lexicographically smallest bit string in variable order. Clauses are lists of signed variable indices.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-weighted-scalar-bins",
+    "title": "Optimal contiguous scalar quantizer",
+    "problem": "Input is up to eight increasing integer values in [0,15], positive integer weights, and a bin count K from 1 to the number of values. Partition the values into exactly K nonempty contiguous bins and assign each bin an integer reconstruction value in [0,15]. Minimize the weighted sum of squared reconstruction errors. Output the minimum error, bin endpoints, and reconstruction values; break ties lexicographically by endpoints, then values.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-hamming-codebook",
+    "title": "Small binary codebook",
+    "problem": "Input integers n (1\u20134) and m (2\u20134). Choose m distinct binary words of length n to maximize their minimum pairwise Hamming distance. Output that distance and the lexicographically smallest sorted list of words attaining it.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-interval-reversal-distance",
+    "title": "Sort by interval reversals",
+    "problem": "Input is a permutation of 1..n, with n \u2264 8. One move reverses any contiguous interval of length at least two. Output the minimum number of moves needed to obtain 1,2,...,n.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-battery-tariff-dispatch",
+    "title": "Battery dispatch under buy and sell tariffs",
+    "problem": "Given T\u22648 slots, battery capacity C\u22648, initial charge, per-slot power limit P\u22643, and integer buy and sell prices, choose in each slot either a charge amount a or a discharge amount b, not both, with 0\u2264a,b\u2264P. Charge changes by a\u2212b and must stay in [0,C]. Output the minimum total cost \u03a3(buy_price[t]\u00b7a\u2212sell_price[t]\u00b7b). The final charge is unrestricted.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-telephone-broadcast",
+    "title": "Minimum broadcast rounds",
+    "problem": "Input: a connected undirected graph with at most 8 vertices and one initially informed vertex. In each round, calls form a matching of graph edges; an informed caller informs its uninformed partner at the end of that round. Output the minimum number of rounds until every vertex is informed.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-weighted-search-tree",
+    "title": "Optimal ordered search tree",
+    "problem": "Input: n sorted keys (n \u2264 7), a nonnegative successful-search weight for each key, and a nonnegative unsuccessful-search weight for each of the n+1 gaps. Choose any binary search tree on the keys. A successful search costs the number of key comparisons, starting at 1 for the root; a gap search costs the number of comparisons plus 1 for its final null child. Output the minimum weighted total cost.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-exact-gray-palette",
+    "title": "Choose a grayscale palette",
+    "problem": "Input a grid of at most 5\u00d75 integer intensities from 0 to 9 and an integer k from 1 to 3. Choose exactly k distinct palette values from 0 to 9. Each pixel is replaced by its nearest palette value, breaking distance ties toward the smaller value. Output the palette minimizing total squared replacement error; break ties by the lexicographically smallest sorted palette.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-coo-cancellation",
+    "title": "Canonicalize sparse coordinates",
+    "problem": "Input matrix dimensions up to 6 by 6 and up to 30 triples (row, column, integer value), with zero-based coordinates and values from -9 to 9. Repeated coordinates are allowed. Sum values at each coordinate, discard zero sums, and output the remaining triples sorted by row then column.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-reset-transition-tour",
+    "title": "Shortest transition tour with resets",
+    "problem": "Input a total deterministic machine with at most 4 states, an alphabet of at most 3 ordered symbols, and a start state. Applying a symbol traverses its state-symbol transition; a reset token R returns to the start without traversing a transition. Output the shortest token sequence that traverses every state-symbol transition at least once, or null if none exists. Break ties lexicographically with R before every symbol.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-sliding-tiles",
+    "title": "Shortest sliding-board solution",
+    "problem": "Input is a 2-by-3 board containing tiles 1 through 5 and one blank, plus a legal slide sequence that reaches the board [1,2,3;4,5,blank]. A move swaps the blank with one orthogonally adjacent tile. Output the minimum number of moves needed to reach that board; the supplied sequence only guarantees feasibility.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-outgoing-cut",
+    "title": "Cheapest Directed Cut",
+    "problem": "Input a directed graph with at most 8 vertices and 14 arcs, positive integer arc capacities, and distinct vertices s and t. Among vertex sets containing s but not t, minimize the sum of capacities of arcs leaving the set. Output that sum and the vertices in the set in ascending order. Break ties by the lexicographically smallest vertex list.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-capacity-courier",
+    "title": "Shortest pickup-and-delivery tour",
+    "problem": "Input a directed network with at most 7 vertices and 12 positive-length roads, a depot, up to 4 labeled pickup-and-delivery requests, and a carrying capacity of 1 or 2 parcels. One courier starts and ends at the depot. Each parcel must be picked up before its delivery, and travel may repeat roads. Pickup and delivery take no time; actions at the same vertex may be ordered freely. Output the minimum total road length of a completed tour, or -1 if impossible.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-unequal-parallel-machines",
+    "title": "Assign jobs to two different machines",
+    "problem": "Input: up to 12 independent jobs, each with one processing time (1\u20139) for machine A and another for machine B. Both machines start at time 0; each job runs once, without preemption, on its assigned machine. Output the smallest possible time at which all jobs are finished.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-envy-free-up-to-one",
+    "title": "Allocate Goods Under EF1",
+    "problem": "Input: 2 or 3 agents, at most 8 indivisible goods, and each agent\u2019s nonnegative integer value for each good. Assign every good to one agent. An allocation is EF1 if, for every pair of agents, the first values their own bundle at least as much as the second\u2019s bundle after removal of some one good from the second\u2019s bundle; an empty second bundle causes no envy. Among EF1 allocations, maximize the sum of values to recipients. Output that sum and the lexicographically smallest tuple of recipients in good order.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-orthogonal-gallery-guards",
+    "title": "Fewest guards for marked locations",
+    "problem": "Input a simple orthogonal polygon with at most 12 vertices, up to six candidate guard points, and up to eight marked points, all strictly inside it. A guard sees a mark when their connecting segment stays inside or on the polygon. Output the minimum number of candidates needed to see every mark, or -1 if impossible.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-nested-repeat-expression",
+    "title": "Shortest nested repeat expression",
+    "problem": "Input a string of at most 12 characters over a\u2013c. An expression is a character, a concatenation of expressions, or k(E), meaning k copies of expression E, where k is an integer from 2 to 12. Count every printed character, including digits and parentheses. Output the minimum expression length that produces the input string.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-fault-domain-replicas",
+    "title": "Place replicas across fault domains",
+    "problem": "Input up to 8 candidate sites, each with a fault-domain label, a replica count r \u2264 4, client demand weights, client-to-site read latencies, and writer-to-site latencies. Choose r sites from distinct fault domains. Cost is the sum, over clients, of demand times latency to their nearest chosen site, plus the largest writer-to-site latency among chosen sites. Output the minimum cost and lexicographically smallest sorted list of chosen site indices.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-index-build-budget",
+    "title": "Indexes Under a Build Budget",
+    "problem": "Input gives up to 8 candidate indexes, each with a build size and build cost, a size budget, and up to 8 queries. Each query has a scan cost and an execution cost for each index. Choose indexes within budget to minimize total build cost plus, for each query, its cheapest available execution cost (including scan). Output the minimum total and the selected index names; break ties by the lexicographically smallest name list.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-fused-tree-tiles",
+    "title": "Cheapest instruction tiling of an expression tree",
+    "problem": "Input is an expression tree of at most 12 nodes with leaves and neg, add, and mul operators, plus nonnegative costs for a neg tile, an add tile, a mul tile, and a fused tile. Leaves cost zero. A fused tile covers an add node and one mul child; every other operator needs its own tile. Tiles must cover every operator exactly once. Output the minimum total cost.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-horn-closure",
+    "title": "Least model of definite rules",
+    "problem": "Input at most 20 Boolean facts and definite Horn rules, each listing premise facts and one conclusion fact. Starting with all facts false, repeatedly apply enabled rules. Output the resulting least model as a bit string; the all-true assignment is always a feasible model.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-sample-knot-interpolation",
+    "title": "Minimax interpolation knots",
+    "problem": "Input is 3 to 9 integer samples at equally spaced positions and a knot count K between 2 and 4. Select exactly K sample positions, including both endpoints. At every unselected position, reconstruct the sample by linear interpolation between its neighboring knots using exact rational arithmetic. Minimize the largest absolute reconstruction error and output that error and the lexicographically smallest optimal list of knot indices.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-cyclic-difference-balance",
+    "title": "Balanced cyclic differences",
+    "problem": "Input integers v (3\u20139) and k (2\u2013v). Choose a k-element subset A of {0,\u2026,v\u22121}. For each nonzero residue d, count ordered pairs (a,b) in A\u00b2 with b\u2212a \u2261 d modulo v. Minimize the difference between the largest and smallest of these counts. Output the minimum and the lexicographically smallest increasing A attaining it.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-signed-prefix-flips",
+    "title": "Sort signed tokens by prefix flips",
+    "problem": "Input is a signed permutation of 1..n, with n \u2264 7: every absolute value occurs once. One move reverses a nonempty prefix and negates every value in it. Output the minimum moves to reach +1,+2,...,+n.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-leaky-heat-tank",
+    "title": "Heating with a leaky thermal tank",
+    "problem": "Given T\u22647, tank capacity C\u226410, initial heat, and each slot's heat demand d, electric-heater limit H\u22643, heat-per-electric-unit factor k\u22643, and electricity price p, choose an integer heater setting h in [0,H]. Starting heat s first loses one unit if positive; the next heat is max(0,s\u22121)+k\u00b7h\u2212d and must lie in [0,C]. Output the minimum total electricity cost \u03a3p\u00b7h, or \u22121 if demand cannot be met.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-conflicting-channels",
+    "title": "Minimum channel count",
+    "problem": "Input: at most 8 simultaneous radio links and a list of pairs that interfere if assigned the same channel. Each link receives exactly one channel, and channels are interchangeable. Output the minimum number of channels needed for a conflict-free assignment.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-bit-test-membership",
+    "title": "Membership by bit tests",
+    "problem": "Input: up to 8 distinct bit strings of equal length at most 5, each marked present or absent and assigned a nonnegative query weight. Build a binary decision tree whose internal nodes test one bit position and whose leaves give a membership answer. Every input string must receive its marked answer. Its cost is the sum of query weight times tests performed. Output the minimum cost; positions may be reused along a path.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-seeded-binary-labels",
+    "title": "Segment a grid with smoothness costs",
+    "problem": "Input an at-most-4\u00d74 grid. Each cell has two nonnegative integer costs, one for label 0 and one for label 1; some cells may also have a required label. Assign labels to minimize the sum of chosen cell costs plus one for every horizontally or vertically adjacent pair with different labels. Output the minimum cost and the lexicographically smallest row-major label string attaining it.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-csr-product",
+    "title": "Multiply sparse integer matrices",
+    "problem": "Input two compatible integer matrices in canonical CSR form, each with dimensions at most 4 by 4. Each row has strictly increasing column indices and no stored zeros; stored values are from -3 to 3. Multiply the matrices over the integers and output the product as CSR row pointers, column indices, and values, omitting zero entries.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-branch-outcome-witnesses",
+    "title": "Witnesses for reachable branch outcomes",
+    "problem": "Input an acyclic program of at most 10 instructions, each either a halt or a conditional 'if variable j < threshold, jump to a; otherwise jump to b'. Jumps must go to later instructions. At most 4 integer variables each range from 0 through 3. Enumerate executions from instruction 0 and output, for each conditional instruction and each of its two outcomes, the lexicographically smallest input vector that reaches and takes that outcome, or null if it is unreachable.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-clear-block-relocation",
+    "title": "Rearrange stacks of blocks",
+    "problem": "Input gives initial and target arrangements of at most four distinct blocks as lists of stacks, each listed bottom to top. One move takes a top block and puts it on another stack or starts a new stack on an unlimited table. Stack positions on the table have no identity. Output the fewest moves that produce the target stacks.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-strong-orientation",
+    "title": "Orient for Strong Connectivity",
+    "problem": "Input a connected undirected graph with at most 7 vertices and 12 indexed edges. Each edge has an indicated initial direction and a positive cost to reverse it. Orient every edge so the directed graph is strongly connected. Output the minimum reversal cost and a bit vector in edge order, where 1 means reversed; break ties by the lexicographically smallest bit vector. Output -1 if no such orientation exists.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-shared-road-schedule",
+    "title": "Schedule two fixed routes on occupied roads",
+    "problem": "Two vehicles have fixed routes, each containing at most 3 road IDs, and integer release times from 0 to 3. Each road traversal takes 1 to 3 time units. A vehicle may wait at vertices, but no two traversals may occupy the same road ID at overlapping times, regardless of direction. Other simultaneous movement is allowed. Input the routes, durations, and release times; output the minimum sum of their finish times. Traversals start at integer times.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-two-worker-workflow",
+    "title": "Schedule a unit-time workflow",
+    "problem": "Input: a directed acyclic graph of up to 9 unit-time tasks. At most two tasks run in each integer time slot. A task may start only after all its predecessors finish. Output the minimum number of slots needed to finish every task.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-xor-auction-payments",
+    "title": "Clear an XOR Bundle Auction",
+    "problem": "Input: at most 7 goods and 4 bidders, each submitting at most 3 bids consisting of a nonempty goods set and a positive integer price. A bidder may win at most one bid, and winning bids must have disjoint goods. Maximize total price, breaking ties by the lexicographically smallest sorted list of winning bid IDs. Output that list and each bidder\u2019s VCG payment: the best total price obtainable without that bidder minus the total price paid by all other winners in the chosen outcome. A losing bidder pays zero.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-l-tromino-workshop",
+    "title": "Most L-shaped pieces in a workshop floor",
+    "problem": "Input a set of at most 16 unit grid cells forming a workshop floor. A piece occupies three cells of a 2-by-2 block, with any rotation allowed. Output the greatest number of nonoverlapping pieces that fit entirely within the floor; unused cells are allowed.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-bounded-prefix-code",
+    "title": "Optimal short binary prefix code",
+    "problem": "Input positive frequencies for 1 to 6 distinct symbols in a specified order. Assign each symbol a nonempty binary codeword of length at most 6 so that no codeword is a prefix of another. Output the minimum sum of frequency times codeword length. Among optimal assignments, also output the lexicographically smallest vector of lengths in input order.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-adjacent-run-compaction",
+    "title": "Merge neighboring log runs",
+    "problem": "Input the positive lengths of at most 8 log runs in disk order. One operation replaces two neighboring runs by one run whose length is their sum and costs that sum in rewritten blocks. Merge until one run remains. Output the minimum total rewrite cost; different choices of neighboring merges may have different costs.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-short-circuit-filters",
+    "title": "Cheapest Filter Evaluation Order",
+    "problem": "Input gives 2\u20137 predicates, each with a per-row evaluation cost, and the exact number of input rows satisfying every subset of predicates, including the empty subset. Predicates run in one order and stop on a row at its first failure. An evaluation costs its predicate's cost times the number of rows surviving all preceding predicates. Output the minimum total cost and the predicate order, with lexicographic tie-breaking.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-dag-live-peak",
+    "title": "Minimum live-value peak for a DAG evaluation",
+    "problem": "Input is a DAG of at most 9 operations with one sink, where every operation contributes to that sink. An operation may run after all its predecessor operations; external operands require no storage. Its result occupies one slot until its last consumer runs. During an operation, count its new result before releasing predecessors whose last consumer is that operation. Output the smallest possible peak slot count over all valid evaluation orders.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-parity-freedom",
+    "title": "Freedom in parity equations",
+    "problem": "Input at most 16 Boolean variables, XOR equations over listed variable indices, and a solution. Output the number of solutions and, for each variable, whether its value is fixed across all solutions or can take both values.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-bounded-quadrature-weights",
+    "title": "Integer-grid quadrature weights",
+    "problem": "Use the five fixed nodes 0, 1/4, 1/2, 3/4, and 1. Input is an integer weight denominator D from 1 to 6. Choose nonnegative integer numerators w_0 through w_4 whose sum is D. For each monomial x^j, j=0,1,2,3, compare the weighted node sum divided by D with its exact integral 1/(j+1) over [0,1]. Minimize the largest absolute error across the four monomials. Output the exact rational error and the lexicographically smallest optimal weight vector.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-pairwise-pattern-rows",
+    "title": "Binary pair-pattern coverage",
+    "problem": "Input a row count r (1\u20134) and column count c (2\u20134). Choose an r-by-c binary matrix. For every pair of columns, consider which of the four ordered bit pairs occur in its rows. Maximize the total number of occurring patterns, summed over all column pairs. Output the maximum and the lexicographically smallest matrix in row-major order attaining it.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-triple-rotation-sort",
+    "title": "Sort with neighboring triple rotations",
+    "problem": "Input is a permutation of 1..n, with n \u2264 8. A move chooses three consecutive positions and rotates their values one step left or right. Output the minimum moves to sort the permutation, or -1 if it cannot be sorted.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-head-dependent-hydro",
+    "title": "Pumping and generating at variable head",
+    "problem": "An upper reservoir holds v units out of a fixed total W\u22646, initially v0. In each of T\u22648 slots, choose idle, pump one unit upward for the slot's stated cost, or release one upper unit to earn the slot's price times the upper level immediately before release. Pumping requires v<W; releasing requires v>0. Output the maximum net earnings among schedules that finish with upper level v0.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-weighted-prefix-code",
+    "title": "Minimum prefix-code cost",
+    "problem": "Input: positive integer frequencies for at most 7 symbols. Assign each symbol a binary codeword so that no codeword prefixes another. Output the minimum sum of frequency times codeword length. If there is only one symbol, its codeword must have length one.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-linear-probe-order",
+    "title": "Choose a linear-probing insertion order",
+    "problem": "Input: a table size m \u2264 9 and up to 7 distinct integer keys, each with a nonnegative search weight. Insert all keys into an empty table using home slot key mod m and circular linear probing. Choose their insertion order. After insertion, a successful lookup costs the number of slots examined through its key. Output the minimum weighted sum of lookup costs.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-region-adjacency",
+    "title": "Build a region adjacency graph",
+    "problem": "Input an at-most-8\u00d78 grid of symbols from a three-symbol alphabet. A region is a maximal 4-connected set of equal symbols. Number regions by the row-major position of their first cell. Output each region's symbol and size, followed by the sorted pairs of region numbers that share a grid edge.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-bitmap-rank-select",
+    "title": "Pack a bitmap and answer position queries",
+    "problem": "Input a bit string of length at most 64, a list of prefix-rank positions, and a list of select indices. Pack consecutive groups of eight bits into integers, with the first bit of each group as its least significant bit and missing final bits treated as zero. Output those integers, the number of ones before each rank position, and the zero-based position of each requested one-bit; output -1 when that select index does not exist.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-dependency-test-order",
+    "title": "Regression order under prerequisites",
+    "problem": "Input at most 8 tests, each with a positive integer duration, a nonnegative integer priority, and a set of prerequisite tests forming a DAG. Tests run one at a time. A test's completion time is the sum of durations through its position in the order. Output a prerequisite-respecting order minimizing the sum of priority times completion time; break ties by lexicographically smallest list of test indices.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-turn-and-unlock",
+    "title": "Navigate a keyed corridor",
+    "problem": "Input is a grid of at most 4 by 4 cells with walls, a starting cell and facing direction, a goal cell, and at most two lettered keys with matching doors. One command turns left, turns right, or advances one cell; entering a key cell collects it permanently, and a matching door cannot be entered beforehand. A legal command sequence to the goal is supplied. Output the minimum number of commands to reach the goal.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-paired-routes",
+    "title": "Two Routes Without Shared Links",
+    "problem": "Input a simple undirected graph with at most 7 vertices and 11 edges, and distinct vertices s and t. Find two simple s-to-t paths sharing no edge that minimize their combined number of edges. Write each path as its vertex sequence, sort the two sequences lexicographically, and output them. Break objective ties by the lexicographically smallest sorted pair; output -1 if no pair exists.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-marked-arc-inspection",
+    "title": "Inspect required directed roads",
+    "problem": "Input a directed network with at most 6 vertices and 9 positive-length arcs, a depot, and at most 6 marked arcs. Find the minimum-length closed walk from the depot that traverses every marked arc at least once. Any arc may be reused. Output that length, or -1 if no such walk exists.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-shared-oven-batches",
+    "title": "Batch jobs by oven capacity",
+    "problem": "Input: up to 7 jobs, each with an integer size (1\u20132) and baking time (1\u20135), plus an oven capacity of 2\u20134. All jobs are available at time 0. The oven runs one batch at a time; a batch's total size cannot exceed capacity, its duration is the largest baking time in it, and all its jobs finish together. Output the minimum sum of job completion times.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-capacity-calendar",
+    "title": "Accept Capacity-Limited Reservations",
+    "problem": "Input: a capacity from 1 to 3 and at most 10 requests on a calendar of at most 12 slots. Each request has an ID, a half-open interval of slots, a capacity requirement from 1 to 3, and a positive priority score. Accept a subset whose total requirements never exceed capacity in any slot. Output the maximum total priority and, among maximizing subsets, the lexicographically smallest sorted list of accepted IDs.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-grid-steiner-conduits",
+    "title": "Shortest shared conduit network",
+    "problem": "Input distinct terminal vertices on a grid with at most three rows and three columns. Conduits may occupy unit horizontal or vertical grid edges. Output the minimum number of edges in a connected conduit network containing every terminal; other grid vertices may serve as junctions.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-unique-decoding-check",
+    "title": "Check unique decodability",
+    "problem": "Input 2 to 6 distinct, nonempty binary codewords, each at most 6 bits long. A message is a nonempty sequence of codewords concatenated without separators. Output YES if every encoded message has exactly one sequence of codewords, and NO otherwise.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-deadline-write-batches",
+    "title": "Flush ordered writes in batches",
+    "problem": "Input at most 12 writes in nondecreasing arrival-time order, each with an integer deadline, and a fixed cost F per flush. Partition the writes into consecutive batches. A batch flushes at the arrival time of its last write, which must not exceed any deadline in that batch. Its cost is F plus the sum of each write's wait until that flush. Output the minimum total cost and the lexicographically smallest list of batch-ending write indices, using zero-based indices.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-group-key-order",
+    "title": "Order Grouping Keys for Adjacent Comparisons",
+    "problem": "Input gives up to 8 rows and 2\u20135 named columns that all belong to a GROUP BY key. For each permutation of those columns, sort the rows lexicographically by that key. Define its cost as the sum, over adjacent sorted rows, of the number of key fields compared through their first difference, or all fields if equal. Output the least cost and its column permutation, breaking ties lexicographically.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-loop-address-jumps",
+    "title": "Choose a loop nesting order",
+    "problem": "Input gives 2 or 3 loop indices, each ranging from zero to a stated bound minus one (bounds at most 4), and at most 4 array accesses. Each access has an address of the form base plus the sum of one integer stride times each index. Execute every access once per iteration, with any loop permutation and the last loop varying fastest. For each access separately, sum absolute address differences between successive iterations. Output the minimum combined sum over loop permutations.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-two-literal-backbone",
+    "title": "Forced values in a two-literal formula",
+    "problem": "Input a satisfiable 2-CNF formula on at most 18 variables and a satisfying assignment. For each variable in order, output '0' if every model sets it false, '1' if every model sets it true, or '?' if both values occur.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-short-convolution-fit",
+    "title": "Fit a bounded convolution filter",
+    "problem": "Input is one or two integer input sequences, each of length at most six, and an integer target sequence of length m+2 for each input of length m. Choose three filter taps from {-2,-1,0,1,2}. Apply full, zero-padded discrete convolution to each input and minimize the sum of squared differences from all target entries. Output the minimum error and the lexicographically smallest optimal tap triple.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-small-disjunct-tests",
+    "title": "Distinguishing pooled tests",
+    "problem": "Input r (1\u20134) tests and n (2\u20134) items. Choose an r-by-n binary matrix, where a 1 means the item is in the test. A pair (j,S) is distinguished if j is outside S, S has one or two items, and some row contains j but no item in S. Maximize the number of distinguished pairs. Output the maximum and the lexicographically smallest row-major matrix attaining it.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-alternating-swap-times",
+    "title": "Sort across alternating boundaries",
+    "problem": "Input is a permutation of 1..n, with n \u2264 8. At move number 1, only adjacent positions (1,2), (3,4), and so on may be swapped; at move number 2, only (2,3), (4,5), and so on may be swapped. The allowed boundaries alternate thereafter, and exactly one swap is made per move. Output the minimum moves to sort, or -1 if impossible.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-ev-feeder-peak",
+    "title": "Smallest feasible EV charging peak",
+    "problem": "Given T\u22646 one-hour slots, a feeder limit F\u22645, and at most five EVs, each EV specifies an arrival slot, a departure slot, and an integer number of required charging hours. It may receive at most one unit in each slot from arrival through the slot before departure. All charging must finish by departure. Output the smallest possible maximum number of EVs charging simultaneously, constrained to be at most F, or \u22121 if no schedule meets every deadline.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-xor-repair-broadcasts",
+    "title": "Fewest XOR repair broadcasts",
+    "problem": "Input: at most 4 original binary packets and, for each of at most 4 receivers, the subset it already knows. A broadcast may contain the XOR of any nonempty subset of the original packets; every receiver hears every broadcast and may combine them by XOR. Output the fewest broadcasts needed for every receiver to recover all original packets.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-two-home-placement",
+    "title": "Place keys with two home slots",
+    "problem": "Input: at most 6 keys, at most 7 table slots, and for each key a primary slot, an alternate slot, and a nonnegative lookup weight. Place every key in one of its stated slots, with at most one key per slot. A lookup costs 1 in its primary slot or 2 in its alternate slot; if both slots coincide, the cost is 1. Output the minimum weighted lookup cost, or -1 if placement is impossible.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-masked-dilation-connection",
+    "title": "Connect pixels by masked dilation",
+    "problem": "Input an at-most-5\u00d75 grid whose cells are foreground, open background, or blocked. In each round, every open background cell sharing an edge with foreground becomes foreground; blocked cells never change. Output the fewest rounds until the foreground is one 4-connected component. Output 0 if it starts empty or connected, and -1 if it never becomes connected.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-run-order",
+    "title": "Choose a run-length traversal",
+    "problem": "Input a matrix of values from 0 to 15 with at most 5 rows and 5 columns. Consider row-major, alternating-direction row-major, column-major, and alternating-direction column-major traversal. Encode each traversal as consecutive (value, run length) pairs. A traversal uses a two-bit header; each pair uses four bits for its value and ceil(log2(rows * columns + 1)) bits for its length. Output the minimum-bit traversal and its pairs, breaking ties in the order the four traversals were listed.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-adaptive-fault-queries",
+    "title": "Minimum worst-case fault queries",
+    "problem": "Input a binary answer table for at most 8 candidate faults and 8 queries: entry (f,q) is the answer query q gives when f is the true fault. Queries may be chosen after seeing earlier answers. Output the minimum possible worst-case number of queries needed to identify the fault, together with the smallest-index query that can start an optimal strategy. For one fault, output 0 and null; if some faults cannot be distinguished, output -1 and null.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-warehouse-pushes",
+    "title": "Walk and push crates",
+    "problem": "Input gives walls, a worker, up to two indistinguishable crates, and the same number of goal cells on a grid of at most 4 by 4 cells. Each action moves the worker one orthogonal step. Stepping into a crate pushes it one cell in that direction if the destination is free. A legal solution sequence is supplied. Output the fewest worker actions needed to put every crate on a goal.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-terminal-reliability",
+    "title": "Exact Terminal Reliability",
+    "problem": "Input an undirected graph with at most 7 vertices and 12 edges, a nonempty set of terminals, and for each edge an independent survival probability given as a fraction a/b with 0 \u2264 a \u2264 b \u2264 10. Output, as a reduced fraction, the probability that all terminals lie in one connected component of the surviving-edge graph. Nonterminal vertices may be used in their connections.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-priced-fuel-route",
+    "title": "Least-cost trip with fuel purchases",
+    "problem": "Input a directed network with at most 7 vertices and 12 roads, a start and destination, and a tank capacity at most 6. Each road consumes an integer number of fuel units from 1 to 6. Some vertices sell fuel at a stated positive price per unit; others sell none. The vehicle starts with an empty tank and may buy integer units without exceeding capacity. Output the minimum purchase cost to reach the destination, or -1 if impossible.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-changeover-windows",
+    "title": "Sequence jobs with changeovers and time windows",
+    "problem": "Input: up to 7 jobs with integer release times, deadlines, and processing times, plus a nonnegative directed changeover time for each ordered pair of jobs and for starting from an initially clean machine. Run every job nonpreemptively on one machine; changeover time must elapse between consecutive jobs, and each job must start no earlier than its release and finish by its deadline. Output the earliest possible finish of the last job, or -1 if no schedule exists. All times and changeovers are at most 12.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-integer-dominant-shares",
+    "title": "Leximin Multi-Resource Jobs",
+    "problem": "Input: 2 to 4 agents, 2 or 3 resources with positive integer capacities at most 9, and each agent\u2019s nonnegative per-job resource demands and job limit at most 5. Every agent must demand at least one resource. Choose integer job counts within the limits and capacities. An agent\u2019s dominant share is the maximum, over resources, of their allocated amount divided by that resource\u2019s capacity. Lexicographically maximize the sorted list of dominant shares, comparing fractions exactly; then maximize total jobs; then choose the lexicographically smallest job-count tuple. Output that tuple.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-noncrossing-color-pairs",
+    "title": "Shortest noncrossing red-blue pairing",
+    "problem": "Input equal sets of at most six red and six blue points with distinct integer coordinates. Pair every red point with one blue point using straight segments that do not intersect, even at endpoints. Among valid pairings, output the minimum sum of squared segment lengths, or -1 if none exists.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-escaped-field-framing",
+    "title": "Choose an escape and field separator",
+    "problem": "Input 1 to 8 fields, each a string of at most 10 characters over a\u2013c; empty fields are allowed. Choose distinct characters d and e from a\u2013c. Encode each field by prefixing every occurrence of d or e with e, then join the encoded fields with d. Output the shortest resulting length and the pair (d, e) achieving it, breaking ties lexicographically.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-time-varying-tier-placement",
+    "title": "Schedule hot-tier residence",
+    "problem": "Input service costs for each of at most 5 unit-size objects on hot and cold storage over at most 4 periods, a hot-tier capacity, an initial tier for each object, and each object's cost for changing tiers between periods. Choose every object's tier in every period. Minimize total service and tier-change costs, counting changes from the initial tiers before period 0. Output the minimum cost and the lexicographically smallest sequence of hot-object bitmasks.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-dag-view-caching",
+    "title": "Cache Shared Execution Nodes",
+    "problem": "Input is an ordered execution DAG of at most 8 nodes with one root. Each node lists earlier-numbered child nodes, an execution cost, a cache size, and a cache-read cost. Choose nodes to cache within a size budget. Evaluation visits children in listed order and then pays the node's execution cost; for a cached node, only its first visit does this, and each later visit pays its cache-read cost instead. Starting with an empty cache, output the minimum root-evaluation cost and the cached node IDs, breaking ties by the sorted ID list.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-latency-slot-schedule",
+    "title": "Schedule a dependent basic block",
+    "problem": "Input is at most 7 instructions forming a precedence DAG. Each has type A or B and latency 1, 2, or 3. Time is divided into integer slots; at most one instruction of each type may start in a slot. An instruction starting at t makes its result available at t plus its latency, when dependent instructions may start. Output the minimum possible completion time, the maximum start time plus latency.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-nearest-circuit-input",
+    "title": "Closest input producing a target bit",
+    "problem": "Input an acyclic AND, OR, and NOT circuit with at most 12 input bits, a baseline input, a target output bit, and an input known to produce that target. Output the minimum Hamming distance from the baseline to a target-producing input, then the lexicographically smallest such input at that distance.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-rounding-schedule-recurrence",
+    "title": "Choose a fixed-point rounding schedule",
+    "problem": "Input is an integer start z_0, integers a and b in [-4,4], a positive divisor d at most 6, a step count T at most 10, and a ceiling-rounding budget B at most T. The exact reference follows x_{t+1}=(a x_t+b)/d from x_0=z_0. The integer approximation follows the same formula but rounds each result down or up to an integer. Among schedules using exactly B upward-rounding steps, minimize the maximum absolute error |z_t-x_t| for t=1 through T. Output the exact rational error and the lexicographically smallest optimal schedule, encoding down as 0 and up as 1.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-partial-latin-completion",
+    "title": "Complete a small Latin square",
+    "problem": "Input n (1\u20134) and an n-by-n grid containing numbers 1,\u2026,n or 0 for blanks. Fill blanks so every number occurs exactly once in each row and column, without changing given entries. Output the lexicographically smallest completed grid in row-major order, or IMPOSSIBLE if none exists.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-parallel-swap-rounds",
+    "title": "Sort in parallel swap rounds",
+    "problem": "Input is a permutation of 1..n, with n \u2264 8. In one round, choose any nonempty set of nonoverlapping adjacent pairs and swap every chosen pair simultaneously. Output the minimum number of rounds needed to sort the permutation.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-service-worn-batteries",
+    "title": "Dispatch and service two worn batteries",
+    "problem": "Over T\u22646 slots, two batteries each have capacity C\u22643, initial charge and wear, and wear limit W\u22642. Each slot supplies r\u22642 renewable units and requires d\u22643 load units. Each battery may charge one unit using renewable energy, discharge one unit to serve load if charged and wear<W, or rest. A discharge raises wear by one. Alternatively, at most one battery per slot may be serviced: it does nothing that slot and its wear resets to zero without changing charge. Renewable energy can serve load directly or be curtailed. Output the minimum total unmet load over all slots.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-priced-frame-slots",
+    "title": "Cheapest packet fragmentation",
+    "problem": "Input: a packet of 1 to 16 payload bytes, a nonnegative frame-header size, and at most 8 ordered slots, each with a byte capacity and a positive price per transmitted byte. A used slot carries one frame with a positive integer number of payload bytes plus its header; slots may be skipped. Output the minimum total price to send the entire packet by the last slot, or -1 if impossible.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-trie-child-layout",
+    "title": "Budget child storage in a trie",
+    "problem": "Input: up to 8 distinct words of length at most 5 over {a,b,c,d}, up to 12 weighted query words, and a storage budget. Build the fixed, uncompressed trie of the stored words. At each node choose either a dense child array, using 4 storage units and costing 1 per attempted next-character lookup, or a sparse list, using one unit per existing child and costing the node's child count per attempt, including failed attempts. Queries stop at their first missing edge or after their last character. Output the minimum total weighted lookup cost among layouts within budget, or -1 if none fits.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-erosion-removal-layers",
+    "title": "Record erosion layers",
+    "problem": "Input an at-most-7\u00d77 binary grid. In each simultaneous round, remove every foreground cell with at least one edge-adjacent background cell, treating positions outside the grid as background. Output a grid containing 0 for original background and, for each original foreground cell, the round in which it is removed.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-binary-quadtree",
+    "title": "Encode a binary grid as a quadtree",
+    "problem": "Input a binary square grid whose side length is 1, 2, 4, or 8. A uniform square may be encoded as a leaf bit 0 followed by its cell value. Otherwise encode an internal bit 1 followed recursively by its four equal quadrants in top-left, top-right, bottom-left, bottom-right order. Output the shortest valid encoding as a bit string.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-bounded-invariant-trace",
+    "title": "Shortest bounded invariant violation",
+    "problem": "Input a partial deterministic transition table with at most 8 states, at most 3 ordered input symbols, a start state, a set of bad states, and a bound K at most 10. An undefined transition cannot be taken. Output the shortest input sequence of length at most K that reaches a bad state, breaking ties lexicographically, or null if there is none. The empty sequence is valid when the start is bad.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-lamp-switch-parity",
+    "title": "Set a panel of lamps",
+    "problem": "Input gives an initial and target bit pattern for at most eight lamps and, for each of at most eight switches, the subset of lamps it toggles. A supplied switch sequence reaches the target. Pressing any switch costs one action and always toggles the same subset. Output the minimum number of presses required to reach the target.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-diameter-shortcut",
+    "title": "Choose a Diameter Shortcut",
+    "problem": "Input a connected undirected graph with at most 8 vertices, positive integer edge lengths, and 1\u201310 indexed candidate edges not already present, each with a positive length. Install exactly one candidate and measure the largest shortest-path distance between any two vertices. Output the smallest achievable diameter and the chosen candidate index, using the smallest index to break ties.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-deadline-transit-fare",
+    "title": "Cheapest scheduled trip before a deadline",
+    "problem": "Input at most 15 directed transit trips, each with an origin, destination, integer departure and arrival times with departure earlier than arrival, and a nonnegative fare. A passenger starts at a specified stop at time 0, may wait at stops, and may ride at most 3 trips. Given a destination and deadline at most 30, output the minimum total fare for arrival by the deadline, or -1 if impossible.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-conflicting-meeting-slots",
+    "title": "Place meetings in available slots",
+    "problem": "Input: up to 9 one-slot meetings, each with a nonempty subset of available slots numbered 1\u20136, and a list of pairs that cannot meet simultaneously because they share a participant or room. Assign one available slot to each meeting without placing a conflicting pair together. Output the smallest possible highest assigned slot, or -1 if no assignment exists.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-envy-free-room-rent",
+    "title": "Assign Rooms and Split Rent",
+    "problem": "Input: 2 to 4 tenants, the same number of rooms, integer tenant valuations for every room, and total rent from 0 to 20. Assign each tenant a distinct room and a nonnegative integer price to each room, with prices summing to the rent. Each tenant must value their assigned room minus its price at least as highly as every other room minus its price. If no such arrangement exists, output NONE. Otherwise maximize the minimum tenant utility, breaking ties by the room-assignment tuple and then the room-price tuple, both lexicographically.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-blocked-grid-route",
+    "title": "Shortest route through a blocked layout",
+    "problem": "Input a grid of at most 7 by 7 vertices, a start and destination vertex, and a set of blocked vertices. A route follows unit horizontal or vertical edges and cannot visit blocked vertices. Output its minimum number of edges, or -1 if no route exists.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-ambiguous-grammar-count",
+    "title": "Count expression parse trees",
+    "problem": "Input a string of at most 16 characters over a, (, and ). A grammar has exactly three rules: S \u2192 a, S \u2192 SS, and S \u2192 (S). Output the number of distinct parse trees whose yield is the entire string, or 0 if it cannot be parsed. Different splits under S \u2192 SS count as different trees.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-first-fit-free-extents",
+    "title": "Trace first-fit allocation",
+    "problem": "Input a disk of at most 30 blocks and a sequence of at most 20 commands: allocate a named extent of a given length, or free a previously allocated name. Each allocation uses the lowest-starting free interval large enough; freed blocks immediately coalesce with adjacent free intervals. Allocations are guaranteed to succeed, and names are not reused. Output the final free intervals as half-open [start,end) pairs in order, along with their count and the largest interval length.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-single-join-method",
+    "title": "Choose a Costed Equijoin Method",
+    "problem": "Input gives two integer-key tables of at most 8 rows each and flags saying whether each is sorted and whether the right table has an index. Let n and m be their sizes and o the number of matching row pairs. Candidate costs are nested loop n\u00d7m+o, hash 3(n+m)+o, merge n+m+o plus n\u00b2 or m\u00b2 for each unsorted input, and indexed probes n(1+ceil(log2(m+1)))+o when the right index exists. Output the cheapest method and cost, breaking ties by method name.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-bitvector-peephole",
+    "title": "Shortest equivalent unary instruction sequence",
+    "problem": "Input is a sequence of at most 5 instructions drawn from ADD1, XOR3, AND7, and ROL1. They act on a 4-bit value: arithmetic wraps modulo 16, and ROL1 rotates its bits left by one position. The sequence must have the same final value for every input from 0 through 15. Output the minimum number of instructions in any equivalent sequence over the same alphabet; the empty sequence is allowed.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-smallest-ordered-diagram",
+    "title": "Best variable order for a reduced decision diagram",
+    "problem": "Input the complete truth table of a Boolean function of at most five variables. For each variable permutation, form its ordered binary decision diagram by merging identical subgraphs and removing nodes whose two children match. Output the minimum number of nonterminal nodes and the lexicographically smallest permutation attaining it.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-bernstein-split-enclosure",
+    "title": "Tighten a polynomial enclosure by subdivision",
+    "problem": "Input is the integer power-basis coefficients of a polynomial of degree at most three and a split count S at most three. Starting with [0,1], make exactly S binary midpoint splits of current intervals. For each final interval, express the restricted polynomial in the Bernstein basis of its degree; its smallest and largest coefficients give an enclosure. Combine leaf enclosures by taking the smallest lower bound and largest upper bound. Minimize the resulting width. Output its exact rational value and the lexicographically smallest sorted list of split-node binary paths, with the root path empty.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-balanced-block-collection",
+    "title": "Balance degrees and pair counts",
+    "problem": "Input v (2\u20136), k (2\u2013v), and b (1\u20135). Choose b distinct k-element subsets of {0,\u2026,v\u22121}. A point's degree is its number of chosen blocks; a pair's count is its number of chosen blocks containing both points. Lexicographically minimize (largest degree minus smallest degree, largest pair count minus smallest pair count). Output this pair and the lexicographically smallest sorted collection attaining it, or IMPOSSIBLE if fewer than b blocks exist.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-single-stack-capacity",
+    "title": "Find the smallest stack for a target output",
+    "problem": "Input is a permutation p of 1..n, with n \u2264 9. Read 1,2,...,n in order, pushing each read value onto one stack. At any time, the top value may be popped to output; the output must equal p. Output the smallest stack capacity that permits this, or -1 if no capacity does.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-warmup-generator-dispatch",
+    "title": "Dispatch a generator with a warm-up slot",
+    "problem": "Given T\u22647, slot demands d\u22643, grid prices, startup cost K, and generator fuel inventory B\u22647, minimize grid-purchase cost plus startup costs. An off generator may start in a slot, paying K and producing nothing; it is then available in the next slot. An available generator may produce integer q from 0 to 2, using q fuel units, or turn off and produce zero. Its first available output is at most 1; outputs in consecutive available slots may differ by at most 1. The grid supplies d\u2212q, so q\u2264d. The generator starts off. Output the minimum cost.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-directed-multicast-links",
+    "title": "Cheapest multicast subnetwork",
+    "problem": "Input: a directed graph with at most 7 vertices, at most 12 edges with positive costs, a source, and a set of destination vertices. Choose edges so each destination is reachable from the source, paying for each chosen edge once even if paths share it. Output the minimum total cost, or -1 if no such subnetwork exists.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-tiny-bloom-selection",
+    "title": "Select Bloom-filter hash maps",
+    "problem": "Input: a universe of at most 10 items, specified present items, weighted absent items, b \u2264 8 bit positions, up to 5 candidate maps from items to bit positions, and r between 1 and the number of maps. Select exactly r distinct maps. Set every selected map's bit for every present item; an absent item is a false positive when all its selected-map bits are set. Output the minimum sum of false-positive weights over all selections.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-maximal-boundary-strokes",
+    "title": "Compress a pixel boundary into strokes",
+    "problem": "Input an at-most-8\u00d78 binary grid. Each foreground cell contributes any side not shared with another foreground cell to the boundary. Merge boundary unit edges into maximal contiguous horizontal or vertical straight strokes. Using grid-corner coordinates, output the strokes as sorted endpoint pairs and their total length in unit edges.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-tile-layout",
+    "title": "Select a block layout for a small matrix",
+    "problem": "Input a matrix of values from 0 to 15, at most 6 by 6. Choose one global square tile side from 1, 2, or 3; edge tiles use their actual clipped dimensions h by w. Encode each tile using its cheapest mode: dense costs 2 + 4hw bits; bitmap costs 2 + hw + 4k bits; coordinate-list costs 2 + ceil(log2(hw + 1)) + k(ceil(log2(h)) + ceil(log2(w)) + 4) bits, where k is its number of nonzeros. All modes store values in row-major order, and the coordinate list stores only nonzeros. Add two bits for the global side. Output the minimum total bit count, chosen side, and tile modes in row-major order. Break ties by smaller side, then by dense, bitmap, coordinate-list mode.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-mealy-output-distinction",
+    "title": "Shortest observable machine difference",
+    "problem": "Input two total deterministic Mealy machines over the same ordered alphabet of at most 3 symbols, each with at most 5 states and a designated start. Every transition has a next state and an integer output. Output the shortest input sequence on which their output sequences differ, breaking ties lexicographically, or null if no such sequence exists.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-maximal-tube-pours",
+    "title": "Sort colored tubes",
+    "problem": "Input gives four tubes of capacity three, listed bottom to top, containing three copies each of three colors and one empty tube. A move pours the largest possible contiguous run of the source's top color into a nonfull empty tube or one with that color on top. A legal sorting sequence is supplied. Output the fewest pours needed to leave three monochromatic full tubes and one empty tube.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-capacity-upgrades",
+    "title": "Buy Enough Flow Capacity",
+    "problem": "Input a directed graph with at most 7 vertices and 12 arcs with nonnegative integer capacities, distinct source and sink vertices, a required integer flow value, and at most 10 indexed upgrades. Each upgrade increases the capacity of one specified arc by a stated positive integer for a positive cost. Choose upgrades whose resulting maximum source-to-sink flow reaches the requirement. Output minimum cost and ascending chosen indices, breaking cost ties lexicographically; output -1 if impossible.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-turn-aware-route",
+    "title": "Shortest route with turn rules",
+    "problem": "Input a directed network with at most 7 vertices and 12 positive-length arcs, a start, a destination, and rules for ordered pairs of consecutive arc IDs. A rule either forbids the turn or adds a nonnegative turn penalty; unlisted turns add nothing. No turn rule applies before the first arc. Output the minimum total arc length plus penalties of a valid route, or -1 if unreachable.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-preemptive-deadline-rewards",
+    "title": "Earn rewards by finishing preemptible jobs",
+    "problem": "Input: up to 5 jobs with integer release times, deadlines, required processing units (1\u20133), and positive rewards. One machine can work on one job per unit slot and may pause and resume jobs. A job earns its reward only if all its units finish by its deadline; unfinished jobs earn nothing. With all deadlines at most 12, output the maximum total reward.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-trading-cycle-rounds",
+    "title": "Run Top Trading Cycles",
+    "problem": "Input: at most 7 agents, each initially owning one distinct item and providing a strict ranking of all items. In each round, every remaining agent points to their favorite remaining item, and every remaining item points to its current owner. Execute all directed cycles simultaneously, giving each participating agent the item they point to; then remove those agents and items. Output each agent\u2019s final item and the number of rounds.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-hull-minimum-width",
+    "title": "Exact minimum width of a point hull",
+    "problem": "Input three to eight distinct integer-coordinate points that are not all collinear. Consider the convex hull's width in each direction perpendicular to one of its edges. Output the smallest squared width as a reduced fraction, numerator and denominator. Width is the distance between the two parallel supporting lines in that direction.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-last-column-inversion",
+    "title": "Invert a sorted-rotation last column",
+    "problem": "Input a string L of at most 12 characters over a\u2013c and $, containing exactly one $. It is promised that L was formed by appending $ to some string w, sorting all cyclic rotations of w$ lexicographically with $ smaller than letters, and reading their last characters in order. Output w.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-single-erasure-stripes",
+    "title": "Recover XOR-parity stripes",
+    "problem": "Input up to 10 stripes, each containing at most 8 data bytes and one parity byte. Parity is the XOR of all data bytes. Exactly one data byte per stripe is marked missing; all supplied bytes are integers from 0 to 255 and are consistent with the parity. Output the missing byte for each stripe in input order.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-range-block-layout",
+    "title": "Partition Sorted Rows into Read Blocks",
+    "problem": "Input gives up to 10 sorted integer keys, a maximum block length, a nonnegative per-block storage charge, and weighted inclusive range queries. Partition consecutive rows into blocks of at most the maximum length. A query reads a block when the block's minimum key is at most the range's upper bound and its maximum is at least the lower bound. Minimize storage charges plus weighted block reads. Output the minimum cost and the list of ending row indices for the blocks, using lexicographic tie-breaking.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-fallthrough-block-layout",
+    "title": "Place blocks to reduce taken jumps",
+    "problem": "Input is a directed control-flow graph of at most 7 basic blocks, a designated entry block, and a nonnegative integer weight for each edge. Place the entry first and permute the remaining blocks. An edge costs its weight unless its destination immediately follows its source in the layout, in which case it costs zero. Output the minimum total edge cost.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-diagram-model-count",
+    "title": "Count assignments through a decision diagram",
+    "problem": "Input a rooted, acyclic ordered binary decision diagram on at most 12 variables, with distinct false and true terminals and increasing variable indices along every path. The true terminal is reachable. Output the number of full input assignments reaching true, counting choices for variables skipped by a path.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-bounded-rational-surrogate",
+    "title": "Closest bounded rational",
+    "problem": "Input is a nonnegative rational target p/q with p and q at most 20, a maximum numerator P at most 20, and a maximum denominator Q at most 10. Choose integers 0\u2264a\u2264P and 1\u2264b\u2264Q minimizing |a/b-p/q|. Output the exact rational error and the chosen pair (a,b); break ties by smaller b, then smaller a.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-cyclic-window-variety",
+    "title": "Distinct windows on a binary cycle",
+    "problem": "Input a cycle length L (1\u201310) and window length w (1\u20134). Choose a binary string of length L, treating positions cyclically. Maximize the number of distinct length-w windows starting at its L positions. Output the maximum and the lexicographically smallest length-L string attaining it; rotations are not identified.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-paired-queue-capacity",
+    "title": "Route an output through two small queues",
+    "problem": "Input is a permutation p of 1..n, with n \u2264 8. Read 1,2,...,n in order, enqueuing each value into either of two FIFO queues. At any time, dequeue from either front to produce the next value of p. Both queues have the same capacity C. Output the smallest integer C \u2265 1 for which the entire output is possible.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-lossy-site-energy-link",
+    "title": "Serve two sites across a lossy link",
+    "problem": "Two sites each have a battery of capacity C\u22643 and an initial charge. For each of T\u22645 slots, their renewable supplies and demands are given, each at most 3. A site may draw any integer amount from its battery and charge it with otherwise unused energy. The sites may also send at most one unit across their link in one chosen direction: sending consumes two units at the source and delivers one at the destination. Renewable energy may be curtailed, but load cannot be served beyond demand. Output the maximum total load served across all slots while keeping both battery charges within [0,C].",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-bounded-queue-peak",
+    "title": "Minimum peak queue occupancy",
+    "problem": "Input: at most 8 labeled packets, each with an arrival slot and deadline, and at most 8 slots specifying which packet types a single outgoing link can send. Packets enter before transmission in their arrival slot; at most one eligible waiting packet is sent per slot. Occupancy is measured after each slot's arrivals and before its transmission. Output the smallest possible peak occupancy over schedules that send every packet by its deadline, or -1 if none exists.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-range-block-boundaries",
+    "title": "Partition an ordered range index",
+    "problem": "Input: n \u2264 10 ordered records, a limit B on the number of nonempty contiguous blocks, and weighted interval queries [l,r] over record positions. Partition the records into at most B blocks. A query costs 1 directory access plus the total number of records in every block that intersects [l,r]. Output the minimum weighted sum of query costs.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-single-rectangle-approximation",
+    "title": "Approximate a mask with one rectangle",
+    "problem": "Input an at-most-7\u00d77 binary grid. Reproduce it using either no filled cells or one filled axis-aligned rectangle, with all other cells empty. Minimize the number of differing cells. Output the error and the chosen rectangle's top, left, bottom, and right cell indices; on ties prefer the empty choice, then the lexicographically smallest rectangle.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-predictive-residuals",
+    "title": "Encode a matrix with local predictors",
+    "problem": "Input an integer matrix at most 5 by 5 with values from -20 to 20. For each cell choose a predictor: zero, the cell to its left if present, or the cell above if present. Store a two-bit predictor code followed by the residual using signed-to-nonnegative zigzag mapping and a unary code of z one-bits followed by a zero bit. Output the minimum-bit predictor choice and residual for every cell in row-major order, plus the total bit count. Break equal-cost choices in the order zero, left, above.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-edit-impact-chains",
+    "title": "Shortest dependency chains to edits",
+    "problem": "Input a directed module-import graph with at most 12 modules, at most 12 tests each assigned a module, and a set of edited modules. An import edge u to v means u depends on v. A test is impacted when its module can reach an edited module, including by a zero-edge path. Output the impacted test indices in ascending order and, for each, a shortest module path to any edited module; break equal-length path ties lexicographically.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-guarded-ferry",
+    "title": "Ferry paired passengers",
+    "problem": "Input is an integer from one to three and a legal crossing sequence. That many guardian\u2013artifact pairs begin on the left bank with a boat that carries one or two passengers per crossing. On either bank, an artifact may not share the bank with an unrelated guardian unless its own guardian is also there. Output the minimum number of crossings that put everyone and the boat on the right bank.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-router-separator",
+    "title": "Remove Routers to Separate Terminals",
+    "problem": "Input an undirected graph with at most 9 vertices and 14 edges, distinct terminals s and t, and a positive removal cost for every other vertex. Remove nonterminal vertices so no s-to-t path remains. Output the minimum total cost and the removed vertices in ascending order, breaking cost ties by the lexicographically smallest list. Output -1 if no permitted removal can separate them.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-no-wait-rendezvous",
+    "title": "First meeting of two moving travelers",
+    "problem": "Input a directed unit-time network with at most 6 vertices and 12 arcs and two starting vertices. At every integer tick, each traveler must traverse one arc; neither may wait. They may not swap endpoints across the same pair of vertices in a tick. Output the earliest time from 0 through 20 at which they can occupy the same vertex, or -1 if they cannot meet in that interval. The trip ends immediately upon meeting.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-two-stage-permutation-line",
+    "title": "Order jobs on a two-stage line",
+    "problem": "Input: up to 8 jobs, each with positive processing times on stages A and B. Every job must finish A before starting B. Each stage handles one job at a time, and both stages must process the jobs in the same chosen order. Output the minimum completion time of the last job.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-shared-reservation-cost",
+    "title": "Split Peak Reservation Cost",
+    "problem": "Input: at most 6 customers and 3 resources. For each resource, give a nonnegative startup fee, a nonnegative per-unit rate, and each customer\u2019s integer peak demand from 0 to 5. A coalition\u2019s cost is the sum, over resources with positive coalition peak demand, of the startup fee plus the rate times the largest member demand. Compute every customer\u2019s Shapley share of this cost over all coalition orders. Output each share as a reduced rational number.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-convex-triangulation-cost",
+    "title": "Least-cost triangulation diagonals",
+    "problem": "Input the vertices of a strictly convex integer-coordinate polygon in counterclockwise order, with at most nine vertices. Triangulate it using noncrossing diagonals between vertices. Output the minimum sum of squared diagonal lengths; polygon boundary edges cost nothing.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-shortest-merged-supersequence",
+    "title": "Shortest common supersequence with a tie-break",
+    "problem": "Input two strings over a\u2013c, each of length at most 10. Output a shortest string that contains both inputs as subsequences. If several shortest strings exist, output the lexicographically smallest one.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-snapshot-safe-log-pruning",
+    "title": "Keep a smallest replayable log",
+    "problem": "Input at most 12 ordered key-value log records, each either put(key, integer) or delete(key), and a set of checkpoint positions between 1 and the log length that includes the final position. Replay starts with an empty map. Choose a subsequence of records whose replayed map at every checkpoint equals the original log's map there. Output the minimum possible number of kept records and the lexicographically smallest list of their zero-based indices.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-composite-key-layout",
+    "title": "Order Columns in a Composite Index",
+    "problem": "Input gives up to 5 named columns, 10 rows, and 8 weighted queries. Each query specifies equality values for some columns and optionally an inclusive range for one other column. Choose one permutation of all columns as an index key. For a query, use its consecutive leading equality columns and, only if next, its range column; its cost is 1 plus the number of rows satisfying those usable constraints. Minimize weighted query cost and output the cost and lexicographically first optimal column order.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-addition-chain-multiply",
+    "title": "Synthesize multiplication by a small constant",
+    "problem": "Input is a target integer c from 2 through 15. Starting with the coefficient 1 for an input x, each instruction may add any two previously available coefficients, including a coefficient to itself, producing their sum. Coefficients may be reused. Output the fewest addition instructions needed to produce c, corresponding to a straight-line program for c times x.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-resolution-trace-check",
+    "title": "Check a clause derivation",
+    "problem": "Input a CNF formula, one satisfying assignment, and at most 30 numbered proof lines. Each line either copies an input clause or claims the resolvent of two earlier lines on a specified pivot. Treat clauses as sets of signed literals. Output the index of the first line that does not equal its declared clause or resolvent, or 0 if every line is correct.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-binary-prefix-tracking",
+    "title": "Track rational targets with binary pulses",
+    "problem": "Input is up to twelve rational increments r_i in [0,1] and an integer B between zero and the sequence length. Choose exactly B binary outputs y_i. For each prefix, compare its cumulative output with the cumulative target increments. Minimize the largest absolute prefix discrepancy, including the final prefix. Output the exact rational discrepancy and the lexicographically smallest optimal binary sequence.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-round-robin-pair-reuse",
+    "title": "Schedule matching rounds",
+    "problem": "Input an even number v (2\u20136), a round count R (1\u20133), and a list of forbidden unordered pairs of players numbered 0,\u2026,v\u22121. In each round, partition all players into allowed pairs; rounds may repeat. Minimize the greatest number of rounds in which any one pair occurs. Output that minimum and the lexicographically smallest ordered sequence of rounds attaining it, with pairs sorted within each round, or IMPOSSIBLE if no allowed round exists.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-contiguous-color-order",
+    "title": "Group colors with fewest adjacent swaps",
+    "problem": "Input is a sequence of n \u2264 9 distinct labeled items, each assigned one of at most four colors, plus precedence pairs between colors. A valid final sequence places each color in one contiguous block and places the block of color a before color b for every pair (a,b). Adjacent items may be swapped. Output the minimum swaps to reach any valid sequence, or -1 if none exists.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-transformer-heat-smoothing",
+    "title": "Schedule load under transformer heating",
+    "problem": "A total of D\u226412 integer energy units must be processed over T\u22647 slots. In slot t choose integer load x between 0 and its given cap u_t\u22643, with \u03a3x=D. Transformer heat starts at the given H0 and changes after each slot to max(0,H\u22121)+x\u00b2. Output the smallest achievable maximum heat, counting the initial heat and every resulting heat, or \u22121 if the required energy cannot be processed.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-short-distance-code",
+    "title": "Shortest separated binary code",
+    "problem": "Input: a number of messages from 2 to 5 and a required Hamming distance from 1 to 3. Assign distinct equal-length binary words to the messages so every pair differs in at least that many positions. Output the smallest feasible word length from 1 through 7, or -1 if none exists in that range.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-single-skip-lane",
+    "title": "Choose express nodes for a sorted chain",
+    "problem": "Input: a sorted chain of n \u2264 9 keys, nonnegative weights for successful searches, and a limit s on express nodes. Choose up to s chain nodes for a second lane; the head is always on that lane. A search starts at the head, follows express links while the next express key does not exceed its target, then follows ordinary links to the target. Count each visited node once, including the head. Output the minimum weighted visit count.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-horizontal-run-chains",
+    "title": "Cover color runs with row-to-row chains",
+    "problem": "Input an at-most-6\u00d76 grid of symbols. Split each row into maximal constant-symbol runs. A chain may join a run to a run in the next row only when their symbols match and their column intervals overlap; each run has at most one predecessor and one successor. Output the minimum number of chains needed to include every run.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-palette-escapes",
+    "title": "Choose a compact value palette",
+    "problem": "Input a matrix at most 4 by 4 whose values are integers from 0 to 15, and a maximum palette size from 0 to 4. Choose a sorted palette of distinct values appearing in the matrix. With palette size p, each cell uses ceil(log2(p + 1)) bits for an index: indices 0 through p-1 name palette values, and index p is an escape followed by the raw four-bit value. The palette itself costs 4p bits. Output the minimum total bit count, its palette, and the row-major indices and escape values. Break equal-cost palettes by lexicographic order.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-decision-independence-pairs",
+    "title": "Condition-independence test pairs",
+    "problem": "Input a Boolean expression tree using AND, OR, NOT and at most 6 named variables, each appearing exactly once. For each variable, output a pair of Boolean assignments that differ only in that variable and give different expression results. Choose the lexicographically smallest pair of bit vectors, with variables in input order and 0 before 1; output null for a variable with no such pair.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-two-gripper-delivery",
+    "title": "Deliver objects with two grippers",
+    "problem": "Input gives up to three labeled objects, each marked small or bulky, their starting and target stations on a three-station line, and the robot's starting station. In one action the robot walks to an adjacent station, picks up an object there, or drops a held object there. Each gripper holds one small object; a bulky object requires both empty grippers. Stations have unlimited space. Output the fewest actions to place every object at its target with both grippers empty.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-relay-activation",
+    "title": "Activate Reachable Relays",
+    "problem": "Input a directed graph with at most 8 vertices and 14 arcs, a source, a set of terminal vertices, and a positive activation cost for each remaining vertex. The source and terminals are always active; an arc can be used only when both endpoints are active. Choose relays to activate so every terminal is reachable from the source. Output minimum cost and ascending activated vertex indices, breaking ties lexicographically; output -1 if impossible.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-two-van-parcel-relay",
+    "title": "Fastest delivery with one handoff",
+    "problem": "Input a network of at most 6 vertices with separate sets of directed unit-time roads permitted to van A and van B, their starting vertices, and a delivery vertex. Van A initially carries one parcel. Each tick both vans may move along a permitted road or wait; whenever they occupy the same vertex, the parcel may be handed over instantly. Output the minimum number of ticks, at most 20, until either van brings the parcel to the delivery vertex, or -1 if this cannot be done by then.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-crossing-machine-routes",
+    "title": "Schedule short jobs with opposite machine routes",
+    "problem": "Input: up to 3 jobs, each consisting of two nonpreemptive operations with durations 1\u20133. A job's specified route is either machine A then B or machine B then A. Each machine runs at most one operation at a time, and a job's second operation starts after its first finishes. Output the minimum time to complete all jobs.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-fallback-service-bundles",
+    "title": "Choose Full or Fallback Service",
+    "problem": "Input: capacities at most 8 for 2 or 3 resources and at most 6 customers. Each customer has a full resource-demand vector and a distinct fallback vector no larger in any component. Choose independently to reject a customer, provide fallback service, or provide full service, without exceeding capacities. First maximize the number served, then the number receiving full service, then minimize total resources consumed. Output these three quantities and the lexicographically smallest decision tuple, encoding reject, fallback, and full as 0, 1, and 2.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-diagonal-mirror-trace",
+    "title": "Trace reflections through diagonal mirrors",
+    "problem": "Input up to six labeled, disjoint finite mirrors, each a segment of slope +1 or -1, an integer-coordinate starting point, a cardinal initial ray direction, and a reflection limit K at most ten. At each hit, reflect the ray across the mirror's supporting line. Output the mirror labels hit in order, stopping at K hits or when the ray escapes. Inputs guarantee that encountered hits are never at mirror endpoints and never tie.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-prefix-array-reconstruction",
+    "title": "Reconstruct a string from its prefix array",
+    "problem": "Input an integer array p of length at most 12, where p[i] is intended to be the length of the longest proper prefix of s[0..i] that is also its suffix. Find the lexicographically smallest string s over a\u2013c with exactly this prefix array, or output IMPOSSIBLE.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-sparse-overwrite-map",
+    "title": "Build the final sparse-file map",
+    "problem": "Input a file length of at most 20 blocks and at most 12 range operations. A write(start, length, value) sets every block in its range to the given integer value; a punch(start, length) makes those blocks holes. Ranges are half-open and within the file. Initially every block is a hole. Output the final non-hole intervals as [start,end,value], merging adjacent blocks only when their values match, and output the total number of non-hole blocks.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-sort-sharing-schedule",
+    "title": "Schedule Queries to Reuse Sort Order",
+    "problem": "Input gives a row count, up to 7 labeled queries with requested sort-key sequences, and an initial empty sort order. Execute every query once. If its requested sequence is a prefix of the current order, it costs zero and leaves that order unchanged. Otherwise it costs row_count \u00d7 (requested length \u2212 length of its longest common prefix with the current order)) and makes its requested sequence current. Output the minimum total cost and query-label order, breaking ties lexicographically.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-budgeted-loop-hoisting",
+    "title": "Select loop-invariant computations to hoist",
+    "problem": "Input is a DAG of at most 10 pure computations, each with a positive cost and operands that are constants, the loop index, or earlier DAG results. Every computation normally runs on each of T iterations, where 2 \u2264 T \u2264 8. A node is invariant if none of its transitive operands depends on the loop index. Hoisting an invariant node runs it once instead, but all its DAG predecessors that are computations must also be hoisted. At most B nodes may be hoisted. Output the minimum total computation cost.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-permitted-permutation",
+    "title": "Least-inversion permitted permutation",
+    "problem": "Input an n-by-n Boolean permission matrix for n at most 8 and a permitted permutation assigning each row a distinct column. Among all permitted permutations, output one with the fewest inversions, breaking ties by lexicographic order.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-sparse-haar-reconstruction",
+    "title": "Sparse hierarchical Haar fit",
+    "problem": "Input is eight integer samples in [-6,6] and a budget K at most three. Reconstruct sample i as a constant c_0 in [-3,3] plus integer Haar coefficients in [-2,2] on the seven internal nodes of the eight-sample binary interval tree. A node coefficient adds its value on the node's left half and subtracts it on the right half. At most K node coefficients may be nonzero, and a nonzero node requires every ancestor node coefficient to be nonzero. Minimize total squared reconstruction error. Output the error, c_0, and all node coefficients in breadth-first order, breaking ties lexicographically by that full coefficient vector.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-uniform-separating-sets",
+    "title": "Separate points with uniform sets",
+    "problem": "Input n (2\u20135), k (1\u2013n), and b (1\u20135). Choose b distinct k-element subsets of {0,\u2026,n\u22121}. Two points are separated if at least one chosen subset contains exactly one of them. Maximize the number of separated unordered point pairs. Output the maximum and the lexicographically smallest sorted collection attaining it, or IMPOSSIBLE if fewer than b subsets exist.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-graph-blank-sort",
+    "title": "Sort tokens by sliding a blank on a graph",
+    "problem": "Input gives an undirected graph on n \u2264 7 numbered positions and a placement of tokens 0,1,...,n\u22121, where 0 is blank. A move exchanges the blank with a token at a neighboring position. Output the minimum moves to put token i at position i for every i, or -1 if unreachable.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-two-slot-electrolyzer-runs",
+    "title": "Operate a hydrogen store with two-slot production runs",
+    "problem": "Given T\u22647, hydrogen capacity C\u22644, initial inventory, and per-slot surplus electricity s and deficit electricity d (at most one is positive), choose off, electrolysis, or fuel-cell operation each slot. Electrolysis consumes two surplus units to add one hydrogen unit; a fuel cell consumes one hydrogen unit to serve one deficit unit. Each operation is limited to one unit per slot. Every time electrolysis begins after a non-electrolysis slot, it must also operate in the following slot, so it cannot begin in the last slot. Inventory must stay within [0,C]. Output the minimum total unserved deficit.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-time-gated-route",
+    "title": "Least-energy route before a deadline",
+    "problem": "Input: a directed graph with at most 6 vertices, a start, a destination, a deadline of at most 9 time units, and edges with positive integer travel times, nonnegative energy costs, and specified allowed integer departure times. The packet starts at time zero and may wait at vertices. Output the minimum energy of a route arriving by the deadline, or -1 if unreachable.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-posting-index-budget",
+    "title": "Choose tags to index",
+    "problem": "Input: up to 8 records with tag sets, up to 6 weighted conjunction queries, and a posting-storage budget. Indexing a tag costs one unit per record carrying it. For each query, if an indexed query tag exists, use the shortest such posting list as its driver (fixed tag order breaks ties); otherwise use all records. Query cost is the driver length plus, for each driver record and each other query tag, 1 if that tag is indexed or the record's tag count if not. Output the minimum weighted query cost over indexed-tag subsets within budget.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-minimum-vertical-seam",
+    "title": "Find a least-cost vertical seam",
+    "problem": "Input an at-most-8\u00d78 grid of nonnegative integer cell costs. A seam selects one cell in each row, and successive selected columns differ by at most one. Output the minimum possible cost sum and, among minimum-cost seams, the lexicographically smallest sequence of column indices.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-binary-low-rank",
+    "title": "Find a closest low-rank binary matrix",
+    "problem": "Input a binary matrix at most 4 by 4 and a rank limit r from 0 to 2. Among matrices expressible as U times V over GF(2), where U has r columns and V has r rows, find one with the fewest entries different from the input. Output that minimum Hamming distance and the reconstructed matrix; break ties by lexicographically smallest row-major bit string. For r = 0, the only candidate is the all-zero matrix.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-spectrum-suspicion-rank",
+    "title": "Exact spectrum-based component ranking",
+    "problem": "Input at most 12 test runs, each marked pass or fail, and a Boolean coverage matrix over at most 10 components. For each component let a be the number of failing runs covering it, F the total failing runs, and c the total runs covering it. Its score is a/sqrt(F*c), defined as zero when F*c is zero. Output component indices in descending score order, breaking ties by index. Compare scores exactly rather than relying on floating-point rounding.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-domino-flip-distance",
+    "title": "Reconfigure a domino tiling",
+    "problem": "Input gives two complete domino tilings of the same rectangular board of at most 4 by 4 cells, with even area, and a legal flip sequence between them. A flip replaces two parallel dominoes covering a 2-by-2 square with the other pair of parallel dominoes covering that square. Output the minimum number of flips from the first tiling to the second.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "network-design-route-congestion",
+    "title": "Minimize Shared-Arc Congestion",
+    "problem": "Input a directed graph with at most 6 vertices and 9 arcs and 2\u20133 ordered requests, each with distinct source and destination vertices. Assign each request one simple directed path. An arc's load is the number of assigned paths using it. Output the minimum possible maximum arc load and the paths as vertex sequences in request order; break ties by the lexicographically smallest sequence of paths. Output -1 if any request cannot be routed.",
+    "family": "network-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "transport-routing-edge-disjoint-truck-paths",
+    "title": "Two routes without shared roads",
+    "problem": "Input an undirected network with at most 7 vertices and 10 positive-length roads, plus separate start\u2013destination pairs for two trucks. Choose one route for each truck. Routes may share vertices but must not use any road in common. Output the minimum sum of their route lengths, or -1 if no such pair exists.",
+    "family": "transport-routing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "scheduling-consumable-token-schedule",
+    "title": "Schedule jobs that consume and produce tokens",
+    "problem": "Input: an initial nonnegative token stock (0\u20138) and up to 7 single-machine jobs. Each job has a release time (0\u20138), duration (1\u20133), token cost (0\u20135), token production (0\u20135), and positive completion-time weight (1\u20135). Starting a job immediately deducts its cost, which cannot exceed the current stock; finishing it adds its production. Jobs cannot overlap or be preempted. Output the minimum sum of weighted completion times for all jobs, or -1 if completing all jobs is impossible.",
+    "family": "scheduling",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "resource-allocation-shared-edge-routing",
+    "title": "Route Two Services Through Shared Links",
+    "problem": "Input: at most 8 links with positive capacities at most 5 and two services, each with demand at most 3 and one or two supplied candidate paths specified as link lists. Choose a nonnegative integer flow on each path; each service\u2019s total flow cannot exceed its demand, and combined flow on each link cannot exceed capacity. Maximize total delivered flow, then minimize the largest link load-to-capacity ratio, comparing fractions exactly. Output the delivered total, that ratio as a reduced fraction, and the lexicographically smallest path-flow tuple in input order.",
+    "family": "resource-allocation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "geometric-layout-sliding-display-window",
+    "title": "Best position for a fixed display window",
+    "problem": "Input an integer-coordinate board of width and height at most eight, a fixed axis-aligned window of integer width and height, and up to 12 weighted integer-coordinate points. Place the window with integer-coordinate lower-left corner wholly within the board. A point on its boundary counts as covered. Output the maximum sum of weights covered by one placement.",
+    "family": "geometric-layout",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "strings-compression-adjacent-palindrome-swaps",
+    "title": "Fewest adjacent swaps to a palindrome",
+    "problem": "Input a string of at most 12 characters over a\u2013d. One move exchanges two neighboring characters. Output the minimum number of moves needed to obtain any palindrome, or -1 if no rearrangement of the characters is a palindrome.",
+    "family": "strings-compression",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "storage-systems-single-hole-defragmentation",
+    "title": "Rearrange blocks through one empty slot",
+    "problem": "Input a current array of at most 7 disk slots containing distinct named blocks and exactly one empty slot, plus a target permutation of the same entries. A move copies any block into the empty slot, leaving that block's former slot empty. Output the fewest moves needed to reach the target and, among shortest solutions, the lexicographically smallest sequence of source-slot indices.",
+    "family": "storage-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "query-planning-bag-safe-join-elimination",
+    "title": "Remove Joins Without Changing Projected Rows",
+    "problem": "Input gives up to 4 named tables of at most 5 explicit rows each, a scan cost per table, equality join edges, and a nonempty list of projected columns. Evaluate joins with bag semantics: every compatible row combination contributes one projected tuple. Among connected table subsets containing every projected column's table, find one whose projected-output multiset equals that of the full join. Output its minimum total scan cost and table names, breaking ties by the sorted name list.",
+    "family": "query-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "compiler-optimization-aligned-vector-partition",
+    "title": "Partition a loop into scalar and vector operations",
+    "problem": "Input gives N consecutive iterations, with 1 \u2264 N \u2264 20, a starting address A, and positive costs for one scalar operation and for vector operations of widths 2 and 4. Partition the iterations, in order, into nonoverlapping blocks of those widths. A vector block of width w is allowed only when the address of its first iteration, A plus its zero-based iteration index, is divisible by w. Output the minimum total cost.",
+    "family": "compiler-optimization",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "logic-constraints-binary-constraint-pruning",
+    "title": "Arc-consistent domains",
+    "problem": "Input at most eight finite-domain variables, each with at most four values, and binary constraints given as lists of allowed value pairs. A complete satisfying assignment is supplied. Repeatedly remove any value lacking a compatible remaining value across some incident constraint. Output the final domain of each variable in its original value order.",
+    "family": "logic-constraints",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "numerical-approximation-rounded-sum-parentheses",
+    "title": "Parenthesize a rounded rational sum",
+    "problem": "Input is 2 to 7 rational numbers with numerators in [-10,10] and positive denominators at most 10, plus a positive grid denominator D at most 10. Preserve input order and choose a full binary parenthesization. At each internal node, add its two child values and round the sum down to the nearest multiple of 1/D; leaves retain their exact input values. Minimize the final absolute error relative to the exact sum of all leaves. Output the exact rational error and the optimal parenthesization, breaking ties by its lexicographic fully parenthesized string using zero-based leaf indices.",
+    "family": "numerical-approximation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "combinatorial-design-parity-kernel-distance",
+    "title": "Shortest nonzero parity solution",
+    "problem": "Input an r-by-n binary matrix H, with 1\u2264r\u22644 and 1\u2264n\u22646. Find a nonzero binary vector x satisfying Hx=0 modulo 2. Output its minimum possible Hamming weight and, among vectors of that weight, the lexicographically smallest x. Output NONE if no nonzero solution exists.",
+    "family": "combinatorial-design",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "sequence-reordering-fifo-lane-count",
+    "title": "Find the fewest FIFO output lanes",
+    "problem": "Input is a target permutation p of 1..n, with n \u2264 9. First assign each value of 1,2,...,n, in that order, to one of k FIFO lanes; no values may be removed during this phase. Then repeatedly remove a front value from any lane to produce p. Output the smallest k that permits p.",
+    "family": "sequence-reordering",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "energy-systems-solar-tracker-storage",
+    "title": "Aim a solar tracker powered by its own battery",
+    "problem": "Given T\u22647, two panel orientations, an initial orientation, battery capacity C\u22645, initial charge, inverter export limit L\u22643, and an integer generation value for each orientation and slot, maximize total exported energy. At each slot's start the tracker may stay or switch orientation; switching immediately consumes one stored battery unit and is forbidden if none is available. The panel then generates its stated energy. Choose an integer export up to L, store any remaining energy up to C, and curtail any excess. Output the maximum total export.",
+    "family": "energy-systems",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "communication-crossbar-active-slots",
+    "title": "Fewest active switch slots",
+    "problem": "Input: at most 7 packets over at most 7 slots. Each packet has an input port, output port, release slot, and deadline slot. In a slot, transmitted packets must use distinct input ports and distinct output ports; a packet can be sent in any one slot from its release through its deadline. Output the minimum number of slots containing at least one transmission that delivers every packet, or -1 if impossible.",
+    "family": "communication",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "search-structures-rectangle-kd-layout",
+    "title": "Shape a small two-dimensional point index",
+    "problem": "Input: up to 6 distinct integer-coordinate points and weighted axis-aligned rectangle queries. Build a binary tree with one point per leaf. Each internal node partitions its points by an x- or y-coordinate threshold between consecutive distinct values, leaving both children nonempty. A query loads the root, then loads a child exactly when that child's point bounding box intersects the rectangle; each load costs 1. Output the minimum weighted number of loads over all valid tree shapes.",
+    "family": "search-structures",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "image-grid-processing-smallest-repeating-tile",
+    "title": "Recover an exact repeating tile",
+    "problem": "Input an at-most-8\u00d78 symbol grid. Find tile dimensions h and w that divide the grid height and width and whose top-left h\u00d7w tile exactly reproduces the grid by repetition. Output dimensions with minimum area, breaking ties by smaller h then smaller w, and output the tile itself.",
+    "family": "image-grid-processing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "data-representation-sparse-differences",
+    "title": "Represent a matrix by sparse differences",
+    "problem": "Input an integer matrix at most 5 by 5 and a list of inclusive rectangular sum queries. Define D[i,j] = A[i,j] - A[i-1,j] - A[i,j-1] + A[i-1,j-1], treating out-of-bounds entries as zero. Output the nonzero (row, column, value) entries of D in row-major order and the sum of A over each query rectangle. The difference entries must exactly reconstruct A by two-dimensional prefix summation.",
+    "family": "data-representation",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "software-testing-failure-trace-shrinking",
+    "title": "Shortest failing subsequence",
+    "problem": "Input a total deterministic machine with at most 6 states and 3 ordered input symbols, a start state, a set of failure states, and an input sequence of length at most 16 whose final state is a failure state. Delete any positions while retaining the order of the remaining symbols. Output the lexicographically smallest list of retained zero-based positions among all shortest subsequences whose final state is a failure state; the empty list is allowed.",
+    "family": "software-testing",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "state-space-planning-row-column-paint",
+    "title": "Paint a small board by strokes",
+    "problem": "Input gives initial and target color grids of at most 3 by 3 cells using at most three colors, plus a stroke sequence reaching the target. One stroke chooses a row or column and overwrites every cell in it with one chosen color. Output the minimum number of strokes needed to produce the target grid.",
+    "family": "state-space-planning",
+    "source": "repo2rlenv:original-openai-seed",
+    "license": "Apache-2.0"
+  }
+]

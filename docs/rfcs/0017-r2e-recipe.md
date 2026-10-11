@@ -1,4 +1,7 @@
-# RFC 0017: `r2e` recipe for `equivalence_tests`
+---
+title: "RFC 0017: r2e recipe for equivalence_tests"
+navTitle: "0017 \u00b7 r2e recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

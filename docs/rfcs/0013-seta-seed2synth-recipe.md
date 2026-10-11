@@ -1,4 +1,7 @@
-# RFC 0013: `seta_seed2synth` recipe for `terminal_synth`
+---
+title: "RFC 0013: seta_seed2synth recipe for terminal_synth"
+navTitle: "0013 \u00b7 seta_seed2synth recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

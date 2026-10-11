@@ -1,4 +1,7 @@
-# RFC 0014: `seta_evol` recipe for `task_evolve`
+---
+title: "RFC 0014: seta_evol recipe for task_evolve"
+navTitle: "0014 \u00b7 seta_evol recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

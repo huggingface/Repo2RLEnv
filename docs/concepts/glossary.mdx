@@ -1,0 +1,105 @@
+---
+title: "Glossary"
+description: "Short definitions of the terms used across the Repo2RLEnv docs, each linked to the page that covers it."
+---
+
+The terms below appear throughout these docs. Each has a lowercase anchor you can link to, such as `glossary.mdx#oracle` or `glossary.mdx#bundle-hash`.
+
+### Blind rollout
+
+A solver model's attempt at a task using only the public instruction and environment, run by the quality loop. The reviewer then classifies the trace as a legitimate success or failure, a reward hack or a task defect. See [Review and repair](quality.mdx#review-and-repair).
+
+### Bootstrap
+
+The step that builds a Docker image in which a repository installs and its test suite runs. An LLM agent iterates in a local container until the build and tests pass. The image is cached per repository and becomes the base of native tasks that execute code. See [Bootstrap](../reference/BOOTSTRAP.md).
+
+### Bundle hash
+
+The `sha256:` identity of a task, computed over its configuration and every file's content and mode. It excludes the evaluation label and the hash field itself. Recipe and Tasksmith bundles record it as `metadata.repo2env.bundle_hash`, and quality evidence, labels and releases bind to it, so any change to a task invalidates its old evidence. See [Anatomy of a task](tasks.mdx#the-metadatarepo2env-extension).
+
+### Campaign
+
+A directory that holds the budget ledger and worker receipts for remote work. `repo2rlenv campaign init DIR --budget-usd N` sets the spending limit once. Every paid operation reserves against it, and operations with unknown outcomes stay reserved until `campaign settle`. See [Where code runs](how-it-works.mdx#where-code-runs).
+
+### Controller
+
+The `repo2rlenv` process on your machine during recipe, Tasksmith and quality-loop runs. It handles metadata, model calls, accounting and file assembly, and never executes target code. See [Where code runs](how-it-works.mdx#where-code-runs).
+
+### Controls
+
+The two reference trials a sound task passes: the [nop](#nop) agent scores 0 and the [oracle](#oracle) agent scores 1. SCALER tasks use −1 and +1. See [Controls](quality.mdx#controls).
+
+### Evaluation label
+
+The advisory `[metadata.repo2env.evaluation]` table in `task.toml`. It holds a status (`unverified`, `verified`, `needs_repair` or `blocked`), a stage, reason codes and references to evidence. Only a checked quality result bound to the [bundle hash](#bundle-hash) can make it `verified`. See [Evaluation labels](quality.mdx#evaluation-labels).
+
+<span id="f2p" />
+<span id="p2p" />
+
+### F2P and P2P
+
+`FAIL_TO_PASS` (F2P) tests fail at the base commit and pass with the fix. `PASS_TO_PASS` (P2P) tests pass both before and after the fix, and guard against regressions. The runtime pipelines validate both lists at generation time and score `f2p_rate × p2p_rate`. See [Graded test execution](rewards.mdx#graded-test-execution).
+
+### Harbor task
+
+A directory in the [Harbor](https://www.harborframework.com/docs/tasks) task format: `task.toml`, `instruction.md`, `environment/`, `solution/` and `tests/`. Harbor builds the environment, runs an agent, then runs `tests/test.sh`, which writes the reward. See [Anatomy of a task](tasks.mdx).
+
+### LLM judge
+
+The optional model call in the `pr_diff` verifier that rates whether a patch addresses the issue. It carries half of the default weight, and it runs at verify time only when you pass credentials with `harbor run --ve`. See [Diff similarity](rewards.mdx#diff-similarity).
+
+### Native pipeline
+
+One of the six generators that run on your machine: `pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`, `code_instruct` and `equivalence_tests`. They write Harbor 1.0 tasks and use local Docker only for bootstrap and validation. See [Pipelines](../pipelines/index.mdx).
+
+### Nop
+
+Harbor's `nop` agent, which does nothing. Its score shows what the untouched starting state earns, and it should be 0 (−1 for SCALER). See [Nop and oracle runs](quality.mdx#nop-and-oracle-runs).
+
+### Oracle
+
+The reference solution in `solution/`, and Harbor's `oracle` agent, which runs `solution/solve.sh`. A sound task gives the oracle a score of 1. See [Nop and oracle runs](quality.mdx#nop-and-oracle-runs).
+
+### Pipeline family
+
+The kind of task a generator produces, named by `pipeline` in `task.toml`, for example `pr_runtime`, `repo_mutate` or `terminal_synth`. The family fixes the input, the task shape and the reward scheme. [Research recipes](#research-recipe) are alternative implementations within a family. See [Pipelines](../pipelines/index.mdx).
+
+### Probe
+
+A private variant of a task that the quality loop creates to test the verifier: a plausibly wrong solution the verifier must reject, or a valid alternative it must accept. Probes run after the reference and leave the instruction, environment and verifier unchanged. See [Review and repair](quality.mdx#review-and-repair).
+
+<span id="review-and-repair" />
+
+### Quality loop
+
+The review and repair component, `repo2rlenv quality run`. It reviews a task, runs controls, [probes](#probe) and a [blind rollout](#blind-rollout) on a remote worker, and writes bounded repairs as new revisions. Its result can become a `verified` [evaluation label](#evaluation-label). See [Review and repair](quality.mdx#review-and-repair) and the [full guide](../pipelines/quality_loop.md).
+
+### Reproducibility mode
+
+How a native task's environment can be rebuilt elsewhere, recorded in `[metadata.repo2env.reproducibility]`. With `local_only`, the task was just generated and its base image exists only on your machine. With `registry`, `push` uploaded the bootstrap image and pinned it by digest. With `inline_dockerfile`, the bootstrap recipe is inlined and rebuilt from scratch. See the [specification](../reference/SPEC.md).
+
+<span id="recipe" />
+
+### Research recipe
+
+A repository-owned implementation of a published generation method, such as SWE-smith or SCALER, selected with `pipeline.recipe` in a generation config inside a [pipeline family](#pipeline-family). Recipes run on a remote [worker](#worker) and write schema 1.3 bundles. See [Owned generation recipes](../pipelines/owned_recipes.md).
+
+### Reward kind
+
+The scoring scheme a task supports, listed in `metadata.repo2env.reward_kinds`: `diff_similarity`, `test_execution`, `answer_equivalence` or `optimization_score`. See [Rewards](rewards.mdx).
+
+### Tasksmith
+
+An agent-driven generator that turns a merged PR into a Harbor task. A coding agent investigates the PR, the repository is built remotely, the agent designs the request and verifier, and the quality loop reviews the result. See [Tasksmith](../pipelines/tasksmith.md).
+
+### Verifier
+
+The grading side of a task: `tests/test.sh` and the files it uses. Harbor uploads `tests/` after the agent finishes, and the verifier writes the reward to `/logs/verifier/reward.txt`. See [Files and who sees them](tasks.mdx#files-and-who-sees-them).
+
+### Worker
+
+A Modal or Daytona sandbox that runs the `repo2rlenv` wheel and Docker for recipes, Tasksmith and the quality loop. It executes all target code. Start and stop it with `repo2rlenv workers`. See [Where code runs](how-it-works.mdx#where-code-runs).
+
+### Yield
+
+New exported tasks divided by the distinct candidates attempted, such as merged PRs examined. Measured values for each pipeline are in [Yield and cost per task](../pipelines/economics.md).

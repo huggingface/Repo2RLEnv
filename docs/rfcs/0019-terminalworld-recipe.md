@@ -1,4 +1,7 @@
-# RFC 0019: `terminalworld` recipe for `terminal_reconstruct`
+---
+title: "RFC 0019: terminalworld recipe for terminal_reconstruct"
+navTitle: "0019 \u00b7 terminalworld recipe"
+---
 
 **Status:** experimental implementation in [PR #109](https://github.com/huggingface/Repo2RLEnv/pull/109); release evidence below
 **Author:** @adithya-s-k

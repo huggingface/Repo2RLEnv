@@ -6,8 +6,7 @@ on:
       - main
     paths:
       - docs/**
-      - mkdocs.yml
-      - requirements-docs.txt
+      - website/**
       - src/repo2rlenv/pipelines/recipes/**
       - src/repo2rlenv/tasksmith/**
       - src/repo2rlenv/quality/**
@@ -31,21 +30,37 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # The prompt reference is generated from canonical sources with Python.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
-          cache: pip
 
-      - name: Install docs deps
-        run: pip install -r requirements-docs.txt
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
 
-      - name: Build MkDocs site
-        run: mkdocs build --strict
+      - name: Install site dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build the static site
+        working-directory: website
+        env:
+          NEXT_PUBLIC_BASE_PATH: /Repo2RLEnv
+        run: npm run build
+
+      - name: Check internal links and anchors
+        working-directory: website
+        env:
+          NEXT_PUBLIC_BASE_PATH: /Repo2RLEnv
+        run: node tools/check-links.mjs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
-          path: site
+          path: website/out
 
   deploy:
     permissions:

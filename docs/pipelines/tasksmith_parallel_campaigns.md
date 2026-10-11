@@ -1,203 +1,184 @@
-# Tasksmith batch generation
+---
+title: "Run Tasksmith on many PRs"
+navTitle: "Run many PRs"
+description: "Run a bounded, parallel Tasksmith campaign over many merged PRs until you reach a target number of verified tasks."
+---
 
-A batch runs independent PRs in separate controller processes. Each process owns
-one Tasksmith instance and one remote builder; each target build, test and solver
-still executes on Modal or Daytona. The controller retains every generated task
-and every revision, including tasks whose verifier or rollout needs repair.
+A batch runs [Tasksmith](tasksmith.md) over a list of PRs in parallel, under one spending cap, until it reaches a target number of verified tasks. Each PR runs in its own isolated [controller](../concepts/glossary.mdx#controller) process with its own remote [worker](../concepts/glossary.mdx#worker), and the batch keeps every generated task and revision, including those that need repair. Start one once a single PR works end to end ([Run one PR](tasksmith.md#run-one-pr)).
 
-```mermaid
-flowchart TD
-    P[Freeze PR panel, options, prior verified evidence and runtime wheel] --> L[Shared campaign ledger and batch spending cap]
-    L --> A{Verified target reached?}
-    A -->|Yes| R[Write retained results and stop]
-    A -->|No, budget available| S[Admit at most max_parallel PRs]
-    S --> C1[Fresh controller process: PR A]
-    S --> C2[Fresh controller process: PR B]
-    C1 --> T1[Tasksmith remote bootstrap, authoring, construction and quality loop]
-    C2 --> T2[Tasksmith remote bootstrap, authoring, construction and quality loop]
-    T1 --> E[Retain task bundles, revisions, quality evidence and receipts]
-    T2 --> E
-    E --> V{Verified evidence?}
-    V -->|Yes| N[Count one unique PR and bundle]
-    V -->|No| U[Keep generated_unverified or blocked reason]
-    N --> A
-    U --> A
-    L -->|Reservation denied| R
-    E -->|Provider cleanup uncertain| X[Stop new dispatch; reconcile retained receipts]
-```
+## When to use a batch
+
+| | `tasksmith run` | `tasksmith batch` |
+|---|---|---|
+| Input | A panel: a name and 1–100 PR URLs | A plan: 1–1,000 candidates, each with its own options |
+| Concurrency | One PR at a time, on one worker | Up to `max_parallel` PRs, each in its own process and worker |
+| Options | One set for the whole panel | Per candidate, including GPU count |
+| Stops when | Every selected PR has been processed | The verified target is reached, nothing affordable remains, or the plan is exhausted |
+| Spending cap | `max_spend_usd` in the options | The batch's `max_spend_usd`, plus each candidate's own cap |
+| Earlier results | `--generation-run` and the other reuse flags | `prior_verified` counts toward the target, plus per-candidate reuse |
 
 ## Run a batch
 
-The experimental entry point uses the same owned Tasksmith implementation and
-options as individual runs:
+You need the same setup as for one PR: the extras, `tasksmith install-runtime`, a fresh runtime wheel and an existing [campaign](../concepts/glossary.mdx#campaign). A batch never creates, raises or resets the campaign limit.
 
 ```bash
-uv build --wheel
-uv run python -m repo2rlenv.tasksmith.batch plan.json workspace/tasksmith-batch \
-  --campaign workspace/campaign \
-  --runtime-wheel dist/repo2rlenv-VERSION-py3-none-any.whl
+uv run repo2rlenv tasksmith batch plan.json \
+  --campaign workspace/tasksmith \
+  --output workspace/tasksmith-batch \
+  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
 ```
 
-The campaign ledger must already exist with an explicitly authorized global
-limit. This command never creates, raises or resets that limit. Use the actual
-wheel filename produced by `uv build`; the runner refuses stale owned code.
+Add `--env-file FILE` to load credentials from a specific file, or `--json` for a machine-readable report. The command exits `0` only when the plan's verified target is reached. Check progress at any time, without paid calls:
 
-A plan has this structure:
+```bash
+uv run repo2rlenv tasksmith show workspace/tasksmith-batch
+```
+
+## Write the plan
+
+A minimal plan names the batch, sets a target and a cap, and lists candidates. Each candidate's `options` takes the same object as `tasksmith run --options`, so `{}` uses the defaults.
 
 ```json
 {
-  "name": "hf-next-batch",
-  "target_verified": 50,
+  "name": "more-itertools-batch",
+  "target_verified": 2,
   "max_parallel": 2,
-  "max_gpu_parallel": 2,
-  "max_spend_usd": "200.00",
-  "prior_verified": ["/absolute/path/to/previous/quality/result.json"],
+  "max_spend_usd": "50.00",
   "candidates": [
     {
-      "url": "https://github.com/huggingface/accelerate/pull/3075",
-      "options": {
-        "provider": "modal",
-        "author_runtime": "pi",
-        "author_stage_usd": "1.50",
-        "max_spend_usd": "10.00",
-        "worker_reservation_usd": "3.00",
-        "quality": {
-          "repair": true,
-          "run_rollout": true,
-          "max_repairs": 3,
-          "max_probes": 4,
-          "max_spend_usd": "6.00",
-          "model_reservation_usd": "0.80",
-          "solver_reservation_usd": "1.50"
-        }
-      }
+      "url": "https://github.com/more-itertools/more-itertools/pull/1193",
+      "options": { "provider": "daytona" }
+    },
+    {
+      "url": "https://github.com/more-itertools/more-itertools/pull/1251",
+      "options": { "provider": "daytona" }
     }
   ]
 }
 ```
 
-These numbers illustrate bounded allocation; they do not predict task costs or
-guarantee fifty successes. Every candidate accepts the complete `Options`
-contract, including GPU count, bootstrap hints, existing remote snapshots and
-model selection. `source_record` optionally supplies a previously frozen PR
-record; Tasksmith validates it before paid work. Without one, Tasksmith freezes
-public PR evidence on initial intake before allocating its worker.
+| Plan field | Default | Meaning |
+|---|---|---|
+| `name` | required | Lowercase name: a letter, then up to 30 letters, digits or hyphens |
+| `candidates` | required | 1–1,000 unique PRs. A trailing slash doesn't make a URL distinct |
+| `target_verified` | `50` | Stop once this many verified tasks exist, counting `prior_verified` (1–1,000) |
+| `max_parallel` | `2` | PR controllers running at once (1–8) |
+| `max_gpu_parallel` | `2` | How many of those may be GPU tasks (1–8) |
+| `max_spend_usd` | `"200.00"` | Batch spending cap. The campaign limit still applies |
+| `prior_verified` | `[]` | Quality `result.json` paths for tasks you already verified. They count toward the target, and their PRs are skipped |
 
-`max_parallel` bounds all active PR controllers; `max_gpu_parallel` separately
-bounds controllers whose tasks require GPUs. Both default to two. For example,
-four total controllers with two GPU controllers permits additional CPU work while
-GPU capacity is occupied. A two-GPU PR counts as one GPU controller and still
-requests its full device count. The scheduler can admit an eligible CPU candidate
-later in the panel without exceeding either concurrency limit or the target.
+| Candidate field | Meaning |
+|---|---|
+| `url` | A merged public GitHub PR URL. Required |
+| `options` | Tasksmith [options](tasksmith.md#options) for this PR. Required |
+| `source_record` | A previously frozen PR record, validated before any paid work. Without one, intake freezes the PR from GitHub |
+| `generation_run`, `reuse_evidence` | Reuse a checksum-bound generation from an earlier run and apply the current quality policy |
+| `prepared_task` | An existing generated task to revalidate with fresh quality checks. Requires `source_record`, and can't be combined with `generation_run` |
+| `prepared_probes` | Probe definitions to replay on `prepared_task`. See [Reuse earlier work](#reuse-earlier-work) |
 
-A candidate may also specify `generation_run` and `reuse_evidence` to use
-Tasksmith's existing checksum-bound generation import. For an existing generated
-Harbor task, `prepared_task` plus its `source_record` runs fresh quality validation
-without importing old trials; this route excludes `generation_run`. To preserve
-specific counterexamples, optionally include `prepared_probes` inline in the batch
-candidate. It uses the existing quality `ProbeManifest` schema:
-`{"bundle_hash": "sha256:...", "probes": [...]}`. Each probe retains its `name`,
-`kind`, `focus`, `rationale`, grounded `evidence`, and executable `script`.
-Tasksmith freezes these definitions in the batch and generation configuration and
-replays them through the quality loop. Prior rewards and trial receipts are never
-imported through this field.
+The amounts are caps for bounded allocation. They don't predict what a task costs or guarantee how many succeed.
 
-Prepared probes require a prepared task with the exact matching bundle hash,
-unique probe names, and a count within `options.quality.max_probes`. These checks
-run before provider work. The task must already contain any
-`options.required_probe_focus` annotations; create that revision before binding
-the definitions so an annotation cannot silently discard them. Changing the
-definitions requires a new run directory. Without `prepared_probes`, the quality
-review proposes controls as usual.
+## How scheduling works
 
-Pass a full existing
-`LoopResult` for each prior verified task. The batch derives its PR URL from the
-bound task metadata, checks its controls, probes, raw trial evidence and judged
-rollout through the shared quality label validator, and skips duplicate PRs.
+```mermaid
+flowchart TD
+  P["Freeze plan, runtime wheel<br/>and prior verified results"] --> A{"Target reached, drained<br/>or nothing affordable?"}
+  A -->|"yes"| R["Let active PRs finish,<br/>write report, stop"]
+  A -->|"no"| S["Admit the next affordable PR<br/>within both parallel limits"]
+  S --> C["Fresh controller process<br/>and remote worker for that PR"]
+  C --> T["Tasksmith: investigate, bootstrap,<br/>design, construct, review"]
+  T --> O["Outcome: verified,<br/>generated_unverified or blocked"]
+  O --> A
+```
 
-Campaign controllers can pass `expected_prior_verified` to `run_batch` with the
-proof inventory bound during preparation. The runner validates the underlying
-evidence once, compares the fresh result with that inventory, and rejects any
-change before allocating work. Preparation can therefore check receipt identities
-without repeatedly scanning every historical task tree. This option does not
-replace fresh validation or introduce an evidence cache.
-For coordinated campaigns, `preallocation_check` can recheck shared capacity and
-budget after evidence validation finishes. An exception prevents dispatch; the
-callback runs before the batch creates its allocation scope.
+The scheduler starts a PR only when a slot is free under `max_parallel` and, for a GPU candidate, under `max_gpu_parallel`. It walks the plan in order and takes the first candidate whose `worker_reservation_usd` fits the budget that remains and whose GPU need fits. A CPU PR later in the list can therefore start while the GPU slots are full. A two-GPU PR counts as one GPU controller and still requests both devices.
 
-## Budget and ownership
+Running PRs hold target slots. With 49 verified tasks and a target of 50, the batch runs one PR at a time, whatever `max_parallel` says. A PR that finishes without a verified task frees its slot for the next pending one.
 
-Each paid operation carries a deterministic batch prefix and child prefix.
-Worker, author, reviewer, repair, solver and native allocation reservations pass
-through the same nested `RunBudget` scopes. The shared SQLite ledger checks the
-global, batch, candidate and quality limits together inside one transaction.
-A candidate cannot evade the batch cap by using a different execution stage.
+Each admitted PR runs in a fresh Python subprocess started with `-I`. It imports the Repo2RLEnv package extracted from the exact runtime wheel into a read-only directory, so editing your checkout doesn't change a running batch. Supervisor threads in the parent only launch and wait for these processes. Credentials come from the environment and are never written into the request. Third-party libraries still come from the Python environment you run the command in.
 
-Admission checks the first worker reservation before starting a child. This
-check avoids obvious wasted launches; the transactional reservation at actual
-dispatch is the enforcement boundary. A completed operation can report actual
-cost above its reservation; that overrun remains recorded and blocks later work.
-Uncertain outcomes keep their reservation.
+## Budget
 
-Confirmed Modal builder termination is reconciled automatically with the
-existing conservative allocation-time estimate, including build time and its
-explicit allowance. Native Modal allocations already reconcile on termination.
-These figures are estimates, not provider invoices. Other provider estimates
-are not inferred from Modal prices; their unsettled reservations remain visible.
+A batch's paid operations reserve through nested scopes: the campaign limit, the batch's `max_spend_usd`, the candidate's `max_spend_usd` and its quality cap. The shared SQLite ledger checks all of them in one transaction at dispatch, so no stage can bypass the batch cap. The check before a PR starts only avoids launches that obviously can't be afforded; the reservation at dispatch is what enforces the limits.
 
-Each PR starts a fresh Python subprocess with isolated import settings (`-I`).
-The owned controller package is extracted from the exact runtime wheel into a
-read-only directory and inserted first on the child import path. This freezes
-later imports as well as code loaded at startup, so edits to the working tree do
-not change an active campaign. The bootstrap checks the imported package path.
+A completed operation can cost more than it reserved. The overrun is recorded and counts against later work. Operations with uncertain outcomes keep their reservation. When a Modal worker's termination is confirmed, the batch settles it automatically with a conservative allocation-time estimate, which is not a provider invoice. Other providers' reservations stay open until you settle them with [`campaign settle`](../guides/remote-execution.mdx#stop-the-worker-and-settle-its-cost).
 
-Lightweight supervisor threads only launch and wait for these subprocesses; they
-never create a Tasksmith instance or alter the parent environment. Model keys
-are inherited without being written into the request. Child stdout and stderr
-are saved with private file permissions. Essential third-party libraries still
-come from the invoking Python environment. Process-wide environment changes and
-Harbor accounting context remain isolated between Tasksmith controllers.
+## What the batch writes
 
-## What the batch retains
+| Path | Contents |
+|---|---|
+| `configuration.json` | Frozen plan, controller identity, runtime hash, prior verified results and campaign path |
+| `runtime/` | The exact wheel and a read-only copy of its package |
+| `report.json` | Verified count and target, new verified, generated-but-unverified and blocked counts, per-PR rows, budget totals, stop reason and pending PRs |
+| `candidates/<pr-hash>/` | The PR's complete Tasksmith output, in the [same layout](tasksmith.md#what-the-run-writes) as a single run |
+| `candidates/<pr-hash>/batch-result.json` | The PR's outcome and the path of every task it produced |
+| `candidates/<pr-hash>/controller.stdout`, `controller.stderr` | Subprocess logs, saved with private file permissions |
 
-| File or directory | Purpose |
-| --- | --- |
-| `configuration.json` | Frozen plan, owned controller identity, runtime hash, prior verified identities and campaign path |
-| `runtime/` | Exact wheel and read-only copy of its owned controller package |
-| `report.json` | Verified total, new successes, generated unverified tasks, blocked candidates, pending PRs and budget totals |
-| `candidates/<PR hash>/` | Complete individual Tasksmith output: tasks, revisions, graph state, events, logs and receipts |
-| `candidates/<PR hash>/batch-result.json` | Child outcome and retained task paths, written after its owned work finishes |
-| `candidates/<PR hash>/controller.stdout`, `controller.stderr` | Private subprocess diagnostics; failure reports contain only a generic error |
+Each PR ends with one outcome:
 
-Batch outcome names describe scheduling: `verified`, `generated_unverified` and
-`blocked`. The uniform evaluation metadata inside each `task.toml` describes the
-task's detailed diagnosis. A failed construction without a Harbor task remains a
-blocked candidate; it does not count as generated. Revisions and semantic probe
-variants remain evidence for their source PR and never count as separate
-verified environments.
+| Outcome | Meaning |
+|---|---|
+| `verified` | Its quality result passes the shared label validator: controls, probes, trial evidence and a judged rollout |
+| `generated_unverified` | At least one Harbor task exists, but none is verified |
+| `blocked` | No Harbor task was produced, or its controller was interrupted |
 
-## Resume and stop behavior
+These outcomes describe scheduling. The detailed diagnosis is the [evaluation label](task_evaluation_labels.md) in each task's `task.toml`. Revisions and probe variants stay evidence for their PR and never count as extra verified environments, and the batch rejects duplicate PRs or bundle hashes among its verified results.
 
-Run the identical command and plan to continue undispatched candidates. A changed
-panel, options, controller or runtime requires a new output directory, preserving
-old evidence. Previously completed candidates are not retried implicitly.
-Completed child evidence is checked again when importing a saved success.
+The report's `stop_reason` says why the batch stopped:
 
-The scheduler reserves target slots for active children: with 49 verified tasks
-and a target of 50 it admits only one more PR, even if parallelism is higher.
-Failed candidates release that target slot, allowing another pending PR.
+| `stop_reason` | Meaning |
+|---|---|
+| `target_reached` | The verified count met `target_verified`. The only reason that exits `0` |
+| `panel_exhausted` | Every candidate ran |
+| `budget_headroom` | Candidates remain, but none fits the remaining budget |
+| `drained` | A drain request stopped admission |
+| `reconciliation_required` | A controller was interrupted or a worker's cleanup is uncertain |
 
-Creating `drain-request.json` in a batch directory stops further admission and
-lets active children finish normally. The runner collects their results, retains
-pending PRs and reports `stop_reason="drained"`. The request is latched for that
-invocation and remains on disk; an unchanged command with that marker still
-present does not admit work. This provides a clean boundary before freezing a
-new runtime or concurrency configuration. Carry all earlier costs and unresolved
-holds forward when allocating a continuation's budget.
+## Resume, drain and stop
 
-If the controller was interrupted, a completed child result can be imported
-without another dispatch. A child with no terminal result, or a provider with
-uncertain cleanup, stops all new batch work until its receipts are reconciled.
-The runner does not kill an unknown sandbox or relaunch an uncertain model call.
-A normal spending stop leaves every pending PR and generated artifact available
-for diagnosis or an explicitly configured later campaign.
+**Resume.** Run the identical command with the identical plan. PRs that already finished are imported rather than rerun, and a saved success is rechecked against its evidence. Changing the plan, options, controller code or wheel requires a new output directory, which leaves the old evidence untouched. Candidates that already ran aren't retried.
+
+**Drain.** Create `drain-request.json` in the batch directory to stop admission while active PRs finish normally:
+
+```bash
+touch workspace/tasksmith-batch/drain-request.json
+```
+
+The report then shows `stop_reason: "drained"` and keeps the pending list. The marker stays on disk, so rerunning the unchanged command admits nothing until you delete it. Use a drain as a clean boundary before you switch to a new wheel or concurrency setting. A new batch directory starts its own cap, so size it with the earlier spend and any unresolved reservations in mind.
+
+**Interruptions.** If the batch process stops, rerunning it imports every child that wrote its result. A worker whose cleanup is uncertain stops all new dispatch until you reconcile its receipt ([Stop the worker and settle its cost](../guides/remote-execution.mdx#stop-the-worker-and-settle-its-cost)), after which the same command continues. A child that was interrupted without a result stays `blocked` and keeps the batch at `reconciliation_required`. Reconcile its receipts, then continue in a new output directory that lists the verified results under `prior_verified`. The runner never kills an unknown sandbox or relaunches an uncertain model call.
+
+## Reuse earlier work
+
+**Tasks you already verified.** List each one's quality `result.json` under `prior_verified`. The batch checks its controls, probes, raw trial evidence and judged rollout with the shared label validator, reads the PR URL from the task's metadata, counts it toward the target and skips that PR.
+
+**An existing generated task.** Give a candidate `prepared_task` and its frozen `source_record`. The batch runs fresh quality validation on it and imports no old trials.
+
+**Specific counterexamples.** Add `prepared_probes` to that candidate, in the quality loop's probe manifest format:
+
+```json
+{
+  "bundle_hash": "sha256:…",
+  "probes": [
+    {
+      "name": "drops-last-chunk",
+      "kind": "wrong_solution",
+      "focus": "general",
+      "rationale": "…",
+      "evidence": [{ "path": "…", "quote": "…" }],
+      "script": "…"
+    }
+  ]
+}
+```
+
+`kind` is `wrong_solution` or `valid_alternative`, and `script` is what the probe runs. The bundle hash must match the prepared task exactly, probe names must be unique, and the count must fit within `options.quality.max_probes`. If the options set `required_probe_focus`, the task must already carry those annotations, so create that revision first and bind the probes to its hash. The batch checks all of this before any provider work. It then freezes the definitions and replays them through the quality loop, importing no earlier rewards or trial receipts. Changing the definitions requires a new batch directory. Without `prepared_probes`, the review proposes probes as usual.
+
+**From Python.** Campaign controllers that call `run_batch` directly can pass `expected_prior_verified`, a proof inventory bound when the campaign was prepared, and the batch rejects any fresh result that differs before allocating work. They can also pass `preallocation_check`, a callback that rechecks shared capacity and budget after evidence validation; raising an exception prevents dispatch.
+
+## Limits
+
+- **At most eight parallel controllers.** Each PR creates its own worker, so your provider account's concurrency limits apply as well.
+- **One attempt per PR per batch directory.** A PR that ends `blocked` or `generated_unverified` isn't retried implicitly.
+- **Estimated compute.** Modal settlements are allocation-time estimates, not invoices, and other providers need manual settlement.
+- **A target isn't a yield.** Reaching `target_verified` says nothing about the share of attempted PRs that convert.

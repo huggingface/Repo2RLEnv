@@ -54,7 +54,8 @@ Break these and the build, the CI, or the science breaks:
    the egress instead.
 5. **New pipeline ⇒ RFC first.** Any new `PipelineName` entry needs a
    `docs/rfcs/NNNN-*.md` before the implementation PR.
-6. **New docs page ⇒ add it to `mkdocs.yml`'s `nav:`**, or it won't ship on the site.
+6. **New docs page ⇒ add it to a `docs/**/meta.json`** (usually `docs/meta.json`), or it
+   won't appear in the site's sidebar. See `docs/contributing/DOCUMENTATION.md`.
 7. **`from __future__ import annotations` at the top of every module.**
 8. **Version bumps never ride along in a feature PR** — they happen on `main`
    after merge, as their own commit.
@@ -175,15 +176,17 @@ src/repo2rlenv/
 └── config.py                   # YAML/TOML config loader
 
 tests/                  # unit tests mirror the module they cover; e2e in test_e2e_*.py
-docs/                   # mkdocs site — nav lives in mkdocs.yml
-├── index.md            #   site home (there is no docs/README.md)
-├── quickstart.md
-├── pipelines/          #   README.md + one page per pipeline
+docs/                   # docs content (.md/.mdx) — sidebar lives in docs/**/meta.json
+├── introduction.mdx    #   the site's landing page is website/app/(home)/page.tsx
+├── quickstart.mdx
+├── concepts/ guides/   #   how it works, task anatomy, rewards, quality; how-to guides
+├── pipelines/          #   index.md + one page per pipeline (paths are linked from dataset cards)
 ├── rfcs/               #   0001–0010 + TEMPLATE.md + process README
 ├── reference/          #   SPEC · API · AUTH · BOOTSTRAP · AGENTS · ENV
 │                       #   · REWARD_SCHEMA · REGISTRY_AUTH · RELATED_WORK
 ├── contributing/ADDING_A_PIPELINE.md
 └── release_notes/      #   HISTORY.md + per-release deep dives
+website/                # Fumadocs (Next.js) docs site, static export; `npm run dev` there
 .github/workflows/      # ci.yml (lint + 3.12/3.13/3.14 matrix + build) · release.yml
 ```
 

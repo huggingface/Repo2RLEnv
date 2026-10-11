@@ -76,9 +76,26 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-docs.txt
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install site dependencies
+        working-directory: website
+        run: npm ci
       - name: Build from canonical prompts and portable metrics
-        run: mkdocs build --strict
+        working-directory: website
+        env:
+          NEXT_PUBLIC_BASE_PATH: /Repo2RLEnv
+        run: npm run build
+      - name: Check internal links and anchors
+        working-directory: website
+        env:
+          NEXT_PUBLIC_BASE_PATH: /Repo2RLEnv
+        run: |
+          node tools/check-links.mjs
+          node tools/check-tutorials.mjs
       - name: No tracked files changed during build
         run: git diff --exit-code
 
@@ -210,6 +227,16 @@ jobs:
           uv pip install --python /tmp/check-install/bin/python dist/*.whl
           /tmp/check-install/bin/repo2rlenv --version
           /tmp/check-install/bin/python tests/check_distribution.py dist
+
+      - name: Verify the Tasksmith launcher distribution
+        run: |
+          uv build packages/tasksmith --out-dir packages/tasksmith/dist
+          uv venv /tmp/check-tasksmith
+          uv pip install --python /tmp/check-tasksmith/bin/python packages/tasksmith/dist/*.whl
+          /tmp/check-tasksmith/bin/python -m unittest discover -s packages/tasksmith/tests
+          /tmp/check-tasksmith/bin/tasksmith --help
+          /tmp/check-tasksmith/bin/tasksmith run --help
+          /tmp/check-tasksmith/bin/python -m tasksmith --help
 
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

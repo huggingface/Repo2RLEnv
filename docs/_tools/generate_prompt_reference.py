@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from frontmatter import with_title
+
 ROOT = Path(__file__).resolve().parents[2]
 RECIPES = ROOT / "src/repo2rlenv/pipelines/recipes"
 OUTPUT = ROOT / "docs/pipelines/prompts"
@@ -15,6 +17,12 @@ SOURCE_URL = "https://github.com/huggingface/Repo2RLEnv/blob/main/"
 
 # Full call-site code includes dynamic additions, user-message construction and schemas.
 ASSEMBLY = {
+    "frontiersmith": [
+        "frontiersmith/prompts.py",
+        "frontiersmith/models.py",
+        "frontiersmith/export.py",
+        "frontiersmith/pipeline.py",
+    ],
     "codemidas": ["codemidas/models.py", "codemidas/pipeline.py", "codemidas/audit.py"],
     "swe_smith": ["swe_smith/issue.py"],
     "seta_seed2synth": ["seta_seed2synth/recipe.py"],
@@ -32,6 +40,7 @@ ASSEMBLY = {
     "scaler": ["scaler/families.py"],
 }
 GUIDES = {
+    "frontiersmith": "frontiersmith",
     "codemidas": "codemidas",
     "swe_smith": "repo_mutate",
     "seta_seed2synth": "terminal_synth",
@@ -220,7 +229,7 @@ def pages() -> dict[str, str]:
     expected["shared_terminal.md"] = shared()
     expected["quality_loop.md"] = quality_loop()
     expected["tasksmith.md"] = tasksmith()
-    return expected
+    return {name: with_title(text) for name, text in expected.items()}
 
 
 def generate(output: Path = OUTPUT, *, check: bool = False) -> int:
