@@ -562,7 +562,25 @@ def test_normalize_vitest_uses_verbose_reporter():
     assert normalize_test_cmds_for_runtime(["vitest run --reporter=junit"]) == [
         "vitest run --reporter=junit"
     ]
-    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --verbose"]
+
+
+def test_normalize_mocha_uses_spec_reporter():
+    # mocha has no `--verbose`, so `mocha --verbose a.spec.js` reads the file
+    # as the flag's value and never runs it.
+    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --reporter spec"]
+    assert normalize_test_cmds_for_runtime(["mocha --verbose --silent"]) == [
+        "mocha --reporter spec"
+    ]
+    # An explicit reporter is the repo's choice ⇒ keep
+    assert normalize_test_cmds_for_runtime(["mocha -R dot"]) == ["mocha -R dot"]
+    assert normalize_test_cmds_for_runtime(["mocha --reporter=tap"]) == ["mocha --reporter=tap"]
+
+
+def test_targeted_mocha_keeps_every_test_file():
+    cmds = targeted_test_cmds_for_pr(
+        normalize_test_cmds_for_runtime(["npx mocha"]), ["test/a.spec.js", "test/b.spec.js"]
+    )
+    assert cmds == ["npx mocha --reporter spec test/a.spec.js test/b.spec.js"]
 
 
 def test_normalize_strips_trailing_pipe_head_or_tail():

@@ -640,9 +640,12 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         - Default output is already parseable; no transform needed
       cargo nextest run:
         - Add `--status-level pass` (or raise a lower one) and `--color never`
-      jest / mocha / npm test:
+      jest / npm test:
         - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
         - Some configs swallow stdout via `--silent`; we strip that
+      mocha:
+        - Use `--reporter spec` instead: mocha has no `--verbose` option and
+          reads the next word as its value, dropping a test file appended later
       vitest:
         - Use `--reporter=verbose` instead: vitest rejects `--verbose`, and its
           default reporter collapses fully passing files to one summary line
@@ -721,7 +724,13 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
                 cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
                 if not re.search(r"\s--reporter\b", cleaned):
                     cleaned = cleaned.rstrip() + " --reporter=verbose"
-            elif re.search(r"\b(?:jest|mocha)\b", cleaned) and not re.search(
+            elif re.search(r"\bmocha\b", cleaned):
+                # mocha has no `--verbose`: it reads the next word as the flag's
+                # value, which swallows a test file appended after it.
+                cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
+                if not re.search(r"\s(?:--reporter|-R)\b", cleaned):
+                    cleaned = cleaned.rstrip() + " --reporter spec"
+            elif re.search(r"\bjest\b", cleaned) and not re.search(
                 r"\s--verbose\b|\s--reporter\b", cleaned
             ):
                 cleaned = cleaned.rstrip() + " --verbose"
