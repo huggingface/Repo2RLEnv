@@ -119,6 +119,17 @@ def test_path_is_test_heuristic():
     assert not _path_is_test("src/click/testing.py")
 
 
+def test_path_is_test_matches_jsx_tsx_and_module_js_test_files():
+    # jest and vitest pick these up by default; colocated React tests are
+    # usually `.test.tsx`, so missing them dropped the PR as `no_test_patch`
+    assert _path_is_test("src/Button.test.tsx")
+    assert _path_is_test("src/Button.spec.jsx")
+    assert _path_is_test("src/util.test.mjs")
+    assert _path_is_test("src/util.spec.cts")
+    assert not _path_is_test("src/Button.tsx")
+    assert not _path_is_test("src/test.config.ts")
+
+
 def test_files_in_patch_returns_unique_paths():
     paths = _files_in_patch(_SAMPLE_DIFF)
     assert paths == ["src/foo.py", "tests/test_foo.py"]

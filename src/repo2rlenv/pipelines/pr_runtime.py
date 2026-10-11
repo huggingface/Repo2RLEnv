@@ -186,6 +186,8 @@ def _reflow_pr_body(body: str) -> str:
 # documentation paths.
 _TEST_DIR_NAMES = {"test", "tests", "testing", "e2e", "__tests__"}
 _DOC_PREFIX_DIRS = {"docs", "doc", "documentation", "examples", "example"}
+# jest/vitest's default test-file names: `*.test.ts`, `*.spec.tsx`, `*.test.mjs`, ...
+_JS_TEST_FILE_RE = re.compile(r"\.(?:test|spec)\.[cm]?[jt]sx?$")
 
 
 def _path_is_test(path: str) -> bool:
@@ -198,7 +200,8 @@ def _path_is_test(path: str) -> bool:
       2. Files inside a test directory component (any path part in
          `_TEST_DIR_NAMES`) are test files.
       3. Files with a pytest-style basename (`test_*.py`, `*_test.py`,
-         `*_test.go`) are test files.
+         `*_test.go`) or a jest/vitest one (`*.test.ts`, `*.spec.tsx`) are
+         test files.
     """
     if not path:
         return False
@@ -217,8 +220,8 @@ def _path_is_test(path: str) -> bool:
     basename = parts[-1]
     return (
         (basename.startswith("test_") and basename.endswith((".py", ".js", ".ts")))
-        or basename.endswith(("_test.py", "_test.go", ".test.ts", ".test.js"))
-        or basename.endswith((".spec.ts", ".spec.js"))
+        or basename.endswith(("_test.py", "_test.go"))
+        or _JS_TEST_FILE_RE.search(basename) is not None
     )
 
 
