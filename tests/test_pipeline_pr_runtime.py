@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import pytest
 
+from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
+from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
     _build_instruction,
@@ -705,3 +707,96 @@ def test_pr_runtime_rejects_missing_bootstrap():
     options = PRRuntimeOptions()
     with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
         PRRuntimePipeline(gen_input, options, bootstrap=None)
+
+
+# --- _pre_filter: require_linked_issue ---------------------------------------
+
+
+def _make_pr(
+    body: str,
+    *,
+    title: str = "Fix crash in argument parsing",
+    number: int = 1,
+) -> PullRequestSummary:
+    """Return a merged, non-draft PR with one changed file."""
+    return PullRequestSummary(
+        number=number,
+        title=title,
+        body=body,
+        state="MERGED",
+        merged_at="2026-09-28T10:00:00Z",
+        base_ref="main",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        is_draft=False,
+        url="https://github.com/owner/repo/pull/1",
+        changed_files=["src/foo.py"],
+    )
+
+
+def _make_pipeline(require_linked_issue: bool | None) -> PRRuntimePipeline:
+    """Build a PRRuntimePipeline for _pre_filter tests.
+
+    Args:
+        require_linked_issue: Explicit value to pass to PRRuntimeOptions, or
+            None to use the default options (the regression case we want to pin).
+    """
+    from repo2rlenv.spec.input import (
+        GenerationInput,
+        LLMSpec,
+        OutputSpec,
+        PipelineName,
+        PipelineSpec,
+        RepoSpec,
+    )
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    gen_input = GenerationInput(
+        repo=RepoSpec(url="huggingface/trl"),
+        pipeline=PipelineSpec(name=PipelineName.PR_RUNTIME, options={}),
+        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
+        output=OutputSpec(destination="./out", org="x", dataset_name="y"),
+    )
+    options_kwargs = {}
+    if require_linked_issue is not None:
+        options_kwargs["require_linked_issue"] = require_linked_issue
+    options = PRRuntimeOptions(**options_kwargs)
+    bootstrap = BootstrapResult(
+        image_digest="sha256:" + "0" * 64,
+        image_tag="local/test",
+        language=LanguageHint.PYTHON,
+        repo="huggingface/trl",
+        ref="a" * 40,
+        rebuild_cmds=[],
+        test_cmds=["pytest"],
+        smoke_passed=True,
+        iterations=1,
+        build_time_sec=1.0,
+        llm_provider="anthropic/claude-sonnet-4-6",
+    )
+    return PRRuntimePipeline(gen_input, options, bootstrap=bootstrap)
+
+
+def test_pre_filter_require_linked_issue_skips_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) == "no_linked_issue"
+
+
+def test_pre_filter_require_linked_issue_keeps_with_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nCloses #123")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_disabled_keeps_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=False)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_default_keeps_without_linked_issue():
+    """Regression: default options must not require a linked issue."""
+    pipeline = _make_pipeline(None)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None
