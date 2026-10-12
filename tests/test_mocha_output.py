@@ -264,6 +264,7 @@ def test_long_lines_do_not_stall_parsing():
             "from repo2rlenv.pipelines._pr_runtime_verifier import parse_jest as standalone\n"
             "noise = ['  ' + 'a' * 200000, '    \u2714 ' + 'b' * 200000,\n"
             "         '    1) ' + 'c' * 200000, '    - ' + ' ' * 200000 + 'd',\n"
+            "         'PASS ' + ' ' * 200000 + 'x', 'PASS ' + 'a ' * 100000,\n"
             "         '    \u2714 x' + ' (1ms)' * 50000]\n"
             "log = '\\n'.join(noise) + '\\n  Suite\\n    \u2714 real test (2ms)\\n\\n  1 passing (3ms)\\n'\n"
             "for parser in (parse_jest, standalone):\n"

@@ -92,3 +92,52 @@ def parse_cargo_test(log: str) -> dict[str, TestStatus]:
                 continue
         out[name] = status
     return out
+
+
+# cargo-nextest prints one status line per test instead of libtest's lines:
+#
+#         PASS [   0.013s] (1/2) my-crate tests::accepts_even
+#         FAIL [   0.013s] (2/2) my-crate tests::rejects_odd
+#   TRY 1 FAIL [   0.003s] my-crate::basic test_flaky
+#   TRY 2 PASS [   0.002s] my-crate::basic test_flaky
+#    FLAKY 2/3 [   0.002s] my-crate::basic test_flaky
+#         SLOW [> 60.000s] my-crate tests::slow       <- still running, ignored
+#         SKIP [         ] (---) my-crate tests::ignored
+#
+# The `(1/2)` counter and the `[1/3]` stress-run index are optional. The test is
+# keyed by binary id + test name, since two binaries can hold the same test
+# path. Retries print one line per attempt and the summary repeats final
+# statuses, so the last line for a test wins. Captured libtest output under a
+# failing test is ignored: it is indented and isn't a nextest status line.
+_NEXTEST_RE = re.compile(
+    r"^\s*(?P<status>[A-Z][A-Z0-9 +/-]*?) \[\s*(?:(?P<running>>)?\s*\d+(?:\.\d+)?s)?\s*\] "
+    r"(?:\[\d+/\d+\] )?(?:\((?:\s*\d+/\d+|[-─]+)\) )?(?P<name>\S+ \S.*?)\s*$"
+)
+_NEXTEST_PASSED_RE = re.compile(
+    r"PASS|LEAK|TIMEOUT-PASS|SLOW|SLOW \+ LEAK|SLOW\+TMPASS|FLAKY \d+/\d+"
+    r"|TRY \d+ (?:PASS|LEAK|TMPASS)"
+)
+_NEXTEST_FAILED_RE = re.compile(
+    r"FAIL|FAIL \+ LEAK|LEAK-FAIL|TIMEOUT|XFAIL|ABORT|ABORT SIG \d+|SIG[A-Z0-9]+|FLKY-FL \d+/\d+"
+    r"|TRY \d+ (?!START$|SLOW$|TRMNTG$)(?:[A-Z0-9+]+|SIG \d+)"
+)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def parse_cargo_nextest(log: str) -> dict[str, TestStatus]:
+    """Return {"binary-id test::name" -> status} parsed from `cargo nextest run` output."""
+    out: dict[str, TestStatus] = {}
+    if not log:
+        return out
+    for raw in log.split("\n"):
+        m = _NEXTEST_RE.match(_ANSI_RE.sub("", raw))
+        if not m or m.group("running"):
+            continue
+        status = m.group("status")
+        if status == "SKIP":
+            out[m.group("name")] = "SKIPPED"
+        elif _NEXTEST_PASSED_RE.fullmatch(status):
+            out[m.group("name")] = "PASSED"
+        elif _NEXTEST_FAILED_RE.fullmatch(status):
+            out[m.group("name")] = "FAILED"
+    return out

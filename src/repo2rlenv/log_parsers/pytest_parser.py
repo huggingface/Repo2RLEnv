@@ -85,6 +85,11 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
                 break
         if leading_status is not None:
             work = line[len(leading_status) :].strip()
+            # unittest's footer is `FAILED (failures=1, errors=1)`, which is a
+            # count, not a node ID. Without this it lands as a test named
+            # `(errors=1)` whenever a unittest log reaches this parser.
+            if work.startswith("(") and work.endswith(")"):
+                continue
             if leading_status == "SKIPPED" and re.match(r"^\[\d+\](?:\s|$)", work):
                 # Folded skips report a file location, not a parametrized ID.
                 tokens = work.split(maxsplit=2)

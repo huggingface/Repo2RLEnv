@@ -89,11 +89,7 @@ Agents and verifiers that run under Harbor get their keys from `harbor run --ae`
 
 ### Using a `.env` file
 
-The CLI loads a `.env` file automatically. It searches the directory the package is installed in and its parents, so it finds the `.env` at the root of a checkout, or of a project whose virtual environment lives inside it. With `uv tool install` or a global install, export the variables in your shell instead:
-
-```bash
-set -a && source .env && set +a
-```
+The CLI loads a `.env` file automatically, without overriding variables already set in your shell. It searches the directory you run the command from and its parents, so this works for a checkout, a project virtual environment and `uv tool install` alike. See [`.env` files](reference/ENV.md#env-files) for the details.
 
 The repository's `.env.example` lists every variable.
 

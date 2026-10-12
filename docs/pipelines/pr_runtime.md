@@ -20,7 +20,7 @@ fail before the fix and pass after it.
 | Needs an LLM | Yes, for the one-time repository [bootstrap](../concepts/glossary.mdx#bootstrap) (cached) |
 | Needs Docker | Yes, for bootstrap, validation and running tasks |
 | Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
-| Languages | Any repository the bootstrap can build whose tests run under pytest, `go test`, `cargo test`, Jest, Mocha or Vitest. The reference dataset has 63 Python and 37 Go tasks |
+| Languages | Any repository the bootstrap can build whose tests run under pytest, unittest, Django, `go test`, `cargo test`, `cargo nextest run`, Jest, Mocha or Vitest. The reference dataset has 63 Python and 37 Go tasks |
 | Status | Stable |
 | Reference dataset | [`FineEnvs/repo2rlenv-pr-runtime`](https://huggingface.co/datasets/FineEnvs/repo2rlenv-pr-runtime): 100 tasks from 13 repositories |
 
@@ -144,6 +144,11 @@ pallets__click-<pr>
 - `tests/f2p.json`, `tests/p2p.json`: the F2P and P2P test names.
 
 ## Reward
+
+Python unittest and Django use their verbose `TextTestRunner` output. The pipeline
+adds `-v` for unittest and verbosity 2 for Django, and groups subtests under their
+parent test with the worst status winning. Both generation and the exported
+verifier use the same test identities.
 
 The verifier parses the test log into a status per test and scores:
 

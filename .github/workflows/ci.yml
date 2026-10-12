@@ -228,6 +228,16 @@ jobs:
           /tmp/check-install/bin/repo2rlenv --version
           /tmp/check-install/bin/python tests/check_distribution.py dist
 
+      - name: Verify the Tasksmith launcher distribution
+        run: |
+          uv build packages/tasksmith --out-dir packages/tasksmith/dist
+          uv venv /tmp/check-tasksmith
+          uv pip install --python /tmp/check-tasksmith/bin/python packages/tasksmith/dist/*.whl
+          /tmp/check-tasksmith/bin/python -m unittest discover -s packages/tasksmith/tests
+          /tmp/check-tasksmith/bin/tasksmith --help
+          /tmp/check-tasksmith/bin/tasksmith run --help
+          /tmp/check-tasksmith/bin/python -m tasksmith --help
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
