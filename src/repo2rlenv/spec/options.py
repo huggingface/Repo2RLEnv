@@ -46,7 +46,7 @@ class PRRuntimeOptions(_BaseOptions):
     until: date | None = None
     state: Literal["merged"] = "merged"
     skip_drafts: bool = True
-    require_linked_issue: bool = True
+    require_linked_issue: bool = False
     languages: list[str] = ["python"]
 
     # --- Validation ---

@@ -112,7 +112,7 @@ Pass each option with `--pipeline-opt key=value`.
 | `min_problem_statement_words` | `0` | Minimum word count of the PR description. `0` disables the check |
 | `lite_filter` | `false` | SWE-bench Lite-style sampling: exactly one source file, a description of at least 40 words, and no images, non-GitHub links or commit hashes in it |
 | `state` | `merged` | Only `merged` is accepted |
-| `require_linked_issue` | `true` | Accepted but not enforced: PRs without a linked issue use the PR description |
+| `require_linked_issue` | `false` | When `true`, skip PRs whose description does not contain a linked issue reference (e.g. `Closes #123`) |
 | `languages` | `["python"]` | Accepted but not enforced: the language comes from the bootstrap |
 
 ## Output

@@ -734,7 +734,13 @@ def _make_pr(
     )
 
 
-def _make_pipeline(require_linked_issue: bool) -> PRRuntimePipeline:
+def _make_pipeline(require_linked_issue: bool | None) -> PRRuntimePipeline:
+    """Build a PRRuntimePipeline for _pre_filter tests.
+
+    Args:
+        require_linked_issue: Explicit value to pass to PRRuntimeOptions, or
+            None to use the default options (the regression case we want to pin).
+    """
     from repo2rlenv.spec.input import (
         GenerationInput,
         LLMSpec,
@@ -751,7 +757,10 @@ def _make_pipeline(require_linked_issue: bool) -> PRRuntimePipeline:
         llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
         output=OutputSpec(destination="./out", org="x", dataset_name="y"),
     )
-    options = PRRuntimeOptions(require_linked_issue=require_linked_issue)
+    options_kwargs = {}
+    if require_linked_issue is not None:
+        options_kwargs["require_linked_issue"] = require_linked_issue
+    options = PRRuntimeOptions(**options_kwargs)
     bootstrap = BootstrapResult(
         image_digest="sha256:" + "0" * 64,
         image_tag="local/test",
@@ -782,5 +791,12 @@ def test_pre_filter_require_linked_issue_keeps_with_linked_issue():
 
 def test_pre_filter_require_linked_issue_disabled_keeps_without_linked_issue():
     pipeline = _make_pipeline(require_linked_issue=False)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_default_keeps_without_linked_issue():
+    """Regression: default options must not require a linked issue."""
+    pipeline = _make_pipeline(None)
     pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
     assert pipeline._pre_filter(pr) is None
