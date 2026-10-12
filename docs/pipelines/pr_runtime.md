@@ -36,6 +36,7 @@ repo2rlenv generate \
   --repo pallets/click \
   --pipeline pr_runtime \
   --pipeline-opt limit=20 \
+  --pipeline-opt require_linked_issue=true \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./tasks/click-pr-runtime
 ```
