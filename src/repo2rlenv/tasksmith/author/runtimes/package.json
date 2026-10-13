@@ -6,10 +6,10 @@
     "node": ">=22.19.0"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
-    "@earendil-works/pi-server": "0.85.1",
-    "@opencode-ai/plugin": "1.18.30",
-    "opencode-ai": "1.18.30",
+    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@earendil-works/pi-server": "1.0.4",
+    "@opencode-ai/plugin": "1.18.34",
+    "opencode-ai": "1.18.34",
     "zod": "4.6.5"
   }
 }
