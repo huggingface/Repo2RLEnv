@@ -73,18 +73,18 @@ tasksmith = [
     "langgraph-checkpoint-sqlite>=3,<4",
 ]
 modal = [
-    "modal==1.5.5",
+    "modal==1.6.1",
     "dockerfile-parse==2.0.1",
 ]
 daytona = [
-    "daytona==0.211.2",
+    "daytona==0.220.0",
 ]
 mutation = [
     "libcst==1.9.0",
     "pyflakes>=3.4.0",
 ]
 harbor = [
-    "harbor==0.22.0",
+    "harbor==0.24.0",
 ]
 
 [build-system]
