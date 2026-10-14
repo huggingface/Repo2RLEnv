@@ -6,6 +6,8 @@ import json
 import os
 import shutil
 import signal
+import subprocess
+import sys
 from pathlib import Path
 
 from repo2rlenv.tasksmith.author.bridge import AgentBridge
@@ -28,6 +30,32 @@ def runtime_path(engine: str) -> Path:
             f"Install Node >=22.19 and run `repo2rlenv tasksmith install-runtime` for the {engine} adapter"
         )
     return root / f"{engine}.mjs"
+
+
+def stop_process_tree(process: asyncio.subprocess.Process, *, force: bool) -> None:
+    """End the adapter and everything it spawned.
+
+    POSIX: the adapter leads its own session (``start_new_session``), so its pid
+    is a process-group id and one signal reaches every descendant. Windows has
+    neither ``os.killpg`` nor ``signal.SIGKILL`` and ignores
+    ``start_new_session``; ``taskkill /T`` walks the parent/child tree instead.
+    ``force=False`` is the polite first request (SIGTERM on POSIX), ``force=True``
+    the last resort. Windows has no graceful group signal, and the tree can only
+    be found while the adapter is still alive (``terminate()`` alone would orphan
+    its children and ``taskkill /T`` cannot reach them afterwards), so both
+    requests end the whole tree at once there.
+    Raises ``ProcessLookupError`` on POSIX if the group is already gone.
+    """
+    if sys.platform == "win32":
+        # A non-zero exit only means the tree is already gone.
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+        return
+    os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
 
 
 async def run_external_agent(
@@ -118,12 +146,12 @@ async def run_external_agent(
             bridge.stop(cancel_models=not completed)
             if process is not None and process.returncode is None:
                 with contextlib.suppress(ProcessLookupError):
-                    os.killpg(process.pid, signal.SIGTERM)
+                    stop_process_tree(process, force=False)
                 try:
                     await asyncio.wait_for(process.wait(), timeout=12)
                 except TimeoutError:
                     with contextlib.suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGKILL)
+                        stop_process_tree(process, force=True)
                     await process.wait()
             for task in (communication, failed):
                 if task is not None and not task.done():
