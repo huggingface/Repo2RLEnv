@@ -305,6 +305,11 @@ class QualityLoop:
                 if self.options.profile == "evidence-review-v2":
                     detailed_review, corrections = proposed.resolve_citations(context.documents)
                     detailed_review.validate_evidence(context, trials)
+                    if detailed_review.decision_corrections:
+                        save_record(
+                            self.directory / "protocol" / f"{key}-{index}-decisions.json",
+                            {"corrections": detailed_review.decision_corrections},
+                        )
                     review = detailed_review.legacy()
                 else:
                     review = proposed

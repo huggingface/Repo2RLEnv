@@ -76,16 +76,19 @@ def decision(*, fail=False, basis="static", attribution="task"):
 def test_failed_criterion_requires_issue():
     data = decision(fail=True).model_dump()
     data["issues"] = []
-    with pytest.raises(ValidationError, match="blocking finding"):
-        EvidenceReview.model_validate(data)
+    result = EvidenceReview.model_validate(data)
+    assert result.legacy().verifier.status == "unknown"
+    assert result.decision_corrections[0]["new"] == "unknown"
 
 
 def test_pass_cannot_contain_blocking_finding():
     data = decision(fail=True).model_dump()
     for item in data["criteria"]:
         item["status"] = "pass"
-    with pytest.raises(ValidationError, match="require criterion"):
-        EvidenceReview.model_validate(data)
+    result = EvidenceReview.model_validate(data)
+    assert result.legacy().verifier.status == "fail"
+    assert result.issues[0].problem == "Missing assertion"
+    assert result.decision_corrections[0]["new"] == "fail"
 
 
 @pytest.mark.parametrize("attribution", ["solver", "unresolved", "infrastructure"])
@@ -281,3 +284,27 @@ def test_optimization_execution_is_rejected_before_paid_dispatch(task, tmp_path)
     ).run(task)
     assert result.status == "needs_evidence" and model.calls == 0
     assert "separate acceptance contract" in result.reasons[0]
+
+
+def test_consistency_correction_preserves_finding_without_model_retry(task, tmp_path):
+    class ConflictModel(Model):
+        def ask(self, schema, model, system, user, key):
+            self.calls += 1
+            raw = decision(fail=True).model_dump()
+            for criterion in raw["criteria"]:
+                criterion.update(status="pass", score=4)
+            return EvidenceReview.model_validate(raw)
+
+    model = ConflictModel()
+    root = tmp_path / "conflict"
+    result = QualityLoop(
+        LoopOptions(profile="evidence-review-v2", max_probes=0),
+        root,
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1"),
+        model_client=model,
+    ).run(task)
+    assert result.status == "needs_repair" and result.review.issues
+    assert model.calls == 1
+    corrections = list((root / "protocol").glob("*-decisions.json"))
+    assert len(corrections) == 1
+    assert json.loads(corrections[0].read_text())["corrections"][0]["new"] == "fail"

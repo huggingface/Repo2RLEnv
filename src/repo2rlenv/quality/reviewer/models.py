@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 
 from repo2rlenv.quality.loop.models import (
     Assessment,
@@ -51,6 +51,8 @@ class Investigation(Record):
 
 
 class EvidenceReview(Record):
+    _decision_corrections: list[dict] = PrivateAttr(default_factory=list)
+
     summary: str
     criteria: list[Criterion] = Field(min_length=7, max_length=7)
     rollout: RolloutOutcome
@@ -70,10 +72,37 @@ class EvidenceReview(Record):
                 for issue in self.issues
                 if issue.criterion == criterion and issue.severity == "blocking"
             ]
-            if assessment.status == "fail" and not blocking:
-                raise ValueError(f"Failed criterion {criterion} needs a blocking finding")
-            if assessment.status != "fail" and blocking:
-                raise ValueError(f"Blocking findings require criterion {criterion} to fail")
+            # Streaming structured output can state "pass" before discovering a
+            # defect later in the same response. Preserve the grounded finding;
+            # a retry asking for consistent ratings can otherwise erase it.
+            effective = (
+                "fail"
+                if blocking
+                else "unknown"
+                if assessment.status == "fail"
+                else assessment.status
+            )
+            if effective != assessment.status:
+                self._decision_corrections.append(
+                    {
+                        "criterion": criterion,
+                        "old": assessment.status,
+                        "new": effective,
+                        "reason": "derive from blocking findings",
+                    }
+                )
+                assessment.status = effective
+                if blocking:
+                    assessment.score = min(assessment.score, 2)
+                    assessment.explanation = "; ".join(issue.problem for issue in blocking)
+                    assessment.evidence = [
+                        citation for issue in blocking for citation in issue.evidence
+                    ]
+                else:
+                    assessment.explanation = (
+                        "Unresolved: proposed failure has no blocking finding. "
+                        + assessment.explanation
+                    )
         for issue in self.issues:
             if issue.severity == "blocking" and (
                 issue.attribution in {"solver", "unresolved"}
@@ -84,6 +113,10 @@ class EvidenceReview(Record):
             if item.outcome != "unresolved" and not item.evidence:
                 raise ValueError("Concluded investigations need evidence")
         return self
+
+    @property
+    def decision_corrections(self) -> list[dict]:
+        return self._decision_corrections
 
     def legacy(self) -> Review:
         """Existing execution/repair code receives no new model-selected verdict."""
