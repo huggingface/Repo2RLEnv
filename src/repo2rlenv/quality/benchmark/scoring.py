@@ -28,7 +28,10 @@ def score_case(case, result) -> dict:
     decidable = bool(
         review
         and result.status not in {"needs_evidence", "budget_exhausted"}
-        and all(getattr(review, k).status != "unknown" for k in ["task", "verifier", "leakage"])
+        and (
+            blocking
+            or all(getattr(review, k).status != "unknown" for k in ["task", "verifier", "leakage"])
+        )
     )
     return {
         "case_id": case.case_id,

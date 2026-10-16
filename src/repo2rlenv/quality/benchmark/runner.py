@@ -64,6 +64,12 @@ def run_benchmark(
         ):
             raise ValueError("Selection report does not pin this completed candidate comparison")
         selection_hash = content_hash(selected)
+    if split in {"selection", "final"} and any(
+        case.audit.status != "adjudicated" for case in cases
+    ):
+        raise ValueError(
+            "Selection and final splits require adjudicated case labels; use development for provisional cases"
+        )
     configuration = {
         "schema_version": "1",
         "manifest_hash": manifest_hash,
@@ -101,6 +107,10 @@ def run_benchmark(
             error = None
             result = None
             try:
+                if identity(opts) != reviewers[profile]:
+                    raise ValueError(
+                        "Reviewer source changed during the benchmark; start a new comparison"
+                    )
                 result = loop_factory(opts, output, ledger).run(inputs[case.case_id], resume=resume)
             except (ValueError, OSError, RuntimeError) as exc:
                 # Do not turn malformed/provider outputs into a task defect.

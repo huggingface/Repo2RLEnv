@@ -185,6 +185,17 @@ class QualityLoop:
         )
         self.remote = trial_runner
         self.on_event = on_event or (lambda event: None)
+        # Pin this profile's prompt and identity before any asynchronous provider call.
+        self.reviewer_identity = None
+        self.review_schema, self.review_system = Review, None
+        if options.profile == "evidence-review-v2":
+            from repo2rlenv.quality.reviewer.models import EvidenceReview
+            from repo2rlenv.quality.reviewer.profile import content_hash, identity, instructions
+
+            self.review_schema = EvidenceReview
+            self.review_system = prompt("review") + "\n" + instructions()
+            self.reviewer_identity = identity(options)
+            self.reviewer_identity["review_prompt_sha256"] = content_hash(self.review_system)
 
     def event(self, stage: str, message: str, *, state: str = "progress"):
         event = ProgressEvent(recipe="quality", stage=stage, state=state, message=message)
@@ -259,12 +270,7 @@ class QualityLoop:
         feedback = []
         review = None
         detailed_review = None
-        schema, system = Review, prompt("review")
-        if self.options.profile == "evidence-review-v2":
-            from repo2rlenv.quality.reviewer.models import EvidenceReview
-            from repo2rlenv.quality.reviewer.profile import instructions
-
-            schema, system = EvidenceReview, system + "\n" + instructions()
+        schema, system = self.review_schema, self.review_system or prompt("review")
         model = self.options.review_model
         rounds = self.options.max_read_rounds + 1
         for index in range(rounds + int(self.options.escalation_model is not None)):
@@ -295,13 +301,15 @@ class QualityLoop:
                     ),
                     f"{key}-{index}",
                 )
+                corrections = []
                 if self.options.profile == "evidence-review-v2":
-                    detailed_review = proposed
+                    detailed_review, corrections = proposed.resolve_citations(context.documents)
                     detailed_review.validate_evidence(context, trials)
                     review = detailed_review.legacy()
                 else:
                     review = proposed
-                review, corrections = resolve_json_citations(review, context.documents)
+                review, json_corrections = resolve_json_citations(review, context.documents)
+                corrections.extend(json_corrections)
                 review, markdown_corrections = resolve_markdown_citations(review, context.documents)
                 corrections.extend(markdown_corrections)
                 if corrections:
@@ -376,7 +384,7 @@ class QualityLoop:
                     )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
                 if detailed_review is not None:
-                    from repo2rlenv.quality.reviewer.profile import identity, save_review
+                    from repo2rlenv.quality.reviewer.profile import save_review
 
                     save_review(
                         self.directory,
@@ -385,7 +393,7 @@ class QualityLoop:
                         detailed_review,
                         context,
                         trials,
-                        identity(self.options),
+                        self.reviewer_identity,
                     )
                 return review, context
             except (ValidationError, ValueError) as exc:
@@ -716,9 +724,7 @@ class QualityLoop:
             # Adding a default option must not invalidate old resume receipts.
             configuration["options"].pop("profile")
         else:
-            from repo2rlenv.quality.reviewer.profile import identity
-
-            configuration["reviewer"] = identity(self.options)
+            configuration["reviewer"] = self.reviewer_identity
         receipt = self.directory / "run.json"
         if receipt.exists():
             if not resume or json.loads(receipt.read_text())["configuration"] != configuration:
@@ -748,6 +754,14 @@ class QualityLoop:
                 execute = self.remote is not None and (
                     self.options.run_rollout or self.options.repair
                 )
+                graded = "optimization_score" in config.get("metadata", {}).get("repo2env", {}).get(
+                    "reward_kinds", []
+                )
+                if self.options.profile == "evidence-review-v2" and graded and execute:
+                    reasons = [
+                        "Optimization scores need a separate acceptance contract; use static review only"
+                    ]
+                    break
                 if execute and (
                     config.get("environment", {}).get("network_mode") != "no-network"
                     or (task / "environment/docker-compose.yaml").exists()
@@ -886,6 +900,8 @@ class QualityLoop:
                     }
                     if required_probe_focus(task) - covered:
                         reasons.append("Explicit requirement probes have not been executed")
+                    if self.options.profile == "evidence-review-v2" and graded:
+                        reasons.append("Optimization scores are outside binary quality acceptance")
                     status = "reviewed" if reasons else "usable"
                     break
                 missing_only = all(reason.startswith("Missing ") for reason in reasons)

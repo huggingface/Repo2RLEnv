@@ -42,7 +42,11 @@ def decision(*, fail=False, basis="static", attribution="task"):
                 status="fail" if fail and key == "coverage" else "pass",
                 score=1 if fail and key == "coverage" else 3,
                 explanation="Contract inspected",
-                evidence=evidence,
+                evidence=(
+                    [Citation(path="tests/test.sh", quote="Verify the sum")]
+                    if key == "gaming"
+                    else evidence
+                ),
             )
             for key in CRITERIA
         ],
@@ -197,3 +201,83 @@ def test_unresolved_review_does_not_trigger_task_repair(task, tmp_path):
     ).run(task)
     assert result.status == "needs_evidence"
     assert result.repairs == 0
+
+
+def test_gaming_assessment_must_inspect_entrypoint(task):
+    raw = decision().model_dump()
+    next(c for c in raw["criteria"] if c["criterion"] == "gaming")["evidence"] = [
+        {"path": "instruction.md", "quote": "sum of two integers"}
+    ]
+    with pytest.raises(ValueError, match="entrypoint"):
+        EvidenceReview.model_validate(raw).validate_evidence(
+            EvidenceContext(task, [], limit=16000), []
+        )
+
+
+def test_profile_prompt_is_pinned_before_dispatch(task, tmp_path, monkeypatch):
+    from repo2rlenv.quality.reviewer import profile
+
+    class PinnedModel(Model):
+        def ask(self, schema, model, system, user, key):
+            assert "changed-after-construction" not in system
+            return super().ask(schema, model, system, user, key)
+
+    loop = QualityLoop(
+        LoopOptions(profile="evidence-review-v2", max_probes=0),
+        tmp_path / "pinned",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1"),
+        model_client=PinnedModel(),
+    )
+    expected = loop.reviewer_identity
+    monkeypatch.setattr(profile, "instructions", lambda: "changed-after-construction")
+    assert loop.run(task).status == "reviewed"
+    _, _, reviewer = load_review(tmp_path / "pinned")
+    assert reviewer == expected
+
+
+def test_formatting_correction_keeps_exact_source_and_raw_response(task):
+    context = EvidenceContext(task, [], limit=16000)
+    context.documents["instruction.md"] = (
+        "Return the `sum` of two integers without rounding the result."
+    )
+    raw = decision().model_dump()
+    quote = "Return the sum of two integers without rounding the result."
+    for criterion in raw["criteria"]:
+        if criterion["criterion"] != "gaming":
+            criterion["evidence"][0]["quote"] = quote
+    proposed = EvidenceReview.model_validate(raw)
+    corrected, changes = proposed.resolve_citations(context.documents)
+    corrected.validate_evidence(context, [])
+    assert changes and proposed.criteria[0].evidence[0].quote == quote
+    assert "`sum`" in corrected.criteria[0].evidence[0].quote
+
+
+def test_optimization_execution_is_rejected_before_paid_dispatch(task, tmp_path):
+    import tomllib
+
+    import tomli_w
+
+    config = tomllib.loads((task / "task.toml").read_text())
+    config["metadata"]["repo2env"]["reward_kinds"] = ["optimization_score"]
+    (task / "task.toml").write_text(tomli_w.dumps(config))
+    from repo2rlenv.quality.loop.artifacts import refresh_identity
+
+    refresh_identity(task)
+
+    class Remote:
+        def run(self, *args):
+            pytest.fail("Unsupported reward profile dispatched a trial")
+
+        def close(self):
+            pass
+
+    model = Model()
+    result = QualityLoop(
+        LoopOptions(profile="evidence-review-v2", run_rollout=True),
+        tmp_path / "optimization",
+        BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1"),
+        model_client=model,
+        trial_runner=Remote(),
+    ).run(task)
+    assert result.status == "needs_evidence" and model.calls == 0
+    assert "separate acceptance contract" in result.reasons[0]

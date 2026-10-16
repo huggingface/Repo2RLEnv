@@ -109,6 +109,32 @@ class EvidenceReview(Record):
             read_requests=self.read_requests,
         )
 
+    def resolve_citations(self, documents):
+        """Use the same conservative formatting corrections as the legacy profile."""
+        from repo2rlenv.quality.loop.protocol import (
+            resolve_json_citations,
+            resolve_markdown_citations,
+        )
+
+        compatibility = self.legacy()
+        # The normalizers only inspect quotations; include hypotheses in that pass.
+        compatibility.task.evidence.extend(c for item in self.investigations for c in item.evidence)
+        compatibility, changes = resolve_json_citations(compatibility, documents)
+        _, markdown = resolve_markdown_citations(compatibility, documents)
+        changes.extend(markdown)
+        updated = self.model_copy(deep=True)
+        for change in changes:
+            for item in [
+                *updated.criteria,
+                *updated.issues,
+                *updated.probes,
+                *updated.investigations,
+            ]:
+                for citation in item.evidence:
+                    if citation.path == change["path"] and citation.quote == change["old"]:
+                        citation.quote = change["new"]
+        return updated, changes
+
     def validate_evidence(self, context, trials) -> None:
         citations = [
             c
@@ -118,6 +144,14 @@ class EvidenceReview(Record):
         if any(not c.quote.strip() for c in citations):
             raise ValueError("Evidence excerpts cannot be blank")
         context.validate_review(self.legacy())
+        entrypoints = {"tests/test.sh", "tests/test.bat"} & context.documents.keys()
+        gaming = next(c for c in self.criteria if c.criterion == "gaming")
+        if entrypoints and not entrypoints.intersection(c.path for c in gaming.evidence):
+            raise ValueError(
+                "Assess the actual verifier entrypoint before grading adequacy: cite tests/test.sh "
+                "or tests/test.bat in gaming, follow its control flow to the reward writer, and "
+                "do not assume tests execute merely because they exist"
+            )
         # Hypotheses are not in the legacy view, but must be grounded too.
         for item in self.investigations:
             for citation in item.evidence:

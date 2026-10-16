@@ -178,3 +178,32 @@ def test_cli_registers_all_loop_options():
         parser.parse_args(["quality", "benchmark", "validate", "x.json"]).benchmark_action
         == "validate"
     )
+
+
+def test_grounded_block_is_decidable_even_with_other_unknowns(task):
+    from types import SimpleNamespace
+
+    review = decision(fail=True).legacy()
+    review.task.status = "unknown"
+    case = Manifest(cases=[make_case(task)]).cases[0]
+    row = score_case(case, SimpleNamespace(review=review, status="needs_repair"))
+    assert row["decidable"]
+    review.issues = []
+    assert not score_case(case, SimpleNamespace(review=review, status="needs_evidence"))[
+        "decidable"
+    ]
+
+
+def test_selection_requires_audited_labels(task, tmp_path):
+    manifest = tmp_path / "manifest.json"
+    save_record(
+        manifest, Manifest(cases=[make_case(task, split="selection")]).model_dump(mode="json")
+    )
+    with pytest.raises(ValueError, match="adjudicated"):
+        run_benchmark(
+            manifest,
+            BenchmarkOptions(),
+            tmp_path / "run",
+            BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="1"),
+            split="selection",
+        )

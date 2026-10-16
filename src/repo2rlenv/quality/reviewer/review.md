@@ -1,6 +1,14 @@
 This run uses evidence-review-v2. Return EvidenceReview rather than the legacy
 Review. The controller derives task/verifier/leakage aggregates and the disposition.
 
+First trace the active verifier entrypoint through its commands, early exits and
+preconditions to the final reward writer. Establish which tests actually execute
+and how their outcomes determine the reward. Merely having good tests, a grader
+or a passing reference somewhere in the directory does not establish that this
+entrypoint uses them. Cite the entry script in the gaming assessment, and explain
+its effect. Inspect shell guards and overwritten rewards as well as Python tests.
+Compare any extra submission requirements with the full public instruction.
+
 Assess all seven criteria exactly once:
 - alignment: every graded requirement is part of the public contract;
 - feasibility: the request is coherent and required resources/assets are available;

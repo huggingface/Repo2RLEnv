@@ -146,7 +146,6 @@ def add_quality_parser(subparsers):
     actions = parser.add_subparsers(dest="quality_action", required=True)
     from repo2rlenv.quality.reviewer.cli import add_reviewer_parsers
 
-    add_reviewer_parsers(actions)
     show = actions.add_parser("show", help="Read a completed quality report without paid calls")
     show.add_argument(
         "path", type=Path, help="Result JSON file or run directory containing result.json"
@@ -220,3 +219,4 @@ def add_quality_parser(subparsers):
     run.add_argument("--resume", action="store_true")
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=cmd_quality)
+    add_reviewer_parsers(actions)
