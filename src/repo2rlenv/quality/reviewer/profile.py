@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from importlib.metadata import PackageNotFoundError, version
 from importlib.resources import files
 from pathlib import Path
 
@@ -30,7 +31,12 @@ def identity(options) -> dict:
         for p in sorted(folder.rglob("*"))
         if p.is_file() and p.suffix in {".py", ".md"}
     }
+    try:
+        harbor_version = version("harbor")
+    except PackageNotFoundError:
+        harbor_version = None
     return {
+        "harbor_version": harbor_version,
         "profile": options.profile,
         "code": code,
         "review_prompt_sha256": content_hash(
