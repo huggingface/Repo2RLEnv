@@ -73,7 +73,7 @@ def decision(*, fail=False, basis="static", attribution="task"):
     )
 
 
-def test_failed_criterion_requires_issue():
+def test_failure_without_finding_becomes_unknown():
     data = decision(fail=True).model_dump()
     data["issues"] = []
     result = EvidenceReview.model_validate(data)
@@ -81,7 +81,7 @@ def test_failed_criterion_requires_issue():
     assert result.decision_corrections[0]["new"] == "unknown"
 
 
-def test_pass_cannot_contain_blocking_finding():
+def test_blocking_finding_overrides_proposed_pass():
     data = decision(fail=True).model_dump()
     for item in data["criteria"]:
         item["status"] = "pass"
@@ -89,6 +89,17 @@ def test_pass_cannot_contain_blocking_finding():
     assert result.legacy().verifier.status == "fail"
     assert result.issues[0].problem == "Missing assertion"
     assert result.decision_corrections[0]["new"] == "fail"
+
+
+def test_rating_correction_retains_entrypoint_evidence(task):
+    data = decision(fail=True).model_dump()
+    data["issues"][0]["criterion"] = "gaming"
+    result = EvidenceReview.model_validate(data)
+    result.validate_evidence(EvidenceContext(task, [], limit=16000), [])
+    gaming = next(item for item in result.criteria if item.criterion == "gaming")
+    assert gaming.status == "fail"
+    assert {item.path for item in gaming.evidence} == {"tests/test.sh", "instruction.md"}
+    assert len(result.issues) == 1
 
 
 @pytest.mark.parametrize("attribution", ["solver", "unresolved", "infrastructure"])

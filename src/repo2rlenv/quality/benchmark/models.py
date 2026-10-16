@@ -25,7 +25,10 @@ class Audit(Record):
 
     @model_validator(mode="after")
     def independent_review(self):
-        if len(set(self.reviewers)) != len(self.reviewers):
+        identities = [name.strip().casefold() for name in self.reviewers]
+        if not all(identities):
+            raise ValueError("Audit reviewer identities cannot be blank")
+        if len(set(identities)) != len(identities):
             raise ValueError("Audit reviewer identities must be distinct")
         if self.status == "adjudicated" and len(self.reviewers) < 2:
             raise ValueError("Adjudicated labels require two recorded reviewers")
@@ -110,13 +113,15 @@ def load_manifest(path: Path) -> Manifest:
             raise ValueError("Benchmark labels cannot reside inside a task")
         if task_identity(task) != case.bundle_hash or inventory(task) != case.files:
             raise ValueError(f"Case content changed: {case.case_id}")
+        citations = [("Audit evidence", loc) for loc in case.audit.evidence]
         if case.defect:
-            loc = case.defect.location
+            citations.append(("Expected defect location", case.defect.location))
+        for label, loc in citations:
             target = (task / loc.path).resolve()
             if not target.is_relative_to(task) or not target.is_file():
-                raise ValueError("Expected defect location is outside the case")
+                raise ValueError(f"{label} is outside the case or missing")
             if not loc.quote.strip() or " ".join(loc.quote.split()) not in " ".join(
                 target.read_text().split()
             ):
-                raise ValueError("Expected defect location is not grounded")
+                raise ValueError(f"{label} is not grounded")
     return manifest

@@ -57,6 +57,23 @@ def test_adjudicated_requires_multiple_named_reviewers(task):
         Manifest(cases=[data])
 
 
+@pytest.mark.parametrize("names", [["curator", " "], ["curator", " Curator "]])
+def test_audit_identities_cannot_be_blank_or_duplicate(task, names):
+    data = make_case(task)
+    data["audit"].update(status="adjudicated", reviewers=names)
+    with pytest.raises(ValidationError, match="identities"):
+        Manifest(cases=[data])
+
+
+def test_audit_citation_must_match_case(task, tmp_path):
+    data = make_case(task)
+    data["audit"]["evidence"][0]["quote"] = "invented audit evidence"
+    path = tmp_path / "manifest.json"
+    save_record(path, Manifest(cases=[data]).model_dump(mode="json"))
+    with pytest.raises(ValueError, match="Audit evidence is not grounded"):
+        load_manifest(path)
+
+
 def test_changed_case_and_truth_sidecar_rejected(task, tmp_path):
     path = tmp_path / "manifest.json"
     save_record(path, Manifest(cases=[make_case(task)]).model_dump(mode="json"))

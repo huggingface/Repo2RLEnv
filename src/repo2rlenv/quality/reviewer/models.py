@@ -95,9 +95,13 @@ class EvidenceReview(Record):
                 if blocking:
                     assessment.score = min(assessment.score, 2)
                     assessment.explanation = "; ".join(issue.problem for issue in blocking)
-                    assessment.evidence = [
-                        citation for issue in blocking for citation in issue.evidence
-                    ]
+                    # Keep earlier context (including the entrypoint citation)
+                    # when adding the defect evidence. Dropping it can trigger a
+                    # spurious protocol retry that loses the valid finding.
+                    for issue in blocking:
+                        for citation in issue.evidence:
+                            if citation not in assessment.evidence:
+                                assessment.evidence.append(citation)
                 else:
                     assessment.explanation = (
                         "Unresolved: proposed failure has no blocking finding. "
