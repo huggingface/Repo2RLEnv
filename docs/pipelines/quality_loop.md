@@ -15,6 +15,11 @@ task is semantically sound. So the loop checks the task, the verifier and
 leakage against concrete evidence.
 It does **not** replace the older, stricter `QualityReport.accepted` contract.
 
+[RFC 0033](../rfcs/0033-evidence-based-quality-review.md) proposes an opt-in
+evidence-based review profile and a benchmark for the reviewer itself. Its new
+commands and result fields are design proposals; the interface below is the
+currently implemented quality loop.
+
 ## Execution and decisions
 
 ```mermaid
