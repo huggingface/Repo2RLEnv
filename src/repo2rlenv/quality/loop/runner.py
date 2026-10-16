@@ -258,6 +258,13 @@ class QualityLoop:
         )
         feedback = []
         review = None
+        detailed_review = None
+        schema, system = Review, prompt("review")
+        if self.options.profile == "evidence-review-v2":
+            from repo2rlenv.quality.reviewer.models import EvidenceReview
+            from repo2rlenv.quality.reviewer.profile import instructions
+
+            schema, system = EvidenceReview, system + "\n" + instructions()
         model = self.options.review_model
         rounds = self.options.max_read_rounds + 1
         for index in range(rounds + int(self.options.escalation_model is not None)):
@@ -266,12 +273,12 @@ class QualityLoop:
                 self.event("review", "Escalate unresolved evidence to the configured model")
             # The latest parsed draft guides bounded corrections and follow-up
             # reads; it never substitutes for validating the next response.
-            previous = review if review is not None else prior
+            previous = detailed_review or (review if review is not None else prior)
             try:
-                review = self.model.ask(
-                    Review,
+                proposed = self.model.ask(
+                    schema,
                     model,
-                    prompt("review"),
+                    system,
                     context.payload(
                         probe_limit=probe_limit,
                         repair_rounds_remaining=max(0, self.options.max_repairs - revision),
@@ -288,6 +295,12 @@ class QualityLoop:
                     ),
                     f"{key}-{index}",
                 )
+                if self.options.profile == "evidence-review-v2":
+                    detailed_review = proposed
+                    detailed_review.validate_evidence(context, trials)
+                    review = detailed_review.legacy()
+                else:
+                    review = proposed
                 review, corrections = resolve_json_citations(review, context.documents)
                 review, markdown_corrections = resolve_markdown_citations(review, context.documents)
                 corrections.extend(markdown_corrections)
@@ -362,6 +375,18 @@ class QualityLoop:
                         "A syntax/import/collection failure cannot be downgraded to an improvement."
                     )
                 save_record(self.directory / "reviews" / f"{key}.json", review.model_dump())
+                if detailed_review is not None:
+                    from repo2rlenv.quality.reviewer.profile import identity, save_review
+
+                    save_review(
+                        self.directory,
+                        key,
+                        task_identity(task),
+                        detailed_review,
+                        context,
+                        trials,
+                        identity(self.options),
+                    )
                 return review, context
             except (ValidationError, ValueError) as exc:
                 feedback.append(f"Invalid structured review or evidence request: {exc}")
@@ -687,6 +712,13 @@ class QualityLoop:
                 for name in ("review", "repair")
             },
         }
+        if self.options.profile == "practical-generation-v1":
+            # Adding a default option must not invalidate old resume receipts.
+            configuration["options"].pop("profile")
+        else:
+            from repo2rlenv.quality.reviewer.profile import identity
+
+            configuration["reviewer"] = identity(self.options)
         receipt = self.directory / "run.json"
         if receipt.exists():
             if not resume or json.loads(receipt.read_text())["configuration"] != configuration:
@@ -857,6 +889,15 @@ class QualityLoop:
                     status = "reviewed" if reasons else "usable"
                     break
                 missing_only = all(reason.startswith("Missing ") for reason in reasons)
+                if (
+                    self.options.profile == "evidence-review-v2"
+                    and missing_only
+                    and not review.sound
+                    and not any(issue.severity == "blocking" for issue in review.issues)
+                ):
+                    status = "needs_evidence"
+                    reasons.append("Review is unresolved without a concrete, grounded repair")
+                    break
                 if missing_only and review.sound:
                     status = "reviewed"
                     break
@@ -910,6 +951,8 @@ class QualityLoop:
             if task_identity(source) != source_hash:
                 raise ValueError("Original task changed during quality processing")
         result = LoopResult(
+            schema_version="2" if self.options.profile == "evidence-review-v2" else "1",
+            profile=self.options.profile,
             status=status,
             source_hash=source_hash,
             bundle_hash=task_identity(task),

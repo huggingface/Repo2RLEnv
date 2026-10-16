@@ -3,7 +3,7 @@ title: "RFC 0033: Evidence-based quality review"
 navTitle: "0033 · Evidence-based quality review"
 ---
 
-**Status:** draft — interfaces below are proposed, not shipped
+**Status:** experimental implementation on `codex/quality-reviewer-rfc`; not released
 
 **Author:** Repo2RLEnv maintainers, with Codex assistance
 
@@ -21,7 +21,8 @@ audited cases. All pipeline integration code remains owned by Repo2RLEnv.
 
 The first deliverable is an opt-in review profile and a CPU-first, 20-family
 pilot. Recommended external API/cloud cap: **$150**, with **$70–$120 expected**
-under the assumptions below. This RFC does not authorize paid execution.
+under the assumptions below. The user approved this separate cap with “go ahead” on 16 October 2026; the
+campaign authorization and ledger are retained locally.
 
 ## Motivation
 
@@ -65,9 +66,9 @@ score contract; changing `success_reward` alone does not supply one.
 
 Retain `repo2rlenv quality run` and `quality show`. Add an explicit profile option
 so existing callers continue using `practical-generation-v1` by default. The new
-profile is provisionally named `evidence-review-v2`.
+profile is named `evidence-review-v2`.
 
-**Proposed review with existing evidence; model calls, no new solver or probes:**
+**Review with existing evidence; model calls, no new solver or probes:**
 
 ```bash
 repo2rlenv quality run ./tasks/example \
@@ -78,7 +79,7 @@ repo2rlenv quality run ./tasks/example \
   --review-model anthropic/claude-sonnet-4-6
 ```
 
-**Proposed review and bounded repair with fresh remote validation:**
+**Review and bounded repair with fresh remote validation:**
 
 ```bash
 repo2rlenv quality run ./tasks/example \
@@ -97,15 +98,15 @@ checkout. A per-task cap is a stop condition, not a guarantee that repair finish
 support remains Modal-only; provider capability checks happen before allocation.
 Remote tools, tests and builds never execute on the local controller.
 
-New commands, also proposed:
+Implemented commands (see the [usage guide](../pipelines/evidence_review.md)):
 
 | Command | Purpose | Paid effects |
 | --- | --- | --- |
 | `quality benchmark validate MANIFEST` | Check hashes, labels and family splits | None |
-| `quality benchmark run MANIFEST --config CONFIG --campaign DIR --out DIR` | Compare pinned reviewer profiles on identical cases | Metered model calls; remote probes only if configured |
+| `quality benchmark run MANIFEST --split SPLIT --config CONFIG --campaign DIR --out DIR` | Compare pinned reviewer profiles on identical cases | Metered static model reviews; no new task execution |
 | `quality benchmark show DIR --json` | Display paired results, coverage and costs | None |
-| `quality feedback record REVIEW --issue ID --decision disputed --reason-file FILE --out FILE` | Preserve attributed feedback; decisions also include confirmed and corrected | None |
-| `quality feedback adjudicate FILE --campaign DIR --out DIR --review-model PROVIDER/MODEL` | Produce an independently reviewed disposition | Metered model calls; ambiguity remains unresolved |
+| `quality feedback record REVIEW --issue ID --author NAME --decision disputed --reason-file FILE --out DIR` | Preserve attributed feedback; decisions also include confirmed and corrected | None |
+| `quality feedback adjudicate FILE --config CONFIG --campaign DIR --out DIR` | Request a separately metered model second opinion | Metered model calls; ambiguity remains unresolved |
 
 `quality show DIR` displays the exact task/reviewer revisions, criterion decisions,
 evidence coverage, issue locations, costs and missing checks using the shared Rich
@@ -193,10 +194,13 @@ Review output lives beside the task, under the campaign, not in the learner imag
 ```text
 reviews/CASE/
   result.json              # versioned final result and compatibility view
-  findings.json            # criterion decisions and stable issue records
-  investigation.jsonl      # hypotheses, reads, probe receipts and conclusions
-  reviewer.json            # pinned code, skills, model and settings
-  feedback/               # append-only feedback and adjudications
+  findings.json            # pointer to latest accepted review
+  reviews/KEY/
+    findings.json          # criteria and stable issue IDs
+    evidence.json          # exact excerpts, file hashes and bound trials
+    investigation.json     # hypotheses and supported/dismissed/unresolved conclusions
+    reviewer.json          # pinned code, prompts, model and settings
+  calls/                   # immutable metered requests and response receipts
   revisions/              # existing immutable repair outputs, if any
 ```
 
@@ -260,16 +264,17 @@ After tuning uses final-test feedback, that set is retired as a fresh holdout.
 
 ### Metrics and promotion
 
-Report counts and denominators for defect detection at the correct criterion and
-location, false blocking findings on clean tasks, independently adjudicated finding
+Report counts and denominators for defect detection at the correct shared category
+and location (the legacy reviewer has no seven-criterion IDs), blocking findings on clean tasks, independently adjudicated finding
 precision, abstentions, execution errors, schema violations, tokens, cost and latency.
 Report definite decisions and total attempted coverage separately; unknown cases
 cannot disappear from the denominator. Wrong-location findings do not count as
 catching the planted defect. Genuine additional defects trigger label adjudication.
 
 Detection rate is correctly localized planted defects divided by all eligible
-defective-case attempts. False-blocking rate is clean-case attempts with at least
-one adjudicated false blocking finding divided by all eligible clean-case attempts.
+defective-case attempts. The initial scorer reports blocking on proposed-clean cases divided by all eligible
+clean-case attempts. Unexpected findings need adjudication before this is interpreted
+as a false-positive rate; provisional labels are reported separately.
 Decision coverage is decidable completed attempts divided by all scheduled attempts.
 Finding precision uses all adjudicated findings in the pilot, with counts for any
 unadjudicated remainder. Repeat samples stay clustered by family in comparisons.
@@ -378,7 +383,7 @@ rollout can therefore receive a sound-task assessment.
 | `src/repo2rlenv/quality/reviewer/` (new) | Versioned findings, evidence ledger, profile definitions and disposition validation |
 | `src/repo2rlenv/quality/benchmark/` (new) | Case manifests, family splitting, comparison scheduler and deterministic metrics |
 | `src/repo2rlenv/quality/feedback.py` (new) | Attributed feedback records and adjudication workflow |
-| `tests/fixtures/quality_reviewer/` (new) | Small original fixtures and known regression cases |
+| `tests/test_quality_{reviewer,benchmark,feedback}.py` | Original synthetic fixtures and regression cases |
 | `workspace/quality-reviewer-pilot/` (ignored) | Real task copies, traces, labels, requests, costs and generated reports |
 
 Reuse Pydantic, the shared console, campaign ledger, event journal and remote
@@ -421,8 +426,8 @@ or default switched merely because this RFC or its code has merged.
 
 ## Open questions
 
-- **Budget approval pending:** proposed new $150 total pilot cap. No paid jobs have
-  been launched for this RFC.
+- **Budget:** a separate $150 cap is approved. Paid pilot evidence stays in the
+  ignored campaign directory; no previous campaign allowance is reused.
 - **Independent labels:** unresolved clean-task disputes need a maintainer or domain
   reviewer; model agreement alone is not ground truth. Record this labor separately.
 - **Corpus size:** confirm twenty sufficiently independent CPU families exist after
@@ -447,9 +452,20 @@ or default switched merely because this RFC or its code has merged.
 
 | Item | State |
 | --- | --- |
-| Runtime implementation | Not started in this RFC change |
+| Runtime implementation | Opt-in profile, static benchmark runner and feedback CLI implemented; experimental |
 | Shipping release | Unassigned |
 | Initial PR | Not opened |
-| Pilot execution and results | Not run; budget pending |
+| Pilot execution and results | Five-family smoke first; audited twenty-family comparison remains a separate gate |
 | Default quality behavior | Unchanged |
 | Public dataset changes | None |
+
+### Implementation boundaries
+
+The first benchmark runner compares static task reviews; ordinary `quality run`
+continues to accept bound rollouts and run remote validation. Benchmark-side
+rollout ingestion and remote probes are deferred. Feedback adjudication produces
+a model second opinion and two regression suggestions; it does not automatically
+create, audit or promote cases. Findings keep source excerpts and inventory hashes;
+derived claims require an explanation but are not automatically recomputed.
+The source reviewer identity and requests are pinned, while final acceptance remains
+the existing quality execution contract. See the usage guide for exact commands.
