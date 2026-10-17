@@ -179,6 +179,11 @@ def add_quality_parser(subparsers):
         default=defaults.profile,
         help="Opt-in reviewer contract; task rewards are unchanged",
     )
+    run.add_argument(
+        "--review-guidance",
+        default=None,
+        help="Optional bounded guidance for evidence-review-v2; included in reviewer identity",
+    )
     for name in ("review_model", "repair_model", "escalation_model", "solver_model"):
         run.add_argument(
             "--" + name.replace("_", "-"), type=model_spec, default=getattr(defaults, name)

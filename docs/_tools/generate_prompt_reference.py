@@ -205,7 +205,12 @@ def quality_loop() -> str:
         "runner.py",
     ):
         result += block(root / relative)
-    for relative in ("reviewer/review.md", "reviewer/models.py", "feedback.py"):
+    for relative in (
+        "reviewer/review.md",
+        "reviewer/models.py",
+        "feedback.py",
+        "benchmark/optimization.py",
+    ):
         result += block(root.parent / relative)
     return result.rstrip() + "\n"
 

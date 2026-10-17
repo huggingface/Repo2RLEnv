@@ -139,6 +139,7 @@ class Repair(Record):
 
 class LoopOptions(Record):
     profile: Literal["practical-generation-v1", "evidence-review-v2"] = "practical-generation-v1"
+    review_guidance: str | None = Field(default=None, min_length=1, max_length=8000)
     review_model: LLMSpec = Field(
         default_factory=lambda: LLMSpec(provider="anthropic", model="claude-sonnet-4-6")
     )
@@ -167,6 +168,8 @@ class LoopOptions(Record):
     def explicit_routes_and_limits(self):
         from decimal import Decimal
 
+        if self.review_guidance is not None and self.profile != "evidence-review-v2":
+            raise ValueError("Additional review guidance requires evidence-review-v2")
         for name in ("model_reservation_usd", "solver_reservation_usd", "max_spend_usd"):
             amount = Decimal(getattr(self, name))
             if not amount.is_finite() or amount <= 0:

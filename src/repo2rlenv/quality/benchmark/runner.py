@@ -41,7 +41,16 @@ def run_benchmark(
         if directory == task or directory.is_relative_to(task):
             raise ValueError("Benchmark output must be outside every input task")
     reviewers = {
-        profile: identity(options.review.model_copy(update={"profile": profile}))
+        profile: identity(
+            options.review.model_copy(
+                update={
+                    "profile": profile,
+                    "review_guidance": options.review.review_guidance
+                    if profile == PROFILE
+                    else None,
+                }
+            )
+        )
         for profile in PROFILES
     }
     manifest_hash = content_hash(manifest.model_dump(mode="json"))
@@ -103,7 +112,14 @@ def run_benchmark(
 
         def attempt(case, profile, repeat):
             output = directory / "reviews" / profile / case.case_id / str(repeat)
-            opts = options.review.model_copy(update={"profile": profile})
+            opts = options.review.model_copy(
+                update={
+                    "profile": profile,
+                    "review_guidance": options.review.review_guidance
+                    if profile == PROFILE
+                    else None,
+                }
+            )
             error = None
             result = None
             try:

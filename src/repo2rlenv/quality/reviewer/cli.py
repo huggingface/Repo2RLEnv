@@ -146,6 +146,24 @@ def cmd_feedback(args):
         return report_error(exc, json_output=args.json)
 
 
+def cmd_optimize(args):
+    from repo2rlenv.quality.benchmark.optimization import OptimizationOptions, optimize
+
+    try:
+        load_env(args.env_file)
+        result = optimize(
+            args.manifest,
+            OptimizationOptions.model_validate_json(args.config.read_text()),
+            args.out,
+            BudgetLedger(args.campaign / "budget.sqlite3"),
+            resume=args.resume,
+        )
+        console.json(result)
+        return 0 if result["state"] == "completed" else 1
+    except (ValueError, OSError, RuntimeError, KeyError) as exc:
+        return report_error(exc, json_output=args.json)
+
+
 def add_reviewer_parsers(actions):
     benchmark = actions.add_parser(
         "benchmark", help="Compare reviewers against private audited cases"
@@ -169,6 +187,17 @@ def add_reviewer_parsers(actions):
     for parser in (validate, show, run):
         parser.add_argument("--json", action="store_true")
         parser.set_defaults(func=cmd_benchmark)
+    optimize = choices.add_parser(
+        "optimize", help="Compare bounded guidance candidates on audited development families"
+    )
+    optimize.add_argument("manifest", type=Path)
+    optimize.add_argument("--config", required=True, type=Path, help="OptimizationOptions JSON")
+    optimize.add_argument("--campaign", required=True, type=Path)
+    optimize.add_argument("--out", required=True, type=Path)
+    optimize.add_argument("--env-file", type=Path)
+    optimize.add_argument("--resume", action="store_true")
+    optimize.add_argument("--json", action="store_true")
+    optimize.set_defaults(func=cmd_optimize)
     feedback = actions.add_parser(
         "feedback", help="Record or adjudicate a finding without changing task labels"
     )

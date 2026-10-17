@@ -1,0 +1,18 @@
+{
+  "models": [
+    {"provider": "openai", "model": "gpt-6-astra", "timeout_sec": 180},
+    {"provider": "anthropic", "model": "claude-sonnet-4-6", "timeout_sec": 180}
+  ],
+  "development_families": ["replace-with-audited-development-family"],
+  "concurrency": 2,
+  "proposal_tokens": 3000,
+  "review": {
+    "max_probes": 0,
+    "max_repairs": 0,
+    "max_read_rounds": 1,
+    "context_chars": 50000,
+    "model_tokens": 6000,
+    "model_reservation_usd": "0.65",
+    "max_spend_usd": "2.00"
+  }
+}

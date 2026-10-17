@@ -193,7 +193,7 @@ class QualityLoop:
             from repo2rlenv.quality.reviewer.profile import content_hash, identity, instructions
 
             self.review_schema = EvidenceReview
-            self.review_system = prompt("review") + "\n" + instructions()
+            self.review_system = prompt("review") + "\n" + instructions(options.review_guidance)
             self.reviewer_identity = identity(options)
             self.reviewer_identity["review_prompt_sha256"] = content_hash(self.review_system)
 
@@ -728,6 +728,7 @@ class QualityLoop:
         if self.options.profile == "practical-generation-v1":
             # Adding a default option must not invalidate old resume receipts.
             configuration["options"].pop("profile")
+            configuration["options"].pop("review_guidance")
         else:
             configuration["reviewer"] = self.reviewer_identity
         receipt = self.directory / "run.json"

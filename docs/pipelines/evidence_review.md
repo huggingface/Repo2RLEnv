@@ -244,12 +244,84 @@ additional model prompt and never sends its labels or mutation rationales.
 Budget caps cover model calls through the existing campaign ledger. Static
 benchmark reviews have no cloud execution cost. Remote repair/probe costs belong
 to ordinary quality runs. The pilot cap is $150; an observed comparison, rather
-than the budget or the number of generated reports, determines readiness. GEPA,
-automatic prompt optimization and a default-profile switch are deferred.
+than the budget or the number of generated reports, determines readiness. GEPA
+is not a dependency. The bounded prompt search below does not switch the default.
 
 The [initial measurements in RFC 0033](../rfcs/0033-evidence-based-quality-review.md#initial-measurements-16-october-2026)
 include missed planted defects, provider failures and a later three-case comparison.
 Focused Modal checks confirmed a report-forgery issue in a provisionally clean
 original. This is why a successful reference/baseline contrast and a reviewer pass
 are useful evidence, but do not by themselves establish task quality. The larger
-independently audited comparison remains pending.
+independently audited comparison remains a promotion requirement.
+
+## Search for better guidance
+
+`quality benchmark optimize` is a small, owned candidate search. It accepts
+**one OpenAI route and one Anthropic route**, with no provider fallback. Both
+models propose one addendum; both models evaluate stock instructions and each
+candidate on the same audited development families. Labels and results from
+selection/final splits never enter the proposal context.
+
+```mermaid
+flowchart LR
+    A[Audited development families] --> B[Stock review on both models]
+    B --> C[OpenAI proposes guidance]
+    B --> D[Sonnet proposes guidance]
+    C --> E[Evaluate both candidates on both models]
+    D --> E
+    E --> F{No regression for either model?}
+    F -->|No or tied| G[Keep stock]
+    F -->|Improvement| H[Save candidate guidance]
+    H --> I[Independent selection and final evaluation]
+```
+
+```bash
+repo2rlenv quality benchmark optimize workspace/corpus/manifest.json \
+  --config examples/reviewer-optimization.json \
+  --campaign workspace/reviewer --out workspace/reviewer/optimization
+```
+
+Edit the example's `development_families` to match your manifest. The command
+requires audited clean and defective controls, rejects selection/final families,
+pins inputs and reviewer identity, and uses the existing campaign ledger. Each
+candidate gets the same two-model evaluation. If either proposal fails, no
+candidate is selected; the other proposal is still attempted and recorded.
+`--resume` requires unchanged inputs and reuses existing call receipts.
+
+A candidate must not increase false blocks or errors, decrease detections, or
+decrease decision coverage for either model. Stock wins ties. This is a bounded
+development heuristic, not statistical evidence of general improvement or a GEPA
+reproduction. Review the proposed text for case-specific hints: identifier and
+exact defect-quotation checks cannot detect every form of label memorization. Results save the guidance,
+per-model scores and spending. Only after inspection should a candidate be passed
+as `LoopOptions.review_guidance` or `quality run --review-guidance`; immutable
+reviewer receipts include its prompt hash. The fixed evidence contract still
+applies. Separate selection/final evaluation remains mandatory for promotion.
+
+## Verify the verifier's trust boundary
+
+The pilot confirmed a concrete failure: submitted Python could write fabricated
+JUnit results and exit successfully while running in the test interpreter. A root
+parent parsing that report does not make the child's assertions trustworthy.
+Completion markers, expected test names and renamed report files do not repair
+this boundary.
+
+The [worked migration](https://github.com/huggingface/Repo2RLEnv/tree/main/examples/tutorials/verifier-isolation)
+creates a new local revision of the sampled Accelerate concatenation task. It
+uses `pipelines/recipes/repository/isolated_call.py`: submitted code runs at a
+reserved unprivileged UID and returns bounded JSON; private assertions run in
+the parent. Root-only assets, a dedicated verifier, fixed offline execution and
+descendant cleanup are required. Returned `passed` flags are never accepted as
+verdicts. This observable-value adapter has task-specific coverage limits,
+including Python object identity; it does not translate arbitrary pytest suites.
+
+Local static inspection found the same report-trust pattern in **all 50 HF ML
+exports** and **650 of 1,330 latest local research/Tasksmith exports**: 100 each
+from SWE-smith, SWE-gen, SWE-next, SWE-flow, R2E and R2E-Gym, plus Tasksmith's 50.
+The HF 50 are included in the 650, not additional tasks. These are source-pattern
+counts, not 650 independently executed exploits or a current Hub inventory.
+The other 680 tasks are not certified safe by a negative pattern match.
+
+No existing acceptance labels or published datasets are changed. Migrate each
+task's assertions deliberately, retain original revisions, then repeat reference,
+baseline, valid-alternative and adversarial controls. The reviewer remains opt-in.

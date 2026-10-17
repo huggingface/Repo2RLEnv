@@ -17,8 +17,14 @@ def content_hash(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-def instructions() -> str:
-    return files(__package__).joinpath("review.md").read_text()
+def instructions(guidance: str | None = None) -> str:
+    base = files(__package__).joinpath("review.md").read_text()
+    if guidance is not None:
+        base += (
+            "\nAdditional review guidance (the evidence contract above remains mandatory):\n"
+            + guidance
+        )
+    return base
 
 
 def identity(options) -> dict:
@@ -40,7 +46,8 @@ def identity(options) -> dict:
         "profile": options.profile,
         "code": code,
         "review_prompt_sha256": content_hash(
-            prompt("review") + ("\n" + instructions() if options.profile == PROFILE else "")
+            prompt("review")
+            + ("\n" + instructions(options.review_guidance) if options.profile == PROFILE else "")
         ),
         "options": options.model_dump(mode="json"),
     }

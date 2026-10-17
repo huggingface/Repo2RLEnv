@@ -454,10 +454,10 @@ or default switched merely because this RFC or its code has merged.
 
 | Item | State |
 | --- | --- |
-| Runtime implementation | Opt-in profile, static benchmark runner and feedback CLI implemented; experimental |
+| Runtime implementation | Opt-in profile, paired benchmark, feedback CLI and bounded two-model guidance search implemented; experimental |
 | Shipping release | Unassigned |
 | Initial PR | Not opened |
-| Pilot execution and results | Five-family exploratory smoke completed; twenty-family audited comparison remains pending |
+| Pilot execution and results | Initial smoke plus expanded development comparison; promotion still requires an independently audited heldout corpus |
 | Default quality behavior | Unchanged |
 | Public dataset changes | None |
 
@@ -538,3 +538,103 @@ original manifest and report; add investigation evidence and a new corpus revisi
 rather than rewriting the earlier scores. The original case's blocked provisional
 clean label is not evidence of a false positive. No reviewer default or published
 task acceptance label changes on the strength of this smoke test.
+
+### Follow-up scope and gate decisions (17 October 2026)
+
+The user retained the **$150 total hard cap** and requested equal OpenAI/Sonnet
+allocations. All earlier charges and uncertain reservations remain in the same
+ledger. The expanded experiment schedules **80 static reviews per model**:
+20 HF ML families, each original plus one mutation, on both reviewer profiles.
+Ten families receive unconditional-reward mutations and ten receive hidden-gate
+mutations. One repeat per model replaces the original two repeats on one model;
+model strata are reported separately. This is an exploratory development corpus,
+not the planned audited 10/5/5 development/selection/final split. No final split
+was consumed and no default promotion is justified.
+
+The corpus could not honestly supply twenty clean originals: static inspection
+found the shared JUnit-report boundary in all 50 local HF exports. The latest
+local research snapshots contain the same pattern in 650 of 1,330 tasks: 100 each
+from SWE-smith, SWE-gen, SWE-next, SWE-flow, R2E and R2E-Gym, plus 50 Tasksmith
+tasks. The HF set overlaps those 50. This inventory establishes shared source
+exposure, not individually demonstrated exploits or current remote Hub state.
+Every original label remains provisional; blocking it is not a proven false alarm.
+
+All 160 scheduled sessions finished. An unresolved review stays in the denominator:
+
+| Model | Profile | Located planted defect / 20 | Blocked original / 20 | Decidable / 40 | Incomplete review / 40 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| GPT-6 Astra | Practical v1 | 6 | 8 | 19 | 12 |
+| GPT-6 Astra | Evidence v2 | 18 | 11 | 30 | 8 |
+| Sonnet 4.6 | Practical v1 | 0 | 0 | 38 | 2 |
+| Sonnet 4.6 | Evidence v2 | 8 | 0 | 27 | 12 |
+
+The Astra stratum cost **$33.876137** and Sonnet **$12.614294**, or approximately
+**$0.42** and **$0.16 per scheduled review**, respectively. Both profiles share each
+stratum's fixed model/settings. The bounded experiment used 50,000 context
+characters, one additional read round, 6,000 output tokens and a $35 route cap.
+Most incomplete reviews exhausted evidence/context or citation-correction limits;
+two Astra sessions also encountered reservation pressure at the route cap.
+The results are not a general model ranking: the strict context allowance affects
+larger tasks, original labels are unaudited, and the planted defect distribution
+is narrow. They support preserving evidence and investigating misses, not default
+promotion or a claim of calibrated false-positive rates.
+
+#### Executed repair
+
+The concatenation repair moves assertions into a private parent and serializes
+worker results as data. The reusable standalone primitive runs submitted code at
+a reserved UID in a dedicated Linux verifier, sets `no_new_privs`, bounds output
+and time, and kills/reaps descendants before accepting a JSON value. The parent
+never imports the submitted module and never accepts a worker's test verdict.
+Network isolation still belongs to the outer sandbox.
+
+Ten fresh Modal checks gave the intended outcomes: reference and valid alternative
+earned 1; unchanged source, wrong values, the original JUnit forgery, fabricated
+verdict JSON, private-file access, timeout, detached-child and malformed-output
+submissions earned 0. No worker-UID processes remained after any check. Full
+Harbor oracle/nop controls on the corrected migration then returned 1 and 0.
+The [worked migration](https://github.com/huggingface/Repo2RLEnv/tree/main/examples/tutorials/verifier-isolation)
+is reproducible from the existing export. Its first full trial found a historical
+grader-API mismatch that direct checks against the maintained helper had not
+exercised; the migration now copies the maintained submission validator explicitly.
+
+This is a task-specific observable-value adapter, not a universal pytest repair.
+JSON does not establish arbitrary Python object identity, and the new checks are
+not identical to the historical suite. Other exports require deliberate assertion
+migration and their own execution controls. Published tasks and acceptance labels
+remain unchanged; the old revisions and failed runs are retained.
+
+#### Bounded optimization and label provenance
+
+The owned optimizer uses one to three named audited development families. It
+evaluates stock instructions with both models, asks each model for one short
+addendum, and evaluates both addenda with both models. No candidate may worsen
+false blocks, detection, decidability or execution errors on either model; stock
+wins ties. Proposal failures are recorded for both routes and prevent selection.
+Inputs, prompts, source identity, guidance and receipts are pinned. Final promotion
+still requires separate selection and final evaluations. This is not GEPA.
+
+A separate, small DataArc report-writing family supplies calibration controls.
+Its private verifier parses only a bounded regular text artifact in a fresh
+environment; it executes no learner code. The fixed-input task's exact report
+format makes externally checked outputs appropriate. Eight direct Modal checks
+accepted the reference and two newline alternatives, while rejecting wrong
+counts, wrong reasons, forged verdict text, absent output and oversized output.
+Full Harbor oracle/nop controls returned 1 and 0. Two mutated entrypoints then
+demonstrated unconditional reward for nop and missing reward for a valid oracle
+blocked by an undocumented sentinel.
+
+Labels are **machine-assisted and execution-backed**, with controller adjudication;
+they are not independent human ground truth. OpenAI and Sonnet independently
+reviewed source. Both initially missed that the separate verifier Dockerfile
+omitted `test.sh`; the full Harbor run exposed it. Sonnet also missed the hidden
+gate and once miscounted fixture totals. Those responses remain in the evidence,
+and executed controls resolve the disagreements. The final image includes the
+entrypoint. In Harbor 0.22 separate mode, tests are baked into the verifier image;
+the verifier is invoked with test upload skipped. This is why source agreement
+and manually staged direct checks cannot replace an end-to-end trial.
+
+The optimizer uses only this calibration family. Its result is a development
+candidate decision, not evidence of improved performance on HF repository tasks.
+The broader independent-label and heldout gates remain unmet, so the existing
+reviewer default remains unchanged.
