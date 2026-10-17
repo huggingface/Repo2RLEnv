@@ -53,7 +53,7 @@ def display_benchmark(report):
         },
         title="Reviewer benchmark",
     )
-    table = Table("Profile", "Labels", "Detected", "False blocks", "Decidable", "Errors")
+    table = Table("Profile", "Labels", "Detected", "Blocked clean labels", "Decidable", "Errors")
     for profile, groups in report["summary"]["profiles"].items():
         for label, data in groups.items():
             if data["attempts"]:
@@ -66,6 +66,10 @@ def display_benchmark(report):
                     str(data["execution_errors"]),
                 )
     console.print(table)
+    if any(groups["provisional"]["attempts"] for groups in report["summary"]["profiles"].values()):
+        console.print(
+            "Provisional clean labels are unverified; a blocking finding may reveal a real defect."
+        )
 
 
 def cmd_benchmark(args):

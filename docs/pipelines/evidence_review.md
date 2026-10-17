@@ -49,16 +49,44 @@ flowchart LR
 
 The seven criteria are **alignment, feasibility, reference, coverage, alternatives,
 gaming and leakage**. Rollout interpretation remains a separate decision. A
-failed criterion requires a blocking finding; an unknown criterion cannot be
-converted into a pass by averaging scores. Solver failure alone is not a task
+grounded blocking finding forces its criterion to fail even when the model has
+already emitted a contradictory pass rating. A claimed failure without a blocking
+finding becomes unknown. Raw responses and mechanical decision corrections are
+retained; a retry cannot erase a valid finding just to reconcile ratings. An unknown
+criterion cannot be converted into a pass by averaging scores. Solver failure alone is not a task
 defect. An observed finding must cite a completed bound trial; static findings
-only establish what the inspected source shows. Confidence is low/medium/high,
+only establish what the inspected source shows. The gaming assessment must cite
+the verifier entry script and trace its actual path to the reward writer. The
+reviewer states the pinned Harbor runtime contract explicitly: copying a grader
+into the image does not execute it; the selected test script must invoke it. Good
+tests elsewhere in the bundle do not prove that the entrypoint runs them. Confidence is low/medium/high,
 not a calibrated probability.
 
 A static pass is `reviewed`, not `usable`. Full acceptance still requires the
 existing execution controls. Missing material remains `needs_evidence`; a concrete
 blocking finding can produce `needs_repair`. Repairs create new revisions and
 retain prior evidence.
+
+Tasksmith already accepts `LoopOptions` in its `quality` options object. To opt in
+while preserving remote repair and rollout, include the settings explicitly:
+
+```json
+{
+  "quality": {
+    "profile": "evidence-review-v2",
+    "repair": true,
+    "run_rollout": true,
+    "max_repairs": 3,
+    "max_probes": 4,
+    "max_turns": 20,
+    "max_spend_usd": "20.00"
+  }
+}
+```
+
+This is an options fragment, not a full Tasksmith input. Supplying `quality`
+replaces Tasksmith's default object; omitted fields use the quality loop's defaults.
+Other recipes can pass their exported Harbor directory to `quality run`.
 
 ## What is saved
 
@@ -125,6 +153,8 @@ not identity verification or a substitute for independent inspection. Unresolved
 labels stay `provisional`. They receive separate exploratory metrics and do not
 enter adjudicated confidence intervals or justify promotion. An unexpected finding
 on a purportedly clean case needs adjudication before it is called a false alarm.
+Audit excerpts must match case files; blank or duplicate reviewer identities are
+rejected.
 
 Example `reviewer-config.json`:
 
@@ -159,7 +189,8 @@ its own request receipts. `--resume` reuses the same session, requires unchanged
 configuration and preserves uncertain provider charges. It does not collapse
 independent repeats into a cached answer.
 
-Run `selection` after development. `final` additionally requires
+Selection and final cases require adjudicated labels; provisional cases can run
+only in development. Run `selection` after development. `final` additionally requires
 `--selection-report workspace/reviewer/selection/report.json`; the report must
 match the frozen corpus, reviewer identity and options and have no missing reviews.
 Changing code or prompts after selection requires a new selection comparison.
@@ -215,3 +246,10 @@ benchmark reviews have no cloud execution cost. Remote repair/probe costs belong
 to ordinary quality runs. The pilot cap is $150; an observed comparison, rather
 than the budget or the number of generated reports, determines readiness. GEPA,
 automatic prompt optimization and a default-profile switch are deferred.
+
+The [initial measurements in RFC 0033](../rfcs/0033-evidence-based-quality-review.md#initial-measurements-16-october-2026)
+include missed planted defects, provider failures and a later three-case comparison.
+Focused Modal checks confirmed a report-forgery issue in a provisionally clean
+original. This is why a successful reference/baseline contrast and a reviewer pass
+are useful evidence, but do not by themselves establish task quality. The larger
+independently audited comparison remains pending.

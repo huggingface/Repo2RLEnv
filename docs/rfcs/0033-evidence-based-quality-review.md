@@ -183,7 +183,9 @@ Keep current task/verifier/leakage aggregates as a compatibility view.
 
 Invariants: every failed criterion has a grounded blocking finding; a passing
 criterion cannot own a blocking finding; unsupported hypotheses remain unresolved;
-all linked evidence must exist and match its digest. Advisories live separately
+all linked evidence must exist and match its digest. Effective ratings are derived:
+a grounded blocking finding overrides a proposed pass; an unsupported failure
+becomes unknown. Raw responses and these corrections remain auditable. Advisories live separately
 from defect findings. New fields on historical reviews remain explicitly absent;
 do not infer confidence, attribution or observed evidence during migration.
 
@@ -455,7 +457,7 @@ or default switched merely because this RFC or its code has merged.
 | Runtime implementation | Opt-in profile, static benchmark runner and feedback CLI implemented; experimental |
 | Shipping release | Unassigned |
 | Initial PR | Not opened |
-| Pilot execution and results | Five-family smoke first; audited twenty-family comparison remains a separate gate |
+| Pilot execution and results | Five-family exploratory smoke completed; twenty-family audited comparison remains pending |
 | Default quality behavior | Unchanged |
 | Public dataset changes | None |
 
@@ -469,3 +471,70 @@ create, audit or promote cases. Findings keep source excerpts and inventory hash
 derived claims require an explanation but are not automatically recomputed.
 The source reviewer identity and requests are pinned, while final acceptance remains
 the existing quality execution contract. See the usage guide for exact commands.
+
+### Initial measurements (16 October 2026)
+
+The development corpus contains five CPU task families from Accelerate, PEFT and
+TRL: one original plus two controlled verifier mutations per family. Every label
+is provisional. An original exported task is not automatically a clean benchmark
+case, even when its reference and baseline previously passed execution controls.
+
+| Experiment | Model | Sessions | Legacy detections | Evidence-profile detections | Interpretation |
+| --- | --- | ---: | ---: | ---: | --- |
+| Initial five-family smoke, two repeats | Sonnet 4.6 | 60 | 0/20 | 0/20 | Both missed the planted defects; v2 also had three protocol failures |
+| Entrypoint-citation revision | Sonnet 4.6 | 30 scheduled | Not comparable | Not comparable | Source-change guard stopped queued attempts; interrupted experiment retained |
+| Explicit Harbor execution contract, one family | Sonnet 4.6 | 6 | 0/2 | 0/2 | Raw response exposed a controller retry discarding a valid finding |
+| Derived-decision correction, one family | Sonnet 4.6 | 6 | Ungraded | Ungraded | All six requests failed at the provider |
+| Separate fixed-model comparison, one family | GPT-6 Astra | 6 | 1/2 | 2/2 | Both profiles also flagged the provisional original; this needs investigation |
+
+The last comparison used identical model, context and spending settings within
+the pair. It does not isolate the effect of changing models from earlier runs,
+establish general accuracy, or justify promoting either profile. The subsequent
+unit-tested correction also preserves existing entrypoint citations when deriving
+a failed criterion; it has not been measured in a new paid comparison.
+
+Two engineering lessons became regression tests. First, reviewing a grader's
+contents is insufficient: inspect whether the selected entrypoint actually runs
+it. Second, a model can emit a pass rating before finding a defect later in its
+structured response. Derive the effective failure from the grounded finding;
+asking it to retry for consistency can erase the defect instead.
+
+Inference accounted across these comparisons is **$20.136099**. The initial Sonnet
+smoke cost **$11.186025** for 60 scheduled review sessions. The separate Astra
+comparison cost **$4.270449** for six sessions, averaging approximately **$0.53**
+per evidence-profile session and **$0.90** per legacy session. These include bounded
+reads and protocol retries, and are small development samples, not production
+pricing. Remote checks, failed-request holds and adjudication are tracked
+separately in the ignored campaign ledger under the approved $150 cap.
+
+Focused Modal execution subsequently confirmed the report-forgery finding in the
+sampled original. The exact verifier Dockerfile was built remotely, with a fresh
+1 CPU / 2 GiB sandbox for each check and outbound network blocked at execution:
+
+| Check | Entrypoint exit | Reward | Observation |
+| --- | ---: | --- | --- |
+| Reference submission | 0 | 1 | Selected tests passed |
+| Unchanged submission | 0 | 0 | Four selected tests failed; the grader correctly wrote zero |
+| Unconditional-reward entrypoint | 0 | 1.0 | Full reward without executing the grader |
+| Undocumented sentinel prerequisite | 1 | Absent | Even the reference could not reach the grader |
+| Fabricated JUnit submission | 0 | 1 | Incorrect submission supplied accepted test-result identities |
+
+All five Modal sandboxes terminated. These checks directly execute the verifier
+entrypoint, not a full Harbor solver trial. The result establishes an exploit in
+this exported task; it does not establish the affected count across the published
+suite. The shared JUnit trust boundary needs a separate investigation and repair.
+Passing reference/baseline controls alone does not establish resistance to reward
+hacking.
+
+The feedback CLI also completed a live second opinion on the unconditional-reward
+finding: upheld, with exact citations and regression suggestions, at $0.246680.
+An earlier provider failure remains reserved. Total accounted model usage is
+**$20.382779**, with **$6.30** held for uncertain model requests and remote billing;
+these are ledger values, not reconciled provider invoices. No paid work remains
+running at the end of this smoke.
+
+The twenty-family benchmark remains pending independent label audit. Preserve the
+original manifest and report; add investigation evidence and a new corpus revision
+rather than rewriting the earlier scores. The original case's blocked provisional
+clean label is not evidence of a false positive. No reviewer default or published
+task acceptance label changes on the strength of this smoke test.
