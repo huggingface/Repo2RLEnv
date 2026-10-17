@@ -456,7 +456,7 @@ or default switched merely because this RFC or its code has merged.
 | --- | --- |
 | Runtime implementation | Opt-in profile, paired benchmark, feedback CLI and bounded two-model guidance search implemented; experimental |
 | Shipping release | Unassigned |
-| Initial PR | Not opened |
+| Initial PR | [#194](https://github.com/huggingface/Repo2RLEnv/pull/194) |
 | Pilot execution and results | Initial smoke plus expanded development comparison; promotion still requires an independently audited heldout corpus |
 | Default quality behavior | Unchanged |
 | Public dataset changes | None |
@@ -559,7 +559,8 @@ tasks. The HF set overlaps those 50. This inventory establishes shared source
 exposure, not individually demonstrated exploits or current remote Hub state.
 Every original label remains provisional; blocking it is not a proven false alarm.
 
-All 160 scheduled sessions finished. An unresolved review stays in the denominator:
+All 160 scheduled attempts have receipts; 126 produced a completed review. An
+unresolved review stays in the denominator:
 
 | Model | Profile | Located planted defect / 20 | Blocked original / 20 | Decidable / 40 | Incomplete review / 40 |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -638,3 +639,26 @@ The optimizer uses only this calibration family. Its result is a development
 candidate decision, not evidence of improved performance on HF repository tasks.
 The broader independent-label and heldout gates remain unmet, so the existing
 reviewer default remains unchanged.
+
+The search pilot completed stock and OpenAI-guidance comparisons on both models:
+12 review sessions per model, including both reviewer profiles. Astra's evidence
+profile located both mutations with either prompt; Sonnet located one with either
+prompt. Sonnet's decidable reviews rose from one to three, a tiny development
+observation that does not establish a general improvement.
+
+The Sonnet proposal copied the exact private sentinel path from the benchmark.
+Controller inspection rejected it and stopped its partly started evaluation; two
+additional legacy review results and uncertain in-flight requests are retained.
+**No guidance was selected or promoted.** The shipped optimizer now rejects exact
+defect quotations as well as case IDs before candidate evaluation, with regression
+tests that ensure both proposals are recorded and no candidate is evaluated after
+a rejection. The original search source snapshot and raw reports remain available;
+the stopped run is not rewritten as a successful optimized benchmark.
+
+Final pilot accounting is **$70.868357 accounted plus $27.10 held**, totaling
+**$97.968357 committed** against the unchanged $150 cap. The remaining allowance
+is **$52.031643**. Holds include prior uncertain calls, interrupted model requests
+and remote execution awaiting billing reconciliation. They are not assumed free.
+The validation Modal application has zero active tasks, and no local paid
+controller remains running. Unit/contract checks, package build and documentation
+checks accompany the PR; no version bump or public dataset change is included.
