@@ -616,6 +616,9 @@ def _count_new_test_funcs(test_patch: str) -> int:
     return sum(1 for line in test_patch.splitlines() if _NEW_TEST_FUNC_RE.match(line))
 
 
+_PYTEST_COMMAND_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+
+
 def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     """Adapt bootstrap-recorded test commands for actual per-PR execution.
 
@@ -625,7 +628,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     that our parsers can read.
 
     Transforms (per runner):
-      pytest:
+      pytest / py.test:
         - Drop `--collect-only` / `--co` so pytest actually runs tests
         - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
         - Add `-v` if no verbosity flag is present
@@ -663,7 +666,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         cleaned = cleaned.rstrip(" |&")
 
         # --- pytest ---
-        if re.search(r"\bpytest\b", cleaned):
+        if _PYTEST_COMMAND_RE.search(cleaned):
             cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
             cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
             # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
@@ -757,7 +760,7 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     the files the PR cares about. SWE-bench-Live's harness does the same.
 
     Per-runner rules:
-      pytest:  append the changed .py test files as positional args
+      pytest / py.test: append the changed .py test files as positional args
       jest:    append the changed .js/.ts test files as positional args
       go test: replace `./...` (or trailing nothing) with the package
                directories containing changed `*_test.go` files
@@ -776,10 +779,14 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     out: list[str] = []
     for cmd in test_cmds:
         # --- pytest ---
-        if re.search(r"\bpytest\b", cmd) and py_files:
+        if _PYTEST_COMMAND_RE.search(cmd) and py_files:
             tokens = cmd.split()
             pytest_idx = next(
-                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")),
+                (
+                    i
+                    for i, t in enumerate(tokens)
+                    if t in {"pytest", "py.test"} or t.endswith(("/pytest", "/py.test"))
+                ),
                 -1,
             )
             if pytest_idx >= 0:

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from repo2rlenv.log_parsers import parse_logs
 from repo2rlenv.log_parsers.pytest_parser import parse_pytest
 from repo2rlenv.pipelines import _pr_runtime_verifier as verifier
 
@@ -17,6 +18,24 @@ from repo2rlenv.pipelines import _pr_runtime_verifier as verifier
 @pytest.fixture(params=[parse_pytest, verifier.parse_pytest], ids=["canonical", "standalone"])
 def parser(request):
     return request.param
+
+
+def _canonical_dispatch(command: str, log: str) -> dict[str, str]:
+    return parse_logs([command], log)
+
+
+def _standalone_dispatch(command: str, log: str) -> dict[str, str]:
+    return verifier.parse_logs(verifier._detect_runner(command), log)
+
+
+@pytest.fixture(params=[_canonical_dispatch, _standalone_dispatch], ids=["canonical", "standalone"])
+def dispatcher(request):
+    return request.param
+
+
+def test_pytest_executable_alias_dispatches_to_pytest(dispatcher):
+    log = "tests/test_calc.py::test_add PASSED [100%]\n"
+    assert dispatcher("py.test -v", log) == {"tests/test_calc.py::test_add": "PASSED"}
 
 
 @pytest.mark.parametrize(

@@ -47,6 +47,8 @@ __all__ = [
     "parse_unittest",
 ]
 
+_PYTEST_RUNNER_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+
 
 def _detect_runner(test_cmds: list[str]) -> str:
     """Inspect the bootstrap-recorded test commands and name the runner.
@@ -60,7 +62,7 @@ def _detect_runner(test_cmds: list[str]) -> str:
     will actually run.
     """
     joined = " ".join(test_cmds).lower()
-    if "pytest" in joined:
+    if _PYTEST_RUNNER_RE.search(joined):
         return "pytest"
     # unittest's own runner, Django's `manage.py test`, and Django's in-repo
     # `runtests.py` all print TextTestRunner output.

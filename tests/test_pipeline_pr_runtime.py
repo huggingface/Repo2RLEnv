@@ -502,6 +502,13 @@ def test_normalize_strips_short_co():
     assert normalize_test_cmds_for_runtime(["pytest --co"]) == ["pytest -v"]
 
 
+def test_normalize_pytest_alias_gets_verbose_output():
+    assert normalize_test_cmds_for_runtime(["py.test -q"]) == ["py.test -v"]
+    assert normalize_test_cmds_for_runtime([".venv/bin/py.test --quiet tests/"]) == [
+        ".venv/bin/py.test tests/ -v"
+    ]
+
+
 def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
@@ -618,6 +625,11 @@ def test_targeted_appends_test_files_to_pytest():
     """pytest -v becomes pytest -v tests/foo.py when test_patch touches foo."""
     out = targeted_test_cmds_for_pr(["pytest -v"], ["tests/test_foo.py", "tests/test_bar.py"])
     assert out == ["pytest -v tests/test_foo.py tests/test_bar.py"]
+
+
+def test_targeted_appends_test_files_to_pytest_alias():
+    out = targeted_test_cmds_for_pr([".venv/bin/py.test -v"], ["tests/test_foo.py"])
+    assert out == [".venv/bin/py.test -v tests/test_foo.py"]
 
 
 def test_targeted_go_test_replaces_dot_dot_dot_with_packages():
