@@ -84,7 +84,9 @@ _PYTEST_VERBOSE_RE = re.compile(
 _PYTEST_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
 # pytest-xdist worker label, e.g. `[gw1] [ 20%] PASSED tests/foo.py::test_x`.
 _PYTEST_XDIST_PREFIX_RE = re.compile(rf"^\[gw\d+\]\s+(?:(?:{_PYTEST_PROGRESS})\s+)?")
-_PYTEST_RUNNER_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+# Keep the broad pytest substring and bounded py.test alias in sync with the
+# package-side detector in log_parsers/__init__.py.
+_PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
 
 
 def parse_pytest(log: str) -> dict[str, str]:

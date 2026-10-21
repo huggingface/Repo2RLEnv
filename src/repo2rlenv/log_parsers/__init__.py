@@ -47,7 +47,10 @@ __all__ = [
     "parse_unittest",
 ]
 
-_PYTEST_RUNNER_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+# Preserve the historical substring match for pytest so saved wrapper commands
+# such as `run_pytest.sh` still dispatch correctly. Bound the dotted alias so a
+# filename that merely ends in `.test` is not enough to select this parser.
+_PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
 
 
 def _detect_runner(test_cmds: list[str]) -> str:

@@ -33,9 +33,10 @@ def dispatcher(request):
     return request.param
 
 
-def test_pytest_executable_alias_dispatches_to_pytest(dispatcher):
+@pytest.mark.parametrize("command", ["py.test -v", "./run_pytest.sh -v"])
+def test_pytest_commands_dispatch_to_pytest(dispatcher, command):
     log = "tests/test_calc.py::test_add PASSED [100%]\n"
-    assert dispatcher("py.test -v", log) == {"tests/test_calc.py::test_add": "PASSED"}
+    assert dispatcher(command, log) == {"tests/test_calc.py::test_add": "PASSED"}
 
 
 @pytest.mark.parametrize(
