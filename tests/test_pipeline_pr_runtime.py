@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import pytest
 
+from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
+from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
     _build_instruction,
@@ -117,6 +119,17 @@ def test_path_is_test_heuristic():
     # True negatives: source files with "testing" in the path
     # (e.g. click's src/click/testing.py is the CliRunner module, not a test)
     assert not _path_is_test("src/click/testing.py")
+
+
+def test_path_is_test_matches_jsx_tsx_and_module_js_test_files():
+    # jest and vitest pick these up by default; colocated React tests are
+    # usually `.test.tsx`, so missing them dropped the PR as `no_test_patch`
+    assert _path_is_test("src/Button.test.tsx")
+    assert _path_is_test("src/Button.spec.jsx")
+    assert _path_is_test("src/util.test.mjs")
+    assert _path_is_test("src/util.spec.cts")
+    assert not _path_is_test("src/Button.tsx")
+    assert not _path_is_test("src/test.config.ts")
 
 
 def test_files_in_patch_returns_unique_paths():
@@ -502,6 +515,13 @@ def test_normalize_strips_short_co():
     assert normalize_test_cmds_for_runtime(["pytest --co"]) == ["pytest -v"]
 
 
+def test_normalize_pytest_alias_gets_verbose_output():
+    assert normalize_test_cmds_for_runtime(["py.test -q"]) == ["py.test -v"]
+    assert normalize_test_cmds_for_runtime([".venv/bin/py.test --quiet tests/"]) == [
+        ".venv/bin/py.test tests/ -v"
+    ]
+
+
 def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
@@ -562,7 +582,25 @@ def test_normalize_vitest_uses_verbose_reporter():
     assert normalize_test_cmds_for_runtime(["vitest run --reporter=junit"]) == [
         "vitest run --reporter=junit"
     ]
-    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --verbose"]
+
+
+def test_normalize_mocha_uses_spec_reporter():
+    # mocha has no `--verbose`, so `mocha --verbose a.spec.js` reads the file
+    # as the flag's value and never runs it.
+    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --reporter spec"]
+    assert normalize_test_cmds_for_runtime(["mocha --verbose --silent"]) == [
+        "mocha --reporter spec"
+    ]
+    # An explicit reporter is the repo's choice ⇒ keep
+    assert normalize_test_cmds_for_runtime(["mocha -R dot"]) == ["mocha -R dot"]
+    assert normalize_test_cmds_for_runtime(["mocha --reporter=tap"]) == ["mocha --reporter=tap"]
+
+
+def test_targeted_mocha_keeps_every_test_file():
+    cmds = targeted_test_cmds_for_pr(
+        normalize_test_cmds_for_runtime(["npx mocha"]), ["test/a.spec.js", "test/b.spec.js"]
+    )
+    assert cmds == ["npx mocha --reporter spec test/a.spec.js test/b.spec.js"]
 
 
 def test_normalize_strips_trailing_pipe_head_or_tail():
@@ -618,6 +656,11 @@ def test_targeted_appends_test_files_to_pytest():
     """pytest -v becomes pytest -v tests/foo.py when test_patch touches foo."""
     out = targeted_test_cmds_for_pr(["pytest -v"], ["tests/test_foo.py", "tests/test_bar.py"])
     assert out == ["pytest -v tests/test_foo.py tests/test_bar.py"]
+
+
+def test_targeted_appends_test_files_to_pytest_alias():
+    out = targeted_test_cmds_for_pr([".venv/bin/py.test -v"], ["tests/test_foo.py"])
+    assert out == [".venv/bin/py.test -v tests/test_foo.py"]
 
 
 def test_targeted_go_test_replaces_dot_dot_dot_with_packages():
@@ -705,3 +748,96 @@ def test_pr_runtime_rejects_missing_bootstrap():
     options = PRRuntimeOptions()
     with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
         PRRuntimePipeline(gen_input, options, bootstrap=None)
+
+
+# --- _pre_filter: require_linked_issue ---------------------------------------
+
+
+def _make_pr(
+    body: str,
+    *,
+    title: str = "Fix crash in argument parsing",
+    number: int = 1,
+) -> PullRequestSummary:
+    """Return a merged, non-draft PR with one changed file."""
+    return PullRequestSummary(
+        number=number,
+        title=title,
+        body=body,
+        state="MERGED",
+        merged_at="2026-09-28T10:00:00Z",
+        base_ref="main",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        is_draft=False,
+        url="https://github.com/owner/repo/pull/1",
+        changed_files=["src/foo.py"],
+    )
+
+
+def _make_pipeline(require_linked_issue: bool | None) -> PRRuntimePipeline:
+    """Build a PRRuntimePipeline for _pre_filter tests.
+
+    Args:
+        require_linked_issue: Explicit value to pass to PRRuntimeOptions, or
+            None to use the default options (the regression case we want to pin).
+    """
+    from repo2rlenv.spec.input import (
+        GenerationInput,
+        LLMSpec,
+        OutputSpec,
+        PipelineName,
+        PipelineSpec,
+        RepoSpec,
+    )
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    gen_input = GenerationInput(
+        repo=RepoSpec(url="huggingface/trl"),
+        pipeline=PipelineSpec(name=PipelineName.PR_RUNTIME, options={}),
+        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
+        output=OutputSpec(destination="./out", org="x", dataset_name="y"),
+    )
+    options_kwargs = {}
+    if require_linked_issue is not None:
+        options_kwargs["require_linked_issue"] = require_linked_issue
+    options = PRRuntimeOptions(**options_kwargs)
+    bootstrap = BootstrapResult(
+        image_digest="sha256:" + "0" * 64,
+        image_tag="local/test",
+        language=LanguageHint.PYTHON,
+        repo="huggingface/trl",
+        ref="a" * 40,
+        rebuild_cmds=[],
+        test_cmds=["pytest"],
+        smoke_passed=True,
+        iterations=1,
+        build_time_sec=1.0,
+        llm_provider="anthropic/claude-sonnet-4-6",
+    )
+    return PRRuntimePipeline(gen_input, options, bootstrap=bootstrap)
+
+
+def test_pre_filter_require_linked_issue_skips_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) == "no_linked_issue"
+
+
+def test_pre_filter_require_linked_issue_keeps_with_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nCloses #123")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_disabled_keeps_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=False)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_default_keeps_without_linked_issue():
+    """Regression: default options must not require a linked issue."""
+    pipeline = _make_pipeline(None)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None

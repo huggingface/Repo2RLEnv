@@ -186,6 +186,8 @@ def _reflow_pr_body(body: str) -> str:
 # documentation paths.
 _TEST_DIR_NAMES = {"test", "tests", "testing", "e2e", "__tests__"}
 _DOC_PREFIX_DIRS = {"docs", "doc", "documentation", "examples", "example"}
+# jest/vitest's default test-file names: `*.test.ts`, `*.spec.tsx`, `*.test.mjs`, ...
+_JS_TEST_FILE_RE = re.compile(r"\.(?:test|spec)\.[cm]?[jt]sx?$")
 
 
 def _path_is_test(path: str) -> bool:
@@ -198,7 +200,8 @@ def _path_is_test(path: str) -> bool:
       2. Files inside a test directory component (any path part in
          `_TEST_DIR_NAMES`) are test files.
       3. Files with a pytest-style basename (`test_*.py`, `*_test.py`,
-         `*_test.go`) are test files.
+         `*_test.go`) or a jest/vitest one (`*.test.ts`, `*.spec.tsx`) are
+         test files.
     """
     if not path:
         return False
@@ -217,8 +220,8 @@ def _path_is_test(path: str) -> bool:
     basename = parts[-1]
     return (
         (basename.startswith("test_") and basename.endswith((".py", ".js", ".ts")))
-        or basename.endswith(("_test.py", "_test.go", ".test.ts", ".test.js"))
-        or basename.endswith((".spec.ts", ".spec.js"))
+        or basename.endswith(("_test.py", "_test.go"))
+        or _JS_TEST_FILE_RE.search(basename) is not None
     )
 
 
@@ -616,6 +619,9 @@ def _count_new_test_funcs(test_patch: str) -> int:
     return sum(1 for line in test_patch.splitlines() if _NEW_TEST_FUNC_RE.match(line))
 
 
+_PYTEST_COMMAND_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+
+
 def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     """Adapt bootstrap-recorded test commands for actual per-PR execution.
 
@@ -625,7 +631,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     that our parsers can read.
 
     Transforms (per runner):
-      pytest:
+      pytest / py.test:
         - Drop `--collect-only` / `--co` so pytest actually runs tests
         - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
         - Add `-v` if no verbosity flag is present
@@ -640,9 +646,12 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         - Default output is already parseable; no transform needed
       cargo nextest run:
         - Add `--status-level pass` (or raise a lower one) and `--color never`
-      jest / mocha / npm test:
+      jest / npm test:
         - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
         - Some configs swallow stdout via `--silent`; we strip that
+      mocha:
+        - Use `--reporter spec` instead: mocha has no `--verbose` option and
+          reads the next word as its value, dropping a test file appended later
       vitest:
         - Use `--reporter=verbose` instead: vitest rejects `--verbose`, and its
           default reporter collapses fully passing files to one summary line
@@ -663,7 +672,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         cleaned = cleaned.rstrip(" |&")
 
         # --- pytest ---
-        if re.search(r"\bpytest\b", cleaned):
+        if _PYTEST_COMMAND_RE.search(cleaned):
             cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
             cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
             # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
@@ -721,7 +730,13 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
                 cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
                 if not re.search(r"\s--reporter\b", cleaned):
                     cleaned = cleaned.rstrip() + " --reporter=verbose"
-            elif re.search(r"\b(?:jest|mocha)\b", cleaned) and not re.search(
+            elif re.search(r"\bmocha\b", cleaned):
+                # mocha has no `--verbose`: it reads the next word as the flag's
+                # value, which swallows a test file appended after it.
+                cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
+                if not re.search(r"\s(?:--reporter|-R)\b", cleaned):
+                    cleaned = cleaned.rstrip() + " --reporter spec"
+            elif re.search(r"\bjest\b", cleaned) and not re.search(
                 r"\s--verbose\b|\s--reporter\b", cleaned
             ):
                 cleaned = cleaned.rstrip() + " --verbose"
@@ -757,7 +772,7 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     the files the PR cares about. SWE-bench-Live's harness does the same.
 
     Per-runner rules:
-      pytest:  append the changed .py test files as positional args
+      pytest / py.test: append the changed .py test files as positional args
       jest:    append the changed .js/.ts test files as positional args
       go test: replace `./...` (or trailing nothing) with the package
                directories containing changed `*_test.go` files
@@ -776,10 +791,14 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     out: list[str] = []
     for cmd in test_cmds:
         # --- pytest ---
-        if re.search(r"\bpytest\b", cmd) and py_files:
+        if _PYTEST_COMMAND_RE.search(cmd) and py_files:
             tokens = cmd.split()
             pytest_idx = next(
-                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")),
+                (
+                    i
+                    for i, t in enumerate(tokens)
+                    if t in {"pytest", "py.test"} or t.endswith(("/pytest", "/py.test"))
+                ),
                 -1,
             )
             if pytest_idx >= 0:
@@ -1007,6 +1026,8 @@ class PRRuntimePipeline:
             # bumps aren't real fix tasks, and their bodies leak commit SHAs
             # and fix-PR links. Drop them up front.
             return "non_bug_pr"
+        if self.options.require_linked_issue and _linked_issue_number(pr.body or "") is None:
+            return "no_linked_issue"
         if (
             self.options.min_problem_statement_words > 0
             and _word_count(pr.body or "") < self.options.min_problem_statement_words
