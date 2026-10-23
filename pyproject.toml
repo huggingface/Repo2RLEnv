@@ -84,7 +84,8 @@ mutation = [
     "pyflakes>=3.4.0",
 ]
 harbor = [
-    "harbor==0.24.0",
+    # Offline/native adapters require this tested contract; upgrade them together.
+    "harbor==0.22.0",
 ]
 
 [build-system]
