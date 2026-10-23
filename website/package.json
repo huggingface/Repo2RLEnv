@@ -36,6 +36,7 @@
     "typescript": "7.0.2"
   },
   "overrides": {
-    "compression": "1.8.2"
+    "compression": "1.8.2",
+    "zod": "4.6.7"
   }
 }

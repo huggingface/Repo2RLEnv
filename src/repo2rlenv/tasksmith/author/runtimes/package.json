@@ -13,6 +13,9 @@
     "zod": "4.6.7"
   },
   "overrides": {
-    "toml": "5.0.1"
+    "toml": "5.0.1",
+    "@opencode-ai/plugin": {
+      "zod": "$zod"
+    }
   }
 }
