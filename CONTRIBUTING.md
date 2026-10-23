@@ -114,8 +114,11 @@ uvx pip-audit --disable-pip --no-deps -r /tmp/repo2rlenv-audit.txt
 
 The npm manifests use security overrides where an upstream pin prevents a patched
 transitive dependency: `compression` for the website's `serve` command, and `toml`
-for OpenCode's Effect dependency. Remove an override when the parent supports a
-patched version. Run the site build/link checks and real Pi/OpenCode mock-server
+for OpenCode's Effect dependency. Zod is also overridden in the website and
+OpenCode plugin to address [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5);
+updating the runtime's direct Zod dependency alone leaves the plugin's nested
+copy vulnerable. Remove an override when the parent supports a patched version.
+Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.
 
