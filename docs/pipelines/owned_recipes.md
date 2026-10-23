@@ -229,7 +229,7 @@ solver failing on a task doesn't, by itself, make the task invalid. These audits
 are still being collected, so the tasks the recipes generate are labelled
 **exported**.
 
-Harbor 0.22.0 parses the schema 1.3 tasks the recipes emit. Some worker kernels
+Harbor 0.24.0 parses the schema 1.3 tasks the recipes emit. Some worker kernels
 don't support Harbor's nftables-based dynamic firewall. The owned
 `repo2rlenv.execution.harbor_offline:OfflineDockerEnvironment` adapter handles
 Linux Dockerfile tasks that stay offline in every phase, using Docker's
@@ -250,7 +250,7 @@ and isn't an implemented recipe.
 
 ## Contract references
 
-- [Harbor tasks](https://www.harborframework.com/docs/tasks), validated against the installed 0.22.0 task models and trial implementation.
+- [Harbor tasks](https://www.harborframework.com/docs/tasks), validated against the installed 0.24.0 task models and trial implementation.
 - [Modal VM sandboxes](https://modal.com/docs/guide/vm-sandboxes).
 - [Daytona sandbox management](https://www.daytona.io/docs/en/sandbox-management/).
 - [LiteLLM structured outputs](https://docs.litellm.ai/docs/completion/json_mode) and [Anthropic mapping](https://docs.litellm.ai/docs/providers/anthropic).

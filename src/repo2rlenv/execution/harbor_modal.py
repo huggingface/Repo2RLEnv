@@ -17,6 +17,7 @@ from decimal import ROUND_CEILING, Decimal
 from importlib.metadata import version
 from pathlib import Path
 
+from harbor.environments.capabilities import EnvironmentCapabilities
 from harbor.environments.modal import ModalEnvironment
 from harbor.models.task.config import NetworkMode
 
@@ -78,24 +79,27 @@ def compute_estimate(record: dict) -> dict:
 
 
 class MeteredModalEnvironment(ModalEnvironment):
+    @property
+    def capabilities(self) -> EnvironmentCapabilities:
+        # Harbor 0.24 adds SSH streaming to Modal. The metered offline profile
+        # does not expose ports or allow an external execution channel.
+        return super().capabilities.model_copy(update={"stream": False})
+
     async def _sdk_upload_dir(self, source_dir: Path | str, target_dir: str) -> None:
         from repo2rlenv.execution.modal_transfer import upload_directory
 
         await upload_directory(self, source_dir, target_dir)
 
     def __init__(self, *args, **kwargs):
-        if version("harbor") != "0.22.0":
-            raise RuntimeError("Native GPU execution requires the tested Harbor 0.22.0 contract")
+        if version("harbor") != "0.24.0":
+            raise RuntimeError("Native GPU execution requires the tested Harbor 0.24.0 contract")
+        if "modal_sandbox_v2" in kwargs:
+            raise ValueError("Harbor 0.24 removed the modal_sandbox_v2 option")
         self.accounting = ACCOUNTING.get()
         if self.accounting is None:
             raise ValueError("Native GPU execution requires a controller budget context")
         super().__init__(*args, **kwargs)
-        if (
-            self._compose_mode
-            or self._vm_runtime_enabled
-            or self._sandbox_v2_enabled
-            or self._dynamic_network
-        ):
+        if self._compose_mode or self._vm_runtime_enabled or self._dynamic_network:
             raise ValueError(
                 "GPU trials require a native single-container environment with a fixed network policy"
             )
@@ -279,6 +283,9 @@ class MeteredModalEnvironment(ModalEnvironment):
             return
         self.record["state"] = "terminating"
         save_record(self.receipt, self.record)
+        # Harbor 0.24 treats unexpected exit 137 as a possible OOM. Mark our
+        # deliberate termination before the RPC so it is not misclassified.
+        self._sandbox_termination_requested = True
         try:
             await self._sandbox.terminate.aio(wait=True)
         except BaseException:

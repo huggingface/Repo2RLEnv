@@ -17,7 +17,9 @@ Repo2RLEnv writes [Harbor tasks](../concepts/glossary.mdx#harbor-task); [Harbor]
 uv tool install harbor
 ```
 
-Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.22.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.22.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.24.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.24.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]==0.24.0'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+
+Repo2RLEnv's offline Docker and metered Modal adapters reject Harbor's SSH streaming mode. The native Modal adapter also rejects the removed `modal_sandbox_v2` option; use the pinned default backend. Historical execution reports retain the Harbor version that produced them.
 
 ## Download a dataset
 
@@ -143,7 +145,7 @@ Replace `--env docker` with a hosted sandbox provider to run many trials in para
 
 | `--env` | Install | Credentials |
 |---|---|---|
-| `modal` | `uv tool install 'harbor[modal]'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
+| `modal` | `uv tool install 'harbor[modal]==0.24.0'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
 | `daytona` | `uv tool install 'harbor[daytona]'` | `DAYTONA_API_KEY` |
 | `e2b` | `uv tool install 'harbor[e2b]'` | `E2B_API_KEY` |
 | `runloop` | `uv tool install 'harbor[runloop]'` | `RUNLOOP_API_KEY` |

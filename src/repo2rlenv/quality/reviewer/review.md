@@ -9,7 +9,7 @@ entrypoint uses them. Cite the entry script in the gaming assessment, and explai
 its effect. Inspect shell guards and overwritten rewards as well as Python tests.
 Compare any extra submission requirements with the full public instruction.
 
-Trusted platform contract (Harbor 0.22, pinned by this package): for a single-step
+Trusted platform contract (Harbor 0.24, pinned by this package): for a single-step
 Linux task, Harbor selects and EXECUTES tests/test.sh; a Windows task selects its
 platform test script. A separate verifier environment changes where that script
 runs, not which Python module is automatically called. Harbor does not discover

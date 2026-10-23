@@ -57,6 +57,23 @@ def test_adapter_refuses_local_execution_before_touching_docker(monkeypatch):
         OfflineDockerEnvironment()
 
 
+def test_offline_adapter_refuses_ssh_streaming(tmp_path, monkeypatch):
+    monkeypatch.setenv("REPO2RLENV_REMOTE_WORKER", "1")
+    environment_dir = tmp_path / "environment"
+    environment_dir.mkdir()
+    (environment_dir / "Dockerfile").write_text("FROM python:3.12-slim\n")
+    with pytest.raises(ValueError, match="stream mode"):
+        OfflineDockerEnvironment(
+            environment_dir=environment_dir,
+            environment_name="offline-contract",
+            session_id="offline-contract__env",
+            trial_paths=TrialPaths(trial_dir=tmp_path / "trial"),
+            task_env_config=EnvironmentConfig(),
+            network_policy=NetworkPolicy(network_mode="no-network"),
+            stream=True,
+        )
+
+
 @pytest.mark.parametrize("mode", ["public", "allowlist"])
 def test_offline_policy_never_silently_weakens_a_requested_network_contract(mode):
     environment = object.__new__(OfflineDockerEnvironment)

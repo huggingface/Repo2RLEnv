@@ -1,5 +1,7 @@
 """Native lifecycle accounting must retain uncertain provider outcomes."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 from types import SimpleNamespace
@@ -11,6 +13,7 @@ pytest.importorskip("modal")
 
 from repo2rlenv.campaigns.budget import BudgetExceeded, BudgetLedger
 from repo2rlenv.execution.harbor_modal import (
+    ACCOUNTING,
     MeteredModalEnvironment,
     NativeAccounting,
     compute_estimate,
@@ -27,6 +30,105 @@ def test_untested_harbor_version_is_rejected_before_initialization(monkeypatch):
     monkeypatch.setattr("repo2rlenv.execution.harbor_modal.version", lambda _: "999.0.0")
     with pytest.raises(RuntimeError, match="tested Harbor"):
         MeteredModalEnvironment()
+
+
+@pytest.fixture
+def native_environment(tmp_path, monkeypatch):
+    import modal
+    from harbor.models.task.config import EnvironmentConfig, NetworkPolicy
+    from harbor.models.trial.paths import TrialPaths
+
+    async def no_dispatch(*args, **kwargs):
+        pytest.fail("Constructing an environment must not allocate a sandbox")
+
+    monkeypatch.setattr(modal.Sandbox, "create", SimpleNamespace(aio=no_dispatch))
+    ledger = BudgetLedger(tmp_path / "budget.sqlite3", limit_usd="10")
+    accounting = NativeAccounting(RunBudget(ledger, "contract", "10"), tmp_path / "allocations")
+    token = ACCOUNTING.set(accounting)
+    environment_dir = tmp_path / "environment"
+    environment_dir.mkdir()
+    (environment_dir / "Dockerfile").write_text("FROM python:3.12-slim\n")
+
+    def construct(**overrides):
+        options = dict(
+            environment_dir=environment_dir,
+            environment_name="native-contract",
+            session_id="native-contract__env",
+            trial_paths=TrialPaths(trial_dir=tmp_path / "trial"),
+            task_env_config=EnvironmentConfig(cpus=2, memory_mb=2048, gpus=1, gpu_types=["L4"]),
+            network_policy=NetworkPolicy(network_mode="no-network"),
+            sandbox_timeout_secs=300,
+        )
+        return MeteredModalEnvironment(**(options | overrides))
+
+    try:
+        yield construct, ledger
+    finally:
+        ACCOUNTING.reset(token)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"stream": True},
+        {"modal_sandbox_v2": True},
+        {"secrets": ["controller-secret"]},
+        {"registry_secret": "controller-registry"},
+        {"volumes": {"/shared": "controller-volume"}},
+        {"sandbox_timeout_secs": 86400},
+    ],
+)
+def test_native_constructor_refuses_escape_from_metered_profile(native_environment, override):
+    construct, ledger = native_environment
+    with pytest.raises(ValueError):
+        construct(**override)
+    assert not ledger.status()["operations"]
+
+
+@pytest.mark.parametrize("phase", [False, True])
+def test_native_constructor_refuses_public_network_in_any_phase(native_environment, phase):
+    from harbor.models.task.config import NetworkPolicy
+
+    construct, ledger = native_environment
+    public = NetworkPolicy(network_mode="public")
+    with pytest.raises(ValueError):
+        construct(**({"phase_network_policies": [public]} if phase else {"network_policy": public}))
+    assert not ledger.status()["operations"]
+
+
+@pytest.mark.asyncio
+async def test_real_native_constructor_keeps_offline_allocation_and_cleanup_contract(
+    native_environment, monkeypatch
+):
+    import modal
+
+    construct, ledger = native_environment
+    env = construct()
+    assert env.capabilities.gpus and not env.capabilities.stream
+    assert not env.stream_enabled and not env.receipt.exists()
+    env._app, env._image = object(), SimpleNamespace(object_id="image-test")
+    calls = []
+
+    async def terminate(*, wait):
+        assert wait and env._sandbox_termination_requested
+
+    sandbox = SimpleNamespace(object_id="sandbox-test", terminate=SimpleNamespace(aio=terminate))
+
+    async def create(*args, **kwargs):
+        calls.append(kwargs)
+        return sandbox
+
+    monkeypatch.setattr(modal.Sandbox, "create", SimpleNamespace(aio=create))
+    assert await env._create_sandbox() is sandbox
+    assert len(calls) == 1
+    assert calls[0]["block_network"] is True
+    assert calls[0]["gpu"] == "L4:1"
+    assert not {"secrets", "volumes", "unencrypted_ports", "encrypted_ports"} & calls[0].keys()
+    assert env.record["state"] == "running"
+    await env.stop()
+    assert env.record["state"] == "terminated"
+    assert ledger.status()["reserved_usd"] == "0.000000"
+    assert env._sandbox is None
 
 
 def test_model_hold_is_releasable_only_with_proven_pre_dispatch_denial(tmp_path):
