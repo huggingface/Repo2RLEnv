@@ -85,7 +85,7 @@ mutation = [
 ]
 harbor = [
     # Offline/native adapters require this tested contract; upgrade them together.
-    "harbor==0.22.0",
+    "harbor==0.24.0",
 ]
 
 [build-system]
