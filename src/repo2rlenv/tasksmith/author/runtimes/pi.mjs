@@ -1,5 +1,5 @@
 /**
- * Pi 0.85.1 adapter. Run: node pi.mjs CONFIG_JSON_PATH
+ * Pi adapter. Run: node pi.mjs CONFIG_JSON_PATH
  *
  * The parent owns credentials, billing, and all cloud effects. Only explicitly
  * supplied bridge tools are available; Pi does not discover local resources.
@@ -142,7 +142,7 @@ export async function runPi(config) {
       ai = await import("@earendil-works/pi-ai");
     } catch (error) {
       throw new Error(
-        `Pi SDK import failed; install @earendil-works/pi-coding-agent@0.85.1 and @earendil-works/pi-server@0.85.1 next to pi.mjs: ${error.message}`,
+        `Pi SDK import failed; run repo2rlenv tasksmith install-runtime to install the pinned SDKs: ${error.message}`,
         { cause: error },
       );
     }
@@ -213,13 +213,14 @@ export async function runPi(config) {
     session.agent.streamFunction = (currentModel, context, options) => {
       if (turns >= config.max_turns) throw new Error("Pi exceeded max_turns");
       turns += 1;
-      // Pi appends its local cwd to custom prompts. Supply the exact common
-      // system prompt at the provider boundary for the matched comparison.
-      return piStream(currentModel, { ...context, systemPrompt: config.system }, {
+      return piStream(currentModel, context, {
         ...options, maxTokens, maxRetries: 0, fetch: bridgeFetch,
         // The parent selects the same policy for every runtime. Override Pi's
         // model-catalog defaults without touching signed conversation blocks.
         onPayload: (payload) => {
+          // Pi 1.x carries system messages in the transcript and appends local
+          // context. Keep the exact shared prompt at the provider boundary.
+          payload.system = [{ type: "text", text: config.system }];
           for (const key of ["thinking", "temperature", "top_p", "top_k", "output_config"]) delete payload[key];
           Object.assign(payload, inference, { max_tokens: maxTokens });
           // Pi's non-strict Anthropic converter retains only type,
@@ -236,7 +237,13 @@ export async function runPi(config) {
         },
       });
     };
-    session.agent.shouldStopAfterTurn = () => turns >= config.max_turns;
+    const finishTurn = session.agent.finishTurn;
+    session.agent.finishTurn = async (...args) => {
+      const decision = await finishTurn?.call(session.agent, ...args);
+      // Pi 1.x finishes this hook after all tool results, so the last permitted
+      // validation callback completes before the budget ends the run.
+      return turns >= config.max_turns ? { action: "end" } : decision;
+    };
     session.subscribe(log);
     log({ type: "adapter_start", runtime: "pi", model: config.model, tools: activeTools, max_turns: config.max_turns, max_tokens: maxTokens, inference_options: inference, model_timeout_sec: requestTimeoutMs / 1000 });
     controller.signal.throwIfAborted();

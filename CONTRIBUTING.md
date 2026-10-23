@@ -109,9 +109,17 @@ uv export --all-extras --group dev --frozen --no-emit-project --no-hashes \
   --output-file /tmp/repo2rlenv-audit.txt
 uvx pip-audit --disable-pip --no-deps -r /tmp/repo2rlenv-audit.txt
 (cd src/repo2rlenv/tasksmith/author/runtimes && npm audit --package-lock-only)
+(cd website && npm audit --package-lock-only)
 ```
 
-Dependabot checks Actions, the Python lock and the coding-agent npm lock weekly.
+The npm manifests use security overrides where an upstream pin prevents a patched
+transitive dependency: `compression` for the website's `serve` command, and `toml`
+for OpenCode's Effect dependency. Remove an override when the parent supports a
+patched version. Run the site build/link checks and real Pi/OpenCode mock-server
+tests after updating these locks. Pi 1.4 replaces the old runtime's nested
+shrinkwrap, allowing the repository lock to select patched dependencies.
+
+Dependabot checks Actions, Python, coding-agent runtimes and website dependencies weekly.
 Every update still needs review and passing CI. Keep Actions pinned to full
 commit SHAs with a version comment, and disable dependency caches in publishing
 jobs. Audit results cover known advisories; they are not a guarantee of safety.
