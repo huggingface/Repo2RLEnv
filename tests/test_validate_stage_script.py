@@ -58,6 +58,17 @@ def test_multiple_test_cmds_share_one_redirect():
     assert lines.count("} 2>&1") == 1
 
 
+def test_config_reset_runs_after_the_fix_and_before_the_test_patch():
+    """Validation grades like test.sh: pytest config is back at base before the
+    hidden test patch, so a gold patch's own conftest.py doesn't count."""
+    script = _build_stage_script(
+        _BASE, apply_patch="FIX", apply_test_patch="TESTS", test_cmds=["pytest -v"]
+    )
+    reset = script.find("-name 'conftest.py'")
+    assert script.find("FIX") < reset < script.find("TESTS") < script.find("pytest -v")
+    assert "|| exit 1" in script[reset : script.find("TESTS")]
+
+
 def test_empty_test_cmds_still_produce_a_block():
     script = _build_stage_script(_BASE, apply_patch=None, apply_test_patch=None, test_cmds=[])
     lines = script.splitlines()

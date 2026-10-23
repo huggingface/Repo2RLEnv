@@ -174,9 +174,11 @@ The details file also records per-set totals and rates, `regressions`,
 `eval_grade` (`command_resolved` and a non-empty P2P set); filter on it for a
 benchmark-grade subset.
 
-The agent can't pass by editing tests: `test.sh` restores the PR's test files and
-re-applies the hidden test patch before running them. If the patch doesn't apply,
-the task fails closed with reward 0 and `parse_status` set to
+The agent can't pass by editing tests: `test.sh` restores the PR's test files,
+pytest's config files (`conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`,
+`tox.ini`) and symlinks to the base commit, then re-applies the hidden test patch
+and runs the tests. If the config reset fails or the patch doesn't apply, the task fails
+closed with reward 0 and `parse_status` set to `test_config_reset_failed` or
 `test_patch_apply_failed`. If the log can't be parsed, the verifier falls back to
 1.0 for a zero exit code and 0.0 otherwise, marks `parse_status` as
 `fallback_exitcode`, and never reports `resolved` for a task with an F2P list.

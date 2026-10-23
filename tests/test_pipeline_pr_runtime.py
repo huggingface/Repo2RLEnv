@@ -11,6 +11,11 @@ runs against real repos. These tests pin the pure-Python bits:
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
+import sys
+
 import pytest
 
 from repo2rlenv.pipelines.pr_runtime import (
@@ -180,7 +185,8 @@ def test_build_eval_script_captures_exit_code_before_cleanup():
     assert "exit 0" in script  # reward.txt is the verdict, not bash exit code
     test_block_pos = script.find("pytest -v")
     capture_pos = script.find("TEST_EXIT_CODE=$?")
-    reward_pos = script.find("/logs/verifier/reward.txt")
+    # rfind: the fail-closed guards also write reward.txt, before the suite runs.
+    reward_pos = script.rfind("/logs/verifier/reward.txt")
     assert test_block_pos < capture_pos < reward_pos
 
 
@@ -276,6 +282,165 @@ def test_build_eval_script_path_prelude_for_rust():
         language="rust",
     )
     assert ".cargo/bin" in script
+
+
+def test_build_eval_script_restores_pytest_config_before_tests():
+    """conftest.py and the pytest ini files are reset to base before the hidden
+    test patch is applied and the suite runs."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch=_SAMPLE_DIFF,
+        test_cmds=["pytest -v"],
+        fail_to_pass=["tests/test_foo.py::test_add"],
+    )
+    assert "-name 'conftest.py'" in script
+    assert f'git checkout {"a" * 40} -- "$f"' in script
+    reset_pos = script.find("-name 'conftest.py'")
+    assert 0 <= reset_pos < script.find("EOF_R2E_TEST_PATCH") < script.find("( pytest -v )")
+
+
+needs_git_bash = pytest.mark.skipif(
+    shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
+)
+
+_PASSING_HOOK = (
+    "import pytest\n\n"
+    "@pytest.hookimpl(hookwrapper=True)\n"
+    "def pytest_runtest_makereport(item, call):\n"
+    "    outcome = yield\n"
+    "    rep = outcome.get_result()\n"
+    '    rep.outcome = "passed"\n'
+    "    rep.longrepr = None\n\n"
+    "def pytest_sessionfinish(session, exitstatus):\n"
+    "    session.exitstatus = 0\n"
+)
+
+
+def _base_repo(tmp_path, files: dict[str, str]) -> tuple:
+    """A git repo at tmp_path/workspace with `files` committed; returns (repo, sha)."""
+    repo = tmp_path / "workspace"
+    for rel, text in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+    subprocess.run([*git, "init", "-q"], cwd=repo, check=True)
+    subprocess.run([*git, "add", "-A"], cwd=repo, check=True)
+    subprocess.run([*git, "commit", "-qm", "base"], cwd=repo, check=True)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return repo, sha
+
+
+def _run_test_sh(tmp_path, repo, base: str, test_cmds: list[str]) -> str:
+    """Run the generated (binary-reward) test.sh against `repo`; return reward.txt."""
+    script = build_eval_script(base_commit=base, test_patch="", test_cmds=test_cmds)
+    logs = tmp_path / "logs"
+    script = script.replace("/workspace", str(repo)).replace("/logs/verifier", str(logs))
+    env = {"HOME": str(tmp_path), "PATH": os.environ["PATH"], "PYTHONDONTWRITEBYTECODE": "1"}
+    subprocess.run(["bash", "-c", script], check=True, capture_output=True, env=env)
+    return (logs / "reward.txt").read_text().strip()
+
+
+_PYTEST = f"{sys.executable} -m pytest -q -p no:cacheprovider tests"
+_BUGGY = {
+    "pkg.py": "def add(a, b):\n    return a - b\n",
+    "tests/test_pkg.py": "from pkg import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n",
+    "pyproject.toml": '[project]\nname = "pkg"\nversion = "1.0"\n\n'
+    '[tool.pytest.ini_options]\npythonpath = ["."]\n',
+}
+
+
+@needs_git_bash
+def test_build_eval_script_config_reset_keeps_source_changes(tmp_path):
+    """Config the agent added, edited, deleted or git-ignored is back at base when
+    the suite runs; the agent's source change is untouched. The repo's own
+    tests/conftest.py stays, so its fixtures still load."""
+    repo, base = _base_repo(
+        tmp_path,
+        {
+            "pkg.py": "X = 1\n",
+            "pyproject.toml": "[tool.pytest.ini_options]\n",
+            "tests/conftest.py": "# base fixtures\n",
+        },
+    )
+    (repo / "pkg.py").write_text("X = 2\n")
+    (repo / "conftest.py").write_text("# agent hook\n")
+    (repo / "pytest.ini").write_text("[pytest]\n")
+    (repo / "tests" / "conftest.py").write_text("# agent hook\n")
+    (repo / "pyproject.toml").unlink()
+    hidden = repo / "tests" / "hidden"
+    hidden.mkdir()
+    (hidden / ".gitignore").write_text("*\n")
+    (hidden / "conftest.py").write_text("# agent hook\n")
+
+    assert _run_test_sh(tmp_path, repo, base, ["true"]) == "1.0"
+    assert (repo / "pkg.py").read_text() == "X = 2\n"
+    assert (repo / "tests" / "conftest.py").read_text() == "# base fixtures\n"
+    assert (repo / "pyproject.toml").read_text() == "[tool.pytest.ini_options]\n"
+    assert not (repo / "conftest.py").exists()
+    assert not (repo / "pytest.ini").exists()
+    assert not (hidden / "conftest.py").exists()
+
+
+@needs_git_bash
+def test_build_eval_script_agent_conftest_scores_zero(tmp_path):
+    """The reported case: no source fix, a root conftest.py that marks every
+    report passed. It must not survive into the graded run."""
+    repo, base = _base_repo(tmp_path, _BUGGY)
+    (repo / "conftest.py").write_text(_PASSING_HOOK)
+    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.0"
+
+
+@needs_git_bash
+def test_build_eval_script_failed_config_reset_scores_zero(tmp_path):
+    """If a reset step fails, grading stops with reward 0 and the suite never runs."""
+    repo, base = _base_repo(tmp_path, {**_BUGGY, "pkg.py": "def add(a, b):\n    return a + b\n"})
+    (repo / "pyproject.toml").unlink()
+    (repo / "pyproject.toml").mkdir()  # `rm -f` can't remove it
+    ran = tmp_path / "suite_ran"
+    assert _run_test_sh(tmp_path, repo, base, [f"touch {ran}", _PYTEST]) == "0.000000"
+    details = (tmp_path / "logs" / "reward-details.json").read_text()
+    assert '"parse_status": "test_config_reset_failed"' in details
+    assert not ran.exists()
+
+
+@needs_git_bash
+def test_build_eval_script_removes_untracked_symlinks(tmp_path):
+    """A symlinked directory the agent adds can carry its own conftest.py; it is
+    removed before grading. A symlink tracked at base is put back."""
+    repo, base = _base_repo(tmp_path, _BUGGY)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "linked").symlink_to("../tests")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "link"],
+        cwd=repo,
+        check=True,
+    )
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "conftest.py").write_text(_PASSING_HOOK)
+    (repo / "tests" / "extra").symlink_to(outside)
+    (repo / "docs" / "linked").unlink()
+    (repo / "docs" / "linked").symlink_to(outside)
+
+    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.0"
+    assert not (repo / "tests" / "extra").exists()
+    assert os.readlink(repo / "docs" / "linked") == "../tests"
+
+
+@needs_git_bash
+def test_build_eval_script_keeps_a_fix_that_bumps_pyproject_version(tmp_path):
+    """A real fix that also edits a non-pytest part of pyproject.toml still passes."""
+    repo, base = _base_repo(tmp_path, _BUGGY)
+    (repo / "pkg.py").write_text("def add(a, b):\n    return a + b\n")
+    pyproject = repo / "pyproject.toml"
+    pyproject.write_text(pyproject.read_text().replace('version = "1.0"', 'version = "1.1"'))
+    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "1.0"
 
 
 # --- instruction reflow + difficulty -----------------------------------------

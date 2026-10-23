@@ -432,6 +432,65 @@ def _path_prelude_for_language(language: str | None) -> str:
     return f'export PATH="{joined}:$PATH"\n'
 
 
+# Files pytest reads configuration, hooks and plugins from. test.sh grades the
+# agent's working tree in place, so one of these that the agent added or edited
+# would run inside the hidden test session (e.g. a conftest.py hook that marks
+# every test passed). They are restored to base_commit like the test files.
+_TEST_CONFIG_FILES = (
+    "conftest.py",
+    "pytest.ini",
+    ".pytest.ini",
+    "pytest.toml",
+    ".pytest.toml",
+    "pyproject.toml",
+    "setup.cfg",
+    "tox.ini",
+)
+
+
+# Directories that hold installed dependencies. The reset skips real directories
+# with these names, so symlinks inside them stay; pytest doesn't collect them by
+# default either. A symlink with one of these names is still removed, which can
+# break an environment that relies on it.
+_DEP_DIRS = (".git", ".venv", "venv", ".tox", "node_modules")
+
+
+def _test_config_reset(base_commit: str) -> str:
+    """Shell command that puts pytest's config and the tree's symlinks back to base_commit.
+
+    Removes every `_TEST_CONFIG_FILES` file and every symlink (a symlinked
+    directory can bring its own conftest.py), untracked and ignored ones
+    included, then checks out the base versions of those that are tracked.
+    Exits non-zero if any step fails.
+    """
+    skip = " -o ".join(f"-name {d}" for d in _DEP_DIRS)
+    names = " -o ".join(f"-name '{n}'" for n in _TEST_CONFIG_FILES)
+    restore = "|".join(["120000:*", *(f"*:{n}" for n in _TEST_CONFIG_FILES)])
+    return (
+        f"find . \\( {skip} \\) -type d -prune -o \\( -type l -o {names} \\) "
+        "-exec rm -f {} + &&\n"
+        f"git ls-tree -r -z {base_commit} | while IFS= read -r -d '' e; do\n"
+        "  f=\"${e#*$'\\t'}\"\n"
+        f'  case "${{e%% *}}:${{f##*/}}" in {restore}) '
+        f'git checkout {base_commit} -- "$f" || exit 1 ;; esac\n'
+        "done"
+    )
+
+
+def _fail_closed(rc_var: str, parse_status: str, what: str) -> str:
+    """Shell block: if `$rc_var` is non-zero, write reward 0 + `parse_status` and stop."""
+    return (
+        f'if [ "${rc_var}" -ne 0 ]; then\n'
+        '  echo "0.000000" > /logs/verifier/reward.txt\n'
+        "  printf '%s' "
+        '\'{"reward": 0.0, "resolved": false, "parse_status": '
+        f'"{parse_status}"}}\' > /logs/verifier/reward-details.json\n'
+        f'  echo "R2E: {what} (rc=${rc_var}) — failing closed" >&2\n'
+        "  exit 0\n"
+        "fi\n"
+    )
+
+
 def build_eval_script(
     base_commit: str,
     test_patch: str,
@@ -449,9 +508,12 @@ def build_eval_script(
       2. Prepend known toolchain paths for the detected language (compensates
          for bootstrap agents that install Go/Rust/Node outside /usr/bin
          without exporting PATH in any persisted shell init file)
-      3. Reset test files to base_commit (so re-running stays clean) — this is
-         the anti-tamper guard: the agent CANNOT pass by editing/deleting the
-         tests, because we restore them to base and re-apply the test_patch
+      3. Reset test files, pytest config files (conftest.py, pytest.ini,
+         pyproject.toml, ...) and symlinks to base_commit (so re-running stays
+         clean) — this is the anti-tamper guard: the agent CANNOT pass by
+         editing/deleting the tests or by adding a conftest.py hook, because we
+         restore them to base and re-apply the test_patch. If the config reset
+         fails, the task fails closed with reward 0
       4. Apply the test_patch (via heredoc + git apply --reject)
       5. Run test_cmds, capturing stdout+stderr to a log file
       6. Score the reward:
@@ -486,15 +548,16 @@ def build_eval_script(
         else (
             f"{apply}\n"
             "R2E_APPLY_RC=$?\n"
-            'if [ "$R2E_APPLY_RC" -ne 0 ]; then\n'
-            '  echo "0.000000" > /logs/verifier/reward.txt\n'
-            "  printf '%s' "
-            '\'{"reward": 0.0, "resolved": false, "parse_status": '
-            '"test_patch_apply_failed"}\' > /logs/verifier/reward-details.json\n'
-            '  echo "R2E: test_patch failed to apply (rc=$R2E_APPLY_RC) — failing closed" >&2\n'
-            "  exit 0\n"
-            "fi\n"
+            + _fail_closed("R2E_APPLY_RC", "test_patch_apply_failed", "test_patch failed to apply")
         )
+    )
+    # Fail CLOSED on the config reset too: grading with the agent's conftest.py
+    # or pytest config still in place is the bypass the reset exists to stop.
+    # Tracing is off during the reset: it loops over every tracked file.
+    config_guard = (
+        "{ set +x; } 2>/dev/null\n"
+        + f"{_test_config_reset(base_commit)}\nR2E_RESET_RC=$?\nset -x\n"
+        + _fail_closed("R2E_RESET_RC", "test_config_reset_failed", "test config reset failed")
     )
     head = (
         "#!/bin/bash\n"
@@ -506,6 +569,7 @@ def build_eval_script(
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
+        f"{config_guard}"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
         f"{apply_guard}"
         # Capture the suite output so the verifier can parse per-test status.
