@@ -6,6 +6,8 @@ import json
 import os
 import shutil
 import signal
+import subprocess
+import sys
 from pathlib import Path
 
 from repo2rlenv.tasksmith.author.bridge import AgentBridge
@@ -15,6 +17,13 @@ from repo2rlenv.tasksmith.author.inference import (
     anthropic_options,
     inference_settings,
 )
+
+_PROCESS_GRACE_SECONDS = 12
+_PROCESS_KILL_SECONDS = 3
+
+
+class ProcessCleanupError(RuntimeError):
+    """The adapter's process tree could not be confirmed stopped."""
 
 
 def runtime_path(engine: str) -> Path:
@@ -28,6 +37,67 @@ def runtime_path(engine: str) -> Path:
             f"Install Node >=22.19 and run `repo2rlenv tasksmith install-runtime` for the {engine} adapter"
         )
     return root / f"{engine}.mjs"
+
+
+def stop_process_tree(process: asyncio.subprocess.Process, *, force: bool) -> None:
+    """End the adapter and everything it spawned.
+
+    POSIX: the adapter leads its own session (``start_new_session``), so its pid
+    is a process-group id and one signal reaches every descendant. Windows has
+    neither ``os.killpg`` nor ``signal.SIGKILL`` and ignores
+    ``start_new_session``; ``taskkill /T`` walks the parent/child tree instead.
+    ``force=False`` is the polite first request (SIGTERM on POSIX), ``force=True``
+    the last resort. Windows has no graceful group signal, and the tree can only
+    be found while the adapter is still alive (``terminate()`` alone would orphan
+    its children and ``taskkill /T`` cannot reach them afterwards), so both
+    requests end the whole tree at once there.
+    Raises ``ProcessLookupError`` on POSIX if the group is already gone.
+    """
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode and process.returncode is None:
+            raise ProcessCleanupError(
+                f"taskkill failed for runtime PID {process.pid}: exit {result.returncode}"
+            )
+        return
+    os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+
+
+async def _stop_and_wait(process: asyncio.subprocess.Process) -> None:
+    """Bound both shutdown attempts; a failed tree kill is never a silent success."""
+    error = None
+    for force in (False, True):
+        try:
+            # taskkill can take 15 seconds. Keep the bridge/event loop responsive.
+            await asyncio.to_thread(stop_process_tree, process, force=force)
+            error = None
+        except ProcessLookupError:
+            error = None  # POSIX: the process group is already gone.
+        except (OSError, subprocess.SubprocessError, ProcessCleanupError) as exc:
+            error = exc
+        try:
+            await asyncio.wait_for(
+                process.wait(), timeout=_PROCESS_KILL_SECONDS if force else _PROCESS_GRACE_SECONDS
+            )
+        except TimeoutError as exc:
+            if error is None:
+                error = exc
+        # Always attempt the force pass, even if SIGTERM ended the parent:
+        # a descendant in the same POSIX group may have ignored SIGTERM.
+    if error is None:
+        return
+    # Last resort: reap the direct child where possible. This does not prove
+    # descendants stopped, so the cleanup error must still be reported.
+    with contextlib.suppress(ProcessLookupError):
+        process.kill()
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(process.wait(), timeout=_PROCESS_KILL_SECONDS)
+    raise ProcessCleanupError(f"Could not stop runtime process tree {process.pid}") from error
 
 
 async def run_external_agent(
@@ -115,22 +185,25 @@ async def run_external_agent(
                     raise RuntimeError(result["error"])
                 completed = True
         finally:
+            original_error = sys.exception()
+            cleanup_error = None
             bridge.stop(cancel_models=not completed)
             if process is not None and process.returncode is None:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(process.pid, signal.SIGTERM)
                 try:
-                    await asyncio.wait_for(process.wait(), timeout=12)
-                except TimeoutError:
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGKILL)
-                    await process.wait()
+                    await _stop_and_wait(process)
+                except (OSError, subprocess.SubprocessError, ProcessCleanupError) as exc:
+                    cleanup_error = exc
             for task in (communication, failed):
                 if task is not None and not task.done():
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
             config_path.unlink(missing_ok=True)
+            if cleanup_error is not None:
+                if original_error is not None:
+                    original_error.add_note(f"Runtime cleanup also failed: {cleanup_error}")
+                else:
+                    raise cleanup_error
     # __aexit__ drains successful provider streams, including settlement or any
     # error that arrives after the runtime has already produced its final JSON.
     if bridge.failure:
