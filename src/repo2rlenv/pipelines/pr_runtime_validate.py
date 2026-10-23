@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from repo2rlenv.bootstrap.docker import DockerSandbox
 from repo2rlenv.log_parsers import parse_logs
+from repo2rlenv.pipelines.pr_runtime import _test_config_reset
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,9 @@ def _build_stage_script(
     ]
     if apply_patch and apply_patch.strip():
         parts.append(_heredoc_apply(apply_patch))
+    # Same config reset as test.sh, so F2P/P2P are measured the way the task
+    # is graded (a gold patch's own conftest.py or config change doesn't count).
+    parts.append(f"{_test_config_reset(base_commit)} || exit 1")
     if apply_test_patch and apply_test_patch.strip():
         parts.append(_heredoc_apply(apply_test_patch))
     # Emit the markers to STDOUT via echo — NOT `: 'MARKER'`. With `set -x`,
