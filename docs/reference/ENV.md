@@ -75,7 +75,7 @@ Full L1-L4 probe protocol + per-registry setup: [`REGISTRY_AUTH.md`](./REGISTRY_
 
 ## `pr_diff` reward tuning
 
-The diff-similarity verifier baked into every `pr_diff` task is configurable at *score time* without rebuilding the image, because the verifier reads these inside the container. Pass them to the verifier with Harbor's `--ve`, for example `harbor run … --ve R2E_W_JUDGE=0`.
+The diff-similarity verifier baked into every `pr_diff` task is configurable at *score time* without rebuilding the image, because the verifier reads these inside the container. Pass them to the verifier with Harbor's `--ve`, for example `harbor run … --ve R2E_W_JUDGE=0.5`. Setting the judge weight to zero produces diagnostic scores only: the run is ungraded with reward zero. Invalid, negative or non-finite weight overrides retain the defaults; valid weights are relative and need not sum to one.
 
 | Variable | What it does | Default |
 |---|---|---|
