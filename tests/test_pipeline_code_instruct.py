@@ -89,6 +89,12 @@ def test_all_tests_passed_rejects_collection_error():
     assert not _all_tests_passed(log)
 
 
+@pytest.mark.parametrize("summary", ["3 passed, 1 error in 0.12s", "2 passed, 2 errors in 0.3s"])
+def test_all_tests_passed_rejects_errored_tests(summary):
+    """A test that errors in setup or teardown didn't pass."""
+    assert not _all_tests_passed(f"==== {summary} ====")
+
+
 # ---------------------------------------------------------------------------
 # Pipeline contract
 # ---------------------------------------------------------------------------
