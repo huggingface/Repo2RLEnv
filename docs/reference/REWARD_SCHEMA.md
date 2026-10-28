@@ -108,9 +108,9 @@ analysis, filtering, and debugging.
 
 ```json
 {
-  "reward":            1.0,
+  "reward":            0.0,
   "resolved":          false,
-  "command_resolved":  true,
+  "command_resolved":  false,
   "parse_status":      "fallback_exitcode",
   "eval_trustworthy":  false,
   "runner":            "",
@@ -136,7 +136,7 @@ analysis, filtering, and debugging.
 | `regressions` | list[str] | P2P tests that broke under the agent's patch. |
 | `untracked_failed_count` | int | Tests that failed but were not in F2P or P2P, often from pre-existing flakiness. |
 | `untracked_failed` | list[str] | Names of untracked failures (capped at 20). |
-| `parse_status` | string | `"ok"`: per-test status parsed successfully. `"fallback_exitcode"`: runner output unrecognised, so `reward` is binary and based on the exit code. |
+| `parse_status` | string | `"ok"`: per-test status parsed successfully. `"fallback_exitcode"`: runner output unrecognised. `reward` is 0 when an F2P oracle exists, otherwise binary and based on the exit code. |
 | `eval_trustworthy` | bool | Only present in `fallback_exitcode` path. `false` when an F2P oracle exists but couldn't be verified. |
 | `runner` | string | Detected test runner: `"pytest"` \| `"go"` \| `"cargo"` \| `"jest"` \| `""` |
 | `tests_parsed` | int | Total tests detected in log output (only in `parse_status == "ok"`). |

@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -470,8 +471,16 @@ def build_eval_script(
     """
     test_files = _files_in_patch(test_patch)
     heredoc = "EOF_R2E_TEST_PATCH"
+    # One file at a time: `git checkout <base> -- a b` refuses the whole
+    # command when any path is missing at base, and test patches usually add
+    # a new test file, so a single checkout would leave the agent's edits to
+    # the existing test files in place. Files the patch creates are removed,
+    # so `git apply` recreates them from the hidden patch.
     reset = (
-        f"git checkout {base_commit} -- {' '.join(test_files)}"
+        f"for f in {' '.join(shlex.quote(f) for f in test_files)}; do "
+        f'if git cat-file -e {base_commit}:"$f" 2>/dev/null; '
+        f'then git checkout {base_commit} -- "$f"; '
+        'else rm -f -- "$f"; fi; done'
         if test_files
         else "echo 'no test files to reset'"
     )

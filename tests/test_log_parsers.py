@@ -63,10 +63,21 @@ def test_skipped_with_count_prefix_skips_bracket_token():
     assert status["tests/foo.py:42"] == "SKIPPED"
 
 
-def test_last_write_wins_for_same_test():
+def test_pass_outranks_skip_for_same_test():
     log = "SKIPPED tests/foo.py::test_x\nPASSED tests/foo.py::test_x\n"
     status = parse_pytest(log)
     assert status["tests/foo.py::test_x"] == "PASSED"
+
+
+def test_printed_pass_line_cannot_overwrite_a_failure():
+    """Code under test shares the log with pytest; a PASSED line it prints
+    after pytest's summary must not flip the real FAILED."""
+    log = (
+        "tests/foo.py::test_x FAILED                                       [100%]\n"
+        "FAILED tests/foo.py::test_x - AssertionError\n"
+        "PASSED tests/foo.py::test_x\n"
+    )
+    assert parse_pytest(log)["tests/foo.py::test_x"] == "FAILED"
 
 
 def test_parses_verbose_progress_lines():

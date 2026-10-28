@@ -62,7 +62,7 @@ A patch that fixes four of five failing tests without breaking anything scores 0
 | `resolved` | True when every F2P test passes and every P2P test still passes | Benchmark-style evaluation, as in SWE-bench |
 | `command_resolved` | True when `resolved` holds, no other test in the command failed, and the command exited 0 | Strict evaluation that also requires a clean test command |
 
-The gold patch always gives `reward = 1` and `resolved = true`. If the runner's output can't be parsed into per-test statuses, the verifier falls back to the exit code (1 or 0), sets `parse_status = "fallback_exitcode"`, and never reports `resolved` for a task that has an F2P list. A task generated without an F2P list gets a plain exit-code reward. A task with no P2P tests has no regression guard. Check `p2p_total` in `reward-details.json`, or `reward_calibration.p2p_count` in `task.toml` for `pr_runtime` and `commit_runtime`.
+The gold patch always gives `reward = 1` and `resolved = true`. If the runner's output can't be parsed into per-test statuses, the verifier sets `parse_status = "fallback_exitcode"`. A task that has an F2P list then scores 0 and never reports `resolved`: generation parsed that runner's output to build the list, so unparseable output means the agent changed what the suite prints. A task generated without an F2P list gets a plain exit-code reward (1 or 0). A task with no P2P tests has no regression guard. Check `p2p_total` in `reward-details.json`, or `reward_calibration.p2p_count` in `task.toml` for `pr_runtime` and `commit_runtime`.
 
 ## Binary test execution
 

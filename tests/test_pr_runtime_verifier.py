@@ -288,7 +288,9 @@ def test_main_command_resolved_false_on_untracked_failure(tmp_path: Path):
     assert b["untracked_failed_count"] == 1
 
 
-def test_main_falls_back_to_exit_code_on_unparseable_log(tmp_path: Path):
+def test_main_unparseable_log_with_oracle_scores_zero(tmp_path: Path):
+    """F2P was built by parsing this runner's output, so an unparseable log
+    plus exit 0 means the agent silenced or reshaped the suite's output."""
     log = _write(tmp_path / "out.log", "garbage that no parser understands\n")
     f2p = _write(tmp_path / "f2p.json", json.dumps(["t_fix"]))
     p2p = _write(tmp_path / "p2p.json", json.dumps([]))
@@ -311,7 +313,29 @@ def test_main_falls_back_to_exit_code_on_unparseable_log(tmp_path: Path):
     )
     breakdown = json.loads((out_dir / "reward-details.json").read_text())
     assert breakdown["parse_status"] == "fallback_exitcode"
+    assert (out_dir / "reward.txt").read_text().strip() == "0.000000"
+
+
+def test_main_unparseable_log_without_oracle_uses_exit_code(tmp_path: Path):
+    """No declared F2P (e.g. --skip-validation): the exit code is the reward."""
+    log = _write(tmp_path / "out.log", "garbage that no parser understands\n")
+    f2p = _write(tmp_path / "f2p.json", json.dumps([]))
+    p2p = _write(tmp_path / "p2p.json", json.dumps([]))
+    out_dir = tmp_path / "verifier"
+    main(["--log", log, "--f2p", f2p, "--p2p", p2p, "--exit-code", "0", "--out-dir", str(out_dir)])
+    breakdown = json.loads((out_dir / "reward-details.json").read_text())
+    assert breakdown["parse_status"] == "fallback_exitcode"
     assert (out_dir / "reward.txt").read_text().strip() == "1.000000"
+
+
+def test_printed_pass_line_cannot_overwrite_a_failure():
+    """Keep in lockstep with the package-side parser (test_log_parsers.py)."""
+    log = (
+        "tests/foo.py::test_x FAILED                                       [100%]\n"
+        "FAILED tests/foo.py::test_x - AssertionError\n"
+        "PASSED tests/foo.py::test_x\n"
+    )
+    assert parse_pytest(log)["tests/foo.py::test_x"] == "FAILED"
 
 
 def test_main_fallback_not_resolved_when_oracle_declared(tmp_path: Path):

@@ -178,9 +178,10 @@ benchmark-grade subset.
 The agent can't pass by editing tests: `test.sh` restores the PR's test files and
 re-applies the hidden test patch before running them. If the patch doesn't apply,
 the task fails closed with reward 0 and `parse_status` set to
-`test_patch_apply_failed`. If the log can't be parsed, the verifier falls back to
-1.0 for a zero exit code and 0.0 otherwise, marks `parse_status` as
-`fallback_exitcode`, and never reports `resolved` for a task with an F2P list.
+`test_patch_apply_failed`. If the log can't be parsed, the verifier marks
+`parse_status` as `fallback_exitcode`. A task with an F2P list then scores 0.0 and
+never reports `resolved`; a task without one scores 1.0 for a zero exit code and
+0.0 otherwise.
 
 `task.toml` also lists `diff_similarity` as a secondary reward kind. Trainers that
 can't run code can score a patch against `solution/patch.diff` with
