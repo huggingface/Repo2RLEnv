@@ -106,7 +106,7 @@ harbor run -p ./pr-runtime \
 Harbor runs the agent and the verifier in separate phases, and each gets only the variables you pass to it.
 
 - **`--ae` (agent env)** carries the model key the harness needs: `ANTHROPIC_API_KEY` for `claude-code`, `OPENAI_API_KEY` for OpenAI models, and so on.
-- **`--ve` (verifier env)** matters only for `pr_diff` tasks. Their reward includes an optional LLM judge, which runs at verification time:
+- **`--ve` (verifier env)** matters only for `pr_diff` tasks. Their reward requires an LLM judge at verification time; without one only diagnostic similarity is available:
 
 ```bash
 harbor run -p ./pr-diff \
@@ -117,7 +117,7 @@ harbor run -p ./pr-diff \
   --env docker
 ```
 
-Without a judge key, the `pr_diff` verifier still scores: it records `judge_status = "no_api_key"` and renormalizes the weights of the other components. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
+Without a judge key, the current `pr_diff` verifier records `judge_status = "no_api_key"`, `evaluation_status = "ungraded"` and reward 0. Exclude these runs from training and solved-rate denominators; retry grading the saved candidate patch after restoring the judge. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
 
 Test-based tasks (`pr_runtime`, `commit_runtime`, `cve_patches`, the research recipes and Tasksmith) grade by running tests and need no verifier keys.
 
