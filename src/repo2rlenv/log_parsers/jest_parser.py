@@ -63,7 +63,7 @@ from __future__ import annotations
 
 import re
 
-from repo2rlenv.log_parsers.pytest_parser import TestStatus
+from repo2rlenv.log_parsers.pytest_parser import TestStatus, _record_worst
 
 # File header: `PASS src/foo.test.ts (123 ms)` or `FAIL src/foo.test.ts`.
 # Captures the file path so we can prefix it onto test names.
@@ -161,7 +161,7 @@ def _parse_mocha(log: str) -> dict[str, TestStatus]:
                 "PASSED" if m.group("passed") else ("FAILED" if m.group("failed") else "SKIPPED")
             )
             describes = [title for ind, title in suites if ind < indent]
-            out[" > ".join([*describes, m.group("name")])] = status
+            _record_worst(out, " > ".join([*describes, m.group("name")]), status)
             continue
 
         # Suite headers are the only other indented lines in the listing.
@@ -192,7 +192,7 @@ def _parse_vitest(log: str) -> dict[str, TestStatus]:
         if glyph in "↓□" and m.group("duration"):
             name += m.group("duration")
         project = m.group("project") or m.group("label")
-        out[f"|{project}| {name}" if project else name] = _VITEST_STATUS[glyph]
+        _record_worst(out, f"|{project}| {name}" if project else name, _VITEST_STATUS[glyph])
     return out
 
 
@@ -249,7 +249,7 @@ def parse_jest(log: str) -> dict[str, TestStatus]:
             describes = [entry for ind, entry in describe_stack if ind < indent]
             parts = ([current_file] if current_file else []) + describes + [name]
             test_name = " > ".join(parts)
-            out[test_name] = status
+            _record_worst(out, test_name, status)
             last_test_indent = indent
             continue
 
