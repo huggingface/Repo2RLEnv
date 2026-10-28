@@ -62,11 +62,14 @@ analysis, filtering, and debugging.
 | `components.file_targeting` | [0, 1] | F1 over the sets of changed files (not Jaccard; F1 gives partial credit for TP). |
 | `components.region_overlap` | [0, 1] | Predicted hunks overlap oracle hunks within a 5-line slack. |
 | `components.similarity` | [0, 1] | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no credit for context lines). |
-| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` when disabled or the API key is absent, in which case its weight is redistributed to the remaining components. |
+| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` on judge failure or when disabled; the evaluation is ungraded and reward is 0. |
+| `evaluation_status` | string | `graded` when a positively weighted judge returns a valid score; otherwise `ungraded`. Exclude ungraded runs from training and solved-rate denominators and retry grading the saved patch. |
+| `eval_trustworthy` | bool | Whether the configured grading components were available. This is not a claim of functional correctness or tamper isolation. |
+| `diagnostic_similarity` | float [0, 1] | Weighted mean of deterministic components, available even for ungraded runs. Diagnostic only. |
 | `weights` | object | Effective per-component weights (overridable via `R2E_W_*` env vars). |
 | `judge_model` | string or `null` | Model used for `llm_judge` as the serving API names it (e.g. `claude-haiku-4-5-20251001`, `Qwen/Qwen3.5-4B`), or `null` if the judge did not score. |
 | `judge_endpoint` | string or `null` | The OpenAI-compatible server the judge was routed to (`R2E_JUDGE_ENDPOINT`), or `null` on the default Anthropic route. |
-| `judge_status` | string | `"ok"` \| `"no_api_key"` \| `"no_judge_model"` \| `"empty_predicted"` \| `"network"` \| `"parse"` \| `"missing_score"` |
+| `judge_status` | string | `"ok"` \| `"no_api_key"` \| `"no_judge_model"` \| `"empty_predicted"` \| `"network"` \| `"parse"` \| `"missing_score"` \| `"invalid_score"` \| `"disabled"` |
 
 **Weight override env vars** (set inside the verifier container via `--ve`):
 `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM`, `R2E_W_JUDGE`

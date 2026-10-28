@@ -550,9 +550,12 @@ def build_eval_script(
         '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
         f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
         "--out-dir /logs/verifier || "
-        # If python3 is somehow unavailable, never leave reward.txt empty.
-        '{ [ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt; }\n'
+        # A broken verifier is ungraded even when the test command exits zero.
+        '{ echo "0.0" > /logs/verifier/reward.txt; '
+        "printf '%s' "
+        '\'{"reward": 0.0, "resolved": false, "command_resolved": false, '
+        '"eval_trustworthy": false, "evaluation_status": "ungraded", '
+        '"parse_status": "verifier_error"}\' > /logs/verifier/reward-details.json; }\n'
         f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
         "exit 0\n"  # reward.txt is the verdict, not the bash exit code
     )

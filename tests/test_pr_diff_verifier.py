@@ -288,14 +288,14 @@ def test_llm_judge_parse_error_returns_none() -> None:
     assert status == "missing_score"
 
 
-def test_llm_judge_clamps_out_of_range_score() -> None:
-    """Model returns score=1.5 → clamp to 1.0."""
-    fake_response = b'{"content": [{"text": "{\\"score\\": 1.5, \\"reasoning\\": \\"x\\"}"}]}'
+@pytest.mark.parametrize("value", [1.5, -0.2, True, None, "1", float("nan"), float("inf")])
+def test_llm_judge_rejects_invalid_score(value) -> None:
+    fake_response = json.dumps({"content": [{"text": json.dumps({"score": value})}]}).encode()
     with mock.patch("urllib.request.urlopen") as m:
         m.return_value.__enter__.return_value.read.return_value = fake_response
         score, status = llm_judge(instruction="i", oracle="o", predicted="p", api_key="sk-test")
-    assert score == 1.0
-    assert status == "ok"
+    assert score is None
+    assert status == "invalid_score"
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +453,7 @@ def test_judge_config_blank_endpoint_means_default_route(monkeypatch: pytest.Mon
 
 
 # ---------------------------------------------------------------------------
-# combine — weight redistribution when judge is None
+# combine — missing judges fail closed
 # ---------------------------------------------------------------------------
 
 
@@ -479,9 +479,8 @@ def test_combine_all_components_present() -> None:
     assert combine(comps, _WEIGHTS) == pytest.approx(1.0)
 
 
-def test_combine_judge_missing_redistributes_weight() -> None:
-    """All deterministic = 1.0, judge = None → score should still be 1.0
-    (judge weight redistributes proportionally)."""
+def test_combine_judge_missing_returns_zero() -> None:
+    """Similarity cannot substitute for missing correctness evidence."""
     comps: dict[str, float | None] = {
         "format_valid": 1.0,
         "size_sanity": 1.0,
@@ -490,13 +489,12 @@ def test_combine_judge_missing_redistributes_weight() -> None:
         "similarity": 1.0,
         "llm_judge": None,
     }
-    assert combine(comps, _WEIGHTS) == pytest.approx(1.0)
+    assert combine(comps, _WEIGHTS) == 0.0
 
 
 def test_combine_partial_credit() -> None:
-    """0.5 across the board → final 0.5 regardless of weight redistribution."""
+    """A valid judge preserves the weighted score."""
     comps: dict[str, float | None] = dict.fromkeys(_WEIGHTS, 0.5)
-    comps["llm_judge"] = None
     assert combine(comps, _WEIGHTS) == pytest.approx(0.5)
 
 
@@ -526,3 +524,52 @@ def test_default_weights_match_pilot_recommendations() -> None:
     assert (
         _DEFAULT_WEIGHTS["similarity"] < _DEFAULT_WEIGHTS["region_overlap"]
     )  # correlated → don't double-count
+
+
+@pytest.mark.parametrize("status", ["no_api_key", "network", "parse", "invalid_score"])
+def test_judge_failure_is_ungraded_even_for_oracle(tmp_path, monkeypatch, status):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    diff = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
+    for name, content in (("oracle", diff), ("predicted", diff), ("instruction", "Fix x")):
+        (tmp_path / name).write_text(content)
+    monkeypatch.setattr(verifier, "llm_judge", lambda **kwargs: (None, status))
+    monkeypatch.setattr(verifier, "_read_weights_from_env", lambda: verifier._DEFAULT_WEIGHTS)
+    assert (
+        verifier.main(
+            [
+                str(tmp_path / "oracle"),
+                str(tmp_path / "predicted"),
+                str(tmp_path / "instruction"),
+                "--out-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+        == 0
+    )
+    result = json.loads((tmp_path / "out/reward-details.json").read_text())
+    assert result["final_reward"] == 0
+    assert result["evaluation_status"] == "ungraded"
+    assert result["eval_trustworthy"] is False
+    assert result["diagnostic_similarity"] == 1
+    assert result["components"]["llm_judge"] is None
+    assert result["judge_status"] == status
+    assert float((tmp_path / "out/reward.txt").read_text()) == 0
+
+
+def test_disabling_judge_never_enables_similarity_reward():
+    assert combine(dict.fromkeys(_WEIGHTS, 1.0), {**_WEIGHTS, "llm_judge": 0}) == 0
+
+
+@pytest.mark.parametrize("invalid", ["nan", "inf", "-1", "nope"])
+def test_invalid_weight_overrides_keep_default(monkeypatch, invalid):
+    from repo2rlenv.pipelines._pr_diff_verifier import _DEFAULT_WEIGHTS, _read_weights_from_env
+
+    monkeypatch.setenv("R2E_W_JUDGE", invalid)
+    assert _read_weights_from_env()["llm_judge"] == _DEFAULT_WEIGHTS["llm_judge"]
+
+
+def test_large_relative_weights_do_not_overflow():
+    assert combine(dict.fromkeys(_WEIGHTS, 0.5), dict.fromkeys(_WEIGHTS, 1e308)) == pytest.approx(
+        0.5
+    )

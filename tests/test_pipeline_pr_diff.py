@@ -14,6 +14,7 @@ produce. We strip:
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -296,7 +297,12 @@ def test_dockerfile_does_not_contain_the_oracle() -> None:
 def test_aux_files_ship_verifier_oracle_instruction() -> None:
     """The verifier, oracle, and instruction ride in tests/ (verify-time only)."""
     aux = _pr_diff_aux_files(oracle_diff="diff --git a/x b/x\n+fix\n", instruction="# Issue\ndo it")
-    assert set(aux) == {"tests/verifier.py", "tests/oracle.patch", "tests/instruction.md"}
+    assert set(aux) == {
+        "tests/verifier.py",
+        "tests/capture.py",
+        "tests/oracle.patch",
+        "tests/instruction.md",
+    }
     assert aux["tests/oracle.patch"] == "diff --git a/x b/x\n+fix\n"
     assert "def main" in aux["tests/verifier.py"]
 
@@ -304,11 +310,8 @@ def test_aux_files_ship_verifier_oracle_instruction() -> None:
 def test_eval_script_shebang_and_paths() -> None:
     es = build_pr_diff_eval_script(base_commit="abc1234567890")
     assert es.startswith("#!/bin/bash")
-    # `git add -A` BEFORE `git diff --cached <base>` ensures new
-    # (untracked) files added by the agent are captured in the diff —
-    # without this, PRs that add files would silently downscore.
-    assert "git add -A" in es
-    assert "git diff --cached abc1234567890 > /tmp/predicted.patch" in es
+    assert 'python3 -I "$SCRIPT_DIR/capture.py" /workspace abc1234567890' in es
+    assert '"$CAPTURE_DIR/predicted.patch"' in es
     # The verifier + oracle come from tests/ ($SCRIPT_DIR), not the image.
     assert 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"' in es
     assert '"$SCRIPT_DIR/verifier.py"' in es
@@ -380,10 +383,14 @@ def test_verify_time_assets_grade_edits_and_remove_forged_rewards(tmp_path: Path
     # Harbor reads reward.json before reward.txt; a forged JSON must not survive.
     assert not (rewards / "reward.json").exists()
     reward = float((rewards / "reward.txt").read_text(encoding="utf-8"))
+    assert reward == 0.0
+    details = json.loads((rewards / "reward-details.json").read_text(encoding="utf-8"))
+    assert details["evaluation_status"] == "ungraded"
+    assert details["eval_trustworthy"] is False
+    assert details["judge_status"] == "no_api_key"
     if apply_oracle:
-        assert reward == 1.0
-    else:
-        assert reward < 1.0
+        assert details["diagnostic_similarity"] == 1.0
+        assert (rewards / "predicted.patch").read_text() == oracle
 
 
 def test_eval_script_exits_zero() -> None:

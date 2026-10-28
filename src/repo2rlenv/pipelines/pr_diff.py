@@ -275,9 +275,8 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
          breakdown) for Harbor + downstream inspection.
 
     Exit code: 0 always — the reward score is the verdict, not the bash
-    exit code. The verifier never raises; failures degrade gracefully
-    (e.g. LLM-judge network error → that component is null, weight is
-    redistributed across the deterministic 5).
+    exit code. A missing judge yields zero reward with evaluation_status
+    "ungraded" in the sidecar; similarity remains available for diagnosis.
     """
     return (
         "#!/bin/bash\n"
@@ -286,24 +285,32 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
         # oracle sit next to this script, never in the agent's image.
         'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n'
         "cd /workspace\n"
-        "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
         # The verifier is the sole authority on the reward: drop any reward
         # file the agent may have pre-written. Mirrors Harbor's own
         # separate-verifier `empty_dirs([verifier_dir])`.
         "rm -f /logs/verifier/reward.txt /logs/verifier/reward.json "
         "/logs/verifier/reward-details.json\n"
-        # Capture the agent's edits as a unified diff against base_commit.
-        # IMPORTANT: `git add -A` stages new (untracked) files. Without this
-        # step, `git diff` would skip any file the agent created from scratch
-        # — which silently misses the file_targeting / region_overlap / size
-        # signal for PRs that introduce new files (a very common case).
-        "git add -A\n"
-        f"git diff --cached {base_commit} > /tmp/predicted.patch\n"
+        # A private Git index/config prevents agent-configured external diff,
+        # textconv, clean filters and fsmonitor from running during capture.
+        'CAPTURE_DIR="$(mktemp -d)" || exit 1\n'
+        "trap 'rm -rf -- \"$CAPTURE_DIR\"' EXIT\n"
+        'if ! python3 -I "$SCRIPT_DIR/capture.py" /workspace '
+        f'{shlex.quote(base_commit)} > "$CAPTURE_DIR/predicted.patch"; then\n'
+        '  echo "0.0" > /logs/verifier/reward.txt\n'
+        "  printf '%s' "
+        '\'{"final_reward": 0.0, "evaluation_status": "ungraded", '
+        '"eval_trustworthy": false, "capture_status": "error"}\' '
+        "> /logs/verifier/reward-details.json\n"
+        "  exit 0\n"
+        "fi\n"
+        # Persist the candidate patch for grading retries without another rollout.
+        "rm -f /logs/verifier/predicted.patch\n"
+        'cp -- "$CAPTURE_DIR/predicted.patch" /logs/verifier/predicted.patch\n'
         ": 'START_VERIFY_OUTPUT'\n"
-        'python3 "$SCRIPT_DIR/verifier.py" \\\n'
+        'python3 -I "$SCRIPT_DIR/verifier.py" \\\n'
         '    "$SCRIPT_DIR/oracle.patch" \\\n'
-        "    /tmp/predicted.patch \\\n"
+        '    "$CAPTURE_DIR/predicted.patch" \\\n'
         '    "$SCRIPT_DIR/instruction.md"\n'
         ": 'END_VERIFY_OUTPUT'\n"
         # Always exit 0 — verifier writes reward.txt; bash exit code is moot
@@ -324,6 +331,9 @@ def _pr_diff_aux_files(*, oracle_diff: str, instruction: str) -> dict[str, str]:
     """
     return {
         "tests/verifier.py": _verifier_source(),
+        "tests/capture.py": Path(__file__)
+        .with_name("_pr_diff_capture.py")
+        .read_text(encoding="utf-8"),
         "tests/oracle.patch": oracle_diff,
         "tests/instruction.md": instruction,
     }
@@ -338,6 +348,7 @@ _BAKED_ORACLE_MARKER = "base64 -d > /verifier/oracle.patch"
 # Everything the fixed eval script reads from ``tests/`` at verify time. A task
 # whose Dockerfile is already safe but that lacks any of these is *not* repaired.
 _GRADING_ASSETS = (
+    "tests/capture.py",
     "tests/test.sh",
     "tests/verifier.py",
     "tests/oracle.patch",
@@ -694,17 +705,11 @@ def _compute_no_op_baseline(oracle_diff: str) -> float:
     Downstream consumers compute ``calibrated = (raw - baseline) / (1 - baseline)``
     so scores are comparable across tasks of different sizes.
 
-    Uses the SAME formula as the in-container verifier (deterministic
-    components only — LLM judge is excluded since it depends on API
-    availability). Empty predicted → format_valid=0, file_targeting=0,
-    region_overlap=0, similarity=0, size_sanity=0 → 0.0 baseline before
-    judge weight redistribution.
-
-    With the default 6-component weights AND llm_judge missing → the
-    weights renormalize over the 5 deterministic. All 5 score 0 for an
-    empty diff → baseline = 0.0. The function returns 0.0 today, but
-    the structure is kept so reweighting (Phase 7a.5) auto-updates the
-    baseline if non-trivial deterministic components become possible.
+    Uses the same formula as the in-container verifier, with judge score 0:
+    an empty patch is a known no-op and does not require a model call.
+    For a non-empty oracle all deterministic components are also zero.
+    This baseline describes a graded no-op; it does not convert an ungraded
+    judge outage into a model failure.
     """
     from repo2rlenv.pipelines._pr_diff_verifier import (
         _DEFAULT_WEIGHTS,
@@ -722,7 +727,7 @@ def _compute_no_op_baseline(oracle_diff: str) -> float:
         "file_targeting": file_targeting(oracle_diff, ""),
         "region_overlap": region_overlap(oracle_diff, ""),
         "similarity": similarity(oracle_diff, ""),
-        "llm_judge": None,
+        "llm_judge": 0.0,
     }
     return combine(components, _DEFAULT_WEIGHTS)
 

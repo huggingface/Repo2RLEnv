@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import re
 
-from repo2rlenv.log_parsers.pytest_parser import TestStatus
+from repo2rlenv.log_parsers.pytest_parser import TestStatus, _record_worst
 
 # `test <path::to::test> ... ok` / `... FAILED` / `... ignored`
 # The leading anchor avoids matching `--- test result:` summary lines. libtest
@@ -90,7 +90,7 @@ def parse_cargo_test(log: str) -> dict[str, TestStatus]:
             name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
             if name in out and _DOCTEST_RANK[out[name]] > _DOCTEST_RANK[status]:
                 continue
-        out[name] = status
+        _record_worst(out, name, status)
     return out
 
 

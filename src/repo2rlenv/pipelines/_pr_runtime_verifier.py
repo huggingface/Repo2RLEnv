@@ -45,8 +45,8 @@ fall back to the exit-code reward (1.0 if the suite exited 0, else 0.0)
 and stamp ``parse_status="fallback_exitcode"`` — never crash. With an
 F2P oracle declared, the fallback reward is 0.0: generation already
 parsed this runner's output to build the F2P list, so an unparseable
-log means the agent changed what the suite prints, not that it fixed
-the bug.
+log provides no evidence that the declared tests passed. It can indicate
+an environment or parser failure as well as tampering.
 
 A test reported more than once keeps its worst status (ERROR > FAILED >
 PASSED > SKIPPED), so a fake ``PASSED`` line printed by code under test
@@ -238,7 +238,7 @@ def parse_go_test(log: str) -> dict[str, str]:
     for raw in log.split("\n"):
         m = _GO_TEST_RE.match(raw)
         if m:
-            out[m.group("name")] = _GO_STATUS[m.group("status")]
+            _record_worst(out, m.group("name"), _GO_STATUS[m.group("status")])
     return out
 
 
@@ -272,7 +272,7 @@ def parse_cargo_test(log: str) -> dict[str, str]:
             name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
             if name in out and _CARGO_DOCTEST_RANK[out[name]] > _CARGO_DOCTEST_RANK[status]:
                 continue
-        out[name] = status
+        _record_worst(out, name, status)
     return out
 
 
@@ -377,7 +377,7 @@ def _parse_mocha(log: str) -> dict[str, str]:
                 in_epilogue = False
             status = PASSED if m.group("passed") else FAILED if m.group("failed") else SKIPPED
             describes = [title for ind, title in suites if ind < indent]
-            out[" > ".join([*describes, m.group("name")])] = status
+            _record_worst(out, " > ".join([*describes, m.group("name")]), status)
             continue
         if indent >= 2:
             suites = [(i, t) for i, t in suites if i < indent]
@@ -396,7 +396,7 @@ def _parse_vitest(log: str) -> dict[str, str]:
         if glyph in "↓□" and m.group("duration"):
             name += m.group("duration")
         project = m.group("project") or m.group("label")
-        out[f"|{project}| {name}" if project else name] = _VITEST_STATUS[glyph]
+        _record_worst(out, f"|{project}| {name}" if project else name, _VITEST_STATUS[glyph])
     return out
 
 
@@ -429,7 +429,7 @@ def parse_jest(log: str) -> dict[str, str]:
             name = re.sub(r"^(?:skipped|todo):\s*", "", m.group("name").strip())
             describes = [d for ind, d in describe_stack if ind < indent]
             parts = ([current_file] if current_file else []) + describes + [name]
-            out[" > ".join(parts)] = _JEST_GLYPH[m.group("glyph")]
+            _record_worst(out, " > ".join(parts), _JEST_GLYPH[m.group("glyph")])
             last_test_indent = indent
             continue
         stripped = line.lstrip()
@@ -618,8 +618,8 @@ def main(argv: list[str] | None = None) -> int:
         # (resolved stays exit-code-based only when there's no declared oracle,
         # e.g. --skip-validation.) The same holds for the reward: generation
         # parsed this runner's output to build the F2P list, so with an oracle
-        # declared an unparseable log means the agent silenced or reshaped the
-        # suite's output (and could force exit 0), not that it fixed the bug.
+        # declared an unparseable log provides no evidence of passing tests,
+        # whether caused by environment failure, parser drift or tampering.
         has_oracle = len(f2p) > 0
         reward = 1.0 if args.exit_code == 0 and not has_oracle else 0.0
         resolved = (args.exit_code == 0) and not has_oracle
