@@ -1,12 +1,11 @@
 """In-container verifier for pr_diff tasks (6-component reward).
 
 This module is the **standalone verifier** that runs inside the task's
-Docker container, NOT a helper used at generation time. It is read as
-source at generation time, base64-encoded, and embedded into
-``tests/test.sh``. At run time the container decodes it back to a file
-and invokes it as ``python3 verifier.py <oracle> <predicted> <instruction>``.
+Docker container, NOT a helper used at generation time. Generation emits
+its source as ``tests/verifier.py``. Harbor delivers it at verify time,
+and ``tests/test.sh`` invokes it with the oracle, predicted patch and instruction.
 
-Reward = weighted sum of 6 components (5 deterministic + 1 optional LLM):
+Reward = weighted sum of 6 components (5 deterministic + 1 required LLM):
 
   format_valid    (0 or 1)      — predicted parses as a unified diff (guard)
   size_sanity     ([0, 1])      — min(oracle_loc, pred_loc) / max(...)
@@ -21,7 +20,7 @@ Reward = weighted sum of 6 components (5 deterministic + 1 optional LLM):
                                      Anthropic Haiku by default; any OpenAI-
                                      compatible server via ``R2E_JUDGE_ENDPOINT``.
                                      null on API failure / missing key →
-                                     remaining weights are re-normalized
+                                     evaluation is ungraded with zero reward
 
 Default weights: 0.00 / 0.08 / 0.12 / 0.20 / 0.10 / 0.50 (retuned from
 the original 0.05 / 0.05 / 0.10 / 0.20 / 0.20 / 0.40 after a 23-task
@@ -58,8 +57,10 @@ stays in lockstep with what we test.
 
 from __future__ import annotations
 
+import argparse
 import difflib
 import json
+import math
 import os
 import re
 import sys
@@ -299,8 +300,8 @@ def llm_judge(
     ``score`` is a float in [0, 1] on success, ``None`` on failure.
     ``status`` is a short string: ``"ok"`` / ``"no_api_key"`` /
     ``"no_judge_model"`` / ``"empty_predicted"`` / ``"network"`` /
-    ``"parse"`` / ``"missing_score"``. Caller redistributes the judge
-    weight if score is None.
+    ``"parse"`` / ``"missing_score"`` / ``"invalid_score"``. A missing
+    score leaves the evaluation ungraded; it never increases other weights.
 
     ``endpoint`` — base URL of an OpenAI-compatible server. When set, the
     request goes to ``<endpoint>/chat/completions`` with ``api_key`` as a
@@ -368,11 +369,12 @@ def llm_judge(
         return None, "missing_score"
     try:
         obj = json.loads(m.group(0))
-        score = float(obj.get("score", 0))
+        score = obj.get("score")
     except (json.JSONDecodeError, ValueError, TypeError):
         return None, "missing_score"
-    score = max(0.0, min(1.0, score))
-    return score, "ok"
+    if type(score) not in (int, float) or not 0 <= score <= 1 or not math.isfinite(score):
+        return None, "invalid_score"
+    return float(score), "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -381,20 +383,27 @@ def llm_judge(
 
 
 def combine(components: dict[str, float | None], weights: dict[str, float]) -> float:
-    """Combine the 5 components into a final scalar in [0, 1].
+    """Combine declared components, requiring a positively weighted judge.
 
-    If ``llm_judge`` is None (judge failed / disabled), redistribute its
-    weight proportionally across the 4 deterministic components. This
-    preserves the [0, 1] range without giving 0-credit for a missing
-    judge.
+    Zero is the fail-closed Harbor sentinel for an ungraded evaluation.
+    Consumers must use evaluation_status to distinguish it from model failure.
     """
-    available = [(k, w) for k, w in weights.items() if components.get(k) is not None]
+    if weights.get("llm_judge", 0) <= 0 or components.get("llm_judge") is None:
+        return 0.0
+    if any(w > 0 and components.get(k) is None for k, w in weights.items()):
+        return 0.0
+    return _weighted_mean(components, weights)
+
+
+def _weighted_mean(components: dict[str, float | None], weights: dict[str, float]) -> float:
+    available = [(k, w) for k, w in weights.items() if w > 0 and components.get(k) is not None]
     if not available:
         return 0.0
-    total_w = sum(w for _, w in available)
-    if total_w <= 0:
-        return 0.0
-    return sum(weights[k] * components[k] for k, _ in available) / total_w
+    # Relative weights need not sum to one. Scale first so large finite
+    # overrides cannot overflow the numerator or denominator into NaN.
+    scale = max(w for _, w in available)
+    normalized = [(k, w / scale) for k, w in available]
+    return sum(w * components[k] for k, w in normalized) / sum(w for _, w in normalized)
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +461,9 @@ def _read_weights_from_env() -> dict[str, float]:
         if v is None:
             continue
         try:
-            out[k] = float(v)
+            value = float(v)
+            if math.isfinite(value) and value >= 0:
+                out[k] = value
         except (TypeError, ValueError):
             continue
     return out
@@ -478,17 +489,15 @@ def _judge_config_from_env() -> tuple[str, str, str | None]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = argv if argv is not None else sys.argv[1:]
-    if len(args) < 3:
-        print(
-            "usage: verifier.py <oracle.patch> <predicted.patch> <instruction.md>",
-            file=sys.stderr,
-        )
-        return 2
-
-    oracle = _read_or_empty(args[0])
-    predicted = _read_or_empty(args[1])
-    instruction = _read_or_empty(args[2])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("oracle")
+    parser.add_argument("predicted")
+    parser.add_argument("instruction")
+    parser.add_argument("--out-dir", default="/logs/verifier")
+    args = parser.parse_args(argv)
+    oracle = _read_or_empty(args.oracle)
+    predicted = _read_or_empty(args.predicted)
+    instruction = _read_or_empty(args.instruction)
     api_key, judge_model, judge_endpoint = _judge_config_from_env()
 
     fv = format_valid(predicted)
@@ -496,14 +505,18 @@ def main(argv: list[str] | None = None) -> int:
     ft = file_targeting(oracle, predicted)
     ro = region_overlap(oracle, predicted)
     sim = similarity(oracle, predicted)
-    judge_score, judge_status = llm_judge(
-        instruction=instruction,
-        oracle=oracle,
-        predicted=predicted,
-        api_key=api_key,
-        model=judge_model,
-        endpoint=judge_endpoint,
-    )
+    weights = _read_weights_from_env()
+    if weights["llm_judge"] <= 0:
+        judge_score, judge_status = None, "disabled"
+    else:
+        judge_score, judge_status = llm_judge(
+            instruction=instruction,
+            oracle=oracle,
+            predicted=predicted,
+            api_key=api_key,
+            model=judge_model,
+            endpoint=judge_endpoint,
+        )
 
     components: dict[str, float | None] = {
         "format_valid": fv,
@@ -513,7 +526,6 @@ def main(argv: list[str] | None = None) -> int:
         "similarity": sim,
         "llm_judge": judge_score,
     }
-    weights = _read_weights_from_env()
     final = combine(components, weights)
     final = max(0.0, min(1.0, final))
 
@@ -527,6 +539,12 @@ def main(argv: list[str] | None = None) -> int:
 
     breakdown = {
         "final_reward": round(final, 6),
+        "evaluation_status": "graded" if judge_score is not None else "ungraded",
+        "eval_trustworthy": judge_score is not None,
+        "diagnostic_similarity": round(
+            _weighted_mean(components, {k: w for k, w in weights.items() if k != "llm_judge"}),
+            6,
+        ),
         "components": {k: (None if v is None else round(v, 6)) for k, v in components.items()},
         "weights": {k: round(v, 6) for k, v in weights.items()},
         "judge_model": judge_model if judge_status == "ok" else None,
@@ -534,15 +552,15 @@ def main(argv: list[str] | None = None) -> int:
         "judge_status": judge_status,
     }
 
-    os.makedirs("/logs/verifier", exist_ok=True)
-    with open("/logs/verifier/reward.txt", "w", encoding="utf-8") as f:
+    os.makedirs(args.out_dir, exist_ok=True)
+    with open(os.path.join(args.out_dir, "reward.txt"), "w", encoding="utf-8") as f:
         f.write(f"{final:.6f}\n")
     # Harbor's `reward.json` must be a flat map of floats/ints (spec, see
     # <https://harborframework.com/docs/tasks>); our breakdown carries nested
     # dicts, judge strings, and status strings, so it goes to the sidecar the
     # Harbor UI renders under Verifier Logs → Rewards. Mirrors #75 (Neubig)
     # for `_pr_runtime_verifier.py`.
-    with open("/logs/verifier/reward-details.json", "w", encoding="utf-8") as f:
+    with open(os.path.join(args.out_dir, "reward-details.json"), "w", encoding="utf-8") as f:
         json.dump(breakdown, f, indent=2)
 
     # Also print to stdout so harbor's log captures the breakdown

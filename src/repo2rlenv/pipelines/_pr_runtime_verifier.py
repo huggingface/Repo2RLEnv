@@ -40,10 +40,17 @@ so f2p_rate=1.0, p2p_rate=1.0 -> reward=1.0 and resolved=True. This is
 what the T3 oracle gate (reward == 1.0) relies on.
 
 Graceful degradation: if the log can't be parsed into per-test
-statuses (unrecognized runner output), fall back to the exit-code
-reward (1.0 if the suite exited 0, else 0.0) and stamp
-``parse_status="fallback_exitcode"`` — never crash, never silently
-zero out a real fix.
+statuses (unrecognized runner output) and no F2P oracle is declared,
+fall back to the exit-code reward (1.0 if the suite exited 0, else 0.0)
+and stamp ``parse_status="fallback_exitcode"`` — never crash. With an
+F2P oracle declared, the fallback reward is 0.0: generation already
+parsed this runner's output to build the F2P list, so an unparseable
+log provides no evidence that the declared tests passed. It can indicate
+an environment or parser failure as well as tampering.
+
+A test reported more than once keeps its worst status (ERROR > FAILED >
+PASSED > SKIPPED), so a fake ``PASSED`` line printed by code under test
+can't overwrite pytest's real ``FAILED``.
 
 Pure stdlib — uses only ``argparse``, ``json``, ``os``, ``re``, ``sys``.
 The 4 per-runner parsers are condensed ports of
@@ -87,6 +94,16 @@ _PYTEST_XDIST_PREFIX_RE = re.compile(rf"^\[gw\d+\]\s+(?:(?:{_PYTEST_PROGRESS})\s
 # Keep the broad pytest substring and bounded py.test alias in sync with the
 # package-side detector in log_parsers/__init__.py.
 _PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
+# A test reported more than once keeps its worst status. Code under test
+# shares the log with pytest, so last-write-wins would let it print
+# `PASSED <node id>` after pytest's real `FAILED` and flip the result.
+_PYTEST_RANK = {SKIPPED: 0, PASSED: 1, FAILED: 2, ERROR: 3}
+
+
+def _record_worst(out: dict[str, str], name: str, status: str) -> None:
+    if name in out and _PYTEST_RANK[out[name]] >= _PYTEST_RANK[status]:
+        return
+    out[name] = status
 
 
 def parse_pytest(log: str) -> dict[str, str]:
@@ -115,9 +132,9 @@ def parse_pytest(log: str) -> dict[str, str]:
                 tokens = work.split(maxsplit=2)
                 if len(tokens) < 2:
                     continue
-                out[tokens[1]] = leading
+                _record_worst(out, tokens[1], leading)
             elif m := _PYTEST_SUMMARY_NAME_RE.match(work):
-                out[m.group("name")] = leading
+                _record_worst(out, m.group("name"), leading)
             continue
         # Verbose progress (NAME first, STATUS after)
         # Filter non-test output before attempting the backtracking regex.
@@ -128,7 +145,7 @@ def parse_pytest(log: str) -> dict[str, str]:
         if m:
             name = m.group("name")
             if "::" in name or name.endswith(".py"):
-                out[name] = m.group("status")
+                _record_worst(out, name, m.group("status"))
     return out
 
 
@@ -221,7 +238,7 @@ def parse_go_test(log: str) -> dict[str, str]:
     for raw in log.split("\n"):
         m = _GO_TEST_RE.match(raw)
         if m:
-            out[m.group("name")] = _GO_STATUS[m.group("status")]
+            _record_worst(out, m.group("name"), _GO_STATUS[m.group("status")])
     return out
 
 
@@ -255,7 +272,7 @@ def parse_cargo_test(log: str) -> dict[str, str]:
             name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
             if name in out and _CARGO_DOCTEST_RANK[out[name]] > _CARGO_DOCTEST_RANK[status]:
                 continue
-        out[name] = status
+        _record_worst(out, name, status)
     return out
 
 
@@ -360,7 +377,7 @@ def _parse_mocha(log: str) -> dict[str, str]:
                 in_epilogue = False
             status = PASSED if m.group("passed") else FAILED if m.group("failed") else SKIPPED
             describes = [title for ind, title in suites if ind < indent]
-            out[" > ".join([*describes, m.group("name")])] = status
+            _record_worst(out, " > ".join([*describes, m.group("name")]), status)
             continue
         if indent >= 2:
             suites = [(i, t) for i, t in suites if i < indent]
@@ -379,7 +396,7 @@ def _parse_vitest(log: str) -> dict[str, str]:
         if glyph in "↓□" and m.group("duration"):
             name += m.group("duration")
         project = m.group("project") or m.group("label")
-        out[f"|{project}| {name}" if project else name] = _VITEST_STATUS[glyph]
+        _record_worst(out, f"|{project}| {name}" if project else name, _VITEST_STATUS[glyph])
     return out
 
 
@@ -412,7 +429,7 @@ def parse_jest(log: str) -> dict[str, str]:
             name = re.sub(r"^(?:skipped|todo):\s*", "", m.group("name").strip())
             describes = [d for ind, d in describe_stack if ind < indent]
             parts = ([current_file] if current_file else []) + describes + [name]
-            out[" > ".join(parts)] = _JEST_GLYPH[m.group("glyph")]
+            _record_worst(out, " > ".join(parts), _JEST_GLYPH[m.group("glyph")])
             last_test_indent = indent
             continue
         stripped = line.lstrip()
@@ -599,9 +616,12 @@ def main(argv: list[str] | None = None) -> int:
         # parsed per-test status we have NO evidence the declared FAIL_TO_PASS
         # tests passed, so when an F2P oracle exists we must NOT claim resolved.
         # (resolved stays exit-code-based only when there's no declared oracle,
-        # e.g. --skip-validation.)
-        reward = 1.0 if args.exit_code == 0 else 0.0
+        # e.g. --skip-validation.) The same holds for the reward: generation
+        # parsed this runner's output to build the F2P list, so with an oracle
+        # declared an unparseable log provides no evidence of passing tests,
+        # whether caused by environment failure, parser drift or tampering.
         has_oracle = len(f2p) > 0
+        reward = 1.0 if args.exit_code == 0 and not has_oracle else 0.0
         resolved = (args.exit_code == 0) and not has_oracle
         breakdown = {
             "reward": reward,

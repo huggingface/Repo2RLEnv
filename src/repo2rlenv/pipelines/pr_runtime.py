@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -470,8 +471,16 @@ def build_eval_script(
     """
     test_files = _files_in_patch(test_patch)
     heredoc = "EOF_R2E_TEST_PATCH"
+    # One file at a time: `git checkout <base> -- a b` refuses the whole
+    # command when any path is missing at base, and test patches usually add
+    # a new test file, so a single checkout would leave the agent's edits to
+    # the existing test files in place. Files the patch creates are removed,
+    # so `git apply` recreates them from the hidden patch.
     reset = (
-        f"git checkout {base_commit} -- {' '.join(test_files)}"
+        f"for f in {' '.join(shlex.quote(f) for f in test_files)}; do "
+        f'if git cat-file -e {base_commit}:"$f" 2>/dev/null; '
+        f'then git checkout {base_commit} -- "$f"; '
+        'else rm -f -- "$f"; fi; done'
         if test_files
         else "echo 'no test files to reset'"
     )
@@ -541,9 +550,12 @@ def build_eval_script(
         '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
         f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
         "--out-dir /logs/verifier || "
-        # If python3 is somehow unavailable, never leave reward.txt empty.
-        '{ [ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt; }\n'
+        # A broken verifier is ungraded even when the test command exits zero.
+        '{ echo "0.0" > /logs/verifier/reward.txt; '
+        "printf '%s' "
+        '\'{"reward": 0.0, "resolved": false, "command_resolved": false, '
+        '"eval_trustworthy": false, "evaluation_status": "ungraded", '
+        '"parse_status": "verifier_error"}\' > /logs/verifier/reward-details.json; }\n'
         f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
         "exit 0\n"  # reward.txt is the verdict, not the bash exit code
     )
