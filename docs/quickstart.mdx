@@ -70,6 +70,7 @@ tasks
     │   └── solve.sh
     └── tests
         ├── test.sh
+        ├── capture.py
         ├── verifier.py
         ├── oracle.patch
         └── instruction.md
@@ -83,6 +84,7 @@ tasks
 | `solution/patch.diff` | The merged PR's diff: the reference solution, or [oracle](concepts/glossary.mdx#oracle). |
 | `solution/solve.sh` | Applies `patch.diff`. Harbor's `oracle` agent runs this script. |
 | `tests/test.sh` | The verifier entry point: captures the agent's changes as a diff against the base commit and runs the scorer. |
+| `tests/capture.py` | Captures the patch using private Git configuration and an isolated index. |
 | `tests/verifier.py` | The scorer. It writes the reward to `/logs/verifier/reward.txt` and a per-component breakdown to `reward-details.json`. |
 | `tests/oracle.patch` | The verifier's copy of the reference diff. |
 | `tests/instruction.md` | The verifier's copy of the instruction, used by the LLM judge. |
@@ -110,17 +112,19 @@ This is a static check. It confirms each `task.toml` parses, the instruction, en
 
 ### Run the tasks with Harbor
 
-Install [Harbor](https://github.com/harbor-framework/harbor) and run the `oracle` agent first. It applies the reference solution, so every task should score 1.0; a lower score means the task is broken.
+Install [Harbor](https://github.com/harbor-framework/harbor) and run the `oracle` agent first. It applies the reference solution, so a successfully graded task should score 1.0. PR-diff tasks need a correctness judge: set `ANTHROPIC_API_KEY` and pass it to the verifier, including for the controls. A missing or failed judge leaves the result ungraded with a zero reward placeholder; diagnose that separately from a graded oracle failure.
 
 ```bash
 uv tool install harbor
-harbor run -p ./tasks -a oracle --env docker
+harbor run -p ./tasks -a oracle --env docker \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 ```
 
 The [`nop`](concepts/glossary.mdx#nop) agent changes nothing, so every task should score 0.0. Together these two runs are the task's controls.
 
 ```bash
-harbor run -p ./tasks -a nop --env docker
+harbor run -p ./tasks -a nop --env docker \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 ```
 
 Now run a real agent, Claude Code with Sonnet:
@@ -140,7 +144,7 @@ harbor run -p ./tasks \
 | `-a claude-code -m anthropic/claude-sonnet-4-6` | The agent harness and the model it uses. |
 | `--ak max_budget_usd=2.00` | An agent option: caps what Claude Code can spend on each task (its `--max-budget-usd`). |
 | `--ae KEY=VALUE` | Passes an environment variable to the agent. |
-| `--ve KEY=VALUE` | Passes an environment variable to the verifier. Here it turns on the `pr_diff` LLM judge; without it the judge is skipped and the other components are reweighted. |
+| `--ve KEY=VALUE` | Passes an environment variable to the verifier. Here it supplies the `pr_diff` judge credential; without a valid judge result the task is ungraded, and similarity remains diagnostic only. |
 
 Harbor writes results to `./jobs/<timestamp>/`, with each trial's `verifier/reward.txt` and `verifier/reward-details.json`. Browse them with `harbor view jobs`. To run in a cloud sandbox instead of local Docker, replace `--env docker` with `--env modal`, `daytona`, `e2b` or `runloop`.
 
