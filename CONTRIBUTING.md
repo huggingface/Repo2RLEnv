@@ -117,7 +117,13 @@ transitive dependency: `compression` for the website's `serve` command, and `tom
 for OpenCode's Effect dependency. Zod is also overridden in the website and
 OpenCode plugin to address [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5);
 updating the runtime's direct Zod dependency alone leaves the plugin's nested
-copy vulnerable. Remove an override when the parent supports a patched version.
+copy vulnerable. Pi pins an affected Undici release; its scoped override selects 8.12.2.
+The Python lock overrides LiteLLM's `filelock<4` constraint to use patched
+filelock 4.2.1 or later. LiteLLM 1.106.0 has no runtime filelock imports;
+Harbor and HF Hub use the locking library. Keep all-extras tests and dependency
+audits green when changing this exception. The override affects this repository's
+uv lock, not downstream wheel installations.
+Remove an override when the parent supports a patched version.
 Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.
