@@ -29,7 +29,7 @@ flowchart TD
 
 | Route | Input | The agent's task | Reward | LLM at generation | Runs on | Status |
 |---|---|---|---|---|---|---|
-| [`pr_diff`](pipelines/pr_diff.md) | Merged PRs (GitHub, GitLab) | Reproduce the change a PR made | Diff similarity, 0–1, with an optional LLM judge at verify time | No | Your machine; no Docker to generate | Stable |
+| [`pr_diff`](pipelines/pr_diff.md) | Merged PRs (GitHub, GitLab) | Reproduce the change a PR made | Diff similarity, 0–1, with a required LLM judge at verify time | No | Your machine; no Docker to generate | Stable |
 | [`pr_runtime`](pipelines/pr_runtime.md) | Merged PRs that add tests (GitHub, GitLab) | Make failing tests pass without breaking passing ones | Graded F2P × P2P, plus a strict `resolved` flag | Yes: bootstrap, cached per repository | Local Docker | Stable |
 | [`commit_runtime`](pipelines/commit_runtime.md) | Commit history (GitHub, GitLab, local path) | The same, mined from commits, with the instruction rewritten as a symptom | Graded F2P × P2P | Yes: bootstrap, plus one call per task for the instruction | Local Docker | Stable |
 | [`code_instruct`](pipelines/code_instruct.md) | A Python repository's source | Solve an LLM-authored problem grounded in the repository's APIs | Tests pass, 0/1 | Yes: problem, test and solution | Local Docker | Experimental |

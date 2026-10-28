@@ -85,9 +85,9 @@ tasks
 | `tests/test.sh` | The verifier entry point: captures the agent's changes as a diff against the base commit and runs the scorer. |
 | `tests/verifier.py` | The scorer. It writes the reward to `/logs/verifier/reward.txt` and a per-component breakdown to `reward-details.json`. |
 | `tests/oracle.patch` | The verifier's copy of the reference diff. |
-| `tests/instruction.md` | The verifier's copy of the instruction, used by the optional LLM judge. |
+| `tests/instruction.md` | The verifier's copy of the instruction, used by the LLM judge. |
 
-Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an optional LLM judge. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
+Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an LLM judge. Without a valid judge score, current tasks are ungraded with reward 0; deterministic similarity remains diagnostic only. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
 
 </Step>
 <Step>
