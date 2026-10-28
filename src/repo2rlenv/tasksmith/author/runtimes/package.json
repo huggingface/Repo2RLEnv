@@ -16,6 +16,9 @@
     "toml": "5.0.1",
     "@opencode-ai/plugin": {
       "zod": "$zod"
+    },
+    "@earendil-works/pi-coding-agent": {
+      "undici": "8.12.2"
     }
   }
 }
