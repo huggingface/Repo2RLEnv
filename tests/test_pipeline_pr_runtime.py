@@ -167,6 +167,21 @@ def test_build_eval_script_tolerates_no_test_files():
     assert "pytest" in script
 
 
+def test_build_eval_script_resets_test_files_one_at_a_time():
+    """`git checkout <base> -- a b` refuses every path when one is missing at
+    base, and test patches usually add a test file, so the reset runs per file
+    and removes the files the patch creates."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch=_SAMPLE_DIFF,
+        test_cmds=["pytest"],
+    )
+    assert "for f in src/foo.py tests/test_foo.py; do" in script
+    assert f'git cat-file -e {"a" * 40}:"$f"' in script
+    assert f'git checkout {"a" * 40} -- "$f"' in script
+    assert 'rm -f -- "$f"' in script
+
+
 def test_build_eval_script_joins_multiple_test_cmds_with_and():
     """Bootstrap-recorded test_cmds may have multiple steps; they share one shell."""
     script = build_eval_script(

@@ -78,7 +78,7 @@ def build_binary_eval_script(test_cmds: list[str], *, language: str | None = Non
 
 
 def all_tests_passed(log: str) -> bool:
-    """Heuristic: pytest summary line ends with `N passed` and no `failed`/`error`.
+    """Heuristic: pytest summary line has `N passed` and no `N failed`/`N error(s)`.
 
     Used by synthesis pipelines that run pytest inside the sandbox with a
     `|| true` wrapper — pytest's exit code is masked, so we scrape the log
@@ -89,6 +89,9 @@ def all_tests_passed(log: str) -> bool:
     if "error" in lower and "collected 0 items" in lower:
         return False
     if "failed" in lower and _re.search(r"\b[1-9]\d*\s+failed\b", lower):
+        return False
+    # `3 passed, 1 error`: a test that errors in setup or teardown didn't pass.
+    if _re.search(r"\b[1-9]\d*\s+errors?\b", lower):
         return False
     return bool(_re.search(r"\b[1-9]\d*\s+passed\b", lower))
 
