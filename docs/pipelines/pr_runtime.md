@@ -175,12 +175,22 @@ The details file also records per-set totals and rates, `regressions`,
 `eval_grade` (`command_resolved` and a non-empty P2P set); filter on it for a
 benchmark-grade subset.
 
-The agent can't pass by editing tests: `test.sh` restores the PR's test files and
+`test.sh` restores the test files named in the PR individually and
 re-applies the hidden test patch before running them. If the patch doesn't apply,
 the task fails closed with reward 0 and `parse_status` set to
-`test_patch_apply_failed`. If the log can't be parsed, the verifier falls back to
-1.0 for a zero exit code and 0.0 otherwise, marks `parse_status` as
-`fallback_exitcode`, and never reports `resolved` for a task with an F2P list.
+`test_patch_apply_failed`. If the log can't be parsed, the verifier marks
+`parse_status` as `fallback_exitcode`. A task with an F2P list then scores 0.0 and
+never reports `resolved`; a task without one scores 1.0 for a zero exit code and
+0.0 otherwise. A verifier process failure always writes reward 0, marks the
+run `ungraded`, and records `parse_status = "verifier_error"`, even when the test
+command exited successfully.
+
+Duplicate results retain failures in pytest, Go, Cargo, Jest, Mocha and Vitest.
+Nextest retains its explicit retry/FLAKY semantics. These checks do not isolate
+arbitrary code running inside the test process or prevent background processes
+from modifying shared reward files; see [issue #214](https://github.com/huggingface/Repo2RLEnv/issues/214).
+Existing exported tasks embed verifier code, so upgrading the package alone does
+not repair their bundles or validate historical scores.
 
 `task.toml` also lists `diff_similarity` as a secondary reward kind. Trainers that
 can't run code can score a patch against `solution/patch.diff` with
