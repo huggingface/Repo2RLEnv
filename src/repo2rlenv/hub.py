@@ -169,8 +169,10 @@ def _reward_doc_for(pipeline: str) -> str:
             "similarity / LLM-judge). The `--ve ANTHROPIC_API_KEY=...` verifier-env "
             "pass enables the LLM-judge component (or `--ve R2E_JUDGE_ENDPOINT=...` "
             "plus `--ve R2E_JUDGE_MODEL=...` to use a self-hosted judge); without "
-            "either, the verifier still produces a valid score with `llm_judge: null` "
-            "and the deterministic weights renormalized. Full breakdown in "
+            "either, the current verifier marks the run `ungraded` with reward 0 and "
+            "keeps `diagnostic_similarity` for inspection. Exclude ungraded runs from "
+            "training and solved-rate denominators. Older task bundles may still "
+            "renormalize weights; inspect their embedded verifier. Full breakdown in "
             "`/logs/verifier/reward-details.json`."
         )
     return (
