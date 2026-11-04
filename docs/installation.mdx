@@ -38,6 +38,31 @@ uv tool install 'repo2rlenv[tasksmith,daytona,harbor]'
 
 To run tasks, install the Harbor CLI as well: `uv tool install harbor`. The `harbor` extra also puts a `harbor` command in the same environment.
 
+### Filelock security override
+
+LiteLLM 1.106.6 requires `filelock` below 4, but the fixes for
+[filelock's local filesystem vulnerabilities](https://github.com/tox-dev/filelock/security/advisories)
+require 4.2.1 or later. A fresh ordinary installation currently selects filelock
+3.32.7 with 13 reported advisories. The repository's tested lock overrides this
+bound; PyPI installations do not inherit that override.
+
+Until LiteLLM releases compatible dependency metadata, use the locked checkout
+below or apply the same override explicitly:
+
+```bash
+echo 'filelock>=4.2.1,<5' > repo2rlenv-overrides.txt
+uv tool install --upgrade --overrides repo2rlenv-overrides.txt 'repo2rlenv==0.9.5'
+```
+
+Add extras inside the package specification as needed. For an existing virtual
+environment, use `uv pip install --upgrade --overrides repo2rlenv-overrides.txt
+'repo2rlenv==0.9.5'`. Keep the override on subsequent installations and upgrades.
+It intentionally overrides LiteLLM's metadata, so `pip check` reports that
+specific constraint conflict. The all-extras suite and SDK contracts pass with
+filelock 4.x; the tested overridden base installation has no known vulnerabilities
+reported by `pip-audit` as of November 4, 2026. This does not establish the absence
+of unknown vulnerabilities or past credential exposure.
+
 ### From a checkout
 
 Research recipes, Tasksmith and the quality loop upload the Repo2RLEnv runtime wheel to the remote worker, and the controller checks that the wheel matches its own package. Build it from a checkout:
@@ -45,7 +70,7 @@ Research recipes, Tasksmith and the quality loop upload the Repo2RLEnv runtime w
 ```bash
 git clone https://github.com/huggingface/Repo2RLEnv
 cd Repo2RLEnv
-uv sync --extra modal --extra harbor
+uv sync --frozen --extra modal --extra harbor
 uv build --wheel
 uv run repo2rlenv --version
 ```
@@ -104,7 +129,7 @@ repo2rlenv --version
 repo2rlenv pipelines list
 ```
 
-The first command prints the version (`repo2rlenv 0.9.4`). The second lists every native pipeline and research recipe with its status and source type:
+The first command prints the version (`repo2rlenv 0.9.5`). The second lists every native pipeline and research recipe with its status and source type:
 
 ```text
 ┃ Pipeline             ┃ Recipe            ┃ Status       ┃ Source     ┃

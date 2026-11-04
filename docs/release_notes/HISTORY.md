@@ -8,6 +8,58 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## v0.9.5: Verifier hardening and stable dependency updates
+
+Released November 4, 2026.
+
+This patch release strengthens grading and includes the dependency updates merged
+since 0.9.4:
+
+- PR-diff evaluations remain **ungraded** when the correctness judge is unavailable
+  or disabled. Diagnostic similarity and the captured patch are retained for
+  retries. Patch capture uses private Git configuration and an isolated index
+  ([#221](https://github.com/huggingface/Repo2RLEnv/pull/221)).
+- Runtime grading preserves failures across duplicate test records, rejects
+  verifier process failures, and restores test files individually before applying
+  hidden tests. An unparseable log cannot earn a passing reward when an F2P oracle
+  exists; oracle checks also reject summaries containing test errors
+  ([#220](https://github.com/huggingface/Repo2RLEnv/pull/220),
+  [#221](https://github.com/huggingface/Repo2RLEnv/pull/221)).
+- Pytest grading restores `conftest.py` and dedicated test configuration from the
+  base revision. Changes to pytest settings in shared configuration leave the
+  evaluation ungraded while preserving unrelated settings
+  ([#212](https://github.com/huggingface/Repo2RLEnv/pull/212)).
+- Harbor **0.25.0** support updates the offline and Modal adapters, including
+  fractional CPU accounting
+  ([#228](https://github.com/huggingface/Repo2RLEnv/pull/228)).
+- The tested lock selects LiteLLM **1.106.6**, OpenAI **2.54.0** and Hugging Face Hub
+  **1.33.0**. LiteLLM 1.106.6 is now the minimum; compromised version 1.107.0 remains
+  excluded. Real SDK tests against local HTTP servers cover completions, Responses
+  tool calls, usage accounting, authentication errors and pinned Hub downloads.
+  OpenAI 3 and Hub 2 remain deferred until stable LiteLLM compatibility is available
+  ([#229](https://github.com/huggingface/Repo2RLEnv/pull/229),
+  [#230](https://github.com/huggingface/Repo2RLEnv/pull/230)).
+
+Also updates Python dependencies, coding-agent runtimes, documentation tooling and
+pinned GitHub Actions. Repository-only transitive constraints and overrides do not
+propagate to downstream wheel installations; see
+[dependency maintenance](https://github.com/huggingface/Repo2RLEnv/blob/main/CONTRIBUTING.md#dependencies).
+In particular, LiteLLM's `filelock<4` bound makes ordinary installs select a
+vulnerable filelock release. Use the
+[documented security override](../installation.mdx#filelock-security-override)
+or the locked checkout to install patched filelock 4.2.1 or later.
+
+Upgrade to `repo2rlenv==0.9.5` using that installation guidance, adding the extras
+your pipeline needs. Rebuild runtime wheels used by remote
+workers, and rerun `repo2rlenv tasksmith install-runtime` for coding-agent updates.
+Python 3.12–3.14 remain supported.
+
+Existing datasets are unchanged. Regenerate affected tasks and rerun baseline and
+oracle checks to adopt the verifier fixes. These safeguards do not provide full
+isolation from malicious code running inside the grading container. The combined
+pre-release suite passed 2,384 tests with four opt-in live tests skipped; SDK
+contract checks used local servers, with no paid provider or sandbox validation.
+
 ## v0.9.4: Task quality review and runtime fixes
 
 Released October 23, 2026.

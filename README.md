@@ -46,6 +46,7 @@ any agent, and share on the Hugging Face Hub.
 
 | When | What |
 |---|---|
+| **Nov 4, 2026** · v0.9.5 | **Verifier hardening and stable dependency updates**: stricter test grading, ungraded PR-diff evaluations when the judge is unavailable, Harbor 0.25 support and tested inference SDK updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Oct 23, 2026** · v0.9.4 | **Task quality review and runtime fixes**, with evidence-backed reviews, Harbor 0.24 compatibility, Windows process cleanup and dependency security updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
 | **Sep 29, 2026** · v0.9.3 | 🧮 **FrontierSmith** turns closed-ended programming problems into optimization tasks with continuous, deterministic rewards. There's no known optimum, so a better solution earns more. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
@@ -55,6 +56,10 @@ any agent, and share on the Hugging Face Hub.
 Older releases are in the [version history](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/).
 
 ## Quickstart
+
+For the current LiteLLM/filelock dependency conflict, use the
+[documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
+or a locked checkout when installing.
 
 Generate your first environments in about five minutes. This first pipeline needs no
 Docker and no LLM key, just Python 3.12+ and the [GitHub CLI](https://cli.github.com).
