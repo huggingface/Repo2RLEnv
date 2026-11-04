@@ -166,6 +166,11 @@ def test_sandbox_pricing_and_cleanup_requirement():
     assert cost["accounted_usd"] == "0.391680"
     with pytest.raises(ValueError, match="confirmed cleanup"):
         compute_estimate({**record, "state": "termination_uncertain"})
+    # Harbor 0.25 accepts fractional CPU allocations. Account for their actual
+    # reservation without mixing floats with Decimal or rounding to a core.
+    fractional = {**record, "spec": {**record["spec"], "cpus": 0.5}}
+    assert compute_estimate(fractional)["allocation_rate_per_second"] == "0.000570430"
+    assert compute_estimate(fractional)["accounted_usd"] == "0.364086"
 
 
 def test_completed_model_usage_survives_a_denied_verifier(tmp_path):
