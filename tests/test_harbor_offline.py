@@ -35,11 +35,17 @@ def test_real_harbor_constructor_preserves_offline_contract(tmp_path, monkeypatc
         "phase_network_policies": [NetworkPolicy(network_mode=phase)],
     }
     if startup != "no-network" or phase != "no-network":
-        with pytest.raises(ValueError, match="every execution phase"):
+        with pytest.raises(ValueError, match=r"every execution phase|cannot change network policy"):
             OfflineDockerEnvironment(**options)
     else:
         environment = OfflineDockerEnvironment(**options)
         assert not environment._enable_egress_control
+        # Harbor 0.25 copies output paths by default instead of exposing host
+        # directories. The trial must not mistake these paths for bind mounts.
+        assert not environment.auto_mounting
+        assert not environment.is_path_mounted(
+            "/logs/verifier", options["trial_paths"].verifier_dir
+        )
         overlay = environment._docker_compose_paths[-1]
         assert yaml.safe_load(overlay.read_text())["services"]["main"]["network_mode"] == "none"
 
