@@ -113,8 +113,9 @@ uvx pip-audit --disable-pip --no-deps -r /tmp/repo2rlenv-audit.txt
 ```
 
 The npm manifests use security overrides where an upstream pin prevents a patched
-transitive dependency: `compression` for the website's `serve` command, and `toml`
-for OpenCode's Effect dependency. Zod is also overridden in the website and
+transitive dependency: `toml` for OpenCode's Effect dependency and `minimatch`
+for Pi's glob matching. The docs preview uses `sirv-cli` to avoid the affected
+`serve-handler` dependency chain. Zod is also overridden in the website and
 OpenCode plugin to address [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5);
 updating the runtime's direct Zod dependency alone leaves the plugin's nested
 copy vulnerable. Pi pins an affected Undici release; its scoped override selects 8.12.2.
@@ -127,6 +128,13 @@ Remove an override when the parent supports a patched version.
 Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.
+
+OpenAI stays below 3 and Hugging Face Hub below 2 while the supported stable
+LiteLLM line requires those ranges. Upgrade the clients together after checking
+provider calls, tool arguments, usage accounting and Hub transfers. Do not
+silently downgrade LiteLLM or select a development release to satisfy a major
+SDK update. Pi's scoped minimatch override selects 11.0.3 while preserving the
+tested Pi 1.4 tool-validation behavior; Pi 1.5 changes argument coercion.
 
 Dependabot checks Actions, Python, coding-agent runtimes and website dependencies weekly.
 Every update still needs review and passing CI. Keep Actions pinned to full
