@@ -16,6 +16,16 @@ class Record(BaseModel):
 ProbeFocus = Literal[
     "general", "lazy_output", "numeric_tolerance", "compiled_execution", "model_behavior"
 ]
+RolloutOutcome = Literal[
+    "not_run",
+    "legitimate_success",
+    "legitimate_failure",
+    "reward_hack",
+    "task_defect",
+    "infrastructure_failure",
+    "incomplete",
+    "insufficient_evidence",
+]
 
 
 class Citation(Record):
@@ -30,8 +40,11 @@ class Assessment(Record):
     evidence: list[Citation] = Field(min_length=1)
 
 
+IssueCategory = Literal["instruction", "verifier", "leakage", "reference", "packaging", "probe"]
+
+
 class Issue(Record):
-    category: Literal["instruction", "verifier", "leakage", "reference", "packaging", "probe"]
+    category: IssueCategory
     severity: Literal["blocking", "improvement"]
     problem: str
     repair: str
@@ -73,16 +86,7 @@ class Review(Record):
     task: Assessment
     verifier: Assessment
     leakage: Assessment
-    rollout: Literal[
-        "not_run",
-        "legitimate_success",
-        "legitimate_failure",
-        "reward_hack",
-        "task_defect",
-        "infrastructure_failure",
-        "incomplete",
-        "insufficient_evidence",
-    ]
+    rollout: RolloutOutcome
     issues: list[Issue] = Field(max_length=12)
     probes: list[SemanticProbe] = Field(max_length=4)
     read_requests: list[ReadRequest] = Field(max_length=6)
@@ -134,6 +138,8 @@ class Repair(Record):
 
 
 class LoopOptions(Record):
+    profile: Literal["practical-generation-v1", "evidence-review-v2"] = "practical-generation-v1"
+    review_guidance: str | None = Field(default=None, min_length=1, max_length=8000)
     review_model: LLMSpec = Field(
         default_factory=lambda: LLMSpec(provider="anthropic", model="claude-sonnet-4-6")
     )
@@ -162,6 +168,8 @@ class LoopOptions(Record):
     def explicit_routes_and_limits(self):
         from decimal import Decimal
 
+        if self.review_guidance is not None and self.profile != "evidence-review-v2":
+            raise ValueError("Additional review guidance requires evidence-review-v2")
         for name in ("model_reservation_usd", "solver_reservation_usd", "max_spend_usd"):
             amount = Decimal(getattr(self, name))
             if not amount.is_finite() or amount <= 0:
@@ -196,8 +204,8 @@ class TrialRecord(Record):
 
 
 class LoopResult(Record):
-    schema_version: Literal["1"] = "1"
-    profile: Literal["practical-generation-v1"] = "practical-generation-v1"
+    schema_version: Literal["1", "2"] = "1"
+    profile: Literal["practical-generation-v1", "evidence-review-v2"] = "practical-generation-v1"
     status: Literal["usable", "reviewed", "needs_repair", "needs_evidence", "budget_exhausted"]
     source_hash: str
     bundle_hash: str
@@ -208,3 +216,10 @@ class LoopResult(Record):
     reasons: list[str]
     accounted_usd: str
     reserved_usd: str
+
+    @model_validator(mode="after")
+    def version_matches_profile(self):
+        expected = "2" if self.profile == "evidence-review-v2" else "1"
+        if self.schema_version != expected:
+            raise ValueError("Quality schema version does not match the profile")
+        return self

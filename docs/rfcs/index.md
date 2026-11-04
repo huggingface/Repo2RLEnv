@@ -77,8 +77,9 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0028 | Tasksmith PR pilot | completed pilot; PR #109 | [0028-tasksmith-pr-pilot.md](0028-tasksmith-pr-pilot.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith) |
 | 0029 | HF bootstrap and Tasksmith scale | recorded campaign; PR #109 | [0029-tasksmith-hf-scale.md](0029-tasksmith-hf-scale.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith) |
 | 0030 | Campaign expansion and Harbor releases | implementation in PR #109 | [0030-campaign-expansion-and-release.md](0030-campaign-expansion-and-release.md) | [Release inventory](../pipelines/releases.md) |
-
 | 0031 | `repo_reconstruct` / `codemidas` | implemented in 0.9.2; 100 local tasks | [0031-codemidas-recipe.md](0031-codemidas-recipe.md) | Local campaign; dataset unpublished |
+| 0032 | `optimization_synth` / `frontiersmith` | implemented in 0.9.3; experimental | [0032-frontiersmith-recipe.md](0032-frontiersmith-recipe.md) | Local campaign; dataset unpublished |
+| 0033 | Evidence-based quality review | draft | [0033-evidence-based-quality-review.md](0033-evidence-based-quality-review.md) | Proposed reviewer benchmark; not run |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 
@@ -87,5 +88,3 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 - [`plans/candidate_pipelines.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/plans/candidate_pipelines.md): the backlog. Ranking + inspirations. RFCs are drawn from here (or a fresh proposal).
 - [`docs/contributing/ADDING_A_PIPELINE.md`](../contributing/ADDING_A_PIPELINE.md): the implementation cookbook. RFC covers the *why*; the cookbook covers the *how*.
 - [`docs/reference/RELATED_WORK.md`](../reference/RELATED_WORK.md): provenance table for shipped pipelines. Add an entry here when an RFC ships.
-
-- [0032: FrontierSmith optimization synthesis](0032-frontiersmith-recipe.md): experimental owned method adaptation.

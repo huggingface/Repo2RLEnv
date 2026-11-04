@@ -64,7 +64,7 @@ def test_config_reset_runs_after_the_fix_and_before_the_test_patch():
     script = _build_stage_script(
         _BASE, apply_patch="FIX", apply_test_patch="TESTS", test_cmds=["pytest -v"]
     )
-    reset = script.find("-name 'conftest.py'")
+    reset = script.find("R2E_PYTEST_CONFIG_GUARD")
     assert script.find("FIX") < reset < script.find("TESTS") < script.find("pytest -v")
     assert "|| exit 1" in script[reset : script.find("TESTS")]
 

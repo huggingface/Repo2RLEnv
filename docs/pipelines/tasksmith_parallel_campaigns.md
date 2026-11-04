@@ -25,7 +25,7 @@ You need the same setup as for one PR: the extras, `tasksmith install-runtime`, 
 uv run repo2rlenv tasksmith batch plan.json \
   --campaign workspace/tasksmith \
   --output workspace/tasksmith-batch \
-  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.4-py3-none-any.whl
 ```
 
 Add `--env-file FILE` to load credentials from a specific file, or `--json` for a machine-readable report. The command exits `0` only when the plan's verified target is reached. Check progress at any time, without paid calls:

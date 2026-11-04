@@ -153,9 +153,9 @@ def test_padded_names_and_ignore_reasons(parser):
     }
 
 
-def test_repeated_unit_test_keeps_last_write(parser):
+def test_repeated_unit_test_keeps_failure(parser):
     log = "test tests::flaky ... FAILED\ntest tests::flaky ... ok\n"
-    assert parser(log) == {"tests::flaky": "PASSED"}
+    assert parser(log) == {"tests::flaky": "FAILED"}
 
 
 @pytest.mark.parametrize(

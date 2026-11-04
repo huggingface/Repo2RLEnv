@@ -18,6 +18,8 @@ import sys
 
 import pytest
 
+from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
+from repo2rlenv.github import PullRequestSummary
 from repo2rlenv.pipelines.pr_runtime import (
     PRRuntimePipeline,
     _build_instruction,
@@ -124,6 +126,17 @@ def test_path_is_test_heuristic():
     assert not _path_is_test("src/click/testing.py")
 
 
+def test_path_is_test_matches_jsx_tsx_and_module_js_test_files():
+    # jest and vitest pick these up by default; colocated React tests are
+    # usually `.test.tsx`, so missing them dropped the PR as `no_test_patch`
+    assert _path_is_test("src/Button.test.tsx")
+    assert _path_is_test("src/Button.spec.jsx")
+    assert _path_is_test("src/util.test.mjs")
+    assert _path_is_test("src/util.spec.cts")
+    assert not _path_is_test("src/Button.tsx")
+    assert not _path_is_test("src/test.config.ts")
+
+
 def test_files_in_patch_returns_unique_paths():
     paths = _files_in_patch(_SAMPLE_DIFF)
     assert paths == ["src/foo.py", "tests/test_foo.py"]
@@ -157,6 +170,21 @@ def test_build_eval_script_tolerates_no_test_files():
     )
     assert "no test files to reset" in script
     assert "pytest" in script
+
+
+def test_build_eval_script_resets_test_files_one_at_a_time():
+    """`git checkout <base> -- a b` refuses every path when one is missing at
+    base, and test patches usually add a test file, so the reset runs per file
+    and removes the files the patch creates."""
+    script = build_eval_script(
+        base_commit="a" * 40,
+        test_patch=_SAMPLE_DIFF,
+        test_cmds=["pytest"],
+    )
+    assert "for f in src/foo.py tests/test_foo.py; do" in script
+    assert f'git cat-file -e {"a" * 40}:"$f"' in script
+    assert f'git checkout {"a" * 40} -- "$f"' in script
+    assert 'rm -f -- "$f"' in script
 
 
 def test_build_eval_script_joins_multiple_test_cmds_with_and():
@@ -293,9 +321,9 @@ def test_build_eval_script_restores_pytest_config_before_tests():
         test_cmds=["pytest -v"],
         fail_to_pass=["tests/test_foo.py::test_add"],
     )
-    assert "-name 'conftest.py'" in script
+    assert "R2E_PYTEST_CONFIG_GUARD" in script
     assert f'git checkout {"a" * 40} -- "$f"' in script
-    reset_pos = script.find("-name 'conftest.py'")
+    reset_pos = script.find("R2E_PYTEST_CONFIG_GUARD")
     assert 0 <= reset_pos < script.find("EOF_R2E_TEST_PATCH") < script.find("( pytest -v )")
 
 
@@ -368,16 +396,16 @@ def test_build_eval_script_config_reset_keeps_source_changes(tmp_path):
     (repo / "conftest.py").write_text("# agent hook\n")
     (repo / "pytest.ini").write_text("[pytest]\n")
     (repo / "tests" / "conftest.py").write_text("# agent hook\n")
-    (repo / "pyproject.toml").unlink()
+    (repo / "pyproject.toml").write_text('[project]\nname = "updated"\n[tool.pytest.ini_options]\n')
     hidden = repo / "tests" / "hidden"
     hidden.mkdir()
     (hidden / ".gitignore").write_text("*\n")
     (hidden / "conftest.py").write_text("# agent hook\n")
 
-    assert _run_test_sh(tmp_path, repo, base, ["true"]) == "1.0"
+    assert _run_test_sh(tmp_path, repo, base, [f"{sys.executable} -m pytest --version"]) == "1.0"
     assert (repo / "pkg.py").read_text() == "X = 2\n"
     assert (repo / "tests" / "conftest.py").read_text() == "# base fixtures\n"
-    assert (repo / "pyproject.toml").read_text() == "[tool.pytest.ini_options]\n"
+    assert 'name = "updated"' in (repo / "pyproject.toml").read_text()
     assert not (repo / "conftest.py").exists()
     assert not (repo / "pytest.ini").exists()
     assert not (hidden / "conftest.py").exists()
@@ -402,13 +430,14 @@ def test_build_eval_script_failed_config_reset_scores_zero(tmp_path):
     assert _run_test_sh(tmp_path, repo, base, [f"touch {ran}", _PYTEST]) == "0.000000"
     details = (tmp_path / "logs" / "reward-details.json").read_text()
     assert '"parse_status": "test_config_reset_failed"' in details
+    assert '"evaluation_status": "ungraded"' in details
+    assert '"eval_trustworthy": false' in details
     assert not ran.exists()
 
 
 @needs_git_bash
-def test_build_eval_script_removes_untracked_symlinks(tmp_path):
-    """A symlinked directory the agent adds can carry its own conftest.py; it is
-    removed before grading. A symlink tracked at base is put back."""
+def test_build_eval_script_rejects_untrusted_directory_symlinks(tmp_path):
+    """An untrusted directory link stops grading without modifying its target."""
     repo, base = _base_repo(tmp_path, _BUGGY)
     (repo / "docs").mkdir()
     (repo / "docs" / "linked").symlink_to("../tests")
@@ -428,9 +457,9 @@ def test_build_eval_script_removes_untracked_symlinks(tmp_path):
     (repo / "docs" / "linked").unlink()
     (repo / "docs" / "linked").symlink_to(outside)
 
-    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.0"
-    assert not (repo / "tests" / "extra").exists()
-    assert os.readlink(repo / "docs" / "linked") == "../tests"
+    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.000000"
+    assert (outside / "conftest.py").read_text() == _PASSING_HOOK
+    assert (repo / "tests" / "extra").is_symlink()
 
 
 @needs_git_bash
@@ -441,6 +470,7 @@ def test_build_eval_script_keeps_a_fix_that_bumps_pyproject_version(tmp_path):
     pyproject = repo / "pyproject.toml"
     pyproject.write_text(pyproject.read_text().replace('version = "1.0"', 'version = "1.1"'))
     assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "1.0"
+    assert 'version = "1.1"' in pyproject.read_text()
 
 
 # --- instruction reflow + difficulty -----------------------------------------
@@ -667,6 +697,13 @@ def test_normalize_strips_short_co():
     assert normalize_test_cmds_for_runtime(["pytest --co"]) == ["pytest -v"]
 
 
+def test_normalize_pytest_alias_gets_verbose_output():
+    assert normalize_test_cmds_for_runtime(["py.test -q"]) == ["py.test -v"]
+    assert normalize_test_cmds_for_runtime([".venv/bin/py.test --quiet tests/"]) == [
+        ".venv/bin/py.test tests/ -v"
+    ]
+
+
 def test_normalize_preserves_existing_verbose():
     assert normalize_test_cmds_for_runtime(["pytest -v tests/"]) == ["pytest -v tests/"]
     assert normalize_test_cmds_for_runtime(["pytest -vv"]) == ["pytest -vv"]
@@ -727,7 +764,25 @@ def test_normalize_vitest_uses_verbose_reporter():
     assert normalize_test_cmds_for_runtime(["vitest run --reporter=junit"]) == [
         "vitest run --reporter=junit"
     ]
-    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --verbose"]
+
+
+def test_normalize_mocha_uses_spec_reporter():
+    # mocha has no `--verbose`, so `mocha --verbose a.spec.js` reads the file
+    # as the flag's value and never runs it.
+    assert normalize_test_cmds_for_runtime(["npx mocha"]) == ["npx mocha --reporter spec"]
+    assert normalize_test_cmds_for_runtime(["mocha --verbose --silent"]) == [
+        "mocha --reporter spec"
+    ]
+    # An explicit reporter is the repo's choice ⇒ keep
+    assert normalize_test_cmds_for_runtime(["mocha -R dot"]) == ["mocha -R dot"]
+    assert normalize_test_cmds_for_runtime(["mocha --reporter=tap"]) == ["mocha --reporter=tap"]
+
+
+def test_targeted_mocha_keeps_every_test_file():
+    cmds = targeted_test_cmds_for_pr(
+        normalize_test_cmds_for_runtime(["npx mocha"]), ["test/a.spec.js", "test/b.spec.js"]
+    )
+    assert cmds == ["npx mocha --reporter spec test/a.spec.js test/b.spec.js"]
 
 
 def test_normalize_strips_trailing_pipe_head_or_tail():
@@ -783,6 +838,11 @@ def test_targeted_appends_test_files_to_pytest():
     """pytest -v becomes pytest -v tests/foo.py when test_patch touches foo."""
     out = targeted_test_cmds_for_pr(["pytest -v"], ["tests/test_foo.py", "tests/test_bar.py"])
     assert out == ["pytest -v tests/test_foo.py tests/test_bar.py"]
+
+
+def test_targeted_appends_test_files_to_pytest_alias():
+    out = targeted_test_cmds_for_pr([".venv/bin/py.test -v"], ["tests/test_foo.py"])
+    assert out == [".venv/bin/py.test -v tests/test_foo.py"]
 
 
 def test_targeted_go_test_replaces_dot_dot_dot_with_packages():
@@ -870,3 +930,96 @@ def test_pr_runtime_rejects_missing_bootstrap():
     options = PRRuntimeOptions()
     with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
         PRRuntimePipeline(gen_input, options, bootstrap=None)
+
+
+# --- _pre_filter: require_linked_issue ---------------------------------------
+
+
+def _make_pr(
+    body: str,
+    *,
+    title: str = "Fix crash in argument parsing",
+    number: int = 1,
+) -> PullRequestSummary:
+    """Return a merged, non-draft PR with one changed file."""
+    return PullRequestSummary(
+        number=number,
+        title=title,
+        body=body,
+        state="MERGED",
+        merged_at="2026-09-28T10:00:00Z",
+        base_ref="main",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        is_draft=False,
+        url="https://github.com/owner/repo/pull/1",
+        changed_files=["src/foo.py"],
+    )
+
+
+def _make_pipeline(require_linked_issue: bool | None) -> PRRuntimePipeline:
+    """Build a PRRuntimePipeline for _pre_filter tests.
+
+    Args:
+        require_linked_issue: Explicit value to pass to PRRuntimeOptions, or
+            None to use the default options (the regression case we want to pin).
+    """
+    from repo2rlenv.spec.input import (
+        GenerationInput,
+        LLMSpec,
+        OutputSpec,
+        PipelineName,
+        PipelineSpec,
+        RepoSpec,
+    )
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    gen_input = GenerationInput(
+        repo=RepoSpec(url="huggingface/trl"),
+        pipeline=PipelineSpec(name=PipelineName.PR_RUNTIME, options={}),
+        llm=LLMSpec(provider="anthropic", model="claude-sonnet-4-6"),
+        output=OutputSpec(destination="./out", org="x", dataset_name="y"),
+    )
+    options_kwargs = {}
+    if require_linked_issue is not None:
+        options_kwargs["require_linked_issue"] = require_linked_issue
+    options = PRRuntimeOptions(**options_kwargs)
+    bootstrap = BootstrapResult(
+        image_digest="sha256:" + "0" * 64,
+        image_tag="local/test",
+        language=LanguageHint.PYTHON,
+        repo="huggingface/trl",
+        ref="a" * 40,
+        rebuild_cmds=[],
+        test_cmds=["pytest"],
+        smoke_passed=True,
+        iterations=1,
+        build_time_sec=1.0,
+        llm_provider="anthropic/claude-sonnet-4-6",
+    )
+    return PRRuntimePipeline(gen_input, options, bootstrap=bootstrap)
+
+
+def test_pre_filter_require_linked_issue_skips_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) == "no_linked_issue"
+
+
+def test_pre_filter_require_linked_issue_keeps_with_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=True)
+    pr = _make_pr("Fix the parser crash.\n\nCloses #123")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_disabled_keeps_without_linked_issue():
+    pipeline = _make_pipeline(require_linked_issue=False)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None
+
+
+def test_pre_filter_require_linked_issue_default_keeps_without_linked_issue():
+    """Regression: default options must not require a linked issue."""
+    pipeline = _make_pipeline(None)
+    pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
+    assert pipeline._pre_filter(pr) is None

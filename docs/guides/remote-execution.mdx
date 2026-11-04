@@ -112,7 +112,7 @@ The worker runs the same Repo2RLEnv code as your controller, installed from a wh
 uv build --wheel
 ```
 
-This writes `dist/repo2rlenv-0.9.3-py3-none-any.whl`. Before uploading it, the controller compares every file of the installed `repo2rlenv` package with the wheel. If you changed code or pulled a new commit since the last build, the run stops with `Worker wheel is stale at repo2rlenv/…; run uv build` (or `Worker wheel is missing …`). Rebuild and try again.
+This writes `dist/repo2rlenv-0.9.4-py3-none-any.whl`. Before uploading it, the controller compares every file of the installed `repo2rlenv` package with the wheel. If you changed code or pulled a new commit since the last build, the run stops with `Worker wheel is stale at repo2rlenv/…; run uv build` (or `Worker wheel is missing …`). Rebuild and try again.
 
 The wheel's SHA-256 becomes part of the run's identity. A changed wheel therefore needs a new run id; `--resume` won't continue an old run with new code.
 
@@ -170,7 +170,7 @@ execution:
   campaign_dir: workspace/smith
   run_id: smith-first
   worker_receipt: workspace/smith/workers/smith-worker.json
-  runtime_wheel: dist/repo2rlenv-0.9.3-py3-none-any.whl
+  runtime_wheel: dist/repo2rlenv-0.9.4-py3-none-any.whl
   timeout_sec: 1800
 output:
   destination: workspace/smith/tasks
@@ -207,13 +207,13 @@ uv run repo2rlenv tasksmith run examples/tasksmith-pr.json \
   --options examples/tasksmith-options.json \
   --campaign workspace/my-campaign \
   --output workspace/my-campaign/tasksmith-run \
-  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.4-py3-none-any.whl
 
 uv run repo2rlenv quality run ./tasks/example \
   --campaign workspace/my-campaign \
   --out workspace/my-campaign/reviews/example \
   --run-rollout --provider modal \
-  --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.4-py3-none-any.whl
 ```
 
 Tasksmith creates its own builder workers on the provider named in its options. The quality loop creates a worker and terminates it at the end, or reuses one you pass with `--worker-receipt`, in which case stopping it stays your job. Details: [Tasksmith](../pipelines/tasksmith.md), [Run Tasksmith on many PRs](../pipelines/tasksmith_parallel_campaigns.md) and [Review and repair](../pipelines/quality_loop.md).

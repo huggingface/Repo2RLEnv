@@ -36,6 +36,7 @@ repo2rlenv generate \
   --repo pallets/click \
   --pipeline pr_runtime \
   --pipeline-opt limit=20 \
+  --pipeline-opt require_linked_issue=true \
   --llm anthropic/claude-sonnet-4-6 \
   --out ./tasks/click-pr-runtime
 ```
@@ -112,7 +113,7 @@ Pass each option with `--pipeline-opt key=value`.
 | `min_problem_statement_words` | `0` | Minimum word count of the PR description. `0` disables the check |
 | `lite_filter` | `false` | SWE-bench Lite-style sampling: exactly one source file, a description of at least 40 words, and no images, non-GitHub links or commit hashes in it |
 | `state` | `merged` | Only `merged` is accepted |
-| `require_linked_issue` | `true` | Accepted but not enforced: PRs without a linked issue use the PR description |
+| `require_linked_issue` | `false` | When `true`, skip PRs whose description does not contain a linked issue reference (e.g. `Closes #123`) |
 | `languages` | `["python"]` | Accepted but not enforced: the language comes from the bootstrap |
 
 ## Output
@@ -174,14 +175,36 @@ The details file also records per-set totals and rates, `regressions`,
 `eval_grade` (`command_resolved` and a non-empty P2P set); filter on it for a
 benchmark-grade subset.
 
-The agent can't pass by editing tests: `test.sh` restores the PR's test files,
-pytest's config files (`conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`,
-`tox.ini`) and symlinks to the base commit, then re-applies the hidden test patch
-and runs the tests. If the config reset fails or the patch doesn't apply, the task fails
-closed with reward 0 and `parse_status` set to `test_config_reset_failed` or
-`test_patch_apply_failed`. If the log can't be parsed, the verifier falls back to
-1.0 for a zero exit code and 0.0 otherwise, marks `parse_status` as
-`fallback_exitcode`, and never reports `resolved` for a task with an F2P list.
+For commands containing `pytest` or `py.test`, generation and grading also run
+an isolated configuration guard before applying hidden tests. It restores
+`conftest.py` and pytest-only configuration from the pinned base, removes injected
+hooks (including cached bytecode), and checks only pytest settings in shared
+`pyproject.toml`, `setup.cfg` and `tox.ini` files. Unrelated metadata stays
+byte-for-byte unchanged, including dependency/version edits; bootstrap virtualenv
+symlinks are preserved. A changed pytest section, unreadable configuration or
+untrusted directory symlink stops grading with reward 0, `evaluation_status =
+"ungraded"`, and `parse_status = "test_config_reset_failed"`. Trusted test changes
+must arrive through the hidden test patch. Changed TOML files require Python
+3.11+ or `tomli` in the verifier interpreter, as older pytest installations use.
+Wrapper commands that do not name pytest need a separately configured guard.
+This protection assumes the interpreter and dependency directories are trusted.
+
+`test.sh` restores the test files named in the PR individually and
+re-applies the hidden test patch before running them. If the patch doesn't apply,
+the task fails closed with reward 0 and `parse_status` set to
+`test_patch_apply_failed`. If the log can't be parsed, the verifier marks
+`parse_status` as `fallback_exitcode`. A task with an F2P list then scores 0.0 and
+never reports `resolved`; a task without one scores 1.0 for a zero exit code and
+0.0 otherwise. A verifier process failure always writes reward 0, marks the
+run `ungraded`, and records `parse_status = "verifier_error"`, even when the test
+command exited successfully.
+
+Duplicate results retain failures in pytest, Go, Cargo, Jest, Mocha and Vitest.
+Nextest retains its explicit retry/FLAKY semantics. These checks do not isolate
+arbitrary code running inside the test process or prevent background processes
+from modifying shared reward files; see [issue #214](https://github.com/huggingface/Repo2RLEnv/issues/214).
+Existing exported tasks embed verifier code, so upgrading the package alone does
+not repair their bundles or validate historical scores.
 
 `task.toml` also lists `diff_similarity` as a secondary reward kind. Trainers that
 can't run code can score a patch against `solution/patch.diff` with

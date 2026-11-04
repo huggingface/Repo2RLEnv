@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -186,6 +187,8 @@ def _reflow_pr_body(body: str) -> str:
 # documentation paths.
 _TEST_DIR_NAMES = {"test", "tests", "testing", "e2e", "__tests__"}
 _DOC_PREFIX_DIRS = {"docs", "doc", "documentation", "examples", "example"}
+# jest/vitest's default test-file names: `*.test.ts`, `*.spec.tsx`, `*.test.mjs`, ...
+_JS_TEST_FILE_RE = re.compile(r"\.(?:test|spec)\.[cm]?[jt]sx?$")
 
 
 def _path_is_test(path: str) -> bool:
@@ -198,7 +201,8 @@ def _path_is_test(path: str) -> bool:
       2. Files inside a test directory component (any path part in
          `_TEST_DIR_NAMES`) are test files.
       3. Files with a pytest-style basename (`test_*.py`, `*_test.py`,
-         `*_test.go`) are test files.
+         `*_test.go`) or a jest/vitest one (`*.test.ts`, `*.spec.tsx`) are
+         test files.
     """
     if not path:
         return False
@@ -217,8 +221,8 @@ def _path_is_test(path: str) -> bool:
     basename = parts[-1]
     return (
         (basename.startswith("test_") and basename.endswith((".py", ".js", ".ts")))
-        or basename.endswith(("_test.py", "_test.go", ".test.ts", ".test.js"))
-        or basename.endswith((".spec.ts", ".spec.js"))
+        or basename.endswith(("_test.py", "_test.go"))
+        or _JS_TEST_FILE_RE.search(basename) is not None
     )
 
 
@@ -432,48 +436,12 @@ def _path_prelude_for_language(language: str | None) -> str:
     return f'export PATH="{joined}:$PATH"\n'
 
 
-# Files pytest reads configuration, hooks and plugins from. test.sh grades the
-# agent's working tree in place, so one of these that the agent added or edited
-# would run inside the hidden test session (e.g. a conftest.py hook that marks
-# every test passed). They are restored to base_commit like the test files.
-_TEST_CONFIG_FILES = (
-    "conftest.py",
-    "pytest.ini",
-    ".pytest.ini",
-    "pytest.toml",
-    ".pytest.toml",
-    "pyproject.toml",
-    "setup.cfg",
-    "tox.ini",
-)
-
-
-# Directories that hold installed dependencies. The reset skips real directories
-# with these names, so symlinks inside them stay; pytest doesn't collect them by
-# default either. A symlink with one of these names is still removed, which can
-# break an environment that relies on it.
-_DEP_DIRS = (".git", ".venv", "venv", ".tox", "node_modules")
-
-
 def _test_config_reset(base_commit: str) -> str:
-    """Shell command that puts pytest's config and the tree's symlinks back to base_commit.
-
-    Removes every `_TEST_CONFIG_FILES` file and every symlink (a symlinked
-    directory can bring its own conftest.py), untracked and ignored ones
-    included, then checks out the base versions of those that are tracked.
-    Exits non-zero if any step fails.
-    """
-    skip = " -o ".join(f"-name {d}" for d in _DEP_DIRS)
-    names = " -o ".join(f"-name '{n}'" for n in _TEST_CONFIG_FILES)
-    restore = "|".join(["120000:*", *(f"*:{n}" for n in _TEST_CONFIG_FILES)])
+    """Run the same isolated configuration guard during generation and grading."""
+    source = Path(__file__).with_name("_pytest_config_guard.py").read_text(encoding="utf-8")
     return (
-        f"find . \\( {skip} \\) -type d -prune -o \\( -type l -o {names} \\) "
-        "-exec rm -f {} + &&\n"
-        f"git ls-tree -r -z {base_commit} | while IFS= read -r -d '' e; do\n"
-        "  f=\"${e#*$'\\t'}\"\n"
-        f'  case "${{e%% *}}:${{f##*/}}" in {restore}) '
-        f'git checkout {base_commit} -- "$f" || exit 1 ;; esac\n'
-        "done"
+        f"python3 -I - {shlex.quote(base_commit)} <<'R2E_PYTEST_CONFIG_GUARD'\n"
+        f"{source}\nR2E_PYTEST_CONFIG_GUARD"
     )
 
 
@@ -484,7 +452,8 @@ def _fail_closed(rc_var: str, parse_status: str, what: str) -> str:
         '  echo "0.000000" > /logs/verifier/reward.txt\n'
         "  printf '%s' "
         '\'{"reward": 0.0, "resolved": false, "parse_status": '
-        f'"{parse_status}"}}\' > /logs/verifier/reward-details.json\n'
+        f'"{parse_status}", "eval_trustworthy": false, "evaluation_status": "ungraded"'
+        "}' > /logs/verifier/reward-details.json\n"
         f'  echo "R2E: {what} (rc=${rc_var}) — failing closed" >&2\n'
         "  exit 0\n"
         "fi\n"
@@ -508,12 +477,10 @@ def build_eval_script(
       2. Prepend known toolchain paths for the detected language (compensates
          for bootstrap agents that install Go/Rust/Node outside /usr/bin
          without exporting PATH in any persisted shell init file)
-      3. Reset test files, pytest config files (conftest.py, pytest.ini,
-         pyproject.toml, ...) and symlinks to base_commit (so re-running stays
-         clean) — this is the anti-tamper guard: the agent CANNOT pass by
-         editing/deleting the tests or by adding a conftest.py hook, because we
-         restore them to base and re-apply the test_patch. If the config reset
-         fails, the task fails closed with reward 0
+      3. For explicit pytest commands, restore pytest-only files and reject
+         changed pytest settings in shared config, preserving packaging edits.
+         Reset test files individually before re-applying the hidden test patch.
+         A configuration guard failure is ungraded with reward 0.
       4. Apply the test_patch (via heredoc + git apply --reject)
       5. Run test_cmds, capturing stdout+stderr to a log file
       6. Score the reward:
@@ -529,8 +496,16 @@ def build_eval_script(
     """
     test_files = _files_in_patch(test_patch)
     heredoc = "EOF_R2E_TEST_PATCH"
+    # One file at a time: `git checkout <base> -- a b` refuses the whole
+    # command when any path is missing at base, and test patches usually add
+    # a new test file, so a single checkout would leave the agent's edits to
+    # the existing test files in place. Files the patch creates are removed,
+    # so `git apply` recreates them from the hidden patch.
     reset = (
-        f"git checkout {base_commit} -- {' '.join(test_files)}"
+        f"for f in {' '.join(shlex.quote(f) for f in test_files)}; do "
+        f'if git cat-file -e {base_commit}:"$f" 2>/dev/null; '
+        f'then git checkout {base_commit} -- "$f"; '
+        'else rm -f -- "$f"; fi; done'
         if test_files
         else "echo 'no test files to reset'"
     )
@@ -555,9 +530,13 @@ def build_eval_script(
     # or pytest config still in place is the bypass the reset exists to stop.
     # Tracing is off during the reset: it loops over every tracked file.
     config_guard = (
-        "{ set +x; } 2>/dev/null\n"
-        + f"{_test_config_reset(base_commit)}\nR2E_RESET_RC=$?\nset -x\n"
-        + _fail_closed("R2E_RESET_RC", "test_config_reset_failed", "test config reset failed")
+        ""
+        if not any(_PYTEST_COMMAND_RE.search(cmd) for cmd in test_cmds)
+        else (
+            "{ set +x; } 2>/dev/null\n"
+            + f"{_test_config_reset(base_commit)}\nR2E_RESET_RC=$?\nset -x\n"
+            + _fail_closed("R2E_RESET_RC", "test_config_reset_failed", "test config reset failed")
+        )
     )
     head = (
         "#!/bin/bash\n"
@@ -569,8 +548,8 @@ def build_eval_script(
         "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
-        f"{config_guard}"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
+        f"{config_guard}"
         f"{apply_guard}"
         # Capture the suite output so the verifier can parse per-test status.
         # `( ... )` subshell + redirect keeps the whole `a && b` block's output;
@@ -602,9 +581,12 @@ def build_eval_script(
         '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
         f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
         "--out-dir /logs/verifier || "
-        # If python3 is somehow unavailable, never leave reward.txt empty.
-        '{ [ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt; }\n'
+        # A broken verifier is ungraded even when the test command exits zero.
+        '{ echo "0.0" > /logs/verifier/reward.txt; '
+        "printf '%s' "
+        '\'{"reward": 0.0, "resolved": false, "command_resolved": false, '
+        '"eval_trustworthy": false, "evaluation_status": "ungraded", '
+        '"parse_status": "verifier_error"}\' > /logs/verifier/reward-details.json; }\n'
         f"{reset} || true\n"  # cleanup; failure here doesn't change verdict
         "exit 0\n"  # reward.txt is the verdict, not the bash exit code
     )
@@ -680,6 +662,9 @@ def _count_new_test_funcs(test_patch: str) -> int:
     return sum(1 for line in test_patch.splitlines() if _NEW_TEST_FUNC_RE.match(line))
 
 
+_PYTEST_COMMAND_RE = re.compile(r"\b(?:pytest|py[.]test)\b")
+
+
 def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     """Adapt bootstrap-recorded test commands for actual per-PR execution.
 
@@ -689,7 +674,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
     that our parsers can read.
 
     Transforms (per runner):
-      pytest:
+      pytest / py.test:
         - Drop `--collect-only` / `--co` so pytest actually runs tests
         - Drop `-q` / `--quiet`: suppresses per-test names; cancels `-v` in pytest 9
         - Add `-v` if no verbosity flag is present
@@ -704,9 +689,12 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         - Default output is already parseable; no transform needed
       cargo nextest run:
         - Add `--status-level pass` (or raise a lower one) and `--color never`
-      jest / mocha / npm test:
+      jest / npm test:
         - Add `--verbose` if not present, so per-test ✓/✕ lines are emitted
         - Some configs swallow stdout via `--silent`; we strip that
+      mocha:
+        - Use `--reporter spec` instead: mocha has no `--verbose` option and
+          reads the next word as its value, dropping a test file appended later
       vitest:
         - Use `--reporter=verbose` instead: vitest rejects `--verbose`, and its
           default reporter collapses fully passing files to one summary line
@@ -727,7 +715,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         cleaned = cleaned.rstrip(" |&")
 
         # --- pytest ---
-        if re.search(r"\bpytest\b", cleaned):
+        if _PYTEST_COMMAND_RE.search(cleaned):
             cleaned = re.sub(r"\s+--collect-only\b", "", cleaned)
             cleaned = re.sub(r"\s+--co\b", "", cleaned)  # pytest's short form
             # Strip -q/--quiet: it suppresses per-test names that the log parser needs.
@@ -785,7 +773,13 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
                 cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
                 if not re.search(r"\s--reporter\b", cleaned):
                     cleaned = cleaned.rstrip() + " --reporter=verbose"
-            elif re.search(r"\b(?:jest|mocha)\b", cleaned) and not re.search(
+            elif re.search(r"\bmocha\b", cleaned):
+                # mocha has no `--verbose`: it reads the next word as the flag's
+                # value, which swallows a test file appended after it.
+                cleaned = re.sub(r"\s+--verbose\b", "", cleaned)
+                if not re.search(r"\s(?:--reporter|-R)\b", cleaned):
+                    cleaned = cleaned.rstrip() + " --reporter spec"
+            elif re.search(r"\bjest\b", cleaned) and not re.search(
                 r"\s--verbose\b|\s--reporter\b", cleaned
             ):
                 cleaned = cleaned.rstrip() + " --verbose"
@@ -821,7 +815,7 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     the files the PR cares about. SWE-bench-Live's harness does the same.
 
     Per-runner rules:
-      pytest:  append the changed .py test files as positional args
+      pytest / py.test: append the changed .py test files as positional args
       jest:    append the changed .js/.ts test files as positional args
       go test: replace `./...` (or trailing nothing) with the package
                directories containing changed `*_test.go` files
@@ -840,10 +834,14 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
     out: list[str] = []
     for cmd in test_cmds:
         # --- pytest ---
-        if re.search(r"\bpytest\b", cmd) and py_files:
+        if _PYTEST_COMMAND_RE.search(cmd) and py_files:
             tokens = cmd.split()
             pytest_idx = next(
-                (i for i, t in enumerate(tokens) if t == "pytest" or t.endswith("/pytest")),
+                (
+                    i
+                    for i, t in enumerate(tokens)
+                    if t in {"pytest", "py.test"} or t.endswith(("/pytest", "/py.test"))
+                ),
                 -1,
             )
             if pytest_idx >= 0:
@@ -1071,6 +1069,8 @@ class PRRuntimePipeline:
             # bumps aren't real fix tasks, and their bodies leak commit SHAs
             # and fix-PR links. Drop them up front.
             return "non_bug_pr"
+        if self.options.require_linked_issue and _linked_issue_number(pr.body or "") is None:
+            return "no_linked_issue"
         if (
             self.options.min_problem_statement_words > 0
             and _word_count(pr.body or "") < self.options.min_problem_statement_words

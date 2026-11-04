@@ -22,9 +22,8 @@ For subtests, the indentation increases:
 
 We treat the leading `---` line as the source of truth — its status keyword
 is the test's outcome, regardless of indentation depth. The test name is
-the second token (`TestName/subname` for subtests). Last-write-wins keeps
-the lifecycle simple: re-runs of the same test (e.g. `-count=N`) end up
-with whichever status came last.
+the second token (`TestName/subname` for subtests). A later passing line
+cannot overwrite a failure, including failures in repeated `-count=N` runs.
 
 Released under Apache-2.0.
 """
@@ -33,7 +32,7 @@ from __future__ import annotations
 
 import re
 
-from repo2rlenv.log_parsers.pytest_parser import TestStatus
+from repo2rlenv.log_parsers.pytest_parser import TestStatus, _record_worst
 
 # `---     PASS: TestName (0.00s)` with optional leading whitespace for subtests.
 # Status keyword captured as PASS/FAIL/SKIP; we map those to the canonical
@@ -63,5 +62,5 @@ def parse_go_test(log: str) -> dict[str, TestStatus]:
     for raw in log.split("\n"):
         m = _GO_TEST_RE.match(raw)
         if m:
-            out[m.group("name")] = _STATUS_MAP[m.group("status")]
+            _record_worst(out, m.group("name"), _STATUS_MAP[m.group("status")])
     return out

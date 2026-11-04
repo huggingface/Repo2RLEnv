@@ -17,7 +17,9 @@ Repo2RLEnv writes [Harbor tasks](../concepts/glossary.mdx#harbor-task); [Harbor]
 uv tool install harbor
 ```
 
-Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.22.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.22.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.25.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.25.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]==0.25.0'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+
+Repo2RLEnv's offline Docker and metered Modal adapters reject Harbor's SSH streaming mode. The native Modal adapter also rejects the removed `modal_sandbox_v2` option; use the pinned default backend. Historical execution reports retain the Harbor version that produced them.
 
 ## Download a dataset
 
@@ -104,7 +106,7 @@ harbor run -p ./pr-runtime \
 Harbor runs the agent and the verifier in separate phases, and each gets only the variables you pass to it.
 
 - **`--ae` (agent env)** carries the model key the harness needs: `ANTHROPIC_API_KEY` for `claude-code`, `OPENAI_API_KEY` for OpenAI models, and so on.
-- **`--ve` (verifier env)** matters only for `pr_diff` tasks. Their reward includes an optional LLM judge, which runs at verification time:
+- **`--ve` (verifier env)** matters only for `pr_diff` tasks. Their reward requires an LLM judge at verification time; without one only diagnostic similarity is available:
 
 ```bash
 harbor run -p ./pr-diff \
@@ -115,7 +117,7 @@ harbor run -p ./pr-diff \
   --env docker
 ```
 
-Without a judge key, the `pr_diff` verifier still scores: it records `judge_status = "no_api_key"` and renormalizes the weights of the other components. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
+Without a judge key, the current `pr_diff` verifier records `judge_status = "no_api_key"`, `evaluation_status = "ungraded"` and reward 0. Exclude these runs from training and solved-rate denominators; retry grading the saved candidate patch after restoring the judge. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
 
 Test-based tasks (`pr_runtime`, `commit_runtime`, `cve_patches`, the research recipes and Tasksmith) grade by running tests and need no verifier keys.
 
@@ -143,7 +145,7 @@ Replace `--env docker` with a hosted sandbox provider to run many trials in para
 
 | `--env` | Install | Credentials |
 |---|---|---|
-| `modal` | `uv tool install 'harbor[modal]'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
+| `modal` | `uv tool install 'harbor[modal]==0.25.0'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
 | `daytona` | `uv tool install 'harbor[daytona]'` | `DAYTONA_API_KEY` |
 | `e2b` | `uv tool install 'harbor[e2b]'` | `E2B_API_KEY` |
 | `runloop` | `uv tool install 'harbor[runloop]'` | `RUNLOOP_API_KEY` |

@@ -47,6 +47,11 @@ __all__ = [
     "parse_unittest",
 ]
 
+# Preserve the historical substring match for pytest so saved wrapper commands
+# such as `run_pytest.sh` still dispatch correctly. Bound the dotted alias so a
+# filename that merely ends in `.test` is not enough to select this parser.
+_PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
+
 
 def _detect_runner(test_cmds: list[str]) -> str:
     """Inspect the bootstrap-recorded test commands and name the runner.
@@ -60,7 +65,7 @@ def _detect_runner(test_cmds: list[str]) -> str:
     will actually run.
     """
     joined = " ".join(test_cmds).lower()
-    if "pytest" in joined:
+    if _PYTEST_RUNNER_RE.search(joined):
         return "pytest"
     # unittest's own runner, Django's `manage.py test`, and Django's in-repo
     # `runtests.py` all print TextTestRunner output.

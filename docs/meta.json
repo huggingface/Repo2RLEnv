@@ -23,6 +23,7 @@
     "guides/remote-execution",
     "pipelines/owned_recipes",
     "pipelines/quality_loop",
+    "pipelines/evidence_review",
     "pipelines/task_evaluation_labels",
     "guides/publishing",
     "pipelines/dataset_release",

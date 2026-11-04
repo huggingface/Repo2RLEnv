@@ -16,8 +16,8 @@ LLM, so `pr_diff` is the cheapest way to get many tasks out of a repository.
 |---|---|
 | Input | A GitHub or GitLab repository with merged PRs |
 | Task | Resolve the issue described in a merged PR, starting from its base commit |
-| Reward | Weighted diff similarity in [0, 1] against the merged diff, plus an optional LLM judge |
-| Needs an LLM | No at generation. The judge is optional, at verify time |
+| Reward | Weighted diff similarity in [0, 1] against the merged diff, plus an LLM judge required for grading |
+| Needs an LLM | No at generation. Required for grading at verify time; optional for diagnostics |
 | Needs Docker | No at generation. Running a task builds a small `python:3.12-slim` image |
 | Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
 | Languages | Any, since scoring is text-based. The reference dataset spans Python, JavaScript/TypeScript, Go and Rust |
@@ -174,15 +174,45 @@ The result is clipped to [0, 1]. If `size_sanity` is below 0.10, the reward is
 capped at 0.40, so a lenient judge can't inflate a patch that is wildly the wrong
 size. An empty patch scores 0.
 
-When the judge doesn't return a score, its weight is redistributed across the
-other components. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`,
+When the judge is unavailable, disabled, or returns an invalid score, the verifier
+writes `evaluation_status = "ungraded"`, `eval_trustworthy = false` and reward 0.
+The zero is a fail-closed placeholder, **not a model failure**. Exclude ungraded
+runs from training and solved-rate denominators, and retry grading the saved
+patch from `logs/verifier/predicted.patch` when the judge is available. Do not rerun the coding agent just to recover
+a judge outage. `diagnostic_similarity` retains the weighted mean of the five
+deterministic components for inspection, without turning it into training reward.
+
+Setting `R2E_W_JUDGE=0` disables the judge and leaves the evaluation ungraded.
+A valid judge score makes this a graded heuristic; it does not prove functional
+correctness. Use executable tests when that stronger guarantee is needed. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`,
 `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, passed with
 `harbor run --ve`.
 
 The verifier removes any existing reward files, then writes the score to
 `/logs/verifier/reward.txt` and the breakdown (`final_reward`, `components`,
-`weights`, `judge_model`, `judge_endpoint`, `judge_status`) to
+`weights`, `judge_model`, `judge_endpoint`, `judge_status`, `evaluation_status`,
+`eval_trustworthy`, `diagnostic_similarity`) to
 `/logs/verifier/reward-details.json`.
+
+### Patch capture and trust boundary
+
+The verifier captures edits with a fresh Git configuration and index, using only
+the cloned repository's object store for the pinned base. It includes new files
+without running workspace-configured clean filters, external diff programs,
+textconv drivers, fsmonitor or hooks. A capture error is ungraded with reward 0.
+
+This does not protect against an agent that can replace system binaries, alter
+the object store or write verifier files while grading runs. Strong adversarial
+grading requires a separate trusted verifier environment with an immutable base
+snapshot. The LLM judge also processes untrusted patch text; it is not a security
+boundary. These remaining threats are tracked in
+[issue #219](https://github.com/huggingface/Repo2RLEnv/issues/219) and
+[issue #214](https://github.com/huggingface/Repo2RLEnv/issues/214).
+
+Previously exported tasks embed their verifier. Run `repo2rlenv migrate pr-diff`
+on a copy to inspect required repairs; review changed assets and revalidate
+before publishing a new dataset revision. Old scores do not become trustworthy
+just because the installed package was upgraded.
 
 ### LLM judge
 
@@ -194,7 +224,7 @@ The verifier removes any existing reward files, then writes the score to
 | `R2E_JUDGE_API_KEY` | Bearer token for the custom endpoint; a placeholder is sent when unset |
 
 `judge_status` records the outcome: `ok`, `no_api_key`, `no_judge_model`,
-`empty_predicted`, `network`, `parse` or `missing_score`. To use a self-hosted
+`empty_predicted`, `network`, `parse`, `missing_score`, `invalid_score` or `disabled`. To use a self-hosted
 judge, start a server on the host and route the verifier to it:
 
 ```bash

@@ -275,6 +275,10 @@ class TestModeSelection:
             return mock.MagicMock(digest=f"{remote_ref}@sha256:deadbeef", pushed=True)
 
         monkeypatch.setattr(integ, "_do_push", fake_push)
+        # The unit test must not make an authenticated package-visibility API call.
+        monkeypatch.setattr(
+            integ, "ensure_ghcr_visibility", lambda *a, **kw: mock.MagicMock(success=True)
+        )
         result = prepare_dataset_for_push(tmp_path, hf_owner="testorg")
         assert result.mode == "registry"
         assert result.tasks_rewritten == 2

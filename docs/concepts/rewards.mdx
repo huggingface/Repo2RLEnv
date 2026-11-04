@@ -29,7 +29,7 @@ Harbor mounts `/logs/verifier` into the trial directory, so after a run you find
 
 ## Diff similarity
 
-`pr_diff` compares the agent's diff (captured with `git diff` against the base commit) with the merged PR's diff. Five deterministic components and an optional [LLM judge](glossary.mdx#llm-judge) combine as a weighted average:
+`pr_diff` compares the agent's diff (captured with `git diff` against the base commit) with the merged PR's diff. Five deterministic components and a required [LLM judge](glossary.mdx#llm-judge) combine as a weighted average:
 
 | Component | Default weight | Measures |
 |---|--:|---|
@@ -40,9 +40,9 @@ Harbor mounts `/logs/verifier` into the trial directory, so after a run you find
 | `similarity` | 0.10 | Sequence similarity over changed lines only |
 | `llm_judge` | 0.50 | A model rates whether the patch addresses the issue |
 
-The result is clipped to [0, 1], and capped at 0.40 when `size_sanity` is below 0.10. An empty diff scores 0. The judge runs at verify time only when it gets credentials through `harbor run --ve` (`ANTHROPIC_API_KEY`, or `R2E_JUDGE_ENDPOINT` and `R2E_JUDGE_MODEL` for an OpenAI-compatible server). Without a judge score, its weight is redistributed over the other components. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, also passed with `--ve`.
+The result is clipped to [0, 1], and capped at 0.40 when `size_sanity` is below 0.10. An empty diff scores 0. The judge runs at verify time only when it gets credentials through `harbor run --ve` (`ANTHROPIC_API_KEY`, or `R2E_JUDGE_ENDPOINT` and `R2E_JUDGE_MODEL` for an OpenAI-compatible server). Without a judge score, the evaluation is `ungraded` and reward is 0. The deterministic weighted mean remains in `diagnostic_similarity`; exclude ungraded runs from training and solved-rate denominators and retry grading the saved patch. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, also passed with `--ve`.
 
-With the judge disabled, the oracle diff scores exactly 1. With it enabled, the judge's rating is part of the score, so an oracle run can land slightly below 1. See [the pr_diff guide](../pipelines/pr_diff.md#multi-component-reward) for how each component is computed and for the calibration baseline.
+With the judge disabled, even the oracle diff is ungraded: its diagnostic similarity is 1 but its reward is 0. With the judge enabled, its rating is part of the score, so an oracle run can land below 1. This is a heuristic score, not proof of functional correctness. See [the pr_diff guide](../pipelines/pr_diff.md#multi-component-reward) for how each component is computed and for the calibration baseline.
 
 ## Graded test execution
 
@@ -62,7 +62,7 @@ A patch that fixes four of five failing tests without breaking anything scores 0
 | `resolved` | True when every F2P test passes and every P2P test still passes | Benchmark-style evaluation, as in SWE-bench |
 | `command_resolved` | True when `resolved` holds, no other test in the command failed, and the command exited 0 | Strict evaluation that also requires a clean test command |
 
-The gold patch always gives `reward = 1` and `resolved = true`. If the runner's output can't be parsed into per-test statuses, the verifier falls back to the exit code (1 or 0), sets `parse_status = "fallback_exitcode"`, and never reports `resolved` for a task that has an F2P list. A task generated without an F2P list gets a plain exit-code reward. A task with no P2P tests has no regression guard. Check `p2p_total` in `reward-details.json`, or `reward_calibration.p2p_count` in `task.toml` for `pr_runtime` and `commit_runtime`.
+The gold patch always gives `reward = 1` and `resolved = true`. If the runner's output can't be parsed into per-test statuses, the verifier sets `parse_status = "fallback_exitcode"`. A task that has an F2P list then scores 0 and never reports `resolved`: missing output is not evidence that the declared tests passed, whether caused by tampering, an environment failure or an unsupported parser. A task generated without an F2P list gets a plain exit-code reward (1 or 0). A task with no P2P tests has no regression guard. Check `p2p_total` in `reward-details.json`, or `reward_calibration.p2p_count` in `task.toml` for `pr_runtime` and `commit_runtime`.
 
 ## Binary test execution
 

@@ -46,6 +46,7 @@ any agent, and share on the Hugging Face Hub.
 
 | When | What |
 |---|---|
+| **Oct 23, 2026** · v0.9.4 | **Task quality review and runtime fixes**, with evidence-backed reviews, Harbor 0.24 compatibility, Windows process cleanup and dependency security updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
 | **Sep 29, 2026** · v0.9.3 | 🧮 **FrontierSmith** turns closed-ended programming problems into optimization tasks with continuous, deterministic rewards. There's no known optimum, so a better solution earns more. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 25, 2026** · v0.9.2 | 🧱 **CodeMidas** rebuilds removed features from their behavioral contract, with execution-grounded tests and independent rollout review. |
@@ -66,17 +67,24 @@ gh auth login
 repo2rlenv generate --repo pallets/click --pipeline pr_diff \
   --pipeline-opt limit=3 --out ./tasks
 
-# Check them, then prove them: the reference solution should score 1.0
+# Check the task structure and oracle assets
 repo2rlenv validate ./tasks --oracle
-harbor run -p ./tasks -a oracle --env docker
 ```
 
-Then point a real agent at them:
+Running tasks needs Docker. PR-diff grading also needs a correctness judge: set
+`ANTHROPIC_API_KEY` and pass it to the verifier. Start with the reference solution,
+then point a real agent at the tasks:
 
 ```bash
+harbor run -p ./tasks -a oracle --env docker \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 harbor run -p ./tasks -a claude-code -m anthropic/claude-sonnet-4-6 \
-  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY --env docker
+  --ae ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" --env docker
 ```
+
+Without a valid judge response, PR-diff results are **ungraded** with a zero
+reward placeholder. Exclude them from training and solve-rate reports.
 
 The [quickstart guide](https://huggingface.github.io/Repo2RLEnv/quickstart/) walks through
 every step and what each file in a task is for.
@@ -108,7 +116,7 @@ agent's work is scored. **[Browse all 23 →](https://huggingface.github.io/Repo
 |---|---|---|
 | **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
 | **Implementation and reconstruction:** write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
-| **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Similarity to the merged diff, with an optional LLM judge. No test suite needed |
+| **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Diff similarity plus a required correctness judge; unavailable judgments are ungraded. No test suite needed |
 | **Terminal tasks:** reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
 | **Reasoning and optimization:** no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
 

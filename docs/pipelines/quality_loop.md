@@ -15,6 +15,11 @@ task is semantically sound. So the loop checks the task, the verifier and
 leakage against concrete evidence.
 It does **not** replace the older, stricter `QualityReport.accepted` contract.
 
+An opt-in [evidence-based review profile](evidence_review.md) adds detailed findings,
+a reviewer benchmark and attributed feedback. It is experimental; the default
+profile and execution contract below remain unchanged.
+See [RFC 0033](../rfcs/0033-evidence-based-quality-review.md) for the design.
+
 ## Execution and decisions
 
 ```mermaid
@@ -106,7 +111,7 @@ repo2rlenv quality run ./tasks/example \
   --campaign ./workspace/my-campaign \
   --out ./workspace/reviews/example-repaired \
   --repair --provider modal \
-  --runtime-wheel ./dist/repo2rlenv-0.9.3-py3-none-any.whl \
+  --runtime-wheel ./dist/repo2rlenv-0.9.4-py3-none-any.whl \
   --review-model anthropic/claude-sonnet-4-6 \
   --repair-model anthropic/claude-opus-4-6 \
   --solver-model anthropic/claude-sonnet-4-6 \

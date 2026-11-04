@@ -1,0 +1,327 @@
+---
+title: "Evaluate the quality reviewer"
+navTitle: "Reviewer evaluation"
+---
+
+The experimental `evidence-review-v2` profile adds traceable findings to the
+[quality loop](quality_loop.md). It reviews the public instruction, private tests,
+reference, environment and any supplied rollout. Every finding names a criterion,
+source excerpt, grading consequence and proposed repair. Existing deterministic
+rewards and the default `practical-generation-v1` reviewer remain unchanged.
+
+This is an independent implementation inspired by micro1's
+[Flow-QC article](https://www.micro1.ai/blog/flow-qc), built on Repo2RLEnv's existing
+review and repair engine. It does not reproduce micro1's private implementation or
+claim their evaluation results. See [RFC 0033](../rfcs/0033-evidence-based-quality-review.md)
+for the design, budget assumptions and promotion criteria.
+
+## Review a task
+
+```bash
+repo2rlenv campaign init workspace/reviewer --budget-usd 10
+repo2rlenv quality run ./tasks/example \
+  --profile evidence-review-v2 \
+  --campaign workspace/reviewer --out workspace/reviewer/example \
+  --review-model anthropic/claude-sonnet-4-6 \
+  --max-probes 0 --max-spend-usd 2
+repo2rlenv quality show workspace/reviewer/example
+```
+
+Review-only mode makes metered model calls and bounded file reads. It does not
+execute task code. Pass `--baseline`, `--oracle` and `--rollout` to reuse existing
+receipts bound to this task. `--repair` and `--run-rollout` use the existing remote
+execution contract: Daytona or Modal for CPU, native Modal for supported GPUs.
+Task builds and verifier scripts never run on the local controller.
+
+```mermaid
+flowchart LR
+    A[Task and optional bound trials] --> B[Snapshot and bounded evidence]
+    B --> C[Review seven criteria]
+    C --> D{Validate citations and findings}
+    D -->|Missing evidence| E[Bounded reads or unresolved result]
+    E --> C
+    D -->|Grounded defect| F[Finding with stable ID]
+    F --> G{Repair enabled?}
+    G -->|Yes| H[Existing remote repair loop]
+    G -->|No| I[Keep findings]
+    D -->|Sound| J[Review-only or fully validated result]
+```
+
+The seven criteria are **alignment, feasibility, reference, coverage, alternatives,
+gaming and leakage**. Rollout interpretation remains a separate decision. A
+grounded blocking finding forces its criterion to fail even when the model has
+already emitted a contradictory pass rating. A claimed failure without a blocking
+finding becomes unknown. Raw responses and mechanical decision corrections are
+retained; a retry cannot erase a valid finding just to reconcile ratings. An unknown
+criterion cannot be converted into a pass by averaging scores. Solver failure alone is not a task
+defect. An observed finding must cite a completed bound trial; static findings
+only establish what the inspected source shows. The gaming assessment must cite
+the verifier entry script and trace its actual path to the reward writer. The
+reviewer states the pinned Harbor runtime contract explicitly: copying a grader
+into the image does not execute it; the selected test script must invoke it. Good
+tests elsewhere in the bundle do not prove that the entrypoint runs them. Confidence is low/medium/high,
+not a calibrated probability.
+
+A static pass is `reviewed`, not `usable`. Full acceptance still requires the
+existing execution controls. Missing material remains `needs_evidence`; a concrete
+blocking finding can produce `needs_repair`. Repairs create new revisions and
+retain prior evidence.
+
+Tasksmith already accepts `LoopOptions` in its `quality` options object. To opt in
+while preserving remote repair and rollout, include the settings explicitly:
+
+```json
+{
+  "quality": {
+    "profile": "evidence-review-v2",
+    "repair": true,
+    "run_rollout": true,
+    "max_repairs": 3,
+    "max_probes": 4,
+    "max_turns": 20,
+    "max_spend_usd": "20.00"
+  }
+}
+```
+
+This is an options fragment, not a full Tasksmith input. Supplying `quality`
+replaces Tasksmith's default object; omitted fields use the quality loop's defaults.
+Other recipes can pass their exported Harbor directory to `quality run`.
+
+## What is saved
+
+```text
+example/
+  result.json                    # v2 result with legacy-compatible assessment fields
+  findings.json                  # pointer to the latest accepted detailed review
+  reviews/r0-before/
+    findings.json                # seven criteria, findings and stable issue IDs
+    evidence.json                # exact excerpts, inventory hashes and trial bindings
+    reviewer.json                # prompt/code hashes, model and settings
+    investigation.json           # supported, dismissed and unresolved hypotheses
+  calls/                         # metered requests, responses and usage receipts
+  revisions/                     # task snapshots and any repaired revisions
+```
+
+Review keys depend on the execution stage. `quality show --json` returns the
+versioned result. The `findings.json` pointer locates the richer machine-readable
+review. Do not flatten the distinction between final task state and a particular
+review: a subsequent repair can change the task hash. Feedback attaches to a
+specific immutable review and finding ID.
+
+## Compare reviewer profiles
+
+The benchmark evaluates the **reviewer** by changing task/verifier definitions.
+The existing semantic probes evaluate the **verifier** by changing solver
+submissions. These are separate experiments.
+
+```mermaid
+flowchart TD
+    A[Audited task family] --> B[Original and one-defect variants]
+    B --> C[Private manifest with labels and file hashes]
+    C --> D[Opaque task copies without label sidecars]
+    D --> E[Legacy reviewer: independent repeats]
+    D --> F[Evidence reviewer: independent repeats]
+    E --> G[Controller-only category and location scoring]
+    F --> G
+    G --> H[Counts, coverage, errors and family uncertainty]
+    H --> I[Manual promotion decision]
+```
+
+Prepare a private JSON manifest using
+`repo2rlenv.quality.benchmark.models.Manifest`. Each case records:
+
+| Field | Meaning |
+| --- | --- |
+| `case_id` | Opaque `c-` plus 12 lowercase hexadecimal characters |
+| `family`, `lineage` | Shared PR/feature ancestry; all descendants stay together |
+| `split` | `development`, `selection` or `final` |
+| `task` | Task directory, relative to the manifest or absolute |
+| `bundle_hash`, `files` | Executable bundle identity and SHA256 digest of every task file |
+| `defect` | `null` for proposed clean cases, otherwise category, location citation and explanation |
+| `audit` | Provisional/adjudicated status, named reviewers, rationale and evidence citations |
+
+Use `task_identity(task)` and `inventory(task)` from the quality packages to obtain
+the hashes. A defect location must quote an existing file. Validation rejects
+changed content, symlinks, root-level non-Harbor sidecars, duplicate case IDs and
+families or shared lineage crossing splits. Curators must also inspect task content
+for embedded label hints and remove historical acceptance annotations equally
+from every variant. A directory allowlist cannot detect every disguised label.
+
+Two recorded reviewers are required for `adjudicated`; this is an audit record,
+not identity verification or a substitute for independent inspection. Unresolved
+labels stay `provisional`. They receive separate exploratory metrics and do not
+enter adjudicated confidence intervals or justify promotion. An unexpected finding
+on a purportedly clean case needs adjudication before it is called a false alarm.
+Audit excerpts must match case files; blank or duplicate reviewer identities are
+rejected.
+
+Example `reviewer-config.json`:
+
+```json
+{
+  "review": {
+    "review_model": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+    "max_probes": 0,
+    "max_read_rounds": 2,
+    "model_tokens": 6000,
+    "model_reservation_usd": "0.50",
+    "max_spend_usd": "2.00"
+  },
+  "repeats": 2,
+  "concurrency": 4
+}
+```
+
+```bash
+repo2rlenv quality benchmark validate workspace/corpus/manifest.json
+repo2rlenv quality benchmark run workspace/corpus/manifest.json \
+  --split development --config reviewer-config.json \
+  --campaign workspace/reviewer --out workspace/reviewer/development
+repo2rlenv quality benchmark show workspace/reviewer/development
+```
+
+This first benchmark runner compares static task reviews. It does not launch
+solvers, repairs or probes, import rollout histories, or escalate to another model.
+The ordinary `quality run` command supports those operations. Both profiles use
+the same model, read limits and per-session budget; each case/profile/repeat gets
+its own request receipts. `--resume` reuses the same session, requires unchanged
+configuration and preserves uncertain provider charges. It does not collapse
+independent repeats into a cached answer.
+
+Selection and final cases require adjudicated labels; provisional cases can run
+only in development. Run `selection` after development. `final` additionally requires
+`--selection-report workspace/reviewer/selection/report.json`; the report must
+match the frozen corpus, reviewer identity and options and have no missing reviews.
+Changing code or prompts after selection requires a new selection comparison.
+Final-test feedback must not be reused as an untouched holdout.
+
+The report includes detection at the planted **category and location**, blocking
+on proposed-clean cases, decision coverage, incomplete reviews and spending.
+Category scoring uses the shared legacy categories so both profiles are comparable;
+seven-criterion decisions remain in the v2 artifacts. Unknown and failed attempts
+remain in denominators. Family bootstrap intervals retain all variants/repeats in
+each sampled family. Finding-level precision is explicitly unavailable until
+findings have independent adjudication. Reports never automatically promote a profile.
+
+## Dispute or confirm a finding
+
+```bash
+repo2rlenv quality feedback record workspace/reviewer/example \
+  --issue ISSUE_ID --author maintainer --decision disputed \
+  --reason-file reason.txt --out workspace/reviewer/feedback
+```
+
+The command prints the saved `feedback.json` path. A feedback record embeds the
+original review and exact evidence, with hashes checked when it is read. Repeating
+the same feedback is idempotent. It does not edit the task or its evaluation label.
+
+To request a model second opinion, write a **LoopOptions** JSON file (the `review`
+object from the benchmark example, without the outer wrapper), then run:
+
+```bash
+repo2rlenv quality feedback adjudicate PATH_TO_FEEDBACK_JSON \
+  --config adjudicator-config.json --campaign workspace/reviewer \
+  --out workspace/reviewer/adjudication
+```
+
+The adjudicator returns `upheld`, `overturned` or `unresolved`, with citations and
+suggested clean/defective regression cases. Suggestions are not automatically
+created, executed or added to the scored corpus. Disagreement is not ground truth;
+a model second opinion does not silently change acceptance or benchmark labels.
+A maintainer must audit the correction and any new regression pair.
+
+## Prompts and limits
+
+The reviewer combines the existing
+[`quality/loop/prompts/review.md`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/quality/loop/prompts/review.md)
+with `src/repo2rlenv/quality/reviewer/review.md`. The latter defines the seven
+criteria, evidence basis, attribution and hypothesis record. Both are pinned in
+reviewer identity receipts. The adjudicator prompt lives in
+`src/repo2rlenv/quality/feedback.py` as `ADJUDICATE`. The benchmark itself uses no
+additional model prompt and never sends its labels or mutation rationales.
+
+Budget caps cover model calls through the existing campaign ledger. Static
+benchmark reviews have no cloud execution cost. Remote repair/probe costs belong
+to ordinary quality runs. The pilot cap is $150; an observed comparison, rather
+than the budget or the number of generated reports, determines readiness. GEPA
+is not a dependency. The bounded prompt search below does not switch the default.
+
+The [initial measurements in RFC 0033](../rfcs/0033-evidence-based-quality-review.md#initial-measurements-16-october-2026)
+include missed planted defects, provider failures and a later three-case comparison.
+Focused Modal checks confirmed a report-forgery issue in a provisionally clean
+original. This is why a successful reference/baseline contrast and a reviewer pass
+are useful evidence, but do not by themselves establish task quality. The larger
+independently audited comparison remains a promotion requirement.
+
+## Search for better guidance
+
+`quality benchmark optimize` is a small, owned candidate search. It accepts
+**one OpenAI route and one Anthropic route**, with no provider fallback. Both
+models propose one addendum; both models evaluate stock instructions and each
+candidate on the same audited development families. Labels and results from
+selection/final splits never enter the proposal context.
+
+```mermaid
+flowchart LR
+    A[Audited development families] --> B[Stock review on both models]
+    B --> C[OpenAI proposes guidance]
+    B --> D[Sonnet proposes guidance]
+    C --> E[Evaluate both candidates on both models]
+    D --> E
+    E --> F{No regression for either model?}
+    F -->|No or tied| G[Keep stock]
+    F -->|Improvement| H[Save candidate guidance]
+    H --> I[Independent selection and final evaluation]
+```
+
+```bash
+repo2rlenv quality benchmark optimize workspace/corpus/manifest.json \
+  --config examples/reviewer-optimization.json \
+  --campaign workspace/reviewer --out workspace/reviewer/optimization
+```
+
+Edit the example's `development_families` to match your manifest. The command
+requires audited clean and defective controls, rejects selection/final families,
+pins inputs and reviewer identity, and uses the existing campaign ledger. Each
+candidate gets the same two-model evaluation. If either proposal fails, no
+candidate is selected; the other proposal is still attempted and recorded.
+`--resume` requires unchanged inputs and reuses existing call receipts.
+
+A candidate must not increase false blocks or errors, decrease detections, or
+decrease decision coverage for either model. Stock wins ties. This is a bounded
+development heuristic, not statistical evidence of general improvement or a GEPA
+reproduction. Review the proposed text for case-specific hints: identifier and
+exact defect-quotation checks cannot detect every form of label memorization. Results save the guidance,
+per-model scores and spending. Only after inspection should a candidate be passed
+as `LoopOptions.review_guidance` or `quality run --review-guidance`; immutable
+reviewer receipts include its prompt hash. The fixed evidence contract still
+applies. Separate selection/final evaluation remains mandatory for promotion.
+
+## Verify the verifier's trust boundary
+
+The pilot confirmed a concrete failure: submitted Python could write fabricated
+JUnit results and exit successfully while running in the test interpreter. A root
+parent parsing that report does not make the child's assertions trustworthy.
+Completion markers, expected test names and renamed report files do not repair
+this boundary.
+
+The [worked migration](https://github.com/huggingface/Repo2RLEnv/tree/main/examples/tutorials/verifier-isolation)
+creates a new local revision of the sampled Accelerate concatenation task. It
+uses `pipelines/recipes/repository/isolated_call.py`: submitted code runs at a
+reserved unprivileged UID and returns bounded JSON; private assertions run in
+the parent. Root-only assets, a dedicated verifier, fixed offline execution and
+descendant cleanup are required. Returned `passed` flags are never accepted as
+verdicts. This observable-value adapter has task-specific coverage limits,
+including Python object identity; it does not translate arbitrary pytest suites.
+
+Local static inspection found the same report-trust pattern in **all 50 HF ML
+exports** and **650 of 1,330 latest local research/Tasksmith exports**: 100 each
+from SWE-smith, SWE-gen, SWE-next, SWE-flow, R2E and R2E-Gym, plus Tasksmith's 50.
+The HF 50 are included in the 650, not additional tasks. These are source-pattern
+counts, not 650 independently executed exploits or a current Hub inventory.
+The other 680 tasks are not certified safe by a negative pattern match.
+
+No existing acceptance labels or published datasets are changed. Migrate each
+task's assertions deliberately, retain original revisions, then repeat reference,
+baseline, valid-alternative and adversarial controls. The reviewer remains opt-in.

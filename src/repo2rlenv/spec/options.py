@@ -46,7 +46,7 @@ class PRRuntimeOptions(_BaseOptions):
     until: date | None = None
     state: Literal["merged"] = "merged"
     skip_drafts: bool = True
-    require_linked_issue: bool = True
+    require_linked_issue: bool = False  # `False` to preserve historical behaviour; see https://github.com/huggingface/Repo2RLEnv/pull/185
     languages: list[str] = ["python"]
 
     # --- Validation ---

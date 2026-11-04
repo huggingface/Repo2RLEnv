@@ -130,6 +130,10 @@ def cmd_quality(args) -> int:
             console.json(result.model_dump(mode="json"))
         else:
             display(result)
+            if result.profile == "evidence-review-v2" and result.review is not None:
+                from repo2rlenv.quality.reviewer.cli import display_findings
+
+                display_findings(args.path if args.quality_action == "show" else args.out)
         return 0 if result.status in {"usable", "reviewed"} else 1
     except (ValueError, OSError, RuntimeError) as exc:
         return report_error(exc, json_output=args.json, verbose=getattr(args, "verbose", False))
@@ -140,6 +144,8 @@ def add_quality_parser(subparsers):
         "quality", help="Review and repair a Harbor task using rollout evidence"
     )
     actions = parser.add_subparsers(dest="quality_action", required=True)
+    from repo2rlenv.quality.reviewer.cli import add_reviewer_parsers
+
     show = actions.add_parser("show", help="Read a completed quality report without paid calls")
     show.add_argument(
         "path", type=Path, help="Result JSON file or run directory containing result.json"
@@ -167,6 +173,17 @@ def add_quality_parser(subparsers):
         help="Task-bound JSON manifest of known semantic counterexamples/alternatives",
     )
     defaults = LoopOptions()
+    run.add_argument(
+        "--profile",
+        choices=["practical-generation-v1", "evidence-review-v2"],
+        default=defaults.profile,
+        help="Opt-in reviewer contract; task rewards are unchanged",
+    )
+    run.add_argument(
+        "--review-guidance",
+        default=None,
+        help="Optional bounded guidance for evidence-review-v2; included in reviewer identity",
+    )
     for name in ("review_model", "repair_model", "escalation_model", "solver_model"):
         run.add_argument(
             "--" + name.replace("_", "-"), type=model_spec, default=getattr(defaults, name)
@@ -180,6 +197,7 @@ def add_quality_parser(subparsers):
         "max_turns",
         "solver_tokens",
         "trial_timeout_sec",
+        "shared_reservation_wait_sec",
     ):
         run.add_argument("--" + name.replace("_", "-"), type=int, default=getattr(defaults, name))
     for name in ("model_reservation_usd", "solver_reservation_usd", "max_spend_usd"):
@@ -206,3 +224,4 @@ def add_quality_parser(subparsers):
     run.add_argument("--resume", action="store_true")
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=cmd_quality)
+    add_reviewer_parsers(actions)

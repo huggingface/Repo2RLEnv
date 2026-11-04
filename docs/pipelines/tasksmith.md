@@ -82,7 +82,7 @@ You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent ru
    uv run repo2rlenv tasksmith install-runtime
    ```
 
-3. Build the runtime wheel that the worker installs. This writes `dist/repo2rlenv-0.9.3-py3-none-any.whl`. Rebuild it whenever the checkout changes; a stale wheel is refused.
+3. Build the runtime wheel that the worker installs. This writes `dist/repo2rlenv-0.9.4-py3-none-any.whl`. Rebuild it whenever the checkout changes; a stale wheel is refused.
 
    ```bash
    uv build --wheel
@@ -110,7 +110,7 @@ You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent ru
      --options examples/tasksmith-options.json \
      --campaign workspace/tasksmith \
      --output workspace/tasksmith/run \
-     --runtime-wheel dist/repo2rlenv-0.9.3-py3-none-any.whl
+     --runtime-wheel dist/repo2rlenv-0.9.4-py3-none-any.whl
    ```
 
    Progress prints stage by stage. The command exits `0` only when every PR in the panel produced a usable task. If the run is interrupted, run the same command again: completed stages are reused.
@@ -211,7 +211,7 @@ Dependency layers are cached on the provider worker, keyed by base image, depend
 
 ### Spend
 
-Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it's never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.22.0.
+Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it's never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.25.0.
 
 ## Results
 

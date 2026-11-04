@@ -12,9 +12,11 @@ Pytest emits per-test status lines in TWO formats, depending on flags:
 
 The earlier version of this parser only handled format (2), so with `-v`
 output (the progress lines that come first) it returned an empty map.
-We now match both — progress lines AND summary lines — and last-write-wins
-so a test that progress-printed PASSED then re-appeared in the summary
-still ends up as PASSED.
+We now match both — progress lines AND summary lines. A test reported more
+than once keeps its worst status (ERROR > FAILED > PASSED > SKIPPED), so a
+test that progress-printed PASSED then re-appeared in the summary still ends
+up as PASSED, while a fake `PASSED` line printed by code under test can't
+overwrite pytest's real `FAILED`.
 
 Adapted from SWE-bench's harness/log_parsers/python.py:parse_log_pytest.
 Independent implementation; Apache-2.0.
@@ -48,14 +50,22 @@ _SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
 # progress counter in front of the status, leaving the summary form behind it:
 #   `[gw1] [ 20%] PASSED tests/foo.py::test_x`  (also `[1/5]`, or neither)
 _XDIST_PREFIX_RE = re.compile(rf"^\[gw\d+\]\s+(?:(?:{_PROGRESS})\s+)?")
+_RANK: dict[TestStatus, int] = {"SKIPPED": 0, "PASSED": 1, "FAILED": 2, "ERROR": 3}
+
+
+def _record_worst(out: dict[str, TestStatus], name: str, status: TestStatus) -> None:
+    if name in out and _RANK[out[name]] >= _RANK[status]:
+        return
+    out[name] = status
 
 
 def parse_pytest(log: str) -> dict[str, TestStatus]:
     """Return {test_name -> status} parsed from pytest output (any verbosity).
 
     Notes:
-      - Last-write-wins. A test that appears in both progress AND summary
-        ends up as whichever appeared last (typically summary, which is fine).
+      - Worst-status-wins. A test that appears in both progress AND summary
+        keeps the worse of the two (ERROR > FAILED > PASSED > SKIPPED), so
+        output printed by the code under test can't upgrade a failure.
       - SKIPPED lines like `SKIPPED [1] tests/foo.py:42` record the file
         location rather than the count prefix or skip reason.
       - Lines like `FAILED tests/foo.py::test_x - AssertionError: ...`
@@ -95,9 +105,9 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
                 tokens = work.split(maxsplit=2)
                 if len(tokens) < 2:
                     continue
-                out[tokens[1]] = leading_status
+                _record_worst(out, tokens[1], leading_status)
             elif m := _SUMMARY_NAME_RE.match(work):
-                out[m.group("name")] = leading_status
+                _record_worst(out, m.group("name"), leading_status)
             continue
 
         # --- format (1): verbose progress (NAME first, STATUS after) ---
@@ -113,6 +123,6 @@ def parse_pytest(log: str) -> dict[str, TestStatus]:
             # is a path ending in .py. Avoids matching random lines like
             # "Some line PASSED something" where "Some" isn't a test.
             if "::" in name or name.endswith(".py"):
-                out[name] = m.group("status")  # type: ignore[assignment]
+                _record_worst(out, name, m.group("status"))  # type: ignore[arg-type]
             continue
     return out

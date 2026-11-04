@@ -64,7 +64,7 @@ repo2rlenv tasksmith install-runtime
 
 | Extra | Adds | Enables | You need it when |
 |---|---|---|---|
-| `harbor` | `harbor` 0.22.0 | Harbor's task models and trial runner, used in-process | You run research recipes, Tasksmith, the quality loop or `release` |
+| `harbor` | `harbor` 0.25.0 | Harbor's task models and trial runner, used in-process | You run research recipes, Tasksmith, the quality loop or `release` |
 | `modal` | `modal`, `dockerfile-parse` | Modal workers, including Tasksmith's L4 GPU route | Your remote provider is Modal |
 | `daytona` | `daytona` | Daytona workers | Your remote provider is Daytona |
 | `tasksmith` | `langgraph`, `langgraph-checkpoint-sqlite` | Tasksmith's stage graph and its SQLite checkpoints | You run Tasksmith |
@@ -104,7 +104,7 @@ repo2rlenv --version
 repo2rlenv pipelines list
 ```
 
-The first command prints the version (`repo2rlenv 0.9.3`). The second lists every native pipeline and research recipe with its status and source type:
+The first command prints the version (`repo2rlenv 0.9.4`). The second lists every native pipeline and research recipe with its status and source type:
 
 ```text
 ┃ Pipeline             ┃ Recipe            ┃ Status       ┃ Source     ┃

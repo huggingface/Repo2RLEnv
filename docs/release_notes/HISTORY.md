@@ -8,6 +8,65 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## v0.9.4: Task quality review and runtime fixes
+
+Released October 23, 2026.
+
+Adds opt-in, evidence-backed task review with structured findings, bounded
+reviewer evaluation and prompt optimization. Reviewers can examine task bundles
+and rollout evidence; budgets and recorded evidence constrain evaluation and
+repair. Review results do not automatically promote a task to accepted status.
+See the [quality guide](../concepts/quality.mdx) and
+[RFC 0033](../rfcs/0033-evidence-based-quality-review.md)
+([#194](https://github.com/huggingface/Repo2RLEnv/pull/194)).
+
+Runtime and portability fixes include:
+
+- Harbor **0.24.0**, with corresponding offline Docker and metered Modal adapter
+  changes. Both profiles reject SSH streaming; native Modal retains offline
+  allocation and bounded budget accounting
+  ([#207](https://github.com/huggingface/Repo2RLEnv/pull/207)).
+- Bounded author-process cleanup on Windows and POSIX that preserves the original
+  failure and removes temporary runner configuration. Native Windows CI exercises
+  descendant cleanup on Python 3.12, 3.13 and 3.14
+  ([#166](https://github.com/huggingface/Repo2RLEnv/pull/166)).
+- Explicit executable intent in task manifests, so bundle identity and inspection
+  work on Windows. The opt-in migration for older PR-diff tasks repairs oracle
+  isolation using exclusive temporary files
+  ([#158](https://github.com/huggingface/Repo2RLEnv/pull/158),
+  [#157](https://github.com/huggingface/Repo2RLEnv/pull/157)).
+- Test parsing and selection fixes for unittest/Django, cargo-nextest, Jest project
+  names and `.mts` files, JSX/TSX/module-JavaScript tests, `py.test`, and Mocha's spec
+  reporter. The linked-issue filter is enforced when explicitly requested, while
+  preserving the previous default behavior
+  ([#168](https://github.com/huggingface/Repo2RLEnv/pull/168),
+  [#184](https://github.com/huggingface/Repo2RLEnv/pull/184),
+  [#183](https://github.com/huggingface/Repo2RLEnv/pull/183),
+  [#191](https://github.com/huggingface/Repo2RLEnv/pull/191),
+  [#200](https://github.com/huggingface/Repo2RLEnv/pull/200),
+  [#189](https://github.com/huggingface/Repo2RLEnv/pull/189),
+  [#185](https://github.com/huggingface/Repo2RLEnv/pull/185)).
+
+Security maintenance excludes LiteLLM 1.107.0 and updates Python dependencies,
+coding-agent runtimes, nested Zod dependencies, documentation tooling and pinned
+GitHub Actions. The OpenAI 3.x and Hugging Face Hub 2.x upgrades remain deferred
+because the latest stable LiteLLM requires their previous major versions
+([#202](https://github.com/huggingface/Repo2RLEnv/pull/202),
+[#213](https://github.com/huggingface/Repo2RLEnv/pull/213)).
+
+Upgrade with `pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.4`,
+adding the extras your pipeline needs. Rebuild runtime wheels used by remote
+workers, and rerun `repo2rlenv tasksmith install-runtime` to install the updated
+coding-agent dependencies. Python 3.12–3.14 remain supported; full research
+generation still requires Linux, macOS or WSL.
+
+Existing generated datasets and acceptance labels are unchanged. To adopt parser
+or verifier changes, regenerate affected tasks and rerun their baseline/oracle
+checks before publishing a new dataset revision. Historical reports retain their
+original package and Harbor versions. The combined pre-release suite passed
+2,330 tests with four opt-in live tests skipped; no paid cloud validation was run
+for this release.
+
 ## v0.9.3: FrontierSmith optimization synthesis
 
 Released September 29, 2026.

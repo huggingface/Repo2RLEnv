@@ -40,6 +40,16 @@ and the license obtained from an unrelated main-branch revision. No license is
 asserted for that terminal source. Existing version 1 datasets and historical
 runs are not relicensed or replaced by this package change.
 
+## Evidence-based quality review
+
+The experimental quality reviewer and reviewer benchmark are original Repo2RLEnv
+code, inspired by the public methods described in micro1's
+[Flow-QC article](https://www.micro1.ai/blog/flow-qc), by Rumi Elias Calles and
+Tyler Houchin. No upstream implementation, proprietary prompt or benchmark corpus
+is bundled. [RFC 0033](docs/rfcs/0033-evidence-based-quality-review.md) records the
+adaptation, scope and limitations. GEPA is discussed as future work and is not
+included as a dependency.
+
 ## Runtime dependencies and input data
 
 Harbor, cloud SDKs, model SDKs, Pi and OpenCode are separately installed dependencies,
