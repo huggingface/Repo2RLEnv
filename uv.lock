@@ -2751,7 +2751,7 @@ requires-dist = [
     { name = "daytona", marker = "extra == 'daytona'", specifier = "==0.226.1" },
     { name = "dockerfile-parse", marker = "extra == 'modal'", specifier = "==2.0.1" },
     { name = "harbor", marker = "extra == 'harbor'", specifier = "==0.25.0" },
-    { name = "huggingface-hub", specifier = ">=1.13.0" },
+    { name = "huggingface-hub", specifier = ">=1.13.0,<2" },
     { name = "langgraph", marker = "extra == 'tasksmith'", specifier = ">=1.0,<2" },
     { name = "langgraph-checkpoint-sqlite", marker = "extra == 'tasksmith'", specifier = ">=3,<4" },
     { name = "libcst", marker = "extra == 'mutation'", specifier = "==1.9.0" },
