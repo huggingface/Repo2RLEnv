@@ -133,7 +133,17 @@ OpenAI stays below 3 and Hugging Face Hub below 2 while the supported stable
 LiteLLM line requires those ranges. Upgrade the clients together after checking
 provider calls, tool arguments, usage accounting and Hub transfers. Do not
 silently downgrade LiteLLM or select a development release to satisfy a major
-SDK update. Pi's scoped minimatch override selects 11.0.3 while preserving the
+SDK update. The LiteLLM minimum is 1.106.6, which includes the stable-line
+[failure-log hardening](https://github.com/BerriAI/litellm/releases/tag/v1.106.5)
+and [compression fix](https://github.com/BerriAI/litellm/releases/tag/v1.106.6).
+Its [released dependency metadata](https://github.com/BerriAI/litellm/blob/v1.106.6/pyproject.toml)
+still requires OpenAI <3 and Hub <2; broader bounds on upstream `main` do not
+establish compatibility for a released wheel. `tests/test_sdk_contracts.py`
+exercises the installed SDKs against loopback HTTP: provider requests, usage,
+Responses tool arguments, authentication errors and revision-pinned Hub downloads.
+Run it alongside the all-extras suite when updating these clients.
+
+Pi's scoped minimatch override selects 11.0.3 while preserving the
 tested Pi 1.4 tool-validation behavior; Pi 1.5 changes argument coercion.
 
 Dependabot checks Actions, Python, coding-agent runtimes and website dependencies weekly.
