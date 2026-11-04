@@ -963,9 +963,10 @@ wheels = [
 
 [[package]]
 name = "harbor"
-version = "0.24.0"
+version = "0.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "certifi" },
     { name = "dirhash" },
     { name = "fastapi" },
     { name = "filelock" },
@@ -990,9 +991,9 @@ dependencies = [
     { name = "typer" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/7d/16e21cfd52938260dce71ff77ec1ed156bd8c327642760fe66163b0cd3ce/harbor-0.24.0.tar.gz", hash = "sha256:6c5185e6a76abc677ed3f95e688dc0dbf8597e4fa50847cb9a37a4448c91b1e5", size = 2090577, upload-time = "2026-10-05T05:04:46.252Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/8f/624ed4b2763565d50c78e9278d2800037c9147d56ee977d3b8ed6c5b81b1/harbor-0.25.0.tar.gz", hash = "sha256:a66543a223539cd853889ee0eea77d15a3e5222963418a87c0f079b63dadb4b2", size = 2309418, upload-time = "2026-10-25T20:27:27.643Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/63/0e3d788e8d1ed116125507c6a01e3fb95cf82be71f2ea7040a1458709d21/harbor-0.24.0-py3-none-any.whl", hash = "sha256:23b7ba616a3aae4eff561ced5e2c51c7186f2981e53a770dea9c689d3969877c", size = 2331740, upload-time = "2026-10-05T05:04:42.088Z" },
+    { url = "https://files.pythonhosted.org/packages/90/72/2ead84b6d43e4737682dd489b107be9d828bf5ae4869d0d4f2aa72243149/harbor-0.25.0-py3-none-any.whl", hash = "sha256:51923ac567fc57b03279e93468b105f689628bcac2cd3d541d4e44aa5c0ec309", size = 2535481, upload-time = "2026-10-25T20:27:25.575Z" },
 ]
 
 [[package]]
@@ -2749,7 +2750,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.14.2,<5" },
     { name = "daytona", marker = "extra == 'daytona'", specifier = "==0.226.1" },
     { name = "dockerfile-parse", marker = "extra == 'modal'", specifier = "==2.0.1" },
-    { name = "harbor", marker = "extra == 'harbor'", specifier = "==0.24.0" },
+    { name = "harbor", marker = "extra == 'harbor'", specifier = "==0.25.0" },
     { name = "huggingface-hub", specifier = ">=1.13.0" },
     { name = "langgraph", marker = "extra == 'tasksmith'", specifier = ">=1.0,<2" },
     { name = "langgraph-checkpoint-sqlite", marker = "extra == 'tasksmith'", specifier = ">=3,<4" },
