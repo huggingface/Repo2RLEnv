@@ -175,6 +175,20 @@ The details file also records per-set totals and rates, `regressions`,
 `eval_grade` (`command_resolved` and a non-empty P2P set); filter on it for a
 benchmark-grade subset.
 
+For commands containing `pytest` or `py.test`, generation and grading also run
+an isolated configuration guard before applying hidden tests. It restores
+`conftest.py` and pytest-only configuration from the pinned base, removes injected
+hooks (including cached bytecode), and checks only pytest settings in shared
+`pyproject.toml`, `setup.cfg` and `tox.ini` files. Unrelated metadata stays
+byte-for-byte unchanged, including dependency/version edits; bootstrap virtualenv
+symlinks are preserved. A changed pytest section, unreadable configuration or
+untrusted directory symlink stops grading with reward 0, `evaluation_status =
+"ungraded"`, and `parse_status = "test_config_reset_failed"`. Trusted test changes
+must arrive through the hidden test patch. Changed TOML files require Python
+3.11+ or `tomli` in the verifier interpreter, as older pytest installations use.
+Wrapper commands that do not name pytest need a separately configured guard.
+This protection assumes the interpreter and dependency directories are trusted.
+
 `test.sh` restores the test files named in the PR individually and
 re-applies the hidden test patch before running them. If the patch doesn't apply,
 the task fails closed with reward 0 and `parse_status` set to

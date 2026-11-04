@@ -436,6 +436,30 @@ def _path_prelude_for_language(language: str | None) -> str:
     return f'export PATH="{joined}:$PATH"\n'
 
 
+def _test_config_reset(base_commit: str) -> str:
+    """Run the same isolated configuration guard during generation and grading."""
+    source = Path(__file__).with_name("_pytest_config_guard.py").read_text(encoding="utf-8")
+    return (
+        f"python3 -I - {shlex.quote(base_commit)} <<'R2E_PYTEST_CONFIG_GUARD'\n"
+        f"{source}\nR2E_PYTEST_CONFIG_GUARD"
+    )
+
+
+def _fail_closed(rc_var: str, parse_status: str, what: str) -> str:
+    """Shell block: if `$rc_var` is non-zero, write reward 0 + `parse_status` and stop."""
+    return (
+        f'if [ "${rc_var}" -ne 0 ]; then\n'
+        '  echo "0.000000" > /logs/verifier/reward.txt\n'
+        "  printf '%s' "
+        '\'{"reward": 0.0, "resolved": false, "parse_status": '
+        f'"{parse_status}", "eval_trustworthy": false, "evaluation_status": "ungraded"'
+        "}' > /logs/verifier/reward-details.json\n"
+        f'  echo "R2E: {what} (rc=${rc_var}) — failing closed" >&2\n'
+        "  exit 0\n"
+        "fi\n"
+    )
+
+
 def build_eval_script(
     base_commit: str,
     test_patch: str,
@@ -453,9 +477,10 @@ def build_eval_script(
       2. Prepend known toolchain paths for the detected language (compensates
          for bootstrap agents that install Go/Rust/Node outside /usr/bin
          without exporting PATH in any persisted shell init file)
-      3. Reset test files to base_commit (so re-running stays clean) — this is
-         the anti-tamper guard: the agent CANNOT pass by editing/deleting the
-         tests, because we restore them to base and re-apply the test_patch
+      3. For explicit pytest commands, restore pytest-only files and reject
+         changed pytest settings in shared config, preserving packaging edits.
+         Reset test files individually before re-applying the hidden test patch.
+         A configuration guard failure is ungraded with reward 0.
       4. Apply the test_patch (via heredoc + git apply --reject)
       5. Run test_cmds, capturing stdout+stderr to a log file
       6. Score the reward:
@@ -498,14 +523,19 @@ def build_eval_script(
         else (
             f"{apply}\n"
             "R2E_APPLY_RC=$?\n"
-            'if [ "$R2E_APPLY_RC" -ne 0 ]; then\n'
-            '  echo "0.000000" > /logs/verifier/reward.txt\n'
-            "  printf '%s' "
-            '\'{"reward": 0.0, "resolved": false, "parse_status": '
-            '"test_patch_apply_failed"}\' > /logs/verifier/reward-details.json\n'
-            '  echo "R2E: test_patch failed to apply (rc=$R2E_APPLY_RC) — failing closed" >&2\n'
-            "  exit 0\n"
-            "fi\n"
+            + _fail_closed("R2E_APPLY_RC", "test_patch_apply_failed", "test_patch failed to apply")
+        )
+    )
+    # Fail CLOSED on the config reset too: grading with the agent's conftest.py
+    # or pytest config still in place is the bypass the reset exists to stop.
+    # Tracing is off during the reset: it loops over every tracked file.
+    config_guard = (
+        ""
+        if not any(_PYTEST_COMMAND_RE.search(cmd) for cmd in test_cmds)
+        else (
+            "{ set +x; } 2>/dev/null\n"
+            + f"{_test_config_reset(base_commit)}\nR2E_RESET_RC=$?\nset -x\n"
+            + _fail_closed("R2E_RESET_RC", "test_config_reset_failed", "test config reset failed")
         )
     )
     head = (
@@ -519,6 +549,7 @@ def build_eval_script(
         "git config --global --add safe.directory /workspace\n"
         "mkdir -p /logs/verifier\n"
         f"{reset} || true\n"  # tolerate test files that didn't exist at base
+        f"{config_guard}"
         f"{apply_guard}"
         # Capture the suite output so the verifier can parse per-test status.
         # `( ... )` subshell + redirect keeps the whole `a && b` block's output;
