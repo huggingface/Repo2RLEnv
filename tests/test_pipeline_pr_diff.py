@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -382,8 +383,8 @@ def test_verify_time_assets_grade_edits_and_remove_forged_rewards(tmp_path: Path
     assert result.returncode == 0, result.stdout + result.stderr
     # Harbor reads reward.json before reward.txt; a forged JSON must not survive.
     assert not (rewards / "reward.json").exists()
-    reward = float((rewards / "reward.txt").read_text(encoding="utf-8"))
-    assert reward == 0.0
+    # Ungraded: no reward file either, so Harbor reports VERIFIER_FAILED.
+    assert not (rewards / "reward.txt").exists()
     details = json.loads((rewards / "reward-details.json").read_text(encoding="utf-8"))
     assert details["evaluation_status"] == "ungraded"
     assert details["eval_trustworthy"] is False
@@ -882,3 +883,108 @@ def test_migrate_rejects_non_regular_task_toml_without_opening_it(tmp_path: Path
 
     assert result["action"] == "error"
     assert "not a regular file" in result["detail"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="The emitted verifier runs in a Linux sandbox")
+def test_capture_failure_the_agent_caused_is_a_graded_zero(tmp_path: Path):
+    """Deleting the Git object store breaks capture. The agent can do that, so
+    the run is a graded 0 rather than an ungraded run RL would drop."""
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=workspace, capture_output=True, text=True, check=True
+        ).stdout
+
+    git("init", "-q")
+    git("config", "user.name", "Test")
+    git("config", "user.email", "test@example.invalid")
+    (workspace / "answer.py").write_text("answer = 1\n", encoding="utf-8")
+    git("add", "answer.py")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD").strip()
+    shutil.rmtree(workspace / ".git" / "objects")
+
+    rewards = tmp_path / "rewards"
+    rewards.mkdir()
+    oracle = "diff --git a/answer.py b/answer.py\n"
+    for name, content in _pr_diff_aux_files(oracle_diff=oracle, instruction="Fix answer").items():
+        target = tmp_path / name
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(content.replace("/logs/verifier", str(rewards)), encoding="utf-8")
+    script = build_pr_diff_eval_script(base_commit=base)
+    for original, relocated in (
+        ("/workspace", workspace),
+        ("/logs/verifier", rewards),
+        ("/tmp/predicted.patch", tmp_path / "predicted.patch"),
+    ):
+        script = script.replace(original, shlex.quote(str(relocated)))
+    script_path = tmp_path / "tests/test.sh"
+    script_path.write_text(script, encoding="utf-8")
+    env = {key: value for key, value in os.environ.items() if not key.startswith("R2E_")}
+    env.update(ANTHROPIC_API_KEY="", GIT_CONFIG_GLOBAL=str(tmp_path / "gitconfig"))
+    result = subprocess.run(
+        ["bash", str(script_path)], env=env, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert float((rewards / "reward.txt").read_text()) == 0.0
+    details = json.loads((rewards / "reward-details.json").read_text(encoding="utf-8"))
+    assert details["capture_status"] == "error"
+    assert details["evaluation_status"] == "graded"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="The emitted verifier runs in a Linux sandbox")
+def test_verifier_crash_is_ungraded_with_a_sidecar(tmp_path: Path):
+    """A crashed verifier has no verdict: no reward file (even a partial one),
+    and reward-details.json says why."""
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=workspace, capture_output=True, text=True, check=True
+        ).stdout
+
+    git("init", "-q")
+    git("config", "user.name", "Test")
+    git("config", "user.email", "test@example.invalid")
+    (workspace / "answer.py").write_text("answer = 1\n", encoding="utf-8")
+    git("add", "answer.py")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD").strip()
+    (workspace / "answer.py").write_text("answer = 2\n", encoding="utf-8")
+
+    rewards = tmp_path / "rewards"
+    rewards.mkdir()
+    oracle = "diff --git a/answer.py b/answer.py\n"
+    for name, content in _pr_diff_aux_files(oracle_diff=oracle, instruction="Fix answer").items():
+        target = tmp_path / name
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(content.replace("/logs/verifier", str(rewards)), encoding="utf-8")
+    # Writes a partial reward, then crashes.
+    (tmp_path / "tests/verifier.py").write_text(
+        f"open({str(rewards / 'reward.txt')!r}, 'w').write('1.0')\nraise SystemExit(3)\n",
+        encoding="utf-8",
+    )
+    script = build_pr_diff_eval_script(base_commit=base)
+    for original, relocated in (("/workspace", workspace), ("/logs/verifier", rewards)):
+        script = script.replace(original, shlex.quote(str(relocated)))
+    script_path = tmp_path / "tests/test.sh"
+    script_path.write_text(script, encoding="utf-8")
+    env = {key: value for key, value in os.environ.items() if not key.startswith("R2E_")}
+    env.update(GIT_CONFIG_GLOBAL=str(tmp_path / "gitconfig"))
+    result = subprocess.run(
+        ["bash", str(script_path)], env=env, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not (rewards / "reward.txt").exists()
+    assert not (rewards / "reward.json").exists()
+    details = json.loads((rewards / "reward-details.json").read_text(encoding="utf-8"))
+    assert details == {
+        "final_reward": None,
+        "reward": None,
+        "evaluation_status": "ungraded",
+        "eval_trustworthy": False,
+        "verifier_status": "error",
+    }

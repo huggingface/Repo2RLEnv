@@ -270,13 +270,15 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
       1. Clears any pre-existing reward file (a tampering agent must not be
          able to pre-write ``/logs/verifier/reward.txt`` and have it stand).
       2. Captures the agent's edits via ``git diff <base_commit>``.
-      3. Invokes the verifier, which writes ``/logs/verifier/reward.txt``
-         (single float) and ``/logs/verifier/reward-details.json`` (component
-         breakdown) for Harbor + downstream inspection.
+      3. Invokes the verifier, which writes ``/logs/verifier/reward-details.json``
+         (component breakdown) and, for a graded evaluation only,
+         ``/logs/verifier/reward.txt`` (single float).
 
     Exit code: 0 always — the reward score is the verdict, not the bash
-    exit code. A missing judge yields zero reward with evaluation_status
-    "ungraded" in the sidecar; similarity remains available for diagnosis.
+    exit code. An unavailable judge or a verifier crash leaves the evaluation
+    "ungraded": no reward file, so Harbor reports VERIFIER_FAILED;
+    ``reward-details.json`` records why. A capture failure is graded 0, because
+    the agent can cause it (for example by deleting the Git object store).
     """
     return (
         "#!/bin/bash\n"
@@ -299,7 +301,7 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
         f'{shlex.quote(base_commit)} > "$CAPTURE_DIR/predicted.patch"; then\n'
         '  echo "0.0" > /logs/verifier/reward.txt\n'
         "  printf '%s' "
-        '\'{"final_reward": 0.0, "evaluation_status": "ungraded", '
+        '\'{"final_reward": 0.0, "evaluation_status": "graded", '
         '"eval_trustworthy": false, "capture_status": "error"}\' '
         "> /logs/verifier/reward-details.json\n"
         "  exit 0\n"
@@ -308,12 +310,20 @@ def build_pr_diff_eval_script(*, base_commit: str) -> str:
         "rm -f /logs/verifier/predicted.patch\n"
         'cp -- "$CAPTURE_DIR/predicted.patch" /logs/verifier/predicted.patch\n'
         ": 'START_VERIFY_OUTPUT'\n"
-        'python3 -I "$SCRIPT_DIR/verifier.py" \\\n'
+        'if ! python3 -I "$SCRIPT_DIR/verifier.py" \\\n'
         '    "$SCRIPT_DIR/oracle.patch" \\\n'
         '    "$CAPTURE_DIR/predicted.patch" \\\n'
-        '    "$SCRIPT_DIR/instruction.md"\n'
+        '    "$SCRIPT_DIR/instruction.md"; then\n'
+        # A crashed verifier has no verdict: ungraded, so no reward file
+        # (drop any partial one) and a sidecar that says why.
+        "  rm -f /logs/verifier/reward.txt /logs/verifier/reward.json\n"
+        "  printf '%s' "
+        '\'{"final_reward": null, "reward": null, "evaluation_status": "ungraded", '
+        '"eval_trustworthy": false, "verifier_status": "error"}\' '
+        "> /logs/verifier/reward-details.json\n"
+        "fi\n"
         ": 'END_VERIFY_OUTPUT'\n"
-        # Always exit 0 — verifier writes reward.txt; bash exit code is moot
+        # Always exit 0: the reward file (or its absence) is the verdict.
         "exit 0\n"
     )
 
