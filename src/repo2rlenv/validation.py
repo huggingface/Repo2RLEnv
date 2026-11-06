@@ -118,6 +118,7 @@ def validate_task(task_dir: Path, data: dict[str, Any], *, oracle: bool = False)
         )
     else:
         _check_layout(task_dir, env_cfg, r2e, script_ext, report)
+        _check_separate_verifier(task_dir, data, r2e, report)
 
     if r2e is not None:
         _check_repro(task_dir, r2e, report)
@@ -213,6 +214,61 @@ def _check_graded_verifier(task_dir: Path, meta_f2p: Any, report: _Report) -> No
         elif _is_str_list(meta_f2p) and set(f2p) != set(meta_f2p):
             report.warn("tests/f2p.json", "does not match fail_to_pass in task.toml")
     _load_test_id_list(task_dir, "tests/p2p.json", report)
+
+
+def _check_python(task_dir: Path, rel: str, report: _Report) -> None:
+    source = _check_nonempty_file(task_dir, rel, report)
+    if source is not None:
+        try:
+            ast.parse(source, filename=rel)
+        except SyntaxError as exc:
+            report.error(rel, f"not valid Python: {exc.msg} (line {exc.lineno})")
+
+
+def _check_separate_verifier(
+    task_dir: Path, data: dict[str, Any], r2e: dict[str, Any] | None, report: _Report
+) -> None:
+    """A native task graded in Harbor's separate verifier ships its grading helpers.
+
+    test.sh runs `tests/launcher.py` and `tests/grader_tools.py`; the pr_runtime
+    family also needs the image to keep a pristine copy of the repository, and
+    single-file tasks grade against `tests/expected.json`.
+    """
+    verifier_cfg = data.get("verifier", {})
+    if not isinstance(verifier_cfg, dict) or verifier_cfg.get("environment_mode") != "separate":
+        return
+    pipeline = r2e.get("pipeline") if r2e else None
+    if pipeline not in GRADED_VERIFIER_PIPELINES | TEST_FILE_PIPELINES:
+        return
+    for rel in ("tests/launcher.py", "tests/grader_tools.py"):
+        _check_python(task_dir, rel, report)
+    if not data.get("artifacts"):
+        report.error("task.toml", "separate verifier without artifacts: nothing reaches grading")
+    sub = r2e.get(pipeline) if isinstance(r2e.get(pipeline), dict) else {}
+    if "harbor_min_version" not in r2e and "harbor_min_version" not in sub:
+        report.warn("task.toml", "separate-verifier task does not state harbor_min_version")
+    if pipeline in GRADED_VERIFIER_PIPELINES:
+        dockerfile = task_dir / "environment" / "Dockerfile"
+        if dockerfile.is_file() and "/opt/r2e/pristine" not in dockerfile.read_text(
+            encoding="utf-8", errors="replace"
+        ):
+            report.error(
+                "environment/Dockerfile",
+                "does not keep the pristine copy (/opt/r2e/pristine) the rebuild needs",
+            )
+        return
+    _check_python(task_dir, "tests/verifier.py", report)
+    _check_python(task_dir, "tests/test_results.py", report)
+    expected = _load_test_id_list(task_dir, "tests/expected.json", report)
+    if expected is not None and not expected:
+        report.warn(
+            "tests/expected.json", "no expected test IDs: the JUnit report is trusted as is"
+        )
+    if pipeline == "equivalence_tests" and (task_dir / "tests" / "r2e_reference.py").exists():
+        report.warn(
+            "tests/r2e_reference.py",
+            "ships reference code; the graded test should replay recorded results instead",
+        )
 
 
 def _check_diff_verifier(task_dir: Path, report: _Report) -> None:

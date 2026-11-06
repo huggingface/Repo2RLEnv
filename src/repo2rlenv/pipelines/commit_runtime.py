@@ -48,8 +48,11 @@ from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
 from repo2rlenv.llm import complete
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
+from repo2rlenv.pipelines._grading_time import GradingTime
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
+    MIN_HARBOR_VERSION,
+    WORKSPACE_ARTIFACT,
     _count_new_test_funcs,
     _diff_loc_changed,
     _difficulty_bucket,
@@ -61,8 +64,10 @@ from repo2rlenv.pipelines.pr_runtime import (
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
+    separate_verifier_files,
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
+    verifier_config,
 )
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability, SourceKind, capabilities_for
@@ -366,6 +371,9 @@ class CommitRuntimePipeline:
                     fail_to_pass: list[str] = []
                     pass_to_pass: list[str] = []
                     validation_status = "skipped"
+                    flaky_dropped = 0
+                    timing: GradingTime | None = None
+                    validated_cmds: list[str] = []
                     if not self.options.skip_validation:
                         if sandbox is None:
                             sandbox = self._start_validation_sandbox()
@@ -387,6 +395,9 @@ class CommitRuntimePipeline:
                         fail_to_pass = outcome.fail_to_pass
                         pass_to_pass = outcome.pass_to_pass
                         validation_status = outcome.status
+                        flaky_dropped = len(outcome.flaky)
+                        timing = outcome.timing
+                        validated_cmds = outcome.test_cmds
                         # Cap the P2P regression set: whole-suite P2P (100s of
                         # tests) inflates flaky-reward risk + runtime. Prefer
                         # tests in the patched files, then fill to the cap.
@@ -437,6 +448,9 @@ class CommitRuntimePipeline:
                         pass_to_pass=pass_to_pass,
                         validation_status=validation_status,
                         issue=issue,
+                        flaky_dropped=flaky_dropped,
+                        timing=timing,
+                        test_cmds=validated_cmds or None,
                     )
                     write_harbor_task(task, out_dir)
                     emitted += 1
@@ -540,6 +554,9 @@ class CommitRuntimePipeline:
         pass_to_pass: list[str],
         validation_status: str,
         issue: tuple[str, str] | None = None,
+        flaky_dropped: int = 0,
+        timing: GradingTime | None = None,
+        test_cmds: list[str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         # commit_runtime task ID convention: <owner>__<repo>-<sha12>
@@ -557,7 +574,9 @@ class CommitRuntimePipeline:
         eval_script = build_eval_script(
             base_commit=commit.parent_sha,
             test_patch=test_patch,
-            test_cmds=targeted_test_cmds_for_pr(
+            # Grade with exactly what validation ran (Node script indirection resolved).
+            test_cmds=test_cmds
+            or targeted_test_cmds_for_pr(
                 normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
                 _files_in_patch(test_patch),
             ),
@@ -567,6 +586,8 @@ class CommitRuntimePipeline:
             # the graded path + tracked/command_resolved breakdown.
             fail_to_pass=fail_to_pass,
             pass_to_pass=pass_to_pass,
+            run_timeout=timing.run_timeout if timing is not None else None,
+            copy_timeout=timing.copy_timeout if timing is not None else None,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -601,6 +622,10 @@ class CommitRuntimePipeline:
                 "fail_to_pass": fail_to_pass,
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
+                # Tests dropped at validation because their status varied across reruns.
+                "flaky_dropped": flaky_dropped,
+                "harbor_min_version": MIN_HARBOR_VERSION,
+                **({"grading_time": timing.metadata()} if timing is not None else {}),
                 "bootstrap_image": self.bootstrap.image_digest,
                 "instruction_synthesized": bool(
                     self.options.synthesize_with_llm and self.input.llm
@@ -638,8 +663,11 @@ class CommitRuntimePipeline:
             # written, so tracked/command_resolved + the breakdown are lost.
             # The egress guard blocks the hosts that serve this commit's
             # upstream fix so the agent cannot fetch it at run time.
+            verifier=verifier_config(timing),
+            artifacts=WORKSPACE_ARTIFACT,
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
+                **separate_verifier_files(),
                 "environment/docker-compose.yaml": egress_guard_compose(
                     fix_source_hosts(self.input.repo.source_kind)
                 ),

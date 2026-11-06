@@ -46,7 +46,7 @@ import random
 import re
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -57,17 +57,26 @@ from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
 from repo2rlenv.pipelines._eval_script import (
-    all_tests_passed,
-    build_binary_eval_script,
+    SUBMISSION_ARTIFACT,
+    build_single_file_eval_script,
     is_module_importable,
     make_unified_diff,
+    record_reference_calls,
     rename_function_ast,
+    run_python_tests,
     signature_only_source,
+    single_file_verifier_files,
     strip_annotations,
 )
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
+from repo2rlenv.pipelines._grading_time import GradingTime, measure
 from repo2rlenv.pipelines._oss_instruct import check_equivalence_test_strength
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.pipelines.pr_runtime import (
+    MIN_HARBOR_VERSION,
+    ensure_system_python,
+    verifier_config,
+)
 from repo2rlenv.sources import blob_reference_url
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import EquivalenceTestsOptions
@@ -118,6 +127,11 @@ class _VerifyOutcome:
     reason: str = ""
     stub_log: str = ""
     oracle_log: str = ""
+    # Test IDs the reference passed: the verifier requires exactly these.
+    expected: list[str] = field(default_factory=list)
+    timing: GradingTime | None = None
+    # The test as graded: the original's recorded results baked in.
+    graded_test: str = ""
 
 
 @dataclass(slots=True)
@@ -210,7 +224,8 @@ def build_equivalence_dockerfile(bootstrap_image: str, stub_module: str) -> str:
         f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
         f"    apk add --no-cache git || true\n"
         f"RUN git config --global --add safe.directory /workspace\n"
-        f"RUN echo {encoded} | base64 -d > /workspace/task_module.py\n"
+        f"RUN echo {encoded} | base64 -d > /workspace/task_module.py\n" + ensure_system_python()
+        # The separate verifier's grading steps run on the image's own python3.
     )
 
 
@@ -229,6 +244,158 @@ def _oracle_module(candidate: FunctionCandidate) -> str:
     ref_source = strip_annotations(ref_source)
     own_source = strip_annotations(candidate.source)
     return ref_source + "\n\n" + own_source + "\n"
+
+
+# At generation the test runs against the original implementation, which records
+# what every `reference_<name>` call returned or raised, keyed by the test that
+# made it and its position in that test (`PYTEST_CURRENT_TEST`; the test code
+# fixes the order, and argument reprs such as an iterator's carry addresses).
+# The graded test answers those calls from the recording, so no
+# reference code exists at grading: `reference_<name>` in task_module.py is
+# only there for the agent to read, and the submission can't redefine it
+# (`reference_f = f`) or plant a module in its place.
+REFERENCE_MODULE = "r2e_reference.py"
+RECORD_FILE = "/workspace/.r2e-reference-calls.json"
+
+
+def reference_module(candidate: FunctionCandidate) -> str:
+    """The module holding `reference_<name>` for the recording run, annotations stripped."""
+    source = _rename_function_source(
+        candidate.source, candidate.name, f"reference_{candidate.name}"
+    )
+    return strip_annotations(source) + "\n"
+
+
+def recording_test_code(test_code: str, name: str) -> str:
+    """The test with `reference_<name>` wrapped to record each call (generation only)."""
+    return (
+        test_code.rstrip("\n")
+        + f"""
+
+
+# Recording run (generation only): each reference call and its result.
+import json as _r2e_json  # noqa: E402
+import os as _r2e_os  # noqa: E402
+import sys as _r2e_sys  # noqa: E402
+from r2e_reference import reference_{name} as _r2e_original  # noqa: E402
+import task_module as _r2e_task_module  # noqa: E402
+
+_R2E_CALLS = []
+_R2E_SEEN = {{}}
+
+
+def _r2e_key():
+    test = _r2e_os.environ.get("PYTEST_CURRENT_TEST", "").rsplit(" (", 1)[0]
+    _R2E_SEEN[test] = _R2E_SEEN.get(test, 0) + 1
+    return f"{{test}}#{{_R2E_SEEN[test] - 1}}"
+
+
+def reference_{name}(*args, **kwargs):
+    if _r2e_sys._getframe(1).f_globals is not globals():
+        return _r2e_original(*args, **kwargs)  # not the test's own call
+    key = _r2e_key()
+    try:
+        value = _r2e_original(*args, **kwargs)
+    except Exception as exc:
+        _R2E_CALLS.append([key, "raise", type(exc).__name__, repr(str(exc))])
+        _r2e_save()
+        raise
+    _R2E_CALLS.append([key, "return", repr(value)])
+    _r2e_save()
+    return value
+
+
+def _r2e_save():
+    with open({RECORD_FILE!r}, "w", encoding="utf-8") as handle:
+        _r2e_json.dump(_R2E_CALLS, handle)
+
+
+_r2e_task_module.reference_{name} = reference_{name}
+"""
+    )
+
+
+def recorded_calls(runs: list[list]) -> dict[str, list[str]] | None:
+    """{call key: ["return", repr] | ["raise", exception name, repr(message)]}, or
+    None when the recording can't be replayed exactly.
+
+    Every run (each under a different hash seed) must record the same calls with
+    the same results, each result must be a literal that `ast.literal_eval`
+    reads back to the same text, and a raised exception must be a builtin one.
+    """
+    import ast
+    import builtins
+
+    calls: dict[str, list[str]] = {}
+    for run in runs:
+        for entry in run:
+            if not (isinstance(entry, list) and len(entry) in (3, 4)):
+                return None
+            if not all(isinstance(part, str) for part in entry):
+                return None
+            key, kind, *payload = entry
+            if kind == "return":
+                try:
+                    if repr(ast.literal_eval(payload[0])) != payload[0]:
+                        return None
+                except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+                    return None
+            elif kind == "raise" and len(payload) == 2:
+                error = getattr(builtins, payload[0], None)
+                if not (isinstance(error, type) and issubclass(error, Exception)):
+                    return None
+            else:
+                return None
+            if calls.setdefault(key, [kind, *payload]) != [kind, *payload]:
+                return None  # same arguments, different result: not deterministic
+    if len(runs) > 1 and any(run != runs[0] for run in runs[1:]):
+        return None
+    return calls
+
+
+def graded_test_code(test_code: str, name: str, calls: dict[str, list[str]]) -> str:
+    """The test as graded: `reference_<name>` answers from the recorded calls.
+
+    Appended after the test's own imports, so module-level lookups at test time
+    get it, and so does `task_module.reference_<name>`. A call the recording
+    doesn't have (by test and position) fails the test.
+    """
+    return (
+        test_code.rstrip("\n")
+        + f"""
+
+
+# Graded against the original implementation's recorded results, not code the
+# submission could change.
+import ast as _r2e_ast  # noqa: E402
+import builtins as _r2e_builtins  # noqa: E402
+import os as _r2e_os  # noqa: E402
+import sys as _r2e_sys  # noqa: E402
+import task_module as _r2e_task_module  # noqa: E402
+
+_R2E_CALLS = {calls!r}
+_R2E_SEEN = {{}}
+_r2e_submitted = getattr(_r2e_task_module, "reference_{name}", None)
+
+
+def reference_{name}(*args, **kwargs):
+    if _r2e_sys._getframe(1).f_globals is not globals() and _r2e_submitted is not None:
+        # The submission's own call (it may build on the visible reference):
+        # whatever it defined answers it. Only the test's calls are replayed.
+        return _r2e_submitted(*args, **kwargs)
+    test = _r2e_os.environ.get("PYTEST_CURRENT_TEST", "").rsplit(" (", 1)[0]
+    _R2E_SEEN[test] = _R2E_SEEN.get(test, 0) + 1
+    recorded = _R2E_CALLS.get(f"{{test}}#{{_R2E_SEEN[test] - 1}}")
+    if recorded is None:
+        raise AssertionError("reference_{name} was not recorded for this call")
+    if recorded[0] == "raise":
+        raise getattr(_r2e_builtins, recorded[1])(_r2e_ast.literal_eval(recorded[2]))
+    return _r2e_ast.literal_eval(recorded[1])
+
+
+_r2e_task_module.reference_{name} = reference_{name}
+"""
+    )
 
 
 def _rename_function_source(source: str, old_name: str, new_name: str) -> str:
@@ -349,6 +516,9 @@ class EquivalenceTestsPipeline:
                     parsed = None
                     parsed_fp: str | None = None
                     outcome: _VerifyOutcome | None = None
+                    expected: list[str] = []
+                    timing: GradingTime | None = None
+                    graded_test = ""
                     last_skip_reason = ""
                     feedback: str | None = None
                     for attempt in range(max(1, self.options.max_attempts_per_function)):
@@ -403,6 +573,9 @@ class EquivalenceTestsPipeline:
                         if outcome.accepted:
                             parsed = candidate_test
                             parsed_fp = fp
+                            expected = outcome.expected
+                            timing = outcome.timing
+                            graded_test = outcome.graded_test
                             logger.debug(
                                 "candidate %s accepted on attempt %d",
                                 label,
@@ -454,7 +627,14 @@ class EquivalenceTestsPipeline:
                         continue
 
                     test_filename = self._task_test_filename(cand, parsed)
-                    task = self._build_task(cand, parsed.code, test_filename=test_filename)
+                    task = self._build_task(
+                        cand,
+                        parsed.code,
+                        test_filename=test_filename,
+                        expected=expected,
+                        timing=timing,
+                        graded_test=graded_test,
+                    )
                     write_harbor_task(task, out_dir)
                     if parsed_fp is not None:
                         seen_fingerprints.add(parsed_fp)
@@ -559,47 +739,48 @@ class EquivalenceTestsPipeline:
                 reason="oracle_module_not_importable",
             )
 
-        enc_test = base64.b64encode(test_code.encode("utf-8")).decode("ascii")
-
-        # Stage A — stubbed
-        enc_stub = base64.b64encode(stub_module.encode("utf-8")).decode("ascii")
-        script_a = (
-            "set -uxo pipefail\n"
-            "cd /workspace\n"
-            "git config --global --add safe.directory /workspace\n"
-            "git reset --hard HEAD\n"
-            "git clean -fdx -e .venv -e venv -e __pycache__ || true\n"
-            f"echo {enc_stub} | base64 -d > task_module.py\n"
-            f"echo {enc_test} | base64 -d > {test_filename}\n"
-            ": 'START_TEST_OUTPUT'\n"
-            f"python -m pytest {test_filename} -v --no-header || true\n"
-            ": 'END_TEST_OUTPUT'\n"
-        )
-        a = sandbox.exec(script_a, timeout=self.options.validation_timeout_sec)
-        stub_log = a.stdout[-4000:] if a.stdout else ""
-        stub_passes = all_tests_passed(stub_log)
-        if self.options.require_test_fails_with_stub and stub_passes:
+        # Record what the original implementation returns for every call the test
+        # makes, twice under different hash seeds; the graded test replays it.
+        runs = []
+        for seed in (1, 2):
+            run = record_reference_calls(
+                sandbox,
+                files={
+                    "task_module.py": oracle_module,
+                    test_filename: recording_test_code(test_code, cand.name),
+                    REFERENCE_MODULE: reference_module(cand),
+                },
+                test_filename=test_filename,
+                record_file=RECORD_FILE,
+                hash_seed=seed,
+                timeout=self.options.validation_timeout_sec,
+            )
+            if run is None:
+                return _VerifyOutcome(accepted=False, reason="reference_not_recordable")
+            runs.append(run)
+        calls = recorded_calls(runs)
+        if calls is None:
+            return _VerifyOutcome(accepted=False, reason="reference_not_recordable")
+        graded = graded_test_code(test_code, cand.name, calls)
+        # Both stages run exactly the way the task is graded: through the grader
+        # launcher as the unprivileged user, judged by the verifier's JUnit
+        # verdict (every test passed, none skipped, pytest exit 0).
+        common = {"test_filename": test_filename, "timeout": self.options.validation_timeout_sec}
+        hidden = {test_filename: graded}
+        stub = {"task_module.py": stub_module}
+        a = run_python_tests(sandbox, files={**stub, **hidden}, **common)
+        stub_log = a.log
+        if self.options.require_test_fails_with_stub and a.passed:
             return _VerifyOutcome(
                 accepted=False,
                 reason="test_passes_with_stub",
                 stub_log=stub_log,
             )
 
-        # Stage B — oracle in place
-        enc_oracle = base64.b64encode(oracle_module.encode("utf-8")).decode("ascii")
-        script_b = (
-            "set -uxo pipefail\n"
-            "cd /workspace\n"
-            f"echo {enc_oracle} | base64 -d > task_module.py\n"
-            ": 'START_TEST_OUTPUT'\n"
-            f"python -m pytest {test_filename} -v --no-header\n"
-            ": 'END_TEST_OUTPUT'\n"
-            f"rm -f task_module.py {test_filename}\n"
-        )
-        b = sandbox.exec(script_b, timeout=self.options.validation_timeout_sec)
-        oracle_log = b.stdout[-4000:] if b.stdout else ""
-        oracle_passes = b.ok and all_tests_passed(oracle_log)
-        if self.options.require_test_passes_with_oracle and not oracle_passes:
+        oracle = {"task_module.py": oracle_module}
+        b = run_python_tests(sandbox, files={**oracle, **hidden}, **common)
+        oracle_log = b.log
+        if self.options.require_test_passes_with_oracle and not b.passed:
             return _VerifyOutcome(
                 accepted=False,
                 reason="oracle_does_not_satisfy_test",
@@ -607,7 +788,22 @@ class EquivalenceTestsPipeline:
                 oracle_log=oracle_log,
             )
 
-        return _VerifyOutcome(accepted=True, stub_log=stub_log, oracle_log=oracle_log)
+        timing = measure([run.sample for run in (a, b) if run.sample is not None])
+        if timing is not None and timing.over_cap:
+            return _VerifyOutcome(
+                accepted=False,
+                reason="verifier_timeout_over_cap",
+                stub_log=stub_log,
+                oracle_log=oracle_log,
+            )
+        return _VerifyOutcome(
+            accepted=True,
+            stub_log=stub_log,
+            oracle_log=oracle_log,
+            expected=sorted(b.statuses),
+            timing=timing,
+            graded_test=graded,
+        )
 
     # ----- task builder -------------------------------------------------------
 
@@ -626,6 +822,9 @@ class EquivalenceTestsPipeline:
         test_code: str,
         *,
         test_filename: str,
+        expected: list[str] | None = None,
+        timing: GradingTime | None = None,
+        graded_test: str = "",
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         h = hashlib.sha256()
@@ -642,12 +841,10 @@ class EquivalenceTestsPipeline:
         stub_module = _stub_module(cand)
         oracle_module = _oracle_module(cand)
         gold_diff = make_unified_diff(stub_module, oracle_module, "task_module.py")
-        eval_script = build_binary_eval_script(
-            [
-                f"cp /tests/{test_filename} /workspace/{test_filename}",
-                f"python -m pytest {test_filename} -v --no-header",
-            ],
+        eval_script = build_single_file_eval_script(
+            test_filename,
             language=self.bootstrap.language.value,
+            run_timeout=timing.run_timeout if timing is not None else None,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -680,6 +877,8 @@ class EquivalenceTestsPipeline:
             "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,
             "reward_kinds": ["test_execution"],
+            "harbor_min_version": MIN_HARBOR_VERSION,
+            **({"grading_time": timing.metadata()} if timing is not None else {}),
             "equivalence_tests": {
                 "function_name": cand.name,
                 "source_path": cand.relative_path,
@@ -705,7 +904,13 @@ class EquivalenceTestsPipeline:
             keywords=[name, "equivalence_tests"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
-            aux_files={f"tests/{test_filename}": test_code},
+            verifier=verifier_config(timing),
+            artifacts=SUBMISSION_ARTIFACT,
+            aux_files=single_file_verifier_files(
+                test_filename,
+                graded_test or graded_test_code(test_code, cand.name, {}),
+                expected or [],
+            ),
         )
 
 
