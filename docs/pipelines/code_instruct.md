@@ -115,7 +115,12 @@ pallets__click-cinst-<hash>
 │   └── solve.sh
 └── tests
     ├── test.sh
-    └── test_r2e_<hash>.py
+    ├── test_r2e_<hash>.py
+    ├── verifier.py
+    ├── launcher.py
+    ├── grader_tools.py
+    ├── test_results.py
+    └── expected.json
 ```
 
 - `task.toml`: Harbor 1.0 task. `reference` links to the seed lines; `[metadata.repo2env.code_instruct]` records the seed path and line range, the test file name, the bootstrap image and `llm_cost_usd`. The [evaluation label](task_evaluation_labels.md) starts as `unverified`.
@@ -123,14 +128,17 @@ pallets__click-cinst-<hash>
 - `environment/Dockerfile`: `FROM` the bootstrap image, with the repository as bootstrapped.
 - `solution/patch.diff`: creates `task_module.py` (the [oracle](../concepts/glossary.mdx#oracle)); `solve.sh` applies it.
 - `tests/test_r2e_<hash>.py`: the generated test. Harbor delivers `tests/` at verify time for every agent.
-- `tests/test.sh`: copies the test into `/workspace` and runs `python -m pytest` on it.
+- `task.toml` sets `[verifier] environment_mode = "separate"` and collects only `/workspace/task_module.py`: Harbor grades in a fresh container from the task image with that one file copied in.
+- `tests/test.sh`: copies the test into `/workspace`, runs `python -m pytest` on it as an unprivileged user with a JUnit report, and calls `tests/verifier.py` (see [`pr_runtime`](pr_runtime.md#grading-in-a-separate-verifier) for the launcher and time limits).
 
 ## Reward
 
 `tests/test.sh` writes 1.0 to `/logs/verifier/reward.txt` when the test file passes
-and 0.0 otherwise. There is no partial credit and no `reward-details.json`. A no-op
+and 0.0 otherwise. There is no partial credit. A no-op
 agent scores 0, because the test can't import `task_module`. See
 [Rewards](../concepts/rewards.mdx#binary-test-execution).
+
+The verifier reads the JUnit report only after every process of the test user is gone. Reward is 1.0 only if pytest exits 0 and the report holds exactly the test IDs the reference solution passed at generation (`tests/expected.json`, root-only), every one passed: a skipped, missing or extra test fails, so a report the submission writes itself and exits early with scores 0. Generation applies the same verdict. `reward-details.json` records the counts and `parse_status`; see the [reward schema](../reference/REWARD_SCHEMA.md#code_instruct--equivalence_tests). Forged results from inside the test process (a patched report, the expected IDs read from the test file and reported as passing) are caught by the mutant check: the test also runs with the expected value of a few of its fail-to-pass assertions changed (for `equivalence_tests`, a recorded reference result), and a contradiction between the runs scores 0 as tampered (see [`pr_runtime`](pr_runtime.md#grading-in-a-separate-verifier)).
 
 ## Yield and cost
 

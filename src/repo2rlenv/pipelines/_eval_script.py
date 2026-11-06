@@ -1,17 +1,37 @@
 """Shared verifier-script + diff helpers for synthesis pipelines.
 
-These were originally defined in `mutation_bugs.py`; they outlived that
-pipeline and are used by `code_instruct` and `equivalence_tests` to build
-their `tests/test.sh` (binary pass/fail reward) and their gold patches.
+Used by `code_instruct` and `equivalence_tests` to build their `tests/test.sh`
+(single-file grading in Harbor's separate verifier) and their gold patches.
 """
 
 from __future__ import annotations
 
 import ast
+import base64
 import difflib
+import json
 import re as _re
+import shlex
+import time as _time
+from dataclasses import dataclass, field
+from pathlib import Path
 
-from repo2rlenv.pipelines.pr_runtime import _path_prelude_for_language
+from repo2rlenv.pipelines import _pr_runtime_verifier as _verifier
+from repo2rlenv.pipelines._grading_time import UNMEASURED_RUN_SEC
+from repo2rlenv.pipelines._mutants import Mutants, junit_split, make_mutants, validated
+from repo2rlenv.pipelines.pr_runtime import (
+    _PYTHONS,
+    RUN_DIR,
+    _child_path,
+    _finish_unless,
+    launch_tests,
+    mutant_args,
+    run_verifier,
+    separate_head,
+    separate_verifier_files,
+    settle_once,
+    two_runs,
+)
 
 
 def make_unified_diff(old: str, new: str, path: str) -> str:
@@ -47,53 +67,362 @@ def make_unified_diff(old: str, new: str, path: str) -> str:
     return f"diff --git a/{path} b/{path}\n{body}"
 
 
-def build_binary_eval_script(test_cmds: list[str], *, language: str | None = None) -> str:
-    """Build a `tests/test.sh` that maps test exit code to a binary reward.
+# ---------------------------------------------------------------------------
+# Single-file submissions graded in a separate verifier
+# (code_instruct + equivalence_tests)
+# ---------------------------------------------------------------------------
+# Only /workspace/task_module.py crosses from the agent's container; Harbor
+# copies that one file over the image's /workspace, which stays as built. The
+# hidden test runs through the same launcher as pr_runtime and reports through
+# JUnit, read by root only after every process of the test user is gone.
+SUBMISSION_FILE = "task_module.py"
+SUBMISSION_ARTIFACT: list[dict[str, str]] = [{"source": f"/workspace/{SUBMISSION_FILE}"}]
+JUNIT_REPORT = "/workspace/.r2e-junit.xml"
+# Root-owned log directory for the launcher during validation (it refuses one
+# the test user could read).
+_VALIDATE_DIR = "/opt/r2e-validate"
 
-    Runs the commands wrapped in START/END markers and writes 1.0/0.0 to
-    /logs/verifier/reward.txt (1.0 iff the test command exits 0).
-    """
-    test_block = " && ".join(test_cmds) if test_cmds else "echo 'no test_cmds configured'"
-    path_prelude = _path_prelude_for_language(language)
+
+def python_test_command(test_filename: str) -> str:
+    """The pytest command used at validation and at grading, character for character."""
     return (
-        "#!/bin/bash\n"
-        "set -uxo pipefail\n"
-        f"{path_prelude}"
-        "cd /workspace\n"
-        "git config --global --add safe.directory /workspace\n"
-        "mkdir -p /logs/verifier\n"
-        ": 'START_TEST_OUTPUT'\n"
-        f"{test_block}\n"
-        "TEST_EXIT_CODE=$?\n"
-        ": 'END_TEST_OUTPUT'\n"
-        '[ "$TEST_EXIT_CODE" -eq 0 ] && echo "1.0" > /logs/verifier/reward.txt '
-        '|| echo "0.0" > /logs/verifier/reward.txt\n'
-        "exit $TEST_EXIT_CODE\n"
+        f"python -m pytest {shlex.quote(test_filename)} -v --no-header "
+        f"-p no:cacheprovider --junitxml={JUNIT_REPORT}"
     )
 
 
-# ---------------------------------------------------------------------------
-# Log-parse heuristic (shared by code_instruct + equivalence_tests)
-# ---------------------------------------------------------------------------
+def build_single_file_eval_script(
+    test_filename: str,
+    *,
+    language: str | None = None,
+    run_timeout: int | None = None,
+    mutants: Mutants | None = None,
+    copy_timeout: int | None = None,
+) -> str:
+    """`tests/test.sh` for a single-file submission in Harbor's separate verifier.
 
-
-def all_tests_passed(log: str) -> bool:
-    """Heuristic: pytest summary line has `N passed` and no `N failed`/`N error(s)`.
-
-    Used by synthesis pipelines that run pytest inside the sandbox with a
-    `|| true` wrapper — pytest's exit code is masked, so we scrape the log
-    to decide pass/fail. Moved here from `code_instruct.py` so both
-    `code_instruct` and `equivalence_tests` can import from one place.
+    Reward 1.0 iff pytest exits 0 and its JUnit report holds exactly the test
+    IDs the reference solution passed at generation (`tests/expected.json`),
+    every one passed: a skipped, missing or extra test fails, so a report the
+    submission wrote itself can't stand in for the real run. With
+    `run_timeout`, a run past it scores 0 (see `_grading_time`). With
+    `mutants`, the test runs twice (see `pr_runtime.two_runs`), each run's
+    report kept before the tree is reset; `copy_timeout` bounds copying the
+    tree between the runs.
     """
-    lower = log.lower()
-    if "error" in lower and "collected 0 items" in lower:
-        return False
-    if "failed" in lower and _re.search(r"\b[1-9]\d*\s+failed\b", lower):
-        return False
-    # `3 passed, 1 error`: a test that errors in setup or teardown didn't pass.
-    if _re.search(r"\b[1-9]\d*\s+errors?\b", lower):
-        return False
-    return bool(_re.search(r"\b[1-9]\d*\s+passed\b", lower))
+    checked = mutants is not None and bool(mutants.ids)
+    launch = launch_tests(
+        python_test_command(test_filename),
+        language,
+        timeout=run_timeout or UNMEASURED_RUN_SEC,
+        purge=checked,
+    )
+    claimed = (
+        f'"$R2E_PY" -B -I -S "$SCRIPT_DIR/verifier.py" --claimed --junit {RUN_DIR}/junit_a.xml '
+        '--exit-code "$R2E_A_EXIT" --mutants "$SCRIPT_DIR/mutants.json"'
+    )
+    report = f"{RUN_DIR}/junit_a.xml" if checked else JUNIT_REPORT
+    copies = f'cp "$SCRIPT_DIR/{test_filename}" /workspace/{test_filename}\n'
+    return (
+        separate_head(language)
+        + f'R2E_SUBMISSION="$("$R2E_PY" -B -I -S "$SCRIPT_DIR/grader_tools.py" check '
+        f'--path /workspace/{SUBMISSION_FILE})"\n'
+        "R2E_CHECK_RC=$?\n"
+        + _finish_unless(
+            "R2E_CHECK_RC", "ungraded", "submission_check_failed", "submission check failed"
+        )
+        + '[ "$R2E_SUBMISSION" = ok ] || r2e_finish graded "submission_$R2E_SUBMISSION" '
+        "'submission not graded as submitted'\n"
+        + copies
+        + f"rm -f {JUNIT_REPORT}\n"
+        + (
+            two_runs(
+                launch,
+                [test_filename],
+                claimed,
+                keep_junit=JUNIT_REPORT,
+                copy_timeout=copy_timeout,
+            )
+            if checked
+            else settle_once([test_filename]) + launch
+        )
+        + "tail -c 1048576 /logs/verifier/test_output.log 2>/dev/null\n"
+        + run_verifier(
+            f"--junit {report} "
+            + (mutant_args(junit=True) if checked else "")
+            + '--expected "$SCRIPT_DIR/expected.json" --exit-code "$TEST_EXIT_CODE" '
+            '--timed-out "$R2E_TIMED_OUT" --seconds /logs/verifier/run.seconds '
+            "--out-dir /logs/verifier"
+        )
+        + "r2e_open_logs\n"
+        "exit 0\n"
+    )
+
+
+def single_file_verifier_files(
+    test_filename: str,
+    test_code: str,
+    expected: list[str],
+    extra: dict[str, str] | None = None,
+    mutants: Mutants | None = None,
+) -> dict[str, str]:
+    """Everything test.sh reads from /tests for a single-file submission."""
+    here = Path(__file__).parent
+    return {
+        f"tests/{test_filename}": test_code,
+        "tests/verifier.py": (here / "_pr_runtime_verifier.py").read_text(encoding="utf-8"),
+        "tests/test_results.py": (here.parent / "quality" / "test_results.py").read_text(
+            encoding="utf-8"
+        ),
+        "tests/expected.json": json.dumps(sorted(expected), indent=2),
+        **{f"tests/{name}": content for name, content in (extra or {}).items()},
+        **separate_verifier_files(mutants),
+    }
+
+
+@dataclass(slots=True)
+class PythonTestRun:
+    statuses: dict[str, str] = field(default_factory=dict)
+    exit_code: int | None = None
+    log: str = ""
+    # (test command seconds, whole validation stage seconds), for grading limits.
+    sample: tuple[float, float] | None = None
+
+    @property
+    def passed(self) -> bool:
+        """Every test passed and pytest exited 0: what the verifier grades as 1."""
+        return (
+            self.exit_code == 0
+            and bool(self.statuses)
+            and all(status == "PASSED" for status in self.statuses.values())
+        )
+
+
+def junit_statuses(report: bytes, exit_code: int) -> dict[str, str]:
+    """Statuses from a JUnit report, as the verifier reads them; {} if it is unusable."""
+    try:
+        results = _verifier._load_test_results()(
+            report.decode("utf-8", "replace"), returncode=exit_code
+        )
+    except ValueError:
+        return {}
+    return {name: status.upper() for name, status in results.statuses.items()}
+
+
+_JUNIT_RE = _re.compile(r"R2E_JUNIT_BEGIN\n([A-Za-z0-9+/=]*)\nR2E_JUNIT_END")
+_EXIT_RE = _re.compile(r"^R2E_TEST_EXIT_CODE=(\d+)$", _re.MULTILINE)
+_SECONDS_RE = _re.compile(r"^R2E_TEST_SECONDS=([0-9.]+)$", _re.MULTILINE)
+
+
+# `docker exec bash -lc <script>` passes the script as one argument, and Linux
+# caps a single argument at 128 KiB (MAX_ARG_STRLEN), so file contents and
+# patches can't ride inside a validation script. They are uploaded first, in
+# chunks well below the cap, into a root-only directory.
+_STAGE_DIR = "/opt/r2e-stage"
+_STAGE_CHUNK = 64 * 1024
+
+
+def upload(sandbox, contents: dict[str, str]) -> dict[str, str]:
+    """Upload each value into the sandbox, base64-encoded; return key -> staged path.
+
+    Replaces anything staged before, so a validation stage uploads everything it
+    needs (patches and files) in one call.
+    """
+    if not contents:
+        return {}
+    names = {key: f"{_STAGE_DIR}/{index}.b64" for index, key in enumerate(sorted(contents))}
+    setup = sandbox.exec(
+        f"rm -rf {_STAGE_DIR} && mkdir -p {_STAGE_DIR} && chmod 700 {_STAGE_DIR} && "
+        + " && ".join(f": > {staged}" for staged in names.values()),
+        timeout=60,
+    )
+    if not setup.ok:
+        raise RuntimeError(f"could not prepare {_STAGE_DIR} in the sandbox")
+    for key, staged in names.items():
+        encoded = base64.b64encode(contents[key].encode("utf-8")).decode("ascii")
+        for start in range(0, len(encoded), _STAGE_CHUNK):
+            chunk = encoded[start : start + _STAGE_CHUNK]
+            if not sandbox.exec(f"printf %s {chunk} >> {staged}", timeout=60).ok:
+                raise RuntimeError(f"could not upload {key} to the sandbox")
+    return names
+
+
+def write_staged(staged: dict[str, str]) -> list[str]:
+    """Shell lines that write staged files (key = destination path) in place."""
+    return [f"base64 -d < {path} > {shlex.quote(dest)}" for dest, path in staged.items()]
+
+
+def stage_files(sandbox, files: dict[str, str]) -> list[str]:
+    """Upload `files` into the sandbox; return the shell lines that write them in place."""
+    return write_staged(upload(sandbox, files))
+
+
+def run_python_tests(
+    sandbox,
+    *,
+    files: dict[str, str],
+    test_filename: str,
+    timeout: int,
+    language: str | None = None,
+    remove: tuple[str, ...] = (),
+) -> PythonTestRun:
+    """Run the hidden test the way the verifier does, in the validation sandbox.
+
+    Writes `files` over a clean checkout, runs `python_test_command` through the
+    grader launcher as the unprivileged user, and reads the JUnit report back.
+    """
+    launcher = Path(__file__).with_name("_grader_launcher.py").read_text(encoding="utf-8")
+    candidates = " ".join(_PYTHONS)
+    lines = [
+        "set -uo pipefail",
+        "cd /workspace",
+        "git config --global --add safe.directory /workspace",
+        "git reset --hard HEAD >/dev/null",
+        "git clean -fdx -e .venv -e venv -e __pycache__ >/dev/null || true",
+        f'R2E_PY=""; for p in {candidates}; do [ -x "$p" ] && {{ R2E_PY="$p"; break; }}; done',
+        '[ -n "$R2E_PY" ] || exit 1',
+        *(f"rm -f {shlex.quote(path)}" for path in remove),
+        *stage_files(sandbox, files),
+        f"rm -f {JUNIT_REPORT}",
+        _child_path(language).rstrip("\n"),
+        f"mkdir -p {_VALIDATE_DIR} && chown 0:0 {_VALIDATE_DIR} && chmod 700 {_VALIDATE_DIR}",
+        f"cat > {_VALIDATE_DIR}/launcher.py <<'R2E_GRADER_LAUNCHER'\n{launcher}\nR2E_GRADER_LAUNCHER",
+        f'R2E_TEST_EXIT="$("$R2E_PY" -B -I -S {_VALIDATE_DIR}/launcher.py '
+        f"--log {_VALIDATE_DIR}/test_output.log --cwd /workspace "
+        f'--path "$R2E_CHILD_PATH" --writable /workspace '
+        f"--seconds-out {_VALIDATE_DIR}/seconds --purge -- "
+        f'{shlex.quote(python_test_command(test_filename))})"',
+        f"cat {_VALIDATE_DIR}/test_output.log",
+        'echo "R2E_TEST_EXIT_CODE=${R2E_TEST_EXIT}"',
+        f'echo "R2E_TEST_SECONDS=$(cat {_VALIDATE_DIR}/seconds 2>/dev/null)"',
+        "echo R2E_JUNIT_BEGIN",
+        f"[ -f {JUNIT_REPORT} ] && [ ! -L {JUNIT_REPORT} ] && base64 < {JUNIT_REPORT} | tr -d '\\n'",
+        "echo",
+        "echo R2E_JUNIT_END",
+    ]
+    started = _time.monotonic()
+    result = sandbox.exec("\n".join(lines), timeout=timeout)
+    stage = _time.monotonic() - started
+    output = result.stdout or ""
+    run = PythonTestRun(log=output[-4000:])
+    seconds = _SECONDS_RE.search(output)
+    if seconds:
+        run.sample = (float(seconds.group(1)), stage)
+    exit_code = _EXIT_RE.search(output)
+    run.exit_code = int(exit_code.group(1)) if exit_code else None
+    report = _JUNIT_RE.search(output)
+    if report and report.group(1) and run.exit_code is not None:
+        run.statuses = junit_statuses(base64.b64decode(report.group(1)), run.exit_code)
+    return run
+
+
+def record_reference_calls(
+    sandbox,
+    *,
+    files: dict[str, str],
+    test_filename: str,
+    record_file: str,
+    hash_seed: int,
+    timeout: int,
+) -> list | None:
+    """Run the recording test once, as the unprivileged grader user, and return what it recorded.
+
+    Generation only: `files` hold the original implementation and a test that
+    records each reference call into `record_file`. The test runs through the
+    grader launcher like every other validation run; root only reads the
+    recording back as data. None when the run produced no readable recording.
+    """
+    launcher = Path(__file__).with_name("_grader_launcher.py").read_text(encoding="utf-8")
+    candidates = " ".join(_PYTHONS)
+    command = (
+        f"PYTHONHASHSEED={int(hash_seed)} python -m pytest {shlex.quote(test_filename)} "
+        "-q --no-header -p no:cacheprovider"
+    )
+    lines = [
+        "set -uo pipefail",
+        "cd /workspace",
+        "git config --global --add safe.directory /workspace",
+        "git reset --hard HEAD >/dev/null",
+        "git clean -fdx -e .venv -e venv -e __pycache__ >/dev/null || true",
+        f'R2E_PY=""; for p in {candidates}; do [ -x "$p" ] && {{ R2E_PY="$p"; break; }}; done',
+        '[ -n "$R2E_PY" ] || exit 1',
+        *stage_files(sandbox, files),
+        f"rm -f {shlex.quote(record_file)}",
+        _child_path("python").rstrip("\n"),
+        f"mkdir -p {_VALIDATE_DIR} && chown 0:0 {_VALIDATE_DIR} && chmod 700 {_VALIDATE_DIR}",
+        f"cat > {_VALIDATE_DIR}/launcher.py <<'R2E_GRADER_LAUNCHER'\n{launcher}\nR2E_GRADER_LAUNCHER",
+        f'"$R2E_PY" -B -I -S {_VALIDATE_DIR}/launcher.py '
+        f"--log {_VALIDATE_DIR}/record_output.log --cwd /workspace "
+        f'--path "$R2E_CHILD_PATH" --writable /workspace --purge -- '
+        f"{shlex.quote(command)} >/dev/null",
+        "echo R2E_RECORD_BEGIN",
+        f"[ -f {shlex.quote(record_file)} ] && [ ! -L {shlex.quote(record_file)} ] && "
+        f"base64 < {shlex.quote(record_file)} | tr -d '\\n'"
+        " || printf W10=",  # an empty list: the test never called the reference
+        "echo",
+        "echo R2E_RECORD_END",
+        f"rm -f {shlex.quote(record_file)}",
+    ]
+    result = sandbox.exec("\n".join(lines), timeout=timeout)
+    found = _RECORD_RE.search(result.stdout or "")
+    if not found:
+        return None
+    try:
+        recorded = json.loads(base64.b64decode(found.group(1)))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return recorded if isinstance(recorded, list) else None
+
+
+_RECORD_RE = _re.compile(r"R2E_RECORD_BEGIN\n([A-Za-z0-9+/=]*)\nR2E_RECORD_END")
+
+
+def validate_single_file_mutants(
+    sandbox,
+    *,
+    test_filename: str,
+    test_code: str,
+    passing_files: dict[str, str],
+    reference: PythonTestRun,
+    timeout: int,
+    seed: str,
+    remove: tuple[str, ...] = (),
+    pre: PythonTestRun | None = None,
+) -> Mutants | None:
+    """Mutants of the hidden test that fail with the reference (see `_mutants.validated`).
+
+    `reference.statuses` holds the expected test IDs (every one passed); `pre`
+    is the run without a solution, so only tests it doesn't pass (fail to
+    pass) get mutants; the others may get decoys. The edited test runs once
+    more with the reference solution, the way grading runs it.
+    """
+    tracked = sorted(reference.statuses)
+    targets = [t for t in tracked if pre is None or pre.statuses.get(t) != "PASSED"]
+    mutants = make_mutants(
+        targets,
+        lambda path: test_code if path == test_filename else None,
+        allowed_files={test_filename},
+        seed=seed,
+        split=junit_split(test_filename),
+        decoys=tracked,
+    )
+    if mutants is None:
+        return None
+    mutated = mutants.files()[test_filename]
+    fixed = run_python_tests(
+        sandbox,
+        files={**passing_files, test_filename: mutated},
+        test_filename=test_filename,
+        timeout=timeout,
+        remove=remove,
+    )
+    kept = validated(
+        mutants, fixed=reference.statuses, fixed_with_mutants=fixed.statuses, tracked=tracked
+    )
+    if kept is None or fixed.exit_code is None:
+        return None
+    kept.exit_nonzero = fixed.exit_code != 0
+    return kept
 
 
 # ---------------------------------------------------------------------------

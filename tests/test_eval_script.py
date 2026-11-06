@@ -6,7 +6,7 @@ removed; these helpers now back code_instruct + equivalence_tests.
 
 from __future__ import annotations
 
-from repo2rlenv.pipelines._eval_script import build_binary_eval_script, make_unified_diff
+from repo2rlenv.pipelines._eval_script import make_unified_diff
 
 # ---------------------------------------------------------------------------
 # make_unified_diff
@@ -39,26 +39,3 @@ def test_make_unified_diff_round_trip():
     rev = make_unified_diff(new, old, "f.py")
     assert "+    return x - 1" in fwd
     assert "+    return x + 1" in rev
-
-
-# ---------------------------------------------------------------------------
-# build_binary_eval_script
-# ---------------------------------------------------------------------------
-
-
-def test_eval_script_writes_reward():
-    script = build_binary_eval_script(["pytest tests/test_foo.py -v"], language="python")
-    assert "START_TEST_OUTPUT" in script
-    assert "END_TEST_OUTPUT" in script
-    assert "/logs/verifier/reward.txt" in script
-    assert "pytest tests/test_foo.py -v" in script
-
-
-def test_eval_script_includes_path_prelude_for_go():
-    script = build_binary_eval_script(["go test ./..."], language="go")
-    assert "/usr/local/go/bin" in script
-
-
-def test_eval_script_no_prelude_for_python():
-    script = build_binary_eval_script(["pytest"], language="python")
-    assert "/usr/local/go/bin" not in script

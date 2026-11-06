@@ -9,8 +9,12 @@ exit-code fallback on unparseable logs.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
+import pytest
+
+from repo2rlenv.pipelines import _pr_runtime_verifier as verifier
 from repo2rlenv.pipelines._pr_runtime_verifier import (
     grade,
     main,
@@ -359,3 +363,124 @@ def test_main_fallback_exit_nonzero_is_zero(tmp_path: Path):
     out_dir = tmp_path / "verifier"
     main(["--log", log, "--f2p", f2p, "--p2p", p2p, "--exit-code", "1", "--out-dir", str(out_dir)])
     assert (out_dir / "reward.txt").read_text().strip() == "0.000000"
+
+
+# --- logs the code under test can print -------------------------------------
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "t.py::a" + " " * 200_000 + "x",  # quadratic in the old verbose regex
+        "t.py::a" + " " * 200_000 + "PASSEDx",
+        "FAILED " + "[" * 200_000,  # quadratic in the old summary regex
+        "PASSED a" + "[" * 100_000 + " - x",
+    ],
+)
+def test_pathological_lines_parse_in_linear_time(line):
+    import time
+
+    from repo2rlenv import log_parsers
+
+    log = "\n".join([line] * 5 + ["tests/t.py::test_a PASSED  [100%]"])
+    started = time.monotonic()
+    verifier_statuses = verifier.parse_logs("pytest", log)
+    package_statuses = log_parsers.parse_logs(["pytest"], log)
+    assert time.monotonic() - started < 2.0
+    assert verifier_statuses["tests/t.py::test_a"] == "PASSED"
+    assert package_statuses["tests/t.py::test_a"] == "PASSED"
+
+
+# main's verbose-line regex: correct, but quadratic on crafted lines.
+_OLD_VERBOSE = re.compile(
+    r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
+    rf"(?:\s+\(.*\))?(?:\s+(?:{verifier._PYTEST_PROGRESS}))?$"
+)
+
+
+def _old_verbose(line):
+    match = _OLD_VERBOSE.match(line)
+    return (match.group("name"), match.group("status")) if match else None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "tests/a.py::T SKIPPED (needs PASSED x) FAILED (x)",
+        "tests/a.py::t FAILED (x) PASSED (y)",
+        "tests/a.py::t[a] PASSED] PASSED",
+        "tests/a.py::t[ PASSED ] PASSED [ 50%]",
+        "t.py::f[x (y)] SKIPPED (a) [ 1%]",
+        "tests/a.py::t PASSED (x",
+    ],
+)
+def test_verbose_lines_parse_like_mains_regex(line):
+    from repo2rlenv.log_parsers import pytest_parser
+
+    assert verifier._verbose_match(line) == _old_verbose(line)
+    assert pytest_parser._verbose_match(line) == _old_verbose(line)
+
+
+def test_verbose_matcher_fuzzes_equal_to_mains_regex():
+    import random
+
+    from repo2rlenv.log_parsers import pytest_parser
+
+    pieces = ["a", "[", "]", " ", "\t", "-", "::", "PASSED", "FAILED", "SKIPPED", "ERROR"]
+    pieces += ["(r)", "(", ")", "[ 50%]", "[3/10]", "0.01s", "1m 2s", "x]", "\u00a0"]
+    rng = random.Random(0)
+    for _ in range(20_000):
+        line = "".join(rng.choice(pieces) for _ in range(rng.randint(1, 10)))
+        expected = _old_verbose(line)
+        assert verifier._verbose_match(line) == expected, line
+        assert pytest_parser._verbose_match(line) == expected, line
+
+
+def test_summary_names_keep_bracketed_dashes():
+    assert verifier._summary_name("tests/a.py::t[a - b] - AssertionError") == "tests/a.py::t[a - b]"
+    assert verifier._summary_name("tests/a.py::t - boom [1] == [2]") == "tests/a.py::t"
+    assert verifier._summary_name("tests/a.py::t") == "tests/a.py::t"
+
+
+def test_unreadable_grader_input_is_its_own_exit_status(tmp_path):
+    log = tmp_path / "log"
+    log.write_text("tests/t.py::test_a PASSED\n")
+    code = verifier.main(
+        [
+            "--log",
+            str(log),
+            "--f2p",
+            str(tmp_path / "missing.json"),
+            "--test-cmds",
+            "pytest",
+            "--out-dir",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert code == verifier.EXIT_GRADER_INPUT
+    assert not (tmp_path / "out" / "reward.txt").exists()
+
+
+def test_cpu_limit_kills_a_stalled_parse(tmp_path):
+    # The verifier runs as a script: a parse stalled past the CPU limit dies,
+    # and test.sh grades that 0 rather than waiting for Harbor's timeout.
+    import subprocess
+    import sys
+    import textwrap
+
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        textwrap.dedent(
+            f"""
+            import sys
+            sys.path.insert(0, {str(Path(verifier.__file__).parent)!r})
+            import _pr_runtime_verifier as v
+            v.CPU_LIMIT_SEC = 1
+            v._limit_cpu()
+            while True:
+                pass
+            """
+        )
+    )
+    result = subprocess.run([sys.executable, str(probe)], capture_output=True, timeout=60)
+    assert result.returncode != 0

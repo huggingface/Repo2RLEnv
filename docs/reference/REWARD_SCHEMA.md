@@ -13,9 +13,23 @@ analysis, filtering, and debugging.
 
 | File | Always present? | Content |
 |---|:-:|---|
-| `/logs/verifier/reward.txt` | ✅ | Single float on one line, e.g. `0.842731` |
-| `/logs/verifier/reward-details.json` | Pipeline-dependent (see below) | Full breakdown as JSON (`pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`) |
+| `/logs/verifier/reward.txt` | ✅ unless the run is ungraded (native runtime pipelines, below) | Single float on one line, e.g. `0.842731` |
+| `/logs/verifier/reward-details.json` | Pipeline-dependent (see below) | Full breakdown as JSON (`pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`, `code_instruct`, `equivalence_tests`) |
+| `/logs/verifier/submission.patch`, `submission.json` | `pr_runtime` family | The source diff that was graded and how the agent's tree became that diff |
 | `/logs/verifier/result.json` | Research recipes and Tasksmith | The grader's outcome, e.g. `{"passed": true, "returncode": 0, "statuses": {…}}`; SCALER writes `{"score": …, "accuracy": …}`. CLI-Gym writes `reason.txt` instead when protected source was changed. |
+
+**Ungraded runs (native runtime pipelines).** `pr_runtime`, `commit_runtime`,
+`cve_patches`, `code_instruct` and `equivalence_tests` grade in Harbor's separate
+verifier. When grading fails for a reason the submission can't cause (no system
+`python3` in the image, a grader step that can't start, a crashed verifier), the
+run writes `reward-details.json` with `"reward": null` and
+`"evaluation_status": "ungraded"` and **no reward file**. Harbor then records the
+trial as `VERIFIER_FAILED` (`reward_valid` false; its `result.json` shows
+`verifier_result: null` and a `RewardFileNotFoundError`), RL consumers drop the
+rollout instead of training on a 0, and `harbor run`'s job mean and pass@k still
+count it as 0. A failure the submission can cause is a graded 0 instead
+(`evaluation_status: "graded"`, reward file written): see the table under
+[`pr_runtime`](#pr_runtime--commit_runtime--cve_patches).
 
 ---
 
@@ -144,6 +158,28 @@ analysis, filtering, and debugging.
 | `runner` | string | Detected test runner: `"pytest"` \| `"go"` \| `"cargo"` \| `"jest"` \| `""` |
 | `tests_parsed` | int | Total tests detected in log output (only in `parse_status == "ok"`). |
 | `exit_code` | int | Raw exit code of the test command. |
+| `evaluation_status` | string | `"graded"` on every run with a verdict, including the graded 0s below; `"ungraded"` (reward `null`, no reward file) otherwise. |
+| `run_seconds` | float | Wall time of the test run, measured by the grader launcher. |
+| `tamper_check` | string | The mutant check (see the `pr_runtime` docs): `"passed"`, `"tripped"` (tampered), `"inconclusive"` (`status_mismatch` or `mutant_timeout`), `"not_needed"` (the scored run passed no mutated test, or timed out), `"unavailable"` (the task has no mutant). |
+| `tamper_signal` | string | Only when the check fired: `mutant_passed`, `mutant_missing`, `mutant_run_exit_zero`, `status_mismatch` or `mutant_timeout`. |
+| `mutant_exit_code`, `mutant_run_seconds`, `mutant_time_ratio` | int, float, float | The run with mutants: exit code, wall time, and its wall time over the scored run's. |
+
+**Grading outcomes before or around the tests.** Each writes `parse_status`,
+`resolved: false` and `eval_trustworthy: false`:
+
+| `parse_status` | Verdict | Cause |
+|---|---|---|
+| `submission_too_large`, `submission_unsafe_symlink`, `submission_invalid`, `submission_apply_failed`, `submission_no_space`, `submission_rebuild_crashed` | graded 0 | The agent's tree could not become a gradable source diff: over 16 MiB or 5,000 files (sizes checked before reading), a symlink resolving outside the repository, a tree the rebuild can't read, a diff that does not apply, a disk filled by the uploaded tree (also while preparing the two runs of the mutant check), or any other failure while the tree is read (an out-of-memory kill included) |
+| `test_patch_apply_failed` | graded 0 | The hidden test patch no longer applies over the submission |
+| `runner_config_changed`, `test_config_reset_failed` | graded 0 | The submission changed runner configuration the guard can't restore, or made it unreadable |
+| `test_timeout` | graded 0 | The test run passed its time limit (`grading_time` in the task metadata) |
+| `test_cleanup_failed` | graded 0 | Processes or IPC objects of the test user could not all be removed after the run (in validation, and between the two runs of the mutant check, its files too, within a deadline), or the first run of the mutant check left state the second run's cleanup could not remove |
+| `log_unparseable` | graded 0 | The verifier crashed or hit its CPU limit on the output the tests printed |
+| `tampered` | graded 0 | The mutant check found a contradiction between the runs (`tamper_signal`): results were forged from inside the test process |
+| `status_mismatch` | graded 0 | A tracked test that isn't mutated (a decoy among them) differs between the two runs |
+| `mutant_timeout` | graded 0 | The run with mutants passed its time limit after the scored run passed a mutated test |
+| `no_system_python`, `submission_rebuild_failed`, `submission_restore_failed`, `grader_launch_failed`, `mutant_setup_failed`, `verifier_error` | ungraded | Grader infrastructure: no image `python3`, grader tools that fail before reading the agent's tree, copying the image's repository (or the prepared tree for the second run) failing or passing its measured limit, a launcher that can't start the tests, hidden test files the grader can't rewrite, an unreadable file the task ships in `/tests` |
+| `unsafe_image` | ungraded | The image lets the test user write a path root later imports or executes from (its standard library, the fixed `PATH`, git's exec path, or an ancestor of one): no submission can be graded safely there. Validation drops such tasks, so a shipped task only reaches this if its image was changed |
 
 **Choosing between `reward`, `resolved`, and `command_resolved`:**
 
@@ -157,12 +193,43 @@ analysis, filtering, and debugging.
 
 **Reward kind:** `test_execution`
 
-**`reward.txt`:** `1.0` (tests pass) or `0.0` (tests fail). Binary.
+**`reward.txt`:** `1.0` or `0.0`. Binary.
 
-**`reward-details.json`:** not written by these pipelines.
+The verifier runs the hidden pytest file against the submitted
+`task_module.py` as an unprivileged user and grades its JUnit report, read only
+after every process of the test user is gone. Reward is 1.0 iff pytest exits 0
+and the report holds exactly the test IDs the reference solution passed at
+generation (`tests/expected.json`), every one passed: a skipped, missing or extra
+test fails. Tasks generated with `skip_validation` have no expected list and,
+with nothing measured, a 300 s per-run limit; their
+report is trusted as is (`eval_trustworthy: false`).
 
-The verifier runs the repo's test suite (or the generated pytest equivalence
-tests) and maps the exit code directly to reward. No per-component breakdown.
+**`reward-details.json`:**
+
+```json
+{
+  "reward":            1.0,
+  "resolved":          true,
+  "command_resolved":  true,
+  "eval_trustworthy":  true,
+  "parse_status":      "ok",
+  "tests_expected":    6,
+  "tests_parsed":      6,
+  "tests_passed":      6,
+  "missing":           [],
+  "unexpected":        [],
+  "not_passed":        [],
+  "exit_code":         0,
+  "run_seconds":       1.82,
+  "evaluation_status": "graded"
+}
+```
+
+`parse_status` is `"ok"`, `"invalid_report: …"` (no usable report, reward 0),
+`"test_timeout"`, or one of the outcomes in the table above
+(`submission_not_regular` and `submission_too_large` for the submitted file).
+The mutant check runs here too, against the expected test IDs, with the same
+`tamper_check` fields.
 
 **Reading the reward for training:**
 
@@ -180,5 +247,5 @@ reward = float(open("/logs/verifier/reward.txt").read().strip())  # 1.0 or 0.0
 | `pr_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `commit_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `cve_patches` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
-| `code_instruct` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
-| `equivalence_tests` | 1.0 / 0.0 | ❌ | `reward` | `reward` |
+| `code_instruct` | 1.0 / 0.0 | ✅ | `reward` | `reward` |
+| `equivalence_tests` | 1.0 / 0.0 | ✅ | `reward` | `reward` |

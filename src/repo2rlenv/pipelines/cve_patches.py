@@ -58,16 +58,22 @@ from repo2rlenv.github import (
 from repo2rlenv.llm import complete
 from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
+from repo2rlenv.pipelines._grading_time import GradingTime
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.code_instruct import new_file_hunk
 from repo2rlenv.pipelines.pr_runtime import (
+    MIN_HARBOR_VERSION,
+    WORKSPACE_ARTIFACT,
     _files_in_patch,
     _runtime_aux_files,
     build_environment_dockerfile,
     build_eval_script,
     normalize_test_cmds_for_runtime,
+    separate_verifier_files,
     split_patch_and_test_patch,
     targeted_test_cmds_for_pr,
+    verifier_config,
 )
 from repo2rlenv.sources import Capability
 from repo2rlenv.spec.input import GenerationInput, PipelineName
@@ -355,6 +361,10 @@ class CVEPatchesPipeline:
                 fail_to_pass: list[str] = []
                 pass_to_pass: list[str] = []
                 validation_status = "no_test_patch"
+                flaky_dropped = 0
+                timing: GradingTime | None = None
+                mutants: Mutants | None = None
+                validated_cmds: list[str] = []
                 effective_test_patch = test_patch
                 lang = self.bootstrap.language.value
 
@@ -386,6 +396,10 @@ class CVEPatchesPipeline:
                         outcome.pass_to_pass,
                         outcome.status,
                     )
+                    flaky_dropped = len(outcome.flaky)
+                    timing = outcome.timing
+                    mutants = outcome.mutants
+                    validated_cmds = outcome.test_cmds
                 elif self.options.synthesize_poc_test and lang == "python" and self.input.llm:
                     if sandbox is None:
                         sandbox = self._start_validation_sandbox()
@@ -429,6 +443,10 @@ class CVEPatchesPipeline:
                         if len(outcome.fail_to_pass) >= self.options.min_fail_to_pass:
                             effective_test_patch = cand
                             fail_to_pass, pass_to_pass = outcome.fail_to_pass, outcome.pass_to_pass
+                            flaky_dropped = len(outcome.flaky)
+                            timing = outcome.timing
+                            mutants = outcome.mutants
+                            validated_cmds = outcome.test_cmds
                             validation_status = "poc_synthesized"
                             break
 
@@ -458,6 +476,10 @@ class CVEPatchesPipeline:
                     fail_to_pass=fail_to_pass,
                     pass_to_pass=pass_to_pass,
                     validation_status=validation_status,
+                    flaky_dropped=flaky_dropped,
+                    timing=timing,
+                    mutants=mutants,
+                    test_cmds=validated_cmds or None,
                 )
                 write_harbor_task(task, out_dir)
                 emitted += 1
@@ -507,6 +529,10 @@ class CVEPatchesPipeline:
         fail_to_pass: list[str],
         pass_to_pass: list[str],
         validation_status: str,
+        flaky_dropped: int = 0,
+        timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
+        test_cmds: list[str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         # Use the CVE id (or fallback to OSV id) for the task slug — stable + human-readable
@@ -520,13 +546,18 @@ class CVEPatchesPipeline:
         eval_script = build_eval_script(
             base_commit=parent_sha,
             test_patch=test_patch,
-            test_cmds=targeted_test_cmds_for_pr(
+            # Grade with exactly what validation ran (Node script indirection resolved).
+            test_cmds=test_cmds
+            or targeted_test_cmds_for_pr(
                 normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
                 _files_in_patch(test_patch),
             ),
             language=self.bootstrap.language.value,
             fail_to_pass=fail_to_pass or None,
             pass_to_pass=pass_to_pass or None,
+            run_timeout=timing.run_timeout if timing is not None else None,
+            copy_timeout=timing.copy_timeout if timing is not None else None,
+            mutants=mutants,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -560,6 +591,11 @@ class CVEPatchesPipeline:
                 "fail_to_pass": fail_to_pass,
                 "pass_to_pass": pass_to_pass,
                 "validation_status": validation_status,
+                # Tests dropped at validation because their status varied across reruns.
+                "flaky_dropped": flaky_dropped,
+                "harbor_min_version": MIN_HARBOR_VERSION,
+                **({"grading_time": timing.metadata()} if timing is not None else {}),
+                "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
                 "poc_synthesized": validation_status == "poc_synthesized",
                 "llm_cost_usd": round(self._llm_cost_usd, 6),
                 "bootstrap_image": self.bootstrap.image_digest,
@@ -583,8 +619,11 @@ class CVEPatchesPipeline:
             # `verifier.py` call can't run and the reward is never written. The
             # egress guard blackholes the hosts that serve this CVE's published
             # fix so the agent cannot fetch the answer at run time.
+            verifier=verifier_config(timing),
+            artifacts=WORKSPACE_ARTIFACT,
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
+                **separate_verifier_files(mutants),
                 "environment/docker-compose.yaml": egress_guard_compose(
                     fix_source_hosts(self.input.repo.source_kind)
                 ),

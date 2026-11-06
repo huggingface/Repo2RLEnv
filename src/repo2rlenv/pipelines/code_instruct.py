@@ -37,13 +37,12 @@ Released under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import logging
 import random
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -53,7 +52,15 @@ from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.llm import complete
-from repo2rlenv.pipelines._eval_script import all_tests_passed, build_binary_eval_script
+from repo2rlenv.pipelines._eval_script import (
+    SUBMISSION_ARTIFACT,
+    build_single_file_eval_script,
+    run_python_tests,
+    single_file_verifier_files,
+    validate_single_file_mutants,
+)
+from repo2rlenv.pipelines._grading_time import GradingTime, fit_runs, measure
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines._oss_instruct import (
     PROMPT_SYSTEM,
     PROMPT_USER_TEMPLATE,
@@ -72,6 +79,11 @@ from repo2rlenv.pipelines._oss_instruct import (
     task_fingerprints,
 )
 from repo2rlenv.pipelines.base import PipelineResult
+from repo2rlenv.pipelines.pr_runtime import (
+    MIN_HARBOR_VERSION,
+    ensure_system_python,
+    verifier_config,
+)
 from repo2rlenv.sources import blob_reference_url
 from repo2rlenv.spec.input import GenerationInput, PipelineName
 from repo2rlenv.spec.options import CodeInstructOptions
@@ -85,6 +97,10 @@ class _VerifyOutcome:
     reason: str = ""
     pre_log: str = ""
     post_log: str = ""
+    # Test IDs the reference passed: the verifier requires exactly these.
+    expected: list[str] = field(default_factory=list)
+    timing: GradingTime | None = None
+    mutants: Mutants | None = None
 
 
 def new_file_hunk(content: str, path: str) -> str:
@@ -139,7 +155,8 @@ def build_code_instruct_dockerfile(bootstrap_image: str) -> str:
         f"    (apt-get update && apt-get install -y --no-install-recommends git \\\n"
         f"     && rm -rf /var/lib/apt/lists/*) || \\\n"
         f"    apk add --no-cache git || true\n"
-        f"RUN git config --global --add safe.directory /workspace\n"
+        f"RUN git config --global --add safe.directory /workspace\n" + ensure_system_python()
+        # The separate verifier's grading steps run on the image's own python3.
     )
 
 
@@ -318,15 +335,28 @@ class CodeInstructPipeline:
 
                     # Sandbox verification
                     test_filename = self._task_test_filename(seed, parsed)
+                    expected: list[str] = []
+                    timing = None
+                    mutants = None
                     if not self.options.skip_validation:
                         outcome = self._verify_task(sandbox, parsed, test_filename=test_filename)
                         if not outcome.accepted:
                             skip_reasons[outcome.reason] = skip_reasons.get(outcome.reason, 0) + 1
                             self._emit_progress(label, "skip", outcome.reason)
                             continue
+                        expected = outcome.expected
+                        timing = outcome.timing
+                        mutants = outcome.mutants
 
                     # Emit
-                    task = self._build_task(seed, parsed, test_filename=test_filename)
+                    task = self._build_task(
+                        seed,
+                        parsed,
+                        test_filename=test_filename,
+                        expected=expected,
+                        timing=timing,
+                        mutants=mutants,
+                    )
                     write_harbor_task(task, out_dir)
                     seen_fingerprints.update(parsed_fps)
                     emitted += 1
@@ -389,65 +419,57 @@ class CodeInstructPipeline:
         )
 
     def _verify_task(self, sandbox, parsed: ParsedTask, *, test_filename: str) -> _VerifyOutcome:
-        """Two-stage verification.
+        """Two-stage verification, run exactly the way the task is graded.
 
-        Stage A: write only the test file, run pytest on it → must NOT pass.
-                 (Without the oracle module, the import fails or the
-                  assertions fail. Either way, exit_code != 0.)
-        Stage B: write both the test file AND task_module.py, re-run pytest →
-                 must pass (exit_code == 0).
+        Stage A: the test alone, no `task_module.py` → must NOT pass.
+        Stage B: the test plus the oracle module → must pass (every test passed,
+                 none skipped, pytest exit 0), the separate verifier's verdict.
+        Both run through the grader launcher as the unprivileged user; the test
+        IDs stage B passed become the task's expected list.
         """
-        enc_test = base64.b64encode(parsed.test_code.encode("utf-8")).decode("ascii")
-        enc_solution = base64.b64encode(parsed.solution_code.encode("utf-8")).decode("ascii")
-
-        # Stage A — test only, no oracle
-        script_a = (
-            "set -uxo pipefail\n"
-            "cd /workspace\n"
-            "git config --global --add safe.directory /workspace\n"
-            "git reset --hard HEAD\n"
-            "git clean -fdx -e .venv -e venv -e __pycache__ || true\n"
-            "rm -f task_module.py task_module.pyc || true\n"
-            f"echo {enc_test} | base64 -d > {test_filename}\n"
-            ": 'START_TEST_OUTPUT'\n"
-            f"python -m pytest {test_filename} -v --no-header || true\n"
-            ": 'END_TEST_OUTPUT'\n"
-        )
-        a = sandbox.exec(script_a, timeout=self.options.validation_timeout_sec)
-        pre_log = a.truncated(max_chars=4000)
-        # We re-check exit code by inspecting the log — pytest returns non-zero
-        # on collection error or test failure. The wrapper command uses `|| true`
-        # so the sandbox call always succeeds; we look for the "passed" summary
-        # to decide.
-        pre_passed = all_tests_passed(pre_log)
-        if self.options.require_test_fails_without_oracle and pre_passed:
+        common = {
+            "test_filename": test_filename,
+            "timeout": self.options.validation_timeout_sec,
+            "remove": ("task_module.py", "task_module.pyc"),
+        }
+        a = run_python_tests(sandbox, files={test_filename: parsed.test_code}, **common)
+        if self.options.require_test_fails_without_oracle and a.passed:
             return _VerifyOutcome(
-                accepted=False, reason="test_passes_without_oracle", pre_log=pre_log
+                accepted=False, reason="test_passes_without_oracle", pre_log=a.log
             )
-
-        # Stage B — oracle in place
-        script_b = (
-            "set -uxo pipefail\n"
-            "cd /workspace\n"
-            f"echo {enc_solution} | base64 -d > task_module.py\n"
-            ": 'START_TEST_OUTPUT'\n"
-            f"python -m pytest {test_filename} -v --no-header\n"
-            ": 'END_TEST_OUTPUT'\n"
-            # Restore HEAD state on exit
-            f"rm -f task_module.py {test_filename}\n"
-        )
-        b = sandbox.exec(script_b, timeout=self.options.validation_timeout_sec)
-        post_log = b.truncated(max_chars=4000)
-        post_passed = b.ok and all_tests_passed(post_log)
-        if self.options.require_test_passes_with_oracle and not post_passed:
+        oracle = {"task_module.py": parsed.solution_code}
+        b = run_python_tests(sandbox, files={**oracle, test_filename: parsed.test_code}, **common)
+        if self.options.require_test_passes_with_oracle and not b.passed:
             return _VerifyOutcome(
                 accepted=False,
                 reason="oracle_does_not_satisfy_test",
-                pre_log=pre_log,
-                post_log=post_log,
+                pre_log=a.log,
+                post_log=b.log,
             )
-
-        return _VerifyOutcome(accepted=True, pre_log=pre_log, post_log=post_log)
+        mutants = validate_single_file_mutants(
+            sandbox,
+            test_code=parsed.test_code,
+            passing_files=oracle,
+            reference=b,
+            pre=a,
+            seed=test_filename,
+            **common,
+        )
+        timing = measure([run.sample for run in (a, b) if run.sample is not None])
+        timing, checked = fit_runs(timing, mutants is not None)
+        mutants = mutants if checked else None
+        if timing is not None and timing.over_cap:
+            return _VerifyOutcome(
+                accepted=False, reason="verifier_timeout_over_cap", pre_log=a.log, post_log=b.log
+            )
+        return _VerifyOutcome(
+            accepted=True,
+            pre_log=a.log,
+            post_log=b.log,
+            expected=sorted(b.statuses),
+            timing=timing,
+            mutants=mutants,
+        )
 
     # ----- task builder -------------------------------------------------------
 
@@ -461,7 +483,16 @@ class CodeInstructPipeline:
         h.update(parsed.problem.encode())
         return f"test_r2e_{h.hexdigest()[:10]}.py"
 
-    def _build_task(self, seed: Seed, parsed: ParsedTask, *, test_filename: str) -> HarborTask:
+    def _build_task(
+        self,
+        seed: Seed,
+        parsed: ParsedTask,
+        *,
+        test_filename: str,
+        expected: list[str] | None = None,
+        timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
+    ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         h = hashlib.sha256()
         h.update(seed.relative_path.encode())
@@ -479,12 +510,12 @@ class CodeInstructPipeline:
         # The verifier copies the test out of /tests into /workspace, then runs
         # it specifically (NOT the bootstrap's recorded test_cmds — those are
         # for the original suite).
-        eval_script = build_binary_eval_script(
-            [
-                f"cp /tests/{test_filename} /workspace/{test_filename}",
-                f"python -m pytest {test_filename} -v --no-header",
-            ],
+        eval_script = build_single_file_eval_script(
+            test_filename,
             language=self.bootstrap.language.value,
+            run_timeout=timing.run_timeout if timing is not None else None,
+            mutants=mutants,
+            copy_timeout=timing.copy_timeout if timing is not None else None,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -515,6 +546,9 @@ class CodeInstructPipeline:
             "built_at": datetime.now(UTC).isoformat(),
             "synthesis_llm": self.input.llm.qualified_name,
             "reward_kinds": ["test_execution"],
+            "harbor_min_version": MIN_HARBOR_VERSION,
+            **({"grading_time": timing.metadata()} if timing is not None else {}),
+            "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
             "code_instruct": {
                 "seed_path": seed.relative_path,
                 "seed_start_line": seed.start_line,
@@ -553,10 +587,9 @@ class CodeInstructPipeline:
             keywords=[name, "code_instruct"],
             environment_dockerfile=dockerfile,
             test_script=eval_script,
-            aux_files={f"tests/{test_filename}": parsed.test_code},
+            verifier=verifier_config(timing),
+            artifacts=SUBMISSION_ARTIFACT,
+            aux_files=single_file_verifier_files(
+                test_filename, parsed.test_code, expected or [], mutants=mutants
+            ),
         )
-
-
-# NOTE: `all_tests_passed` moved to `pipelines._eval_script` in v0.8.7 so
-# `equivalence_tests` can import it directly without cross-pipeline coupling.
-# Kept the import above for callers here.

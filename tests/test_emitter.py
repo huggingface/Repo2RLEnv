@@ -174,3 +174,22 @@ def test_reproducibility_caller_override_preserved(tmp_path: Path):
     repro = data["metadata"]["repo2env"]["reproducibility"]
     assert repro["mode"] == "registry"
     assert repro["image_ref"] == "ghcr.io/foo/bar@sha256:abc"
+
+
+def test_separate_verifier_and_artifacts_in_task_toml(tmp_path: Path):
+    task = _make_task()
+    task.verifier = {"environment_mode": "separate", "user": "root"}
+    task.artifacts = [{"source": "/workspace"}]
+    config = tomllib.loads((write_harbor_task(task, tmp_path) / "task.toml").read_text())
+    assert config["verifier"] == {
+        "timeout_sec": 300.0,
+        "environment_mode": "separate",
+        "user": "root",
+    }
+    assert config["artifacts"] == [{"source": "/workspace"}]
+
+
+def test_shared_verifier_by_default(tmp_path: Path):
+    config = tomllib.loads((write_harbor_task(_make_task(), tmp_path) / "task.toml").read_text())
+    assert config["verifier"] == {"timeout_sec": 300.0}
+    assert "artifacts" not in config

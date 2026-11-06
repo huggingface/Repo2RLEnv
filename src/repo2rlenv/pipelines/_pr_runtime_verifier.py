@@ -52,7 +52,9 @@ A test reported more than once keeps its worst status (ERROR > FAILED >
 PASSED > SKIPPED), so a fake ``PASSED`` line printed by code under test
 can't overwrite pytest's real ``FAILED``.
 
-Pure stdlib — uses only ``argparse``, ``json``, ``os``, ``re``, ``sys``.
+Pure stdlib — uses only ``argparse``, ``json``, ``os``, ``re``, ``stat``, ``sys``.
+JUnit reports (code_instruct, equivalence_tests) go through the repository
+recipe's ``test_results.parse_junit``, shipped next to this file.
 The 4 per-runner parsers are condensed ports of
 ``repo2rlenv.log_parsers.*`` kept in lockstep via the unit tests under
 ``tests/test_pr_runtime_verifier.py``.
@@ -64,6 +66,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 
 # Canonical statuses. (Plain strings — no typing.Literal so the baked
@@ -84,11 +87,77 @@ _PYTEST_PROGRESS = (
     r"\[\s*\d+%\]|\[\s*\d+\s*/\s*\d+\s*\]"
     r"|\d+(?:\.\d+)?(?:us|ms|s)|\d+m \d+s|\d+h \d+m"
 )
-_PYTEST_VERBOSE_RE = re.compile(
-    r"^(?P<name>.+?(?:\[.*?\])?)\s+(?P<status>PASSED|FAILED|SKIPPED|ERROR)"
-    rf"(?:\s+\(.*\))?(?:\s+(?:{_PYTEST_PROGRESS}))?$"
-)
-_PYTEST_SUMMARY_NAME_RE = re.compile(r"^(?P<name>.+?(?:\[.*?\])?)(?: - .*)?$")
+_PYTEST_PROGRESS_RE = re.compile(_PYTEST_PROGRESS)
+_WHITESPACE_RE = re.compile(r"\s")
+
+
+def _verbose_match(line: str) -> tuple[str, str] | None:
+    """(name, status) of a verbose result line, exactly as
+    `^(.+?(?:\\[.*?\\])?)\\s+(PASSED|FAILED|SKIPPED|ERROR)(?:\\s+\\(.*\\))?(?:\\s+(?:PROGRESS))?$`
+    reads it, in linear time (that regex backtracked quadratically).
+
+    The regex takes the shortest name, trying at each length first a bracket
+    group closed by the first workable "]", then the bare name. A name end E
+    works when the rest of the line, from E, is whitespace, a status word and
+    an optional "(reason)" and/or progress field up to the end of the line.
+    """
+    size = len(line)
+    if size < 2:
+        return None
+    space = [_WHITESPACE_RE.match(char) is not None for char in line]
+    # next_solid[i]: the first non-whitespace position at or after i.
+    next_solid = [size] * (size + 1)
+    for index in range(size - 1, -1, -1):
+        next_solid[index] = next_solid[index + 1] if space[index] else index
+    # Positions where a progress field starts after whitespace and runs to the end.
+    progress = {
+        start
+        for start in range(1, size)
+        if space[start - 1] and _PYTEST_PROGRESS_RE.fullmatch(line, start) is not None
+    }
+    # The last ")" that can close a "(reason)": the line's last character, or
+    # the ")" right before the whitespace that precedes a progress field.
+    last_close = size - 1 if line[-1] == ")" else -1
+    for start in progress:
+        run = start - 1
+        while run > 0 and space[run - 1]:
+            run -= 1
+        if run > 0 and line[run - 1] == ")":
+            last_close = max(last_close, run - 1)
+
+    def tail_ok(position: int) -> bool:
+        if position == size:
+            return True
+        solid = next_solid[position]
+        if solid in (position, size):
+            return False
+        return solid in progress or (line[solid] == "(" and last_close > solid)
+
+    def rest(end: int) -> str | None:
+        if end >= size or not space[end]:
+            return None
+        solid = next_solid[end]
+        for status in _PYTEST_STATUSES:
+            if line.startswith(status, solid) and tail_ok(solid + len(status)):
+                return status
+        return None
+
+    # good_close[i]: the first "]" at or after i whose next position works as a name end.
+    good_close = [-1] * (size + 1)
+    for index in range(size - 1, -1, -1):
+        good_close[index] = (
+            index if line[index] == "]" and rest(index + 1) else good_close[index + 1]
+        )
+    for length in range(1, size):
+        if line[length] == "[" and good_close[length + 1] >= 0:
+            end = good_close[length + 1] + 1
+            return line[:end], rest(end)  # type: ignore[return-value]
+        status = rest(length)
+        if status is not None:
+            return line[:length], status
+    return None
+
+
 # pytest-xdist worker label, e.g. `[gw1] [ 20%] PASSED tests/foo.py::test_x`.
 _PYTEST_XDIST_PREFIX_RE = re.compile(rf"^\[gw\d+\]\s+(?:(?:{_PYTEST_PROGRESS})\s+)?")
 # Keep the broad pytest substring and bounded py.test alias in sync with the
@@ -98,6 +167,29 @@ _PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
 # shares the log with pytest, so last-write-wins would let it print
 # `PASSED <node id>` after pytest's real `FAILED` and flip the result.
 _PYTEST_RANK = {SKIPPED: 0, PASSED: 1, FAILED: 2, ERROR: 3}
+
+
+def _summary_name(work: str) -> str:
+    """The node ID of a summary line, as `^(.+?(?:\\[.*?\\])?)(?: - .*)?$` reads
+    it, in linear time (that regex backtracked quadratically on bracket-heavy
+    lines): the shortest prefix that ends where the line does or where " - "
+    starts, optionally extended by a bracket group to the first "]" that is
+    itself followed by the end or " - "."""
+    size = len(work)
+
+    def cut(position: int) -> bool:
+        return position == size or work.startswith(" - ", position)
+
+    # closing[i]: the first "]" at or after i that is followed by a cut.
+    closing = [-1] * (size + 1)
+    for index in range(size - 1, -1, -1):
+        closing[index] = index if work[index] == "]" and cut(index + 1) else closing[index + 1]
+    for length in range(1, size + 1):
+        if length < size and work[length] == "[" and closing[length] >= 0:
+            return work[: closing[length] + 1]
+        if cut(length):
+            return work[:length]
+    return work
 
 
 def _record_worst(out: dict[str, str], name: str, status: str) -> None:
@@ -133,19 +225,19 @@ def parse_pytest(log: str) -> dict[str, str]:
                 if len(tokens) < 2:
                     continue
                 _record_worst(out, tokens[1], leading)
-            elif m := _PYTEST_SUMMARY_NAME_RE.match(work):
-                _record_worst(out, m.group("name"), leading)
+            elif work:
+                _record_worst(out, _summary_name(work), leading)
             continue
         # Verbose progress (NAME first, STATUS after)
-        # Filter non-test output before attempting the backtracking regex.
+        # Filter non-test output before matching a verbose result line.
         head = line.split(None, 1)[0]
         if "::" not in head and not head.endswith(".py"):
             continue
-        m = _PYTEST_VERBOSE_RE.match(line)
-        if m:
-            name = m.group("name")
+        match = _verbose_match(line)
+        if match:
+            name, status = match
             if "::" in name or name.endswith(".py"):
-                _record_worst(out, name, m.group("status"))
+                _record_worst(out, name, status)
     return out
 
 
@@ -461,8 +553,19 @@ def _detect_runner(test_cmds: str) -> str:
     return "unknown"
 
 
+# Lines longer than this are dropped before any parser sees them: no runner
+# prints a test result that long, and it bounds what a regex can cost.
+MAX_LINE = 4096
+
+
+def drop_long_lines(log: str) -> str:
+    """`log` with every line over MAX_LINE characters emptied."""
+    return "\n".join(line if len(line) <= MAX_LINE else "" for line in log.split("\n"))
+
+
 def parse_logs(runner: str, log: str) -> dict[str, str]:
     """Dispatch to the right per-runner parser. Empty dict if unknown."""
+    log = drop_long_lines(log)
     if runner == "pytest":
         return parse_pytest(log)
     if runner == "unittest":
@@ -568,47 +671,301 @@ def grade(
 
 
 # ---------------------------------------------------------------------------
-# Entry point (invoked by tests/test.sh inside the container)
+# Mutant runs (see repo2rlenv.pipelines._mutants)
 # ---------------------------------------------------------------------------
 
 
+def mutant_verdict(
+    ids: list[str],
+    run_a: dict[str, str],
+    run_b: dict[str, str],
+    tracked: list[str],
+    *,
+    exit_code_b: int,
+    exit_nonzero: bool,
+) -> str | None:
+    """Return the signal the two runs raise, or None.
+
+    Run A is the hidden suite as is; run B is the same tree with each mutated
+    test contradicting the original (changed expected literal, or a flipped
+    comparison; same test ID). No honest submission passes both a test and its
+    mutant, so only tests run A reports as passed count ("claimed"): a wrong
+    submission that fails a test may well pass its mutant. These mark the run
+    as tampered:
+      * `mutant_passed`        - a claimed test's mutant is passed or skipped in B,
+                                 or any mutant passes in B while its original
+                                 failed in A;
+      * `mutant_missing`       - a claimed test's mutant is absent from B while
+                                 tracked tests pass there;
+      * `mutant_run_exit_zero` - B exited 0 although a claimed test's mutant
+                                 must fail;
+    These score 0 without the tampered label (`MISMATCH_SIGNALS`): flaky tests
+    are dropped at generation, so they most likely mean a forger, but a flake
+    or an honest solution slower than the reference under load can raise them:
+      * `status_mismatch`      - another tracked test (a decoy among them)
+                                 differs between A and B;
+      * `mutant_timeout`       - B ran past its time limit after A claimed a
+                                 mutated test (decided in `main`).
+    Tampering signals are checked first, so a run that raises both is tampered.
+    """
+    mutated = set(ids)
+    claimed = [test for test in ids if run_a.get(test) == PASSED]
+    for test in ids:
+        status = run_b.get(test)
+        if test in claimed and status is not None and status not in (FAILED, ERROR):
+            return "mutant_passed"
+        # A mutant expects a value no honest result has (a digit three or more
+        # away, another word, a one-element list): passing it while the
+        # original failed is no accident either.
+        if test not in claimed and status == PASSED:
+            return "mutant_passed"
+    if any(test not in run_b for test in claimed) and any(
+        run_b.get(test) == PASSED for test in tracked
+    ):
+        return "mutant_missing"
+    if exit_nonzero and exit_code_b == 0 and claimed:
+        return "mutant_run_exit_zero"
+    for test in tracked:
+        if test not in mutated and run_a.get(test) != run_b.get(test):
+            return "status_mismatch"
+    return None
+
+
+# Signals a flaky suite could also raise: graded 0, but not labelled tampered.
+# Leaving them ungraded would let a forger that fails everything in run B drop
+# its own rollout instead of taking the 0.
+MISMATCH_SIGNALS = frozenset({"status_mismatch", "mutant_timeout"})
+
+
+def _read_mutants(path: str) -> tuple[list[str], bool]:
+    """The mutated test IDs from /tests/mutants.json (root-only, written at
+    generation); an unreadable spec is a broken task, not a skipped check."""
+    if not path:
+        return [], False
+    try:
+        with open(path, encoding="utf-8") as f:
+            spec = json.load(f)
+        ids = [str(x) for x in spec.get("ids", [])]
+    except (OSError, ValueError, AttributeError) as exc:
+        raise GraderInputError(f"{path}: {exc}") from exc
+    return ids, bool(spec.get("exit_nonzero")) and bool(ids)
+
+
+def _mutant_check(args, ids: list[str], exit_nonzero: bool, run_a: dict, run_b, tracked) -> dict:
+    """The tamper check's fields for reward-details.json (empty without mutants)."""
+    if not ids:
+        return {"tamper_check": "unavailable"}
+    out: dict = {}
+    signal = None
+    if args.timed_out:
+        pass  # run A is a graded 0 anyway; nothing for run B to check
+    elif args.mutant_skipped:
+        pass  # run A passed no mutated test, so run B could not change the verdict
+    elif args.mutant_timed_out:
+        # Run B differs from A by a few assertions, so it takes about as long;
+        # hanging it must not be a way out of the check.
+        if any(run_a.get(test) == PASSED for test in ids):
+            signal = "mutant_timeout"
+        out["mutant_exit_code"] = args.mutant_exit_code
+    else:
+        signal = mutant_verdict(
+            ids,
+            run_a,
+            run_b(),
+            tracked,
+            exit_code_b=args.mutant_exit_code,
+            exit_nonzero=exit_nonzero,
+        )
+        out["mutant_exit_code"] = args.mutant_exit_code
+    seconds_b = None if args.mutant_skipped else _read_seconds(args.mutant_seconds)
+    if seconds_b is not None:
+        out["mutant_run_seconds"] = seconds_b
+    if args.timed_out or (args.mutant_skipped and not signal):
+        out["tamper_check"] = "not_needed"
+    elif signal in MISMATCH_SIGNALS:
+        out["tamper_check"] = "inconclusive"
+    else:
+        out["tamper_check"] = "tripped" if signal else "passed"
+    if signal:
+        out.update(
+            {
+                "reward": 0.0,
+                "resolved": False,
+                "command_resolved": False,
+                "parse_status": signal if signal in MISMATCH_SIGNALS else "tampered",
+                "tamper_signal": signal,
+            }
+        )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Entry point (invoked by tests/test.sh inside the container)
+# ---------------------------------------------------------------------------
+
+_MAX_READ = 64 * 1024 * 1024
+
+
+def _read_untrusted(path: str, limit: int = _MAX_READ) -> bytes:
+    """Read a file test code could have touched: no links, no FIFOs, bounded.
+
+    Called only after every process of the test user is gone, so nothing can
+    change the file while it is read.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("not a regular file")
+        with os.fdopen(descriptor, "rb") as f:
+            descriptor = -1
+            data = f.read(limit + 1)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if len(data) > limit:
+        raise ValueError("file over the size limit")
+    return data
+
+
+def _read_seconds(path: str) -> float | None:
+    """A wall time the root launcher wrote; None when absent or unreadable."""
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            value = float(f.read(64).strip())
+    except (OSError, ValueError):
+        return None
+    return round(value, 3) if value >= 0 else None
+
+
+def _load_test_results():
+    """`parse_junit` from the repository recipe's `test_results.py`.
+
+    The task ships it next to this file in /tests; in the source tree it is
+    `repo2rlenv.quality.test_results`.
+    """
+    import importlib.util
+
+    shipped = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_results.py")
+    if os.path.isfile(shipped):
+        spec = importlib.util.spec_from_file_location("r2e_test_results", shipped)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module  # dataclasses resolve the module by name
+        spec.loader.exec_module(module)
+        return module.parse_junit
+    from repo2rlenv.quality.test_results import parse_junit
+
+    return parse_junit
+
+
+def junit_statuses(report: bytes, exit_code: int) -> dict[str, str]:
+    """Upper-cased statuses from a JUnit report; {} when it can't be parsed."""
+    try:
+        results = _load_test_results()(report.decode("utf-8", "replace"), returncode=exit_code)
+    except ValueError:
+        return {}
+    return {name: status.upper() for name, status in results.statuses.items()}
+
+
+def _read_report(path: str) -> bytes:
+    try:
+        return _read_untrusted(path, 16 * 1024 * 1024)
+    except (OSError, ValueError):
+        return b""
+
+
+def junit_verdict(report: bytes, exit_code: int, expected: list[str]) -> dict:
+    """code_instruct / equivalence_tests: grade a JUnit report against `expected`.
+
+    Reward 1.0 iff pytest exited 0 and the report holds exactly the expected
+    test IDs (the reference run's), every one passed: a skipped, missing or
+    extra test fails, and so does a report that contradicts the exit code. A
+    report the submission writes itself must name exactly the hidden tests;
+    code under test that reads the test file and forges every one of them is
+    in-process forgery, which the mutant check (`mutant_verdict`) catches.
+    """
+    try:
+        results = _load_test_results()(report.decode("utf-8", "replace"), returncode=exit_code)
+        statuses = {name: status.upper() for name, status in results.statuses.items()}
+        parse_status = "ok"
+    except ValueError as exc:
+        statuses, parse_status = {}, f"invalid_report: {exc}"[:200]
+    missing = sorted(set(expected) - set(statuses))
+    extra = sorted(set(statuses) - set(expected)) if expected else []
+    # Without an expected list (generated with --skip-validation) the report is
+    # trusted as is: every test it lists passed and pytest exited 0.
+    passed = (
+        exit_code == 0
+        and bool(statuses)
+        and not missing
+        and not extra
+        and all(status == PASSED for status in statuses.values())
+    )
+    return {
+        "reward": 1.0 if passed else 0.0,
+        "eval_trustworthy": bool(expected),
+        "resolved": passed,
+        "command_resolved": passed,
+        "parse_status": parse_status,
+        "tests_expected": len(expected),
+        "tests_parsed": len(statuses),
+        "tests_passed": sum(1 for s in statuses.values() if s == PASSED),
+        "missing": missing[:20],
+        "unexpected": extra[:20],
+        "not_passed": sorted(t for t, s in statuses.items() if s != PASSED)[:20],
+        "exit_code": exit_code,
+    }
+
+
+class GraderInputError(Exception):
+    """A file the task ships in root-only /tests is missing or unreadable."""
+
+
+# Exit status for a broken task (unreadable /tests inputs): the caller leaves the
+# run ungraded. Any other failure (a crash or the CPU limit while parsing the
+# submission's own output) is graded 0 by the caller.
+EXIT_GRADER_INPUT = 3
+# CPU seconds the verifier may spend: parsing is linear, so only a pathological
+# log printed by the code under test comes near it.
+CPU_LIMIT_SEC = 120
+
+
 def _read_json_list(path: str) -> list[str]:
+    """A JSON list of test IDs from /tests (written at generation, root-only)."""
+    if not path:
+        return []
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return [str(x) for x in data] if isinstance(data, list) else []
-    except (OSError, ValueError):
-        return []
+    except (OSError, ValueError) as exc:
+        raise GraderInputError(f"{path}: {exc}") from exc
+    if not isinstance(data, list):
+        raise GraderInputError(f"{path}: not a JSON list")
+    return [str(x) for x in data]
+
+
+def _limit_cpu() -> None:
+    try:
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_CPU, (CPU_LIMIT_SEC, CPU_LIMIT_SEC + 5))
+    except (ImportError, ValueError, OSError):
+        pass
 
 
 def _read_text(path: str) -> str:
     try:
-        with open(path, encoding="utf-8") as f:
-            return f.read()
-    except (OSError, UnicodeDecodeError):
+        return _read_untrusted(path).decode("utf-8", errors="replace")
+    except (OSError, ValueError):
         return ""
 
 
-def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="pr_runtime graded F2P/P2P verifier")
-    p.add_argument("--log", required=True, help="captured test-run log file")
-    p.add_argument("--f2p", required=True, help="JSON file: FAIL_TO_PASS test names")
-    p.add_argument("--p2p", required=True, help="JSON file: PASS_TO_PASS test names")
-    p.add_argument(
-        "--runner", default="", help="pytest|unittest|go|cargo|nextest|jest (else auto-detect)"
-    )
-    p.add_argument("--test-cmds", default="", help="test command string (runner auto-detect)")
-    p.add_argument("--exit-code", type=int, default=1, help="test suite exit code (fallback)")
-    p.add_argument("--out-dir", default="/logs/verifier", help="where to write reward.{txt,json}")
-    args = p.parse_args(argv)
-
-    log = _read_text(args.log)
+def _log_breakdown(args, status_map: dict[str, str]) -> dict:
+    """pr_runtime family: grade the captured log against the F2P/P2P lists."""
     f2p = _read_json_list(args.f2p)
     p2p = _read_json_list(args.p2p)
     runner = args.runner.strip() or _detect_runner(args.test_cmds)
-
-    status_map = parse_logs(runner, log)
-
     if not status_map:
         # Unparseable runner output → fall back to the binary exit-code reward
         # (a coarse TRAINING signal) so we never silently zero a real fix on an
@@ -621,12 +978,11 @@ def main(argv: list[str] | None = None) -> int:
         # declared an unparseable log provides no evidence of passing tests,
         # whether caused by environment failure, parser drift or tampering.
         has_oracle = len(f2p) > 0
-        reward = 1.0 if args.exit_code == 0 and not has_oracle else 0.0
         resolved = (args.exit_code == 0) and not has_oracle
-        breakdown = {
-            "reward": reward,
+        return {
+            "reward": 1.0 if resolved else 0.0,
             "resolved": resolved,
-            "command_resolved": bool(resolved and args.exit_code == 0),
+            "command_resolved": resolved,
             "parse_status": "fallback_exitcode",
             "eval_trustworthy": not has_oracle,
             "runner": runner,
@@ -634,21 +990,129 @@ def main(argv: list[str] | None = None) -> int:
             "p2p_total": len(p2p),
             "exit_code": args.exit_code,
         }
+    breakdown = grade(f2p, p2p, status_map, runner)
+    breakdown["parse_status"] = "ok"
+    breakdown["runner"] = runner
+    breakdown["tests_parsed"] = len(status_map)
+    breakdown["exit_code"] = args.exit_code
+    # Strict eval signal: tracked resolution AND a clean command (no
+    # untracked failures, exit code 0). Benchmarks wanting "the whole test
+    # command passed" gate on this; SWE-bench-style scoring uses `resolved`.
+    breakdown["command_resolved"] = bool(
+        breakdown["resolved"] and breakdown["untracked_failed_count"] == 0 and args.exit_code == 0
+    )
+    return breakdown
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description="pr_runtime graded F2P/P2P verifier")
+    p.add_argument("--log", default="", help="captured test-run log file")
+    p.add_argument("--f2p", default="", help="JSON file: FAIL_TO_PASS test names")
+    p.add_argument("--p2p", default="", help="JSON file: PASS_TO_PASS test names")
+    p.add_argument(
+        "--runner", default="", help="pytest|unittest|go|cargo|nextest|jest (else auto-detect)"
+    )
+    p.add_argument("--test-cmds", default="", help="test command string (runner auto-detect)")
+    p.add_argument("--exit-code", type=int, default=1, help="test suite exit code (fallback)")
+    p.add_argument("--out-dir", default="/logs/verifier", help="where to write reward.{txt,json}")
+    p.add_argument("--junit", default="", help="grade this JUnit report instead of the log")
+    p.add_argument("--expected", default="", help="JSON list: test IDs the JUnit report must hold")
+    p.add_argument("--timed-out", type=int, default=0, help="1 if the test run hit its time limit")
+    p.add_argument("--seconds", default="", help="file with the test run's wall time")
+    p.add_argument("--mutants", default="", help="JSON mutant spec (tests/mutants.json)")
+    p.add_argument("--mutant-log", default="", help="log of the run with mutants (run B)")
+    p.add_argument("--mutant-junit", default="", help="JUnit report of run B")
+    p.add_argument("--mutant-exit-code", type=int, default=1, help="exit code of run B")
+    p.add_argument("--mutant-timed-out", type=int, default=0, help="1 if run B hit its limit")
+    p.add_argument("--mutant-skipped", type=int, default=0, help="1 if run B was not needed")
+    p.add_argument("--mutant-seconds", default="", help="file with run B's wall time")
+    p.add_argument(
+        "--claimed",
+        action="store_true",
+        help="print 1 if run A passed a mutated test (or can't be read), else 0; write nothing",
+    )
+    args = p.parse_args(argv)
+    if argv is None:  # running as the task's verifier, not imported by a test
+        _limit_cpu()
+    try:
+        if args.claimed:
+            print(_claimed(args))
+            return 0
+        breakdown = _breakdown(args)
+    except GraderInputError as exc:
+        sys.stderr.write(f"R2E verifier: unreadable grader input: {exc}\n")
+        return EXIT_GRADER_INPUT
+    return _write_verdict(args, breakdown)
+
+
+def _runner(args) -> str:
+    return args.runner.strip() or _detect_runner(args.test_cmds)
+
+
+def _claimed(args) -> str:
+    """Whether run B is needed. A run A that can't be read means "run it":
+    skipping is only safe when run A plainly passed no mutated test."""
+    ids, _ = _read_mutants(args.mutants)
+    if args.junit:
+        report = _read_report(args.junit)
+        run_a = junit_statuses(report, args.exit_code) if report else {}
     else:
-        breakdown = grade(f2p, p2p, status_map, runner)
-        breakdown["parse_status"] = "ok"
-        breakdown["runner"] = runner
-        breakdown["tests_parsed"] = len(status_map)
-        breakdown["exit_code"] = args.exit_code
-        # Strict eval signal: tracked resolution AND a clean command (no
-        # untracked failures, exit code 0). Benchmarks wanting "the whole test
-        # command passed" gate on this; SWE-bench-style scoring uses `resolved`.
-        breakdown["command_resolved"] = bool(
-            breakdown["resolved"]
-            and breakdown["untracked_failed_count"] == 0
-            and args.exit_code == 0
+        run_a = parse_logs(_runner(args), _read_text(args.log))
+    return "1" if not run_a or any(run_a.get(test) == PASSED for test in ids) else "0"
+
+
+def _breakdown(args) -> dict:
+    ids, exit_nonzero = _read_mutants(args.mutants)
+    if args.junit:
+        report = _read_report(args.junit)
+        expected = _read_json_list(args.expected)
+        breakdown = junit_verdict(report, args.exit_code, expected)
+        if report:
+            # Keep the bytes graded, root-only, for the record.
+            os.makedirs(args.out_dir, exist_ok=True)
+            path = os.path.join(args.out_dir, "junit.xml")
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, "wb") as f:
+                f.write(report)
+        run_a = junit_statuses(report, args.exit_code) if report else {}
+        tracked = sorted(set(expected or run_a) - set(ids))
+
+        def run_b() -> dict[str, str]:
+            data = _read_report(args.mutant_junit)
+            return junit_statuses(data, args.mutant_exit_code) if data else {}
+    else:
+        runner = _runner(args)
+        run_a = parse_logs(runner, _read_text(args.log))
+        breakdown = _log_breakdown(args, run_a)
+        tracked = _read_json_list(args.f2p) + _read_json_list(args.p2p)
+
+        def run_b() -> dict[str, str]:
+            return parse_logs(runner, _read_text(args.mutant_log))
+
+    check = _mutant_check(args, ids, exit_nonzero, run_a, run_b, tracked)
+    seconds = _read_seconds(args.seconds)
+    if seconds and check.get("mutant_run_seconds") is not None:
+        check["mutant_time_ratio"] = round(check["mutant_run_seconds"] / seconds, 3)
+    breakdown.update(check)
+    return breakdown
+
+
+def _write_verdict(args, breakdown: dict) -> int:
+    seconds = _read_seconds(args.seconds)
+    if seconds is not None:
+        breakdown["run_seconds"] = seconds
+    if args.timed_out:
+        # The submission controls how long its tests take: a hang is a wrong answer.
+        breakdown.update(
+            {
+                "reward": 0.0,
+                "resolved": False,
+                "command_resolved": False,
+                "parse_status": "test_timeout",
+            }
         )
-        reward = breakdown["reward"]
+    breakdown["evaluation_status"] = "graded"
+    reward = breakdown["reward"]
 
     os.makedirs(args.out_dir, exist_ok=True)
     with open(os.path.join(args.out_dir, "reward.txt"), "w", encoding="utf-8") as f:
@@ -665,8 +1129,12 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "MISMATCH_SIGNALS",
     "grade",
+    "junit_statuses",
+    "junit_verdict",
     "main",
+    "mutant_verdict",
     "parse_cargo_nextest",
     "parse_cargo_test",
     "parse_go_test",

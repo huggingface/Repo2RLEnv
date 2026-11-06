@@ -138,7 +138,11 @@ src/repo2rlenv/
 │   ├── code_instruct.py · equivalence_tests.py · cve_patches.py
 │   ├── pr_runtime_validate.py  # shared PR validation harness (pr_runtime, cve_patches)
 │   ├── _env_guard.py           # anti-contamination: git-history scrub + egress guard (EVERY task)
-│   ├── _eval_script.py         # verifier-script + diff helpers (make_unified_diff, all_tests_passed)
+│   ├── _eval_script.py         # single-file test.sh + validation runs + diff helpers (make_unified_diff)
+│   ├── _grader_launcher.py     # runs a task's tests as an unprivileged user, then stops all it started
+│   ├── _grader_tools.py        # separate verifier: rebuild /workspace from the agent's source diff
+│   ├── _grading_time.py        # per-run and verifier time limits from validation's measured runs
+│   ├── _node_runner.py         # freezes Node test commands against base (jest --ci --config, ...)
 │   ├── _pr_diff_verifier.py    # in-container 6-component diff-similarity reward (stdlib, base64-baked)
 │   ├── _pr_runtime_verifier.py # in-container graded F2P/P2P reward
 │   ├── _oss_instruct.py        # code_instruct synthesis + its 4 quality gates

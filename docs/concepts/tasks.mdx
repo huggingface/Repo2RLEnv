@@ -19,7 +19,7 @@ A trial runs in this order:
 
 1. Harbor builds `environment/` and starts the agent's container.
 2. The agent reads the instruction and works in `/workspace`. For an oracle run, Harbor uploads `solution/` and runs `solve.sh` instead.
-3. Harbor uploads `tests/` to `/tests` and runs `tests/test.sh`. Bundles with a separate verifier build a fresh container from `tests/` for this step instead.
+3. Harbor uploads `tests/` to `/tests` and runs `tests/test.sh`. Bundles with a separate verifier build a fresh container from `tests/` for this step instead. Native runtime pipelines (`pr_runtime`, `commit_runtime`, `cve_patches`, `code_instruct`, `equivalence_tests`) also grade in a fresh container from the task image: Harbor copies the agent's `/workspace` (or just `task_module.py`) into it, and the verifier grades the source changes against the image's own repository and dependencies.
 4. The verifier writes the score to `/logs/verifier/reward.txt`, and Harbor records it as the trial's reward.
 
 "Private" means hidden from the agent during a trial. Anyone who downloads a published dataset can read its tests and solutions.
@@ -41,6 +41,8 @@ org__service-412
 └── tests
     ├── test.sh
     ├── verifier.py
+    ├── launcher.py
+    ├── grader_tools.py
     ├── f2p.json
     └── p2p.json
 ```
@@ -50,8 +52,8 @@ org__service-412
 | Pipeline | `environment/` | `tests/` besides `test.sh` |
 |---|---|---|
 | `pr_diff` | `Dockerfile`: `python:3.12-slim` with the repository at the base commit | `verifier.py`, `oracle.patch`, and `instruction.md` (the judge's copy) |
-| `pr_runtime`, `commit_runtime`, `cve_patches` | `Dockerfile` built from the [bootstrap](glossary.mdx#bootstrap) image and reset to the base commit, plus the `docker-compose.yaml` egress guard | `verifier.py`, `f2p.json`, `p2p.json`. `test.sh` carries the hidden test patch and applies it before running the tests |
-| `code_instruct`, `equivalence_tests` | `Dockerfile` built from the bootstrap image. `equivalence_tests` also bakes in a stub `task_module.py` | The generated test file |
+| `pr_runtime`, `commit_runtime`, `cve_patches` | `Dockerfile` built from the [bootstrap](glossary.mdx#bootstrap) image and reset to the base commit, with a root-only copy of the repository for the separate verifier, plus the `docker-compose.yaml` egress guard | `verifier.py`, `launcher.py`, `grader_tools.py`, `f2p.json`, `p2p.json`. `test.sh` carries the hidden test patch and applies it before running the tests |
+| `code_instruct`, `equivalence_tests` | `Dockerfile` built from the bootstrap image. `equivalence_tests` also bakes in a stub `task_module.py` | The generated test file, `verifier.py`, `test_results.py`, `launcher.py`, `grader_tools.py`, `expected.json` (the test IDs the reference passed). The `equivalence_tests` test carries the original implementation's recorded results, not its code |
 
 With `--pipeline-opt emit_harbor_env=false`, `pr_diff` writes a text-only task: `task.toml`, `instruction.md` and `solution/`, with no environment or verifier. You score it yourself, as described in [Rewards](rewards.mdx#using-rewards-in-training).
 
@@ -101,7 +103,12 @@ reason_codes = ["validation_not_run"]
 timeout_sec = 1800.0
 
 [verifier]
-timeout_sec = 300.0
+timeout_sec = 600.0                  # from the validation runs (test run + overhead, 600-3,000 s)
+environment_mode = "separate"        # grade in a fresh container from the task image
+user = "root"
+
+[[artifacts]]
+source = "/workspace"                # the agent's tree, graded as a source diff
 ```
 
 ## Recipe and Tasksmith bundles (schema 1.3)
