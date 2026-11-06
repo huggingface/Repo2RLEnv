@@ -25,8 +25,6 @@ from dataclasses import dataclass
 
 RUN_FLOOR_SEC = 120
 RUN_FACTOR = 2.0
-# Test runs per grading.
-RUNS_PER_GRADING = 1
 # Copying the image's repository back into /workspace: generous against the
 # measured copy, which only the image decides (not the submission).
 COPY_FLOOR_SEC = 120
@@ -56,6 +54,8 @@ class GradingTime:
     overhead_seconds: float
     # Slowest measured copy of the image's repository during the rebuild.
     copy_seconds: float = 0.0
+    # Test runs per grading: 2 when the task has mutants (see `fit_runs`).
+    runs: int = 1
 
     @property
     def run_timeout(self) -> int:
@@ -69,8 +69,10 @@ class GradingTime:
 
     @property
     def needed_verifier_timeout(self) -> int:
-        runs = RUNS_PER_GRADING * self.run_timeout
-        return _ceil_to(runs + 1.5 * self.overhead_seconds + VERIFIER_PARSE_SEC + 60, 60)
+        runs = self.runs * self.run_timeout
+        # Each extra run copies the prepared tree twice (keep it, reset to it).
+        copies = 2 * (self.runs - 1) * self.copy_timeout
+        return _ceil_to(runs + copies + 1.5 * self.overhead_seconds + VERIFIER_PARSE_SEC + 60, 60)
 
     @property
     def over_cap(self) -> bool:
@@ -88,6 +90,7 @@ class GradingTime:
             "measured_copy_seconds": round(self.copy_seconds, 3),
             "run_timeout_sec": self.run_timeout,
             "copy_timeout_sec": self.copy_timeout,
+            "runs_per_grading": self.runs,
             "verifier_timeout_sec": self.verifier_timeout,
         }
 
@@ -107,3 +110,16 @@ def measure(
         overhead_seconds=max(max(stage - test, 0.0) for test, stage in samples),
         copy_seconds=max(copies or [0.0]),
     )
+
+
+def fit_runs(timing: GradingTime | None, checked: bool) -> tuple[GradingTime | None, bool]:
+    """(timing, keep the mutant check): two runs when the task has mutants and
+    they fit under the cap; otherwise one run, and the task ships without the
+    check rather than being dropped."""
+    if timing is None:
+        return None, checked
+    timing.runs = 2 if checked else 1
+    if checked and timing.over_cap:
+        timing.runs = 1
+        return timing, False
+    return timing, checked

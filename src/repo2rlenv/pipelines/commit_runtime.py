@@ -49,6 +49,7 @@ from repo2rlenv.git_local import CommitInfo, GitError, list_commits, show_diff
 from repo2rlenv.llm import complete
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines._grading_time import GradingTime
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
     MIN_HARBOR_VERSION,
@@ -373,6 +374,7 @@ class CommitRuntimePipeline:
                     validation_status = "skipped"
                     flaky_dropped = 0
                     timing: GradingTime | None = None
+                    mutants: Mutants | None = None
                     validated_cmds: list[str] = []
                     if not self.options.skip_validation:
                         if sandbox is None:
@@ -397,6 +399,7 @@ class CommitRuntimePipeline:
                         validation_status = outcome.status
                         flaky_dropped = len(outcome.flaky)
                         timing = outcome.timing
+                        mutants = outcome.mutants
                         validated_cmds = outcome.test_cmds
                         # Cap the P2P regression set: whole-suite P2P (100s of
                         # tests) inflates flaky-reward risk + runtime. Prefer
@@ -450,6 +453,7 @@ class CommitRuntimePipeline:
                         issue=issue,
                         flaky_dropped=flaky_dropped,
                         timing=timing,
+                        mutants=mutants,
                         test_cmds=validated_cmds or None,
                     )
                     write_harbor_task(task, out_dir)
@@ -556,6 +560,7 @@ class CommitRuntimePipeline:
         issue: tuple[str, str] | None = None,
         flaky_dropped: int = 0,
         timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
         test_cmds: list[str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
@@ -588,6 +593,7 @@ class CommitRuntimePipeline:
             pass_to_pass=pass_to_pass,
             run_timeout=timing.run_timeout if timing is not None else None,
             copy_timeout=timing.copy_timeout if timing is not None else None,
+            mutants=mutants,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -626,6 +632,7 @@ class CommitRuntimePipeline:
                 "flaky_dropped": flaky_dropped,
                 "harbor_min_version": MIN_HARBOR_VERSION,
                 **({"grading_time": timing.metadata()} if timing is not None else {}),
+                "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
                 "bootstrap_image": self.bootstrap.image_digest,
                 "instruction_synthesized": bool(
                     self.options.synthesize_with_llm and self.input.llm
@@ -667,7 +674,7 @@ class CommitRuntimePipeline:
             artifacts=WORKSPACE_ARTIFACT,
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                **separate_verifier_files(),
+                **separate_verifier_files(mutants),
                 "environment/docker-compose.yaml": egress_guard_compose(
                     fix_source_hosts(self.input.repo.source_kind)
                 ),

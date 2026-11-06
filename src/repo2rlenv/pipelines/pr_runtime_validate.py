@@ -10,6 +10,8 @@ need. Workflow inside one container:
      dropped (the SWE-rebench V2 / R2E-Gym convention)
   4. F2P = tests that FAILED in (2) and PASS in every run of (3)
      P2P = tests that PASSED in (2) and in every run of (3)
+  5. Rerun (3) once with mutants of a few tracked tests; keep mutants that
+     fail there while every other tracked status matches (3) (see `_mutants`)
 
 Every stage grades the way the separate verifier does: the patched tree goes
 through `_grader_tools.py rebuild` against a copy of the base tree (so the gold
@@ -27,6 +29,8 @@ import); see references/SWE-bench/ for the reference code.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import re
 import shlex
@@ -37,12 +41,15 @@ from pathlib import Path
 from repo2rlenv.bootstrap.docker import DockerSandbox
 from repo2rlenv.log_parsers import parse_logs
 from repo2rlenv.pipelines._eval_script import upload
-from repo2rlenv.pipelines._grading_time import GradingTime, measure
+from repo2rlenv.pipelines._grading_time import GradingTime, fit_runs, measure
+from repo2rlenv.pipelines._mutants import Mutants, make_mutants, validated
+from repo2rlenv.pipelines._mutants_ts import language_of, make_tree_sitter_mutants
 from repo2rlenv.pipelines._node_runner import freeze_node_commands
 from repo2rlenv.pipelines.pr_runtime import (
     _PYTHONS,
     _access_flags,
     _child_path,
+    _files_in_patch,
     _guard_env,
     _test_config_reset,
 )
@@ -63,6 +70,7 @@ class ValidationOutcome:
     timing: GradingTime | None = None
     # The test commands as validated (Node script indirection resolved); grade with these.
     test_cmds: list[str] = field(default_factory=list)
+    mutants: Mutants | None = None  # validated mutant tests, if any
 
 
 _HEREDOC = "EOF_R2E_VALIDATE"
@@ -78,6 +86,7 @@ _COPY_RE = re.compile(r"^R2E_COPY_SECONDS=([0-9.]+)$", re.MULTILINE)
 # The launcher refused to run: the image lets the test user write a path root
 # later imports or executes from. No submission can be graded safely there.
 _UNSAFE_IMAGE = "R2E_TEST_EXIT_CODE=unsafe_image"
+_EXIT_RE = re.compile(r"^R2E_TEST_EXIT_CODE=(\d+)$", re.MULTILINE)
 
 
 class _Stopwatch:
@@ -110,7 +119,7 @@ def _heredoc_apply(patch: str) -> str:
 
 
 # Keys under which a stage uploads its patches; anything else is a file path.
-_PATCH, _TEST_PATCH = "\0patch", "\0test_patch"
+_PATCH, _TEST_PATCH, _MUTANTS = "\0patch", "\0test_patch", "\0mutants"
 
 
 def _apply(patch: str, staged: dict[str, str], key: str) -> str:
@@ -125,10 +134,13 @@ def _stage(
     *,
     patch: str | None = None,
     test_patch: str | None = None,
+    mutants: Mutants | None = None,
 ) -> dict[str, str]:
-    """Upload a stage's patches first: a script carrying them in argv breaks
-    once they pass Linux's 128 KiB per-argument cap."""
+    """Upload a stage's patches (and mutant spec) first: a script carrying them
+    in argv breaks once they pass Linux's 128 KiB per-argument cap."""
     contents: dict[str, str] = {}
+    if mutants is not None:
+        contents[_MUTANTS] = mutants.spec()
     # The heredoc this replaces always ended the patch with a newline; keep that.
     if patch and patch.strip():
         contents[_PATCH] = patch if patch.endswith("\n") else patch + "\n"
@@ -218,6 +230,19 @@ def _build_stage_script(
     parts.append(_guard_env().rstrip("\n"))
     if apply_test_patch and apply_test_patch.strip():
         parts.append(_apply(apply_test_patch, staged, _TEST_PATCH))
+    if apply_test_patch and apply_test_patch.strip():
+        # The hidden test files are rewritten with one fresh mtime the way every
+        # graded run does it (run B with the mutants swapped in), so a suite an
+        # mtime-based build tool would then misbuild fails here, not at grading.
+        paths = " ".join(f"--path {shlex.quote(p)}" for p in _files_in_patch(apply_test_patch))
+        spec = ""
+        if _MUTANTS in staged:
+            parts.append(f"base64 -d < {staged[_MUTANTS]} > {_LOG_DIR}/mutants.json")
+            spec = f" --spec {_LOG_DIR}/mutants.json --mutated"
+        parts.append(
+            f'"$R2E_PY" -B -I -S {_LOG_DIR}/grader_tools.py settle --root /workspace {paths}'
+            f"{spec} >/dev/null || exit 1"
+        )
     # The launcher runs the joined test commands as one bash invocation, as the
     # unprivileged grader user, with STDERR folded into its log: unittest's
     # TextTestRunner and jest write every result line to STDERR. The log is
@@ -544,7 +569,22 @@ def validate_pr(
             flaky=sorted(flaky),
         )
 
+    mutants = _validate_mutants(
+        sandbox=sandbox,
+        base_commit=base_commit,
+        patch=patch,
+        test_patch=test_patch,
+        test_cmds=test_cmds,
+        language=language,
+        timeout=timeout,
+        targets=sorted(fail_to_pass),
+        tracked=sorted(fail_to_pass) + sorted(pass_to_pass),
+        post_status=post_status,
+        clock=clock,
+    )
     timing = measure(clock.samples, clock.copies)
+    timing, checked = fit_runs(timing, mutants is not None)
+    mutants = mutants if checked else None
     if timing is not None and timing.over_cap:
         return ValidationOutcome(
             test_cmds=test_cmds,
@@ -567,6 +607,7 @@ def validate_pr(
         post_log=post_log,
         flaky=sorted(flaky),
         timing=timing,
+        mutants=mutants,
     )
 
 
@@ -574,3 +615,78 @@ def flaky_tests(runs: list[dict[str, str]]) -> set[str]:
     """Tests whose status is not the same in every run (absent counts as a status)."""
     names = set().union(*runs) if runs else set()
     return {name for name in names if len({run.get(name) for run in runs}) > 1}
+
+
+def _read_workspace_file(sandbox: DockerSandbox, path: str) -> str | None:
+    result = sandbox.exec(f"base64 < /workspace/{shlex.quote(path)} | tr -d '\\n'", timeout=30)
+    if not result.ok:
+        return None
+    try:
+        return base64.b64decode(result.stdout.strip()).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def _validate_mutants(
+    *,
+    sandbox: DockerSandbox,
+    base_commit: str,
+    patch: str,
+    test_patch: str,
+    test_cmds: list[str],
+    language: str | None,
+    timeout: int,
+    targets: list[str],
+    tracked: list[str],
+    post_status: dict[str, str],
+    clock: _Stopwatch,
+) -> Mutants | None:
+    """Mutants (of fail-to-pass `targets`) that fail on the reference fix, and
+    decoys (of other `tracked` tests) that don't move, through the grading path.
+
+    Runs right after the post-fix stages, while /workspace still holds the
+    fixed tree with the hidden tests, so the test files are read from there.
+    `tracked` holds only tests that passed in every post-fix run. No usable
+    mutant means `tamper_check` is "unavailable" at grading; the task is never
+    rejected for this.
+    """
+    hidden = set(_files_in_patch(test_patch))
+    seed = hashlib.sha256(f"{base_commit}\0{test_patch}".encode()).hexdigest()
+
+    def read(path: str) -> str | None:
+        return _read_workspace_file(sandbox, path)
+
+    # Python through its own AST; Go, Rust and JS/TS through tree-sitter.
+    mutants = make_mutants(
+        targets,
+        read,
+        allowed_files={p for p in hidden if p.endswith(".py")},
+        seed=seed,
+        decoys=tracked,
+    ) or make_tree_sitter_mutants(
+        targets,
+        read,
+        allowed_files={p for p in hidden if language_of(p)},
+        seed=seed,
+        decoys=tracked,
+    )
+    if mutants is None:
+        return None
+    script = _build_stage_script(
+        base_commit,
+        apply_patch=patch,
+        apply_test_patch=test_patch,
+        test_cmds=test_cmds,
+        language=language,
+        staged=_stage(sandbox, patch=patch, test_patch=test_patch, mutants=mutants),
+    )
+    logger.info("validate_pr: running the mutant stage (%d tests)", len(mutants.ids))
+    output = clock.run(sandbox, script, timeout).truncated(max_chars=5_000_000)
+    exit_code = _EXIT_RE.search(output)
+    fixed = parse_logs(test_cmds, _slice_test_output(output), language=language)
+    kept = validated(mutants, fixed=post_status, fixed_with_mutants=fixed, tracked=tracked)
+    if kept is None or exit_code is None:
+        logger.info("validate_pr: no usable mutants for this task")
+        return None
+    kept.exit_nonzero = int(exit_code.group(1)) != 0
+    return kept

@@ -138,7 +138,7 @@ and 0.0 otherwise. There is no partial credit. A no-op
 agent scores 0, because the test can't import `task_module`. See
 [Rewards](../concepts/rewards.mdx#binary-test-execution).
 
-The verifier reads the JUnit report only after every process of the test user is gone. Reward is 1.0 only if pytest exits 0 and the report holds exactly the test IDs the reference solution passed at generation (`tests/expected.json`, root-only), every one passed: a skipped, missing or extra test fails, so a report the submission writes itself and exits early with scores 0. Generation applies the same verdict. `reward-details.json` records the counts and `parse_status`; see the [reward schema](../reference/REWARD_SCHEMA.md#code_instruct--equivalence_tests).
+The verifier reads the JUnit report only after every process of the test user is gone. Reward is 1.0 only if pytest exits 0 and the report holds exactly the test IDs the reference solution passed at generation (`tests/expected.json`, root-only), every one passed: a skipped, missing or extra test fails, so a report the submission writes itself and exits early with scores 0. Generation applies the same verdict. `reward-details.json` records the counts and `parse_status`; see the [reward schema](../reference/REWARD_SCHEMA.md#code_instruct--equivalence_tests). Forged results from inside the test process (a patched report, the expected IDs read from the test file and reported as passing) are caught by the mutant check: the test also runs with the expected value of a few of its fail-to-pass assertions changed (for `equivalence_tests`, a recorded reference result), and a contradiction between the runs scores 0 as tampered (see [`pr_runtime`](pr_runtime.md#grading-in-a-separate-verifier)).
 
 ## Yield and cost
 

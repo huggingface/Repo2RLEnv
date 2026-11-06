@@ -253,8 +253,9 @@ group/other write. Go runs with `GOTOOLCHAIN=local`, `GOWORK=off`, `GOENV=off`,
 **Time limits.** Validation times each test run through the launcher. The task's
 per-run limit is twice the slowest measured run (at least 120 s, as judges set a
 limit from the slowest accepted solution), and its `verifier.timeout_sec` covers
-the run plus overhead, between 600 s and 3,000 s; a task that would need more is
-dropped at generation. A timeout scores 0 (`parse_status: "test_timeout"`): the
+the runs (two when the task has mutants) plus overhead, between 600 s and 3,000 s.
+A task with mutants that would need more ships with one run and no mutant check;
+a task that would need more for one run is dropped at generation. A timeout scores 0 (`parse_status: "test_timeout"`): the
 submission controls how long its tests take. The measured times are recorded as
 `grading_time` in `[metadata.repo2env.<pipeline>]`. They come from a few runs on
 the generation host; a slower or oversubscribed grader (many verifiers per node
@@ -267,10 +268,47 @@ runs (the SWE-rebench V2 / R2E-Gym convention), so a flaky test can't decide an
 honest submission's reward; the count is recorded as `flaky_dropped` in
 `[metadata.repo2env.<pipeline>]`.
 
-**Not covered: forged results.** Code under test runs inside the test process
-and can rewrite what the runner reports (patching pytest's report, printing
-`PASSED` lines and calling `os._exit(0)`). Nothing in that process can prevent
-it, and a single run can't detect it; see
+**Forged results: the mutant check.** Code under test runs inside the test
+process and can rewrite what the runner reports (patching pytest's report,
+printing `PASSED` lines and calling `os._exit(0)`, BenchJack §F.8) or return a
+value whose equality always holds. Nothing in that process can prevent it, so
+the verifier detects it. At generation, up to five fail-to-pass tests get a
+mutant: the same test ID with its expected value changed, never a flipped
+comparison (an always-equal value passes a negated test exactly like an honest
+fix). A literal gets another value of the same shape, a digit three or more
+away or another word from the file; a non-literal expected value is wrapped in
+a one-element list; for `equivalence_tests`, one recorded reference result is
+changed. Only an assertion at the top level of the test body, before any
+branch, loop or `with`, is used, so it runs whenever the test passes. Up to six
+other tracked tests get decoys: a literal respelled with the same value (`42`
+as `4_2`, `0.5` as `0.50`, other quotes, parentheses). Python goes through its
+AST; Go, Rust and JS/TS through tree-sitter, from the optional `mutants` extra.
+Validation keeps the mutants the reference fix fails and the decoys whose
+status doesn't move, each edit checked to parse on its own.
+
+At grading the suite runs twice, in random order: as is (scored) and with the
+mutants and decoys swapped in. Both runs start from the same prepared tree,
+every hidden test file is rewritten with one mtime per grading in both, the
+launcher gets the same arguments, and the test user's processes, files and IPC
+objects are removed between the runs. A mutant that passes (for a test the
+scored run passed: one that passes, is missing, or a mutant run that exits 0;
+for a test it failed: one that passes, since no honest result has the mutant's
+value) marks the run tampered (`parse_status: "tampered"`, `tamper_signal`,
+graded 0). Any other tracked test that differs between the runs, a decoy among
+them, scores 0 as `status_mismatch`, and a mutant run past its time limit as
+`mutant_timeout` (neither labelled tampered: a flake or a slow honest fix under
+load can cause them, which is the price of the second run). When the scored run
+went first and passed no mutated test, the second run is skipped: it can't
+change the verdict. `tamper_check` in `reward-details.json` says whether the
+check passed, tripped, was inconclusive, wasn't needed, or was unavailable (no
+mutant; the task metadata records the same).
+
+The two runs share a kernel, so code under test can still carry state from one
+run to the next (TCP TIME_WAIT entries in `/proc/net/tcp`, the PID counter) and
+learn which tests changed; the decoys make "fail whatever changed" score 0,
+but a forger that also evaluates which edits keep their value can avoid them.
+A forger that knows each test's correct value can tell a mutant apart, and
+tests with no expected value (`assert ok`) can't be paired; see
 [#231](https://github.com/huggingface/Repo2RLEnv/issues/231).
 
 Generation and grading also run an isolated configuration guard before applying

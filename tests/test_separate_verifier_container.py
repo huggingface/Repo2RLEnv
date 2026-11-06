@@ -3,7 +3,8 @@
 Opt-in (R2E_DOCKER_TESTS=1): builds a small python:3.12 image with pytest and
 replays what Harbor does in separate mode: the agent's /workspace (or, for a
 single-file task, its task_module.py) replaces the image's copy, /tests is
-uploaded, and test.sh runs as root. Each case is a submission.
+uploaded, and test.sh runs as root. Each case is a submission; the in-process
+forgers are the red-team cases the mutant runs must catch.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from repo2rlenv.pipelines._eval_script import (
     build_single_file_eval_script,
     single_file_verifier_files,
 )
+from repo2rlenv.pipelines._mutants import junit_split, make_mutants
 from repo2rlenv.pipelines.pr_runtime import (
     _runtime_aux_files,
     build_eval_script,
@@ -51,6 +53,140 @@ F2P = [
 ]
 P2P = ["tests/test_clamp.py::test_inside"]
 CMD = "python -m pytest -v -p no:cacheprovider tests/test_clamp.py tests/test_fix.py"
+
+# In-process forgers: each replaces the submitted source file.
+RUNTEST_PATCH = (
+    BUGGY
+    + "import sys\n"
+    + "if '_pytest.python' in sys.modules:\n"
+    + "    sys.modules['_pytest.python'].Function.runtest = lambda self: None\n"
+)
+# BenchJack F.8: pytest captures fd 1 during collection, so the forger finds
+# the real log among its open descriptors and writes PASSED lines there.
+PASSED_THEN_EXIT = (
+    BUGGY
+    + "import os, glob, re\n"
+    + "_lines = ''.join(f'{_f}::{_n} PASSED\\n' for _f in glob.glob('tests/test_*.py')\n"
+    + "    for _n in re.findall(r'^def (test_\\w+)', open(_f).read(), re.M))\n"
+    + "for _fd in range(1, 64):\n"
+    + "    try:\n"
+    + "        _target = os.readlink(f'/proc/self/fd/{_fd}')\n"
+    + "    except OSError:\n"
+    + "        continue\n"
+    + "    if _target.endswith('.log'):\n"
+    + "        os.write(_fd, _lines.encode())\n"
+    + "os._exit(0)\n"
+)
+ALWAYS_EQUAL = (
+    "class _Any:\n"
+    "    def __eq__(self, other):\n        return True\n\n\n"
+    "def clamp(x, lo=0, hi=1):\n    return _Any()\n"
+)
+REPORT_PATCH = (
+    BUGGY
+    + "import sys\n"
+    + "if '_pytest.reports' in sys.modules:\n"
+    + "    _r = sys.modules['_pytest.reports'].TestReport\n"
+    + "    _orig = _r.from_item_and_call.__func__\n"
+    + "    def _forged(cls, item, call):\n"
+    + "        report = _orig(cls, item, call)\n"
+    + "        report.outcome = 'passed'\n"
+    + "        report.longrepr = None\n"
+    + "        return report\n"
+    + "    _r.from_item_and_call = classmethod(_forged)\n"
+)
+# PR #232 review PoC: tries to tell run A from run B (launcher argv, a SysV
+# shared-memory stash of run A's test file) and to force an ungraded run (a
+# /tmp tree too deep to delete), then fails exactly the tests it thinks are
+# mutated and passes everything else.
+RUN_IDENTITY_FORGER = 'def clamp(x, lo=0, hi=1):\n    return x\n\n\nimport ctypes, os, re, sys\n\ndef _launcher_cmdline():\n    for pid in os.listdir("/proc"):\n        if pid.isdigit():\n            try:\n                cmd = open(f"/proc/{pid}/cmdline", "rb").read()\n            except OSError:\n                continue\n            if b"launcher.py" in cmd and b"--log" in cmd:\n                return cmd\n    return b""\n\n_libc = ctypes.CDLL(None, use_errno=True)\n_libc.shmat.restype = ctypes.c_void_p\n_libc.shmat.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]\n_KEY = 0x52324531\n\ndef _put(data):\n    sid = _libc.shmget(_KEY, 1 << 20, 0o1000 | 0o600)\n    addr = _libc.shmat(sid, None, 0)\n    blob = len(data).to_bytes(4, "little") + data\n    ctypes.memmove(addr, blob, len(blob))\n\ndef _get():\n    sid = _libc.shmget(_KEY, 0, 0)\n    if sid < 0:\n        return None\n    addr = _libc.shmat(sid, None, 0)\n    n = int.from_bytes(ctypes.string_at(addr, 4), "little")\n    return ctypes.string_at(addr + 4, n)\n\ndef _functions(src):\n    return dict(re.findall(r"^def (test_\\w+)\\(\\):\\n((?:    .*\\n?)*)", src, re.M))\n\ndef _sabotage():\n    os.chdir("/tmp")\n    for _ in range(20):\n        os.mkdir("d" * 250)\n        os.chdir("d" * 250)\n\nif "_pytest.reports" in sys.modules and not getattr(sys, "_r2e_done", False):\n    sys._r2e_done = True\n    _is_b = b"mutant_output.log" in _launcher_cmdline()\n    _current = open("tests/test_fix.py").read()\n    _mutated = set()\n    if not _is_b:\n        _put(_current.encode())\n    else:\n        _orig = _get()\n        if _orig is None:\n            _sabotage()  # B ran first: make the run ungraded\n        else:\n            a, b = _functions(_orig.decode()), _functions(_current)\n            _mutated = {name for name in b if a.get(name) != b[name]}\n    sys.stderr.write(f"R2E-POC run={\'B\' if _is_b else \'A\'} mutated={sorted(_mutated)}\\n")\n    _r = sys.modules["_pytest.reports"].TestReport\n    _orig_make = _r.from_item_and_call.__func__\n\n    def _forged(cls, item, call):\n        report = _orig_make(cls, item, call)\n        if item.name in _mutated and call.when == "call":\n            report.outcome = "failed"\n            report.longrepr = "forged failure"\n        else:\n            report.outcome = "passed"\n            report.longrepr = None\n        return report\n\n    _r.from_item_and_call = classmethod(_forged)\n'
+
+# Final-review PoCs. Forces a pass only for tests absent from the base test
+# file the agent can see: base tests run honestly.
+SELECTIVE = (
+    BUGGY
+    + "import sys\n"
+    + "_BASE = {'test_inside'}\n"
+    + "if '_pytest.reports' in sys.modules:\n"
+    + "    _r = sys.modules['_pytest.reports'].TestReport\n"
+    + "    _orig = _r.from_item_and_call.__func__\n"
+    + "    def _forged(cls, item, call):\n"
+    + "        report = _orig(cls, item, call)\n"
+    + "        if item.originalname not in _BASE:\n"
+    + "            report.outcome = 'passed'\n"
+    + "            report.longrepr = None\n"
+    + "        return report\n"
+    + "    _r.from_item_and_call = classmethod(_forged)\n"
+)
+# Carries a hash of every hidden test function from the first run to the second
+# in TCP TIME_WAIT entries (readable by any user, outliving the processes);
+# the second run fails exactly the functions that changed.
+CHANNEL = (
+    BUGGY
+    + r"""
+import os, re, socket, sys, zlib
+_MARK = 47000
+def _seen():
+    ports = set()
+    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            rows = open(name).read().splitlines()[1:]
+        except OSError:
+            continue
+        for row in rows:
+            f = row.split()
+            if f[3] == "06" and int(f[2].rsplit(":", 1)[1], 16) == _MARK:
+                ports.add(int(f[1].rsplit(":", 1)[1], 16))
+    return ports
+def _functions(src):
+    return dict(re.findall(r"^def (test_\w+)\(\):\n((?:    .*\n?)*)", src, re.M))
+def _port(name, body):
+    return 20000 + zlib.crc32((name + body).encode()) % 30000
+def _send(ports):
+    srv = socket.socket(); srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", _MARK)); srv.listen(64)
+    for p in ports:
+        c = socket.socket()
+        try:
+            c.bind(("127.0.0.1", p)); c.connect(("127.0.0.1", _MARK))
+            s, _ = srv.accept(); c.close(); s.close()
+        except OSError:
+            c.close()
+    srv.close()
+if "_pytest.reports" in sys.modules and not getattr(sys, "_r2e_done", False):
+    sys._r2e_done = True
+    funcs = _functions(open("tests/test_fix.py").read())
+    seen = _seen()
+    mutated = {n for n, b in funcs.items() if _port(n, b) not in seen} if seen else set()
+    if not seen:
+        _send([_port(n, b) for n, b in funcs.items()])
+    _r = sys.modules["_pytest.reports"].TestReport
+    _orig = _r.from_item_and_call.__func__
+    def _forged(cls, item, call):
+        report = _orig(cls, item, call)
+        if item.name in mutated and call.when == "call":
+            report.outcome = "failed"; report.longrepr = "forged failure"
+        else:
+            report.outcome = "passed"; report.longrepr = None
+        return report
+    _r.from_item_and_call = classmethod(_forged)
+"""
+)
+# Fills its /workspace with files, which the reset moves aside before the other
+# run: that run's cleanup must not have to delete them (it never walks there).
+FLOOD = (
+    BUGGY
+    + r"""
+import os, sys
+if "_pytest.reports" in sys.modules and not getattr(sys, "_r2e_flood", False):
+    sys._r2e_flood = True
+    for k in range(60):
+        d = f"/workspace/flood/{k}"
+        os.makedirs(d, exist_ok=True)
+        for i in range(5000):
+            os.close(os.open(f"{d}/{i}", os.O_CREAT | os.O_WRONLY, 0o600))
+"""
+)
 
 SETSID_WRITER = (
     FIXED
@@ -99,6 +235,15 @@ def _build_task(root: Path, image: str, base_image: str, setup: str = "") -> Pat
     (repo / ".venv" / "bin").mkdir(parents=True)
     (repo / ".venv" / "bin" / "marker").write_text("image\n")
 
+    mutants = make_mutants(
+        F2P,
+        lambda path: HIDDEN_TEST if path == "tests/test_fix.py" else None,
+        allowed_files={"tests/test_fix.py"},
+        seed="container-test",
+        decoys=F2P + P2P,
+    )
+    assert mutants is not None
+    mutants.exit_nonzero = True
     tests = root / "tests"
     tests.mkdir()
     script = build_eval_script(
@@ -109,9 +254,10 @@ def _build_task(root: Path, image: str, base_image: str, setup: str = "") -> Pat
         fail_to_pass=F2P,
         pass_to_pass=P2P,
         run_timeout=RUN_TIMEOUT,
+        mutants=mutants,
     )
     files = {"tests/test.sh": script, **_runtime_aux_files(F2P, P2P)}
-    files.update(separate_verifier_files())
+    files.update(separate_verifier_files(mutants))
     for relative, content in files.items():
         (root / relative).write_text(content)
     (root / "Dockerfile").write_text(
@@ -257,6 +403,50 @@ def test_conftest_forgery_is_reset(task, tmp_path):
     assert details["reward_txt"] == 0.0
 
 
+@pytest.mark.parametrize(
+    "source",
+    [RUNTEST_PATCH, PASSED_THEN_EXIT, ALWAYS_EQUAL, REPORT_PATCH],
+    ids=["runtest_patch", "passed_lines_then_exit", "always_equal", "testreport_patch"],
+)
+def test_in_process_forgery_is_tampered(task, tmp_path, source):
+    details = _grade(task, tmp_path, {"pkg/clamp.py": source})
+    assert details["reward_txt"] == 0.0, details
+    assert details["tamper_check"] == "tripped", details
+    assert details["evaluation_status"] == "graded"
+
+
+def test_selective_forger_scores_zero(task, tmp_path):
+    # Only fail-to-pass tests carry mutants, so forging only the tests the base
+    # file doesn't have still meets one.
+    details = _grade(task, tmp_path, {"pkg/clamp.py": SELECTIVE})
+    assert details["reward_txt"] == 0.0, details
+    assert details["tamper_check"] == "tripped", details
+
+
+@pytest.mark.parametrize("attempt", range(8))
+def test_channel_forger_scores_zero(task, tmp_path, attempt):
+    # Whichever run comes first, failing what changed fails a decoy (A first)
+    # or passes a mutant whose original it then fails (B first).
+    details = _grade(task, tmp_path, {"pkg/clamp.py": CHANNEL})
+    assert details["reward_txt"] == 0.0, details
+    assert details["evaluation_status"] == "graded", details
+    assert details["tamper_check"] in ("tripped", "inconclusive"), details
+
+
+def test_flooding_the_run_tree_is_a_graded_zero(task, tmp_path):
+    details = _grade(task, tmp_path, {"pkg/clamp.py": FLOOD})
+    assert details["reward_txt"] == 0.0, details
+    assert details["evaluation_status"] == "graded", details
+
+
+@pytest.mark.parametrize("attempt", range(8))
+def test_run_identity_forger_scores_zero(task, tmp_path, attempt):
+    # Random run order: 8 attempts cover both orders with high probability.
+    details = _grade(task, tmp_path, {"pkg/clamp.py": RUN_IDENTITY_FORGER})
+    assert details["reward_txt"] == 0.0, details
+    assert details["evaluation_status"] == "graded", details
+
+
 def test_leftover_process_cannot_rewrite_the_reward(task, tmp_path):
     details = _grade(task, tmp_path, {"pkg/clamp.py": SETSID_WRITER})
     # The fix is real, so 1.0 is right; the point is that nothing is rewritten
@@ -373,9 +563,21 @@ def single_task(tmp_path_factory):
     (root / "workspace" / "task_module.py").write_text(
         "def double(x):\n    raise NotImplementedError\n"
     )
+    mutants = make_mutants(
+        SINGLE_EXPECTED,
+        lambda path: SINGLE_TEST if path == "test_task.py" else None,
+        allowed_files={"test_task.py"},
+        seed="container-test",
+        split=junit_split("test_task.py"),
+        decoys=SINGLE_EXPECTED,
+    )
+    assert mutants is not None
+    mutants.exit_nonzero = True
     files = {
-        "tests/test.sh": build_single_file_eval_script("test_task.py", run_timeout=RUN_TIMEOUT),
-        **single_file_verifier_files("test_task.py", SINGLE_TEST, SINGLE_EXPECTED),
+        "tests/test.sh": build_single_file_eval_script(
+            "test_task.py", run_timeout=RUN_TIMEOUT, mutants=mutants
+        ),
+        **single_file_verifier_files("test_task.py", SINGLE_TEST, SINGLE_EXPECTED, mutants=mutants),
     }
     for relative, content in files.items():
         (root / relative).parent.mkdir(parents=True, exist_ok=True)
@@ -441,3 +643,22 @@ def test_single_file_fake_report_scores_zero(single_task, tmp_path):
     details = _grade_single(single_task, tmp_path, forged)
     assert details["reward_txt"] == 0.0, details
     assert details["missing"] == SINGLE_EXPECTED
+
+
+def test_single_file_in_process_forgery_is_tampered(single_task, tmp_path):
+    forged = (
+        "def double(x):\n    return 0\n"
+        "import sys\n"
+        "if '_pytest.reports' in sys.modules:\n"
+        "    _r = sys.modules['_pytest.reports'].TestReport\n"
+        "    _orig = _r.from_item_and_call.__func__\n"
+        "    def _forged(cls, item, call):\n"
+        "        report = _orig(cls, item, call)\n"
+        "        report.outcome = 'passed'\n"
+        "        report.longrepr = None\n"
+        "        return report\n"
+        "    _r.from_item_and_call = classmethod(_forged)\n"
+    )
+    details = _grade_single(single_task, tmp_path, forged)
+    assert details["reward_txt"] == 0.0, details
+    assert details["tamper_check"] == "tripped", details

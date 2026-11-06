@@ -67,9 +67,11 @@ from repo2rlenv.pipelines._eval_script import (
     signature_only_source,
     single_file_verifier_files,
     strip_annotations,
+    validate_single_file_mutants,
 )
 from repo2rlenv.pipelines._function_extractor import FunctionCandidate, walk_repo
-from repo2rlenv.pipelines._grading_time import GradingTime, measure
+from repo2rlenv.pipelines._grading_time import GradingTime, fit_runs, measure
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines._oss_instruct import check_equivalence_test_strength
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.pr_runtime import (
@@ -132,6 +134,7 @@ class _VerifyOutcome:
     timing: GradingTime | None = None
     # The test as graded: the original's recorded results baked in.
     graded_test: str = ""
+    mutants: Mutants | None = None
 
 
 @dataclass(slots=True)
@@ -519,6 +522,7 @@ class EquivalenceTestsPipeline:
                     expected: list[str] = []
                     timing: GradingTime | None = None
                     graded_test = ""
+                    mutants: Mutants | None = None
                     last_skip_reason = ""
                     feedback: str | None = None
                     for attempt in range(max(1, self.options.max_attempts_per_function)):
@@ -576,6 +580,7 @@ class EquivalenceTestsPipeline:
                             expected = outcome.expected
                             timing = outcome.timing
                             graded_test = outcome.graded_test
+                            mutants = outcome.mutants
                             logger.debug(
                                 "candidate %s accepted on attempt %d",
                                 label,
@@ -634,6 +639,7 @@ class EquivalenceTestsPipeline:
                         expected=expected,
                         timing=timing,
                         graded_test=graded_test,
+                        mutants=mutants,
                     )
                     write_harbor_task(task, out_dir)
                     if parsed_fp is not None:
@@ -788,7 +794,20 @@ class EquivalenceTestsPipeline:
                 oracle_log=oracle_log,
             )
 
+        # Mutants of the graded test: a recorded reference result changed, so
+        # the check it answers expects a value no honest result has.
+        mutants = validate_single_file_mutants(
+            sandbox,
+            test_code=graded,
+            passing_files=oracle,
+            reference=b,
+            pre=a,
+            seed=test_filename,
+            **common,
+        )
         timing = measure([run.sample for run in (a, b) if run.sample is not None])
+        timing, checked = fit_runs(timing, mutants is not None)
+        mutants = mutants if checked else None
         if timing is not None and timing.over_cap:
             return _VerifyOutcome(
                 accepted=False,
@@ -803,6 +822,7 @@ class EquivalenceTestsPipeline:
             expected=sorted(b.statuses),
             timing=timing,
             graded_test=graded,
+            mutants=mutants,
         )
 
     # ----- task builder -------------------------------------------------------
@@ -825,6 +845,7 @@ class EquivalenceTestsPipeline:
         expected: list[str] | None = None,
         timing: GradingTime | None = None,
         graded_test: str = "",
+        mutants: Mutants | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         h = hashlib.sha256()
@@ -845,6 +866,8 @@ class EquivalenceTestsPipeline:
             test_filename,
             language=self.bootstrap.language.value,
             run_timeout=timing.run_timeout if timing is not None else None,
+            mutants=mutants,
+            copy_timeout=timing.copy_timeout if timing is not None else None,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -879,6 +902,7 @@ class EquivalenceTestsPipeline:
             "reward_kinds": ["test_execution"],
             "harbor_min_version": MIN_HARBOR_VERSION,
             **({"grading_time": timing.metadata()} if timing is not None else {}),
+            "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
             "equivalence_tests": {
                 "function_name": cand.name,
                 "source_path": cand.relative_path,
@@ -910,6 +934,7 @@ class EquivalenceTestsPipeline:
                 test_filename,
                 graded_test or graded_test_code(test_code, cand.name, {}),
                 expected or [],
+                mutants=mutants,
             ),
         )
 

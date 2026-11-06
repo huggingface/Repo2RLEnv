@@ -56,6 +56,10 @@ _SHARED_TMP = ("/tmp", "/var/tmp", "/dev/shm")
 # Pseudo filesystems: nothing the test user writes persists there. POSIX
 # message queues are removed separately (`_remove_ipc`).
 _PRUNE = ("/proc", "/sys", "/dev/pts", "/dev/mqueue")
+# Root-only grader directories: the mutant check keeps each run's tree there,
+# out of the test user's reach. Never walked, so a run that fills its tree
+# can't stall the next run's purge.
+_GRADER_DIRS = ("/opt/r2e", "/opt/r2e-validate", "/.r2e-agent-tree-*")
 _MQUEUE = "/dev/mqueue"
 _SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # Toolchain caches the test command must be able to write. They are redirected
@@ -143,7 +147,7 @@ def _owned_paths(uid: int, keep: list[str], roots: list[str] | None = None) -> l
     """
     if roots is None:
         roots = ["/", *(top for top in _SHARED_TMP if os.path.isdir(top))]
-    prune = [*_PRUNE, *(os.path.abspath(path) for path in keep)]
+    prune = [*_PRUNE, *_GRADER_DIRS, *(os.path.abspath(path) for path in keep)]
     found: list[str] = []
     for root in roots:
         expression: list[str] = []
@@ -539,6 +543,10 @@ class CleanupFailed(Exception):
     """The command ran, but what it started or left could not all be removed."""
 
 
+class PreCleanupFailed(Exception):
+    """What an earlier command left could not be removed before this one started."""
+
+
 def run(
     command: str,
     *,
@@ -562,7 +570,10 @@ def run(
     if unsafe:
         raise UnsafeImage(", ".join(unsafe))
     _ensure_account()
-    _cleanup(UID, writable, purge_deadline)
+    try:
+        _cleanup(UID, writable, purge_deadline)
+    except Exception as exc:
+        raise PreCleanupFailed(f"{type(exc).__name__}: {exc}") from exc
     for directory in readable:
         # Read-only access, e.g. Go's module cache under root's 0700 home.
         if os.path.isdir(directory):
@@ -656,6 +667,10 @@ def main(argv: list[str] | None = None) -> int:
     except UnsafeImage as exc:  # before any test code: the image is the problem
         sys.stderr.write(f"R2E grader launcher: writable by the test user: {exc}\n")
         sys.stdout.write("unsafe_image\n")
+        return 0
+    except PreCleanupFailed as exc:  # the caller knows whether a run came before
+        sys.stderr.write(f"R2E grader launcher: cleanup before the tests failed: {exc}\n")
+        sys.stdout.write("precleanup_failed\n")
         return 0
     except CleanupFailed as exc:  # the tests ran: graded 0 by the caller
         sys.stderr.write(f"R2E grader launcher: cleanup after the tests failed: {exc}\n")

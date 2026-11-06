@@ -25,6 +25,14 @@ submitted code runs:
     For single-file submissions (code_instruct, equivalence_tests): the file
     must be a regular file within the size cap.
 
+``restore``, ``settle``, ``keep``
+    The mutant check (``_mutants``) runs the tests twice. ``restore`` puts the
+    tree prepared for the first run back before the second; ``settle``
+    rewrites every hidden test file the same way in both runs (run B with the
+    mutants swapped in) and gives them one fixed mtime; ``keep`` copies a
+    JUnit report the test user wrote into a root-only file, refusing links and
+    FIFOs. They print ``ok``.
+
 ``rebuild`` and ``check`` print one word: ``ok`` or the reason the submission
 is graded 0 (``too_large``, ``unsafe_symlink``, ``invalid``, ``apply_failed``,
 ``no_space``, ``not_regular``). Anything that goes wrong once the agent's tree
@@ -41,6 +49,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import posixpath
 import re
 import shutil
 import stat
@@ -91,6 +100,7 @@ SKIPPED_LISTED = 10_000
 _CHUNK = 1 << 16
 EXIT_PRE_READ = 3
 EXIT_RESTORE = 4
+# Every hidden test file gets this mtime in both runs of the mutant check.
 
 
 def is_test_path(path: str) -> bool:
@@ -312,6 +322,17 @@ def _open_regular(path: str):
         handle.close()
         return None
     return handle
+
+
+def _read_regular(path: str, limit: int | None = None) -> bytes | None:
+    """A regular file's bytes, never following a link or blocking on a FIFO;
+    None when it isn't a regular file or holds more than `limit` bytes."""
+    handle = _open_regular(path)
+    if handle is None:
+        return None
+    with handle:
+        data = handle.read() if limit is None else handle.read(limit + 1)
+    return None if limit is not None and len(data) > limit else data
 
 
 def _same_bytes(first: str, second: str) -> bool:
@@ -672,6 +693,78 @@ def _write_report(path: str, report: dict) -> None:
         json.dump(report, handle, indent=2, sort_keys=True)
 
 
+def _regular_file(root: str, relative: str) -> str:
+    """`root/relative` if it is a regular file reached without any symlink."""
+    parts = relative.split("/")
+    if posixpath.isabs(relative) or any(part in ("", ".", "..") for part in parts):
+        raise ValueError(f"unsafe path: {relative!r}")
+    current = root
+    info = os.lstat(root)
+    for part in parts:
+        current = os.path.join(current, part)
+        info = os.lstat(current)
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError(f"path crosses a symlink: {relative!r}")
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"not a regular file: {relative!r}")
+    return current
+
+
+def settle(
+    root: str,
+    paths: list[str],
+    spec_path: str = "",
+    mutated: bool = False,
+    mtime: int | None = None,
+) -> None:
+    """Rewrite each hidden test file in place, then give all of them one mtime.
+
+    Every test run goes through here, run B of the mutant check with `mutated`,
+    so no timestamp or write order tells code under test which run it is in.
+    `mtime` (one value per grading, default now) is newer than anything the
+    image built, so mtime-based build tools still rebuild the hidden tests;
+    validation runs the same step, so a suite it breaks never ships.
+    """
+    stamp = int(time.time()) if mtime is None else int(mtime)
+    files: dict[str, str] = {}
+    if mutated:
+        with open(spec_path, encoding="utf-8") as handle:
+            files = json.load(handle)["files"]
+    written = []
+    for relative in sorted(set(paths) | set(files)):
+        try:
+            path = _regular_file(root, relative)
+        except FileNotFoundError:
+            if relative in files:
+                raise  # a mutated file must exist in both runs
+            continue  # deleted by the hidden test patch
+        own = _read_regular(path) or b""
+        data = files[relative].encode("utf-8") if relative in files else own
+        descriptor = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        written.append(path)
+    for path in written:
+        os.utime(path, (stamp, stamp), follow_symlinks=False)
+
+
+def keep(source: str, destination: str, max_bytes: int) -> None:
+    """Copy a file test code wrote into a root-only file; leave none if unusable.
+
+    Runs after every process of the test user is gone. A link, FIFO, directory
+    or oversized file is not copied: the verifier then finds no report.
+    """
+    try:
+        data = _read_regular(source, max_bytes)
+    except OSError:
+        data = None
+    if data is None:
+        return
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
+
+
 def check_submission(path: str, max_bytes: int) -> str:
     try:
         info = os.lstat(path)
@@ -700,6 +793,22 @@ def main(argv: list[str] | None = None) -> int:
     check = commands.add_parser("check")
     check.add_argument("--path", required=True)
     check.add_argument("--max-bytes", type=int, default=8 * 1024 * 1024)
+    again = commands.add_parser("restore")
+    again.add_argument("--agent", default="/workspace")
+    again.add_argument("--pristine", required=True)
+    again.add_argument("--timeout", type=float, default=180)
+    again.add_argument("--copy-timeout", type=float, default=None)
+    again.add_argument("--aside-dir", default=None)
+    still = commands.add_parser("settle")
+    still.add_argument("--root", default="/workspace")
+    still.add_argument("--path", action="append", default=[], dest="paths")
+    still.add_argument("--spec", default="")
+    still.add_argument("--mutated", action="store_true")
+    still.add_argument("--mtime", type=int, default=None)
+    copy = commands.add_parser("keep")
+    copy.add_argument("--source", required=True)
+    copy.add_argument("--destination", required=True)
+    copy.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     args = parser.parse_args(argv)
     try:
         if args.command == "rebuild":
@@ -714,15 +823,37 @@ def main(argv: list[str] | None = None) -> int:
                 copy_timeout=args.copy_timeout,
                 aside_root=args.aside_dir,
             )
-        else:
+        elif args.command == "check":
             status = check_submission(args.path, args.max_bytes)
+        elif args.command == "restore":
+            # Back to the tree prepared before the first run: nothing the first
+            # run wrote reaches the second. Its tree goes into a root-only
+            # directory (`--aside-dir`), out of the second run's reach.
+            try:
+                restore(
+                    agent=args.agent,
+                    pristine=args.pristine,
+                    patch=b"",
+                    timeout=args.timeout,
+                    copy_timeout=args.copy_timeout,
+                    aside_root=args.aside_dir,
+                )
+                status = "ok"
+            except Rejected as rejected:  # the first run's tree, or a full disk
+                status = str(rejected)
+        elif args.command == "settle":
+            settle(args.root, args.paths, args.spec, args.mutated, args.mtime)
+            status = "ok"
+        else:
+            keep(args.source, args.destination, args.max_bytes)
+            status = "ok"
     except PreReadFailed as exc:  # before the agent's tree was touched: ungraded
         sys.stderr.write(f"R2E grader step failed before reading the submission: {exc}\n")
         return EXIT_PRE_READ
     except RestoreFailed as exc:  # the image's own repository could not be copied
         sys.stderr.write(f"R2E grader could not restore the image's repository: {exc}\n")
         return EXIT_RESTORE
-    except Exception as exc:  # pragma: no cover - check_submission never raises
+    except Exception as exc:  # the grader's own pieces are missing: ungraded
         sys.stderr.write(f"R2E grader step failed: {type(exc).__name__}: {exc}\n")
         return 1
     sys.stdout.write(f"{status}\n")

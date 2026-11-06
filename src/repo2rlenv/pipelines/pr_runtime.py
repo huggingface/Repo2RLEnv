@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import logging
+import posixpath
 import re
 import shlex
 from datetime import UTC, datetime
@@ -63,6 +64,7 @@ from repo2rlenv.pipelines._grading_time import (
     VERIFIER_FLOOR_SEC,
     GradingTime,
 )
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.provider import provider_for
 from repo2rlenv.sources import Capability
@@ -456,13 +458,16 @@ def stash_pristine() -> str:
     )
 
 
-def separate_verifier_files() -> dict[str, str]:
-    """The trusted grading helpers test.sh runs from /tests."""
+def separate_verifier_files(mutants: Mutants | None = None) -> dict[str, str]:
+    """The trusted grading helpers test.sh runs from /tests (and the mutant spec)."""
     here = Path(__file__).parent
-    return {
+    files = {
         "tests/launcher.py": (here / "_grader_launcher.py").read_text(encoding="utf-8"),
         "tests/grader_tools.py": (here / "_grader_tools.py").read_text(encoding="utf-8"),
     }
+    if mutants is not None and mutants.ids:
+        files["tests/mutants.json"] = mutants.spec()
+    return files
 
 
 def _fresh_copies(language: str | None) -> list[str]:
@@ -625,7 +630,12 @@ def separate_head(language: str | None) -> str:
 
 
 def launch_tests(
-    test_block: str, language: str | None, *, timeout: int | None, cwd: str = "/workspace"
+    test_block: str,
+    language: str | None,
+    *,
+    timeout: int | None,
+    cwd: str = "/workspace",
+    purge: bool = False,
 ) -> str:
     """Shell block: run `test_block` through the launcher as the test user.
 
@@ -633,11 +643,15 @@ def launch_tests(
     /logs/verifier/test_output.log. A failure of the launcher's cleanup after
     the tests ran is a graded 0: code under test can provoke it (a fork bomb,
     a directory tree too deep to delete). A launcher that can't start the
-    tests at all is grader infrastructure: ungraded.
+    tests at all is grader infrastructure: ungraded. With `purge` the launcher
+    also deletes the test user's files outside /workspace (the mutant check's
+    two runs must not share any), within its deadline.
     """
     flags = _access_flags(language)
     if timeout is not None:
         flags += f" --timeout {int(timeout)}"
+    if purge:
+        flags += " --purge"
     return (
         f'R2E_LAUNCH_OUT="$("$R2E_PY" -B -I -S "$SCRIPT_DIR/launcher.py" --log {RUN_DIR}/output.log '
         f'--seconds-out {RUN_DIR}/seconds --cwd {cwd} --path "$R2E_CHILD_PATH" {flags} '
@@ -654,10 +668,155 @@ def launch_tests(
         "'test processes or files outlived the run';;\n"
         "  unsafe_image) r2e_finish ungraded unsafe_image "
         "'a path root runs code from is writable by the test user';;\n"
+        # Cleaning up before the tests start: after an earlier run of the
+        # mutant check, what is left is that run's doing (graded 0).
+        '  precleanup_failed) if [ "${R2E_RUNS:-0}" -gt 1 ]; then r2e_finish graded '
+        "test_cleanup_failed 'an earlier test run left state that could not be removed'; "
+        "else r2e_finish ungraded grader_launch_failed 'test command isolation failed'; fi;;\n"
         "  ''|*[!0-9]*) r2e_finish ungraded grader_launch_failed "
         "'test command isolation failed';;\n"
         '  *) TEST_EXIT_CODE="$R2E_LAUNCH_OUT";;\n'
         "esac\n"
+    )
+
+
+# The tree prepared for the first run, kept for the second (root only).
+PREPARED = "/opt/r2e/prepared"
+
+
+def settle_hidden(hidden: list[str], *, mutated: bool = False) -> str:
+    """Shell command: rewrite the hidden test files with this grading's one mtime.
+
+    Every run does this (`two_runs`' run B with the mutants), and validation
+    does it too: the mtime is newer than the image's build artifacts, so
+    mtime-based build tools rebuild the tests. `R2E_MTIME` is set once per grading.
+    """
+    paths = " ".join(f"--path {shlex.quote(path)}" for path in hidden)
+    spec = ' --spec "$SCRIPT_DIR/mutants.json" --mutated' if mutated else ""
+    return (
+        f'"$R2E_PY" -B -I -S "$SCRIPT_DIR/grader_tools.py" settle --root /workspace {paths}'
+        f'{spec} --mtime "$R2E_MTIME" >/dev/null'
+    )
+
+
+def settle_once(hidden: list[str]) -> str:
+    """Shell block: the single run's `settle_hidden` (no mutant check)."""
+    return (
+        'R2E_MTIME="$(date +%s)"\n'
+        + settle_hidden(hidden)
+        + " || r2e_finish ungraded grader_setup_failed 'hidden test setup failed'\n"
+    )
+
+
+def two_runs(
+    launch: str,
+    hidden: list[str],
+    claimed: str,
+    *,
+    keep_junit: str = "",
+    copy_timeout: int | None = None,
+) -> str:
+    """Shell block: the mutant check's two test runs (see ``_mutants``).
+
+    `launch` is one ``launch_tests`` block. Both runs start from the same
+    prepared tree, have every hidden test file rewritten with one fixed mtime
+    (run B with the mutants swapped in) and run through the launcher with the
+    same arguments, in random order, so code under test can't tell which run
+    it is in. Run A's log and timing end up where a single run's would; run
+    B's in ``mutant_output.log`` and ``run_b.seconds``. Run B is skipped only
+    when A ran first and `claimed` (a command printing 1 or 0) says A passed
+    no mutated test: then B can't change the verdict; `claimed` reads run A's
+    log at ``RUN_DIR/run_a.log`` (or its report at ``RUN_DIR/junit_a.xml``).
+    With `keep_junit`, each run's JUnit report is copied out before the tree
+    is reset. Between the runs the first run's tree is moved into a root-only
+    directory and the prepared tree copied back (`copy_timeout`, as for the
+    rebuild); `launch` must purge the test user's files elsewhere.
+    """
+    limit = f"/usr/bin/timeout {int(copy_timeout)} " if copy_timeout else ""
+    copy = f" --copy-timeout {int(copy_timeout)}" if copy_timeout else ""
+
+    def keep(name: str) -> str:
+        if not keep_junit:
+            return ""
+        return (
+            f'  "$R2E_PY" -B -I -S "$SCRIPT_DIR/grader_tools.py" keep --source {keep_junit} '
+            f"--destination {RUN_DIR}/{name} >/dev/null\n"
+        )
+
+    return (
+        # Single-file images have no /opt/r2e; it is root-only either way.
+        f"mkdir -p {posixpath.dirname(PREPARED)} && chmod 700 {posixpath.dirname(PREPARED)} "
+        f"&& rm -rf {PREPARED} && {limit}cp -a /workspace {PREPARED} "
+        f"2>{posixpath.dirname(PREPARED)}/prepare.err\n"
+        "R2E_PREPARE_RC=$?\n"
+        # Only the agent's uploaded tree (kept aside on the same disk) can fill
+        # it: a full disk here is a graded 0, as in the rebuild.
+        f'if [ "$R2E_PREPARE_RC" -ne 0 ] && grep -q "No space left" '
+        f"{posixpath.dirname(PREPARED)}/prepare.err; then r2e_finish graded submission_no_space "
+        "'the disk filled up while preparing the test runs'; fi\n"
+        + _finish_unless("R2E_PREPARE_RC", "ungraded", "mutant_setup_failed", "run setup failed")
+        + 'R2E_RUNS=0; R2E_MTIME="$(date +%s)"\n'
+        "r2e_reset() {\n"
+        # After a run: its /workspace goes aside, out of the next run's reach,
+        # and the prepared tree comes back. Copying it is the grader's own step
+        # (exit 4, ungraded); anything else the first run caused: graded 0.
+        '  if [ "$R2E_RUNS" -gt 0 ]; then\n'
+        '    R2E_RESET="$("$R2E_PY" -B -I -S "$SCRIPT_DIR/grader_tools.py" restore '
+        f'--pristine {PREPARED} --aside-dir {posixpath.dirname(PREPARED)}/aside{copy})"\n'
+        "    R2E_RESET_RC=$?\n"
+        '    [ "$R2E_RESET_RC" -eq 4 ] && r2e_finish ungraded submission_restore_failed '
+        "'could not copy the prepared tree'\n"
+        '    { [ "$R2E_RESET_RC" -eq 0 ] && [ "$R2E_RESET" = ok ]; } || r2e_finish graded '
+        "test_cleanup_failed 'the test run left a tree that could not be reset'\n"
+        "  fi\n"
+        "  R2E_RUNS=$((R2E_RUNS + 1))\n"
+        "}\n"
+        "r2e_run_a() {\n"
+        "  r2e_reset\n"
+        f"  {settle_hidden(hidden)} || r2e_finish ungraded mutant_setup_failed "
+        "'hidden test setup failed'\n"
+        + launch
+        + keep("junit_a.xml")
+        + '  R2E_A_EXIT="$TEST_EXIT_CODE"; R2E_A_TIMED_OUT="$R2E_TIMED_OUT"\n'
+        f"  mv -f /logs/verifier/test_output.log {RUN_DIR}/run_a.log 2>/dev/null\n"
+        f"  mv -f /logs/verifier/run.seconds {RUN_DIR}/run_a.seconds 2>/dev/null\n"
+        "}\n"
+        "r2e_run_b() {\n"
+        "  r2e_reset\n"
+        f"  {settle_hidden(hidden, mutated=True)} "
+        "|| r2e_finish ungraded mutant_setup_failed 'hidden test setup failed'\n"
+        + launch
+        + keep("junit_b.xml")
+        + '  R2E_B_EXIT="$TEST_EXIT_CODE"; R2E_B_TIMED_OUT="$R2E_TIMED_OUT"\n'
+        "  mv -f /logs/verifier/test_output.log /logs/verifier/mutant_output.log 2>/dev/null\n"
+        "  mv -f /logs/verifier/run.seconds /logs/verifier/run_b.seconds 2>/dev/null\n"
+        "}\n"
+        "R2E_B_EXIT=1; R2E_B_TIMED_OUT=0; R2E_B_SKIPPED=0\n"
+        "if [ $((RANDOM % 2)) -eq 0 ]; then\n"
+        "  r2e_run_a\n"
+        f'  if [ "$R2E_A_TIMED_OUT" = 0 ] && [ "$({claimed})" != 0 ]; then r2e_run_b; '
+        "else R2E_B_SKIPPED=1; fi\n"
+        "else\n"
+        "  r2e_run_b\n"
+        "  r2e_run_a\n"
+        "fi\n"
+        'TEST_EXIT_CODE="$R2E_A_EXIT"; R2E_TIMED_OUT="$R2E_A_TIMED_OUT"\n'
+        f"mv -f {RUN_DIR}/run_a.log /logs/verifier/test_output.log 2>/dev/null\n"
+        f"mv -f {RUN_DIR}/run_a.seconds /logs/verifier/run.seconds 2>/dev/null\n"
+    )
+
+
+def mutant_args(*, junit: bool = False) -> str:
+    """Verifier flags for the mutant check's second run."""
+    report = (
+        f"--mutant-junit {RUN_DIR}/junit_b.xml "
+        if junit
+        else "--mutant-log /logs/verifier/mutant_output.log "
+    )
+    return (
+        f'--mutants "$SCRIPT_DIR/mutants.json" {report}'
+        '--mutant-exit-code "$R2E_B_EXIT" --mutant-timed-out "$R2E_B_TIMED_OUT" '
+        '--mutant-skipped "$R2E_B_SKIPPED" --mutant-seconds /logs/verifier/run_b.seconds '
     )
 
 
@@ -671,6 +830,7 @@ def build_separate_eval_script(
     pass_to_pass: list[str] | None = None,
     run_timeout: int | None = None,
     copy_timeout: int | None = None,
+    mutants: Mutants | None = None,
 ) -> str:
     """`tests/test.sh` for Harbor's separate verifier (``SEPARATE_VERIFIER``).
 
@@ -681,11 +841,14 @@ def build_separate_eval_script(
         fresh copy of the image's repository plus the agent's source diff;
       * the test-file reset, the runner configuration guard (every runner) and
         the hidden test patch go on top;
-      * the tests run once as an unprivileged user through ``launcher.py``,
-        which kills every process of that user and removes its IPC objects
-        before the log is read; a run past ``run_timeout`` (``UNMEASURED_RUN_SEC``
-        when validation measured nothing) scores 0.
-    The verifier container is discarded, so files the tests left are not
+      * the tests run as an unprivileged user through ``launcher.py``, which
+        kills every process of that user and removes its IPC objects before
+        the log is read; a run past ``run_timeout`` (``UNMEASURED_RUN_SEC``
+        when validation measured nothing) scores 0;
+      * with ``mutants`` (and an F2P oracle) the suite runs twice, as is and
+        with the mutants swapped in (``two_runs``); the verifier checks the
+        second run against the first.
+    The verifier container is discarded, so files a single run left are not
     deleted and there is no cleanup reset.
     """
     del pass_to_pass  # graded from tests/p2p.json
@@ -712,6 +875,13 @@ def build_separate_eval_script(
     )
     guard = _test_config_reset(base_commit, '"$R2E_PY" -B -I -S', '"$R2E_GUARD_ENV"')
     test_block = " && ".join(test_cmds) if test_cmds else "echo 'no test_cmds configured'"
+    checked = bool(fail_to_pass) and mutants is not None and bool(mutants.ids)
+    cmds_str = " ".join(test_cmds).replace("'", "'\\''")
+    claimed = (
+        '"$R2E_PY" -B -I -S "$SCRIPT_DIR/verifier.py" --claimed '
+        f"--log {RUN_DIR}/run_a.log --test-cmds '{cmds_str}' "
+        '--mutants "$SCRIPT_DIR/mutants.json"'
+    )
     script = (
         separate_head(language) + rebuild_submission(copy_timeout) + "cd /workspace\n"
         "git config --global --add safe.directory /workspace\n"
@@ -728,8 +898,19 @@ def build_separate_eval_script(
         )
         + _guard_env()
         + apply
-        # One test run.
-        + launch_tests(test_block, language, timeout=run_timeout or UNMEASURED_RUN_SEC)
+        + (
+            two_runs(
+                launch_tests(
+                    test_block, language, timeout=run_timeout or UNMEASURED_RUN_SEC, purge=True
+                ),
+                test_files,
+                claimed,
+                copy_timeout=copy_timeout,
+            )
+            if checked
+            else settle_once(test_files)
+            + launch_tests(test_block, language, timeout=run_timeout or UNMEASURED_RUN_SEC)
+        )
         + "tail -c 1048576 /logs/verifier/test_output.log 2>/dev/null\n"
     )
     if not fail_to_pass:
@@ -746,11 +927,11 @@ def build_separate_eval_script(
             "r2e_open_logs\n"
             "exit 0\n"
         )
-    cmds_str = " ".join(test_cmds).replace("'", "'\\''")
     return script + (
         run_verifier(
             "--log /logs/verifier/test_output.log "
-            '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
+            + (mutant_args() if checked else "")
+            + '--f2p "$SCRIPT_DIR/f2p.json" --p2p "$SCRIPT_DIR/p2p.json" '
             f"--test-cmds '{cmds_str}' --exit-code \"$TEST_EXIT_CODE\" "
             '--timed-out "$R2E_TIMED_OUT" --seconds /logs/verifier/run.seconds '
             "--out-dir /logs/verifier"
@@ -770,6 +951,7 @@ def build_eval_script(
     pass_to_pass: list[str] | None = None,
     run_timeout: int | None = None,
     copy_timeout: int | None = None,
+    mutants: Mutants | None = None,
 ) -> str:
     """The `tests/test.sh` every native runtime task ships (see
     ``build_separate_eval_script``): graded in Harbor's separate verifier."""
@@ -782,6 +964,7 @@ def build_eval_script(
         pass_to_pass=pass_to_pass,
         run_timeout=run_timeout,
         copy_timeout=copy_timeout,
+        mutants=mutants,
     )
 
 
@@ -1192,6 +1375,7 @@ class PRRuntimePipeline:
                 fail_to_pass: list[str] = []
                 pass_to_pass: list[str] = []
                 timing: GradingTime | None = None
+                mutants: Mutants | None = None
                 validated_cmds: list[str] = []
                 flaky_dropped = 0
                 validation_status = "skipped"
@@ -1216,6 +1400,7 @@ class PRRuntimePipeline:
                     fail_to_pass = outcome.fail_to_pass
                     pass_to_pass = outcome.pass_to_pass
                     timing = outcome.timing
+                    mutants = outcome.mutants
                     validated_cmds = outcome.test_cmds
                     flaky_dropped = len(outcome.flaky)
                     validation_status = outcome.status
@@ -1242,6 +1427,7 @@ class PRRuntimePipeline:
                     validation_status=validation_status,
                     flaky_dropped=flaky_dropped,
                     timing=timing,
+                    mutants=mutants,
                     test_cmds=validated_cmds or None,
                 )
                 write_harbor_task(task, out_dir)
@@ -1372,6 +1558,7 @@ class PRRuntimePipeline:
         validation_status: str,
         flaky_dropped: int = 0,
         timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
         test_cmds: list[str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
@@ -1391,6 +1578,7 @@ class PRRuntimePipeline:
             pass_to_pass=pass_to_pass,
             run_timeout=timing.run_timeout if timing is not None else None,
             copy_timeout=timing.copy_timeout if timing is not None else None,
+            mutants=mutants,
         )
         # Use image_tag for local-only bootstraps (Docker can resolve locally),
         # image_digest only when the image is in a registry that BuildKit can
@@ -1433,6 +1621,7 @@ class PRRuntimePipeline:
                 "harbor_min_version": MIN_HARBOR_VERSION,
                 # Measured at validation; sets the per-run and verifier limits.
                 **({"grading_time": timing.metadata()} if timing is not None else {}),
+                "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
             },
             # Difficulty + coverage metadata so consumers can slice train/eval
             # by hardness and judge regression-guard strength (p2p_count == 0
@@ -1472,7 +1661,7 @@ class PRRuntimePipeline:
             # diff so the agent cannot fetch the gold patch at run time.
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                **separate_verifier_files(),
+                **separate_verifier_files(mutants),
                 "environment/docker-compose.yaml": egress_guard_compose(
                     fix_source_hosts(self.input.repo.source_kind)
                 ),
