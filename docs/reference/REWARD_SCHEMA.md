@@ -9,11 +9,22 @@ reads `reward.txt` as the primary training signal. Native pipelines with a
 graded verifier also write `reward-details.json`, the full breakdown for
 analysis, filtering, and debugging.
 
+An **ungraded** `pr_diff` run (`evaluation_status = "ungraded"`: the grader
+could not produce a verdict for reasons outside the agent's control, such as an
+unavailable judge or a verifier crash) writes `reward-details.json` with a
+`null` reward but **no reward file**. Harbor raises `RewardFileNotFoundError`, classes the trial as `VERIFIER_FAILED` with `reward_valid = false` and does not retry it; the trial's `result.json` shows `verifier_result: null` and the exception under `exception_info` (the failure cause and `reward_valid` are computed from it, not stored). RL consumers drop the
+rollout instead of training on a 0, and Harbor's job mean and pass@k still count
+it as 0. Failures the agent can cause (a capture failure from a broken Git object
+store, a judge answer with no valid score, a refused or filtered judge reply, a
+predicted patch too large to score) are graded 0, not ungraded. Other pipelines keep the earlier
+convention for now: an ungraded run writes reward 0 and marks
+`evaluation_status = "ungraded"`.
+
 ## Files written per task
 
 | File | Always present? | Content |
 |---|:-:|---|
-| `/logs/verifier/reward.txt` | ✅ | Single float on one line, e.g. `0.842731` |
+| `/logs/verifier/reward.txt` | ✅ unless an ungraded `pr_diff` run | Single float on one line, e.g. `0.842731`. Absent when a `pr_diff` run is `ungraded`. |
 | `/logs/verifier/reward-details.json` | Pipeline-dependent (see below) | Full breakdown as JSON (`pr_diff`, `pr_runtime`, `commit_runtime`, `cve_patches`) |
 | `/logs/verifier/result.json` | Research recipes and Tasksmith | The grader's outcome, e.g. `{"passed": true, "returncode": 0, "statuses": {…}}`; SCALER writes `{"score": …, "accuracy": …}`. CLI-Gym writes `reason.txt` instead when protected source was changed. |
 
@@ -56,14 +67,14 @@ analysis, filtering, and debugging.
 
 | Field | Type | Description |
 |---|---|---|
-| `final_reward` | float [0, 1] | Final score, the same value as `reward.txt`. Hard-capped to ≤ 0.40 when `size_sanity < 0.10` (catastrophic-size guard); the breakdown has no separate flag for the cap, so check `components.size_sanity`. |
+| `final_reward` | float [0, 1] or `null` | Final score, the same value as `reward.txt`; `null` when the evaluation is ungraded (no reward file). Hard-capped to ≤ 0.40 when `size_sanity < 0.10` (catastrophic-size guard); the breakdown has no separate flag for the cap, so check `components.size_sanity`. |
 | `components.format_valid` | 0 or 1 | Predicted output parses as a valid unified diff. Weight 0.00: kept as a guard, not a scoring factor. |
 | `components.size_sanity` | [0, 1] | `min(oracle_loc, pred_loc) / max(oracle_loc, pred_loc)`. Catches severe over- or under-generation. |
 | `components.file_targeting` | [0, 1] | F1 over the sets of changed files (not Jaccard; F1 gives partial credit for TP). |
 | `components.region_overlap` | [0, 1] | Predicted hunks overlap oracle hunks within a 5-line slack. |
 | `components.similarity` | [0, 1] | `difflib.SequenceMatcher` ratio over `+`/`-` lines only (no credit for context lines). |
-| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` on judge failure or when disabled; the evaluation is ungraded and reward is 0. |
-| `evaluation_status` | string | `graded` when a positively weighted judge returns a valid score; otherwise `ungraded`. Exclude ungraded runs from training and solved-rate denominators and retry grading the saved patch. |
+| `components.llm_judge` | [0, 1] or `null` | LLM semantic judge ("does this address the issue?"). `null` on judge failure or when disabled. An unavailable or disabled judge, or a provider reply that can't be read, leaves the evaluation ungraded (`final_reward` `null`, no reward file); a judge answer with no valid score is a graded 0, because the agent's patch is in the judge prompt. |
+| `evaluation_status` | string | `graded` when a positively weighted judge returns a valid score, or when its answer holds no valid score (a graded 0); `ungraded` when the judge is unavailable or disabled, or the provider's reply can't be read. An ungraded run writes no `reward.txt`, so Harbor reports `VERIFIER_FAILED` and RL consumers drop it. Retry grading the saved patch. |
 | `eval_trustworthy` | bool | Whether the configured grading components were available. This is not a claim of functional correctness or tamper isolation. |
 | `diagnostic_similarity` | float [0, 1] | Weighted mean of deterministic components, available even for ungraded runs. Diagnostic only. |
 | `weights` | object | Effective per-component weights (overridable via `R2E_W_*` env vars). |
@@ -176,7 +187,7 @@ reward = float(open("/logs/verifier/reward.txt").read().strip())  # 1.0 or 0.0
 
 | Pipeline | `reward.txt` | `reward-details.json` | Training signal | Eval signal |
 |---|---|:-:|---|---|
-| `pr_diff` | weighted [0,1] | ✅ | `reward` | `components` breakdown |
+| `pr_diff` | weighted [0,1], graded runs only | ✅ | `reward` | `components` breakdown |
 | `pr_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `commit_runtime` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |
 | `cve_patches` | f2p × p2p | ✅ | `reward` | `resolved` / `command_resolved` |

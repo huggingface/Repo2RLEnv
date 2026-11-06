@@ -89,7 +89,7 @@ tasks
 | `tests/oracle.patch` | The verifier's copy of the reference diff. |
 | `tests/instruction.md` | The verifier's copy of the instruction, used by the LLM judge. |
 
-Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an LLM judge. Without a valid judge score, current tasks are ungraded with reward 0; deterministic similarity remains diagnostic only. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
+Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an LLM judge. Without a judge, the run is ungraded and writes no reward file; a judge answer without a valid score is a graded 0. Deterministic similarity remains diagnostic only. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
 
 </Step>
 <Step>
@@ -112,7 +112,7 @@ This is a static check. It confirms each `task.toml` parses, the instruction, en
 
 ### Run the tasks with Harbor
 
-Install [Harbor](https://github.com/harbor-framework/harbor) and run the `oracle` agent first. It applies the reference solution, so a successfully graded task should score 1.0. PR-diff tasks need a correctness judge: set `ANTHROPIC_API_KEY` and pass it to the verifier, including for the controls. A missing or failed judge leaves the result ungraded with a zero reward placeholder; diagnose that separately from a graded oracle failure.
+Install [Harbor](https://github.com/harbor-framework/harbor) and run the `oracle` agent first. It applies the reference solution, so a successfully graded task should score 1.0. PR-diff tasks need a correctness judge: set `ANTHROPIC_API_KEY` and pass it to the verifier, including for the controls. A missing or unreachable judge leaves the result ungraded: no reward file, so Harbor reports the trial as `VERIFIER_FAILED`. Diagnose that separately from a graded oracle failure.
 
 ```bash
 uv tool install harbor
@@ -144,7 +144,7 @@ harbor run -p ./tasks \
 | `-a claude-code -m anthropic/claude-sonnet-4-6` | The agent harness and the model it uses. |
 | `--ak max_budget_usd=2.00` | An agent option: caps what Claude Code can spend on each task (its `--max-budget-usd`). |
 | `--ae KEY=VALUE` | Passes an environment variable to the agent. |
-| `--ve KEY=VALUE` | Passes an environment variable to the verifier. Here it supplies the `pr_diff` judge credential; without a valid judge result the task is ungraded, and similarity remains diagnostic only. |
+| `--ve KEY=VALUE` | Passes an environment variable to the verifier. Here it supplies the `pr_diff` judge credential; without it the run is ungraded (no reward file), and similarity remains diagnostic only. |
 
 Harbor writes results to `./jobs/<timestamp>/`, with each trial's `verifier/reward.txt` and `verifier/reward-details.json`. Browse them with `harbor view jobs`. To run in a cloud sandbox instead of local Docker, replace `--env docker` with `--env modal`, `daytona`, `e2b` or `runloop`.
 

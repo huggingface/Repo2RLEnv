@@ -174,10 +174,24 @@ The result is clipped to [0, 1]. If `size_sanity` is below 0.10, the reward is
 capped at 0.40, so a lenient judge can't inflate a patch that is wildly the wrong
 size. An empty patch scores 0.
 
-When the judge is unavailable, disabled, or returns an invalid score, the verifier
-writes `evaluation_status = "ungraded"`, `eval_trustworthy = false` and reward 0.
-The zero is a fail-closed placeholder, **not a model failure**. Exclude ungraded
-runs from training and solved-rate denominators, and retry grading the saved
+When the judge is unavailable (no key or model configured, or a network or API
+error) or disabled, the verifier writes `evaluation_status = "ungraded"`,
+`eval_trustworthy = false` and `final_reward = null` to `reward-details.json`
+and writes **no reward file**. Harbor raises `RewardFileNotFoundError`, classes the trial as `VERIFIER_FAILED` with `reward_valid = false` and does not retry it; the trial's `result.json` shows `verifier_result: null` and the exception under `exception_info` (the failure cause and `reward_valid` are computed from it, not stored). RL consumers drop the rollout
+rather than training on a 0, while Harbor's job mean and pass@k count it as 0.
+A provider reply that isn't JSON or has the wrong shape (`judge_status`
+`parse`) is ungraded too, as is a crashed verifier (`verifier_status: "error"`).
+When the judge answers without a valid score (`missing_score` or
+`invalid_score`), including a refusal, a content filter or an empty reply, the
+run is a graded 0 instead: the agent's patch is part of the judge prompt, so it
+can provoke those replies. A predicted patch over 10x the oracle's changed lines
+(and over 1,000) or over 16 MiB is a graded 0 too (`predicted_status:
+"predicted_too_large"`), so one huge file can't slow the verifier into a timeout.
+
+A judge that never returns a valid score, such as a self-hosted model that
+doesn't follow the JSON format or spends its 200-token budget on reasoning,
+now gives a graded 0 on every rollout rather than an ungraded run. Check that
+the oracle run's `judge_status` is `ok` before training on a new judge setup. Retry grading the saved
 patch from `logs/verifier/predicted.patch` when the judge is available. Do not rerun the coding agent just to recover
 a judge outage. `diagnostic_similarity` retains the weighted mean of the five
 deterministic components for inspection, without turning it into training reward.
@@ -189,7 +203,7 @@ correctness. Use executable tests when that stronger guarantee is needed. Overri
 `harbor run --ve`.
 
 The verifier removes any existing reward files, then writes the score to
-`/logs/verifier/reward.txt` and the breakdown (`final_reward`, `components`,
+`/logs/verifier/reward.txt` (graded runs only) and the breakdown (`final_reward`, `components`,
 `weights`, `judge_model`, `judge_endpoint`, `judge_status`, `evaluation_status`,
 `eval_trustworthy`, `diagnostic_similarity`) to
 `/logs/verifier/reward-details.json`.
@@ -199,7 +213,8 @@ The verifier removes any existing reward files, then writes the score to
 The verifier captures edits with a fresh Git configuration and index, using only
 the cloned repository's object store for the pinned base. It includes new files
 without running workspace-configured clean filters, external diff programs,
-textconv drivers, fsmonitor or hooks. A capture error is ungraded with reward 0.
+textconv drivers, fsmonitor or hooks. A capture error is graded 0, because the
+agent can cause it (for example by removing the Git object store).
 
 This does not protect against an agent that can replace system binaries, alter
 the object store or write verifier files while grading runs. Strong adversarial
