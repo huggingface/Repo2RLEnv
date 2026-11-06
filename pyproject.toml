@@ -87,6 +87,13 @@ harbor = [
     # Offline/native adapters require this tested contract; upgrade them together.
     "harbor==0.25.0",
 ]
+mutants = [
+    "tree-sitter==0.26.0",
+    "tree-sitter-go==0.25.0",
+    "tree-sitter-javascript==0.25.0",
+    "tree-sitter-rust==0.24.2",
+    "tree-sitter-typescript==0.23.2",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.2,<0.14.0"]
