@@ -108,7 +108,7 @@ Pass each option with `--pipeline-opt key=value`.
 | `require_fail_to_pass` | `true` | Skip commits with fewer than `min_fail_to_pass` F2P tests |
 | `min_fail_to_pass` | `1` | Minimum number of F2P tests |
 | `max_pass_to_pass` | `50` | Cap on the P2P set. `0` keeps all of them |
-| `validation_timeout_sec` | `600` | Timeout for each of the two validation test runs |
+| `validation_timeout_sec` | `600` | Timeout for each validation test run |
 | `skip_validation` | `false` | Emit without running tests, with a pass/fail exit-code reward. For debugging |
 | `synthesize_with_llm` | `true` | Rewrite the commit or issue into a symptom-only problem statement |
 | `llm_temperature` | `0.3` | Sampling temperature for the rewrite |
@@ -129,6 +129,8 @@ pallets__click-<sha12>
 └── tests
     ├── test.sh
     ├── verifier.py
+    ├── launcher.py
+    ├── grader_tools.py
     ├── f2p.json
     └── p2p.json
 ```
@@ -136,7 +138,8 @@ pallets__click-<sha12>
 The files match [`pr_runtime`'s output](pr_runtime.md#output): an environment
 `FROM` the bootstrap image at the parent commit with history scrubbed and an
 egress guard, the commit's source changes as `solution/patch.diff`, and the hidden
-test patch plus graded verifier under `tests/`. `task.toml` carries
+test patch plus graded verifier under `tests/`, graded in a
+[separate verifier](pr_runtime.md#grading-in-a-separate-verifier). `task.toml` carries
 `[metadata.repo2env.commit_runtime]`: commit and parent SHAs, author date and email,
 subject, F2P and P2P lists, `validation_status`, the bootstrap image digest,
 `instruction_synthesized` and `llm_cost_usd`. For a local checkout, the

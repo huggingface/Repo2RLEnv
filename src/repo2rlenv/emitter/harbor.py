@@ -62,6 +62,10 @@ class HarborTask:
     # {"tests/verifier.py": ..., "tests/f2p.json": ...}. Harbor exposes tests/
     # at /tests in the container so test.sh can read them.
     aux_files: dict[str, str] = field(default_factory=dict)
+    # Extra `[verifier]` keys, e.g. {"environment_mode": "separate"}, and the
+    # agent-container paths Harbor copies into that separate verifier.
+    verifier: dict[str, Any] = field(default_factory=dict)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _content_hash(task: HarborTask) -> str:
@@ -133,8 +137,10 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
             "repo2env": repo2env,
         },
         "agent": {"timeout_sec": 1800.0},
-        "verifier": {"timeout_sec": 300.0},
+        "verifier": {"timeout_sec": 300.0, **task.verifier},
     }
+    if task.artifacts:
+        payload["artifacts"] = [dict(artifact) for artifact in task.artifacts]
     (task_path / "task.toml").write_bytes(tomli_w.dumps(payload).encode("utf-8"))
 
     # instruction.md

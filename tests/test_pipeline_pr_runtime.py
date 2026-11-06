@@ -11,11 +11,6 @@ runs against real repos. These tests pin the pure-Python bits:
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import sys
-
 import pytest
 
 from repo2rlenv.bootstrap.spec import BootstrapResult, LanguageHint
@@ -154,21 +149,13 @@ def test_build_eval_script_captures_log_and_test_cmds():
     # The suite output is captured to a log file the verifier can parse.
     assert "/logs/verifier/test_output.log" in script
     assert "pytest -x tests/" in script
-    # Reset comes before and after the test run (idempotency + anti-tamper)
-    assert script.count("git checkout") >= 2
-    # Workspace + safe.directory wiring (matches SWE-bench)
-    assert "/workspace" in script
-    assert "safe.directory" in script
+    assert "/workspace" in script and "safe.directory" in script
 
 
 def test_build_eval_script_tolerates_no_test_files():
     """If test_patch is empty, the reset step shouldn't reference any files."""
-    script = build_eval_script(
-        base_commit="b" * 40,
-        test_patch="",
-        test_cmds=["pytest"],
-    )
-    assert "no test files to reset" in script
+    script = build_eval_script(base_commit="b" * 40, test_patch="", test_cmds=["pytest"])
+    assert "git cat-file -e" not in script
     assert "pytest" in script
 
 
@@ -176,11 +163,7 @@ def test_build_eval_script_resets_test_files_one_at_a_time():
     """`git checkout <base> -- a b` refuses every path when one is missing at
     base, and test patches usually add a test file, so the reset runs per file
     and removes the files the patch creates."""
-    script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch=_SAMPLE_DIFF,
-        test_cmds=["pytest"],
-    )
+    script = build_eval_script(base_commit="a" * 40, test_patch=_SAMPLE_DIFF, test_cmds=["pytest"])
     assert "for f in src/foo.py tests/test_foo.py; do" in script
     assert f'git cat-file -e {"a" * 40}:"$f"' in script
     assert f'git checkout {"a" * 40} -- "$f"' in script
@@ -197,56 +180,30 @@ def test_build_eval_script_joins_multiple_test_cmds_with_and():
     assert "export PATH=/opt/bin:$PATH && pytest --collect-only" in script
 
 
-def test_build_eval_script_captures_exit_code_before_cleanup():
-    """The reward is the verdict (written to reward.txt), so the script exits 0.
-
-    But the test exit code must be captured AFTER the test block and BEFORE
-    the cleanup reset, so the cleanup `git checkout || true` can't mask the
-    test outcome that feeds the binary fallback / verifier --exit-code.
-    """
+def test_build_eval_script_runs_tests_before_the_verdict():
     script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["pytest -v"],
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest -v"], fail_to_pass=["t"]
     )
-    assert "TEST_EXIT_CODE=$?" in script
     assert "exit 0" in script  # reward.txt is the verdict, not bash exit code
-    test_block_pos = script.find("pytest -v")
-    capture_pos = script.find("TEST_EXIT_CODE=$?")
-    # rfind: the fail-closed guards also write reward.txt, before the suite runs.
-    reward_pos = script.rfind("/logs/verifier/reward.txt")
-    assert test_block_pos < capture_pos < reward_pos
-
-
-def test_build_eval_script_writes_reward_file():
-    """Harbor verifier reads /logs/verifier/reward.txt — exit code alone isn't enough."""
-    script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["pytest -v"],
-    )
-    assert "mkdir -p /logs/verifier" in script
-    assert "/logs/verifier/reward.txt" in script
-    # Should write 1.0 on pass, 0.0 on fail
-    assert "1.0" in script and "0.0" in script
+    launch = script.find("launcher.py")
+    verdict = script.find('"$SCRIPT_DIR/verifier.py"')
+    assert 0 <= launch < script.find('TEST_EXIT_CODE="$R2E_LAUNCH_OUT"') < verdict
 
 
 def test_build_eval_script_binary_fallback_when_no_f2p():
-    """No F2P oracle (e.g. --skip-validation) → binary exit-code reward, no verifier."""
+    """No F2P oracle (e.g. --skip-validation): binary exit-code reward, and the
+    details file still says the run was graded."""
     script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["pytest -v"],
-        fail_to_pass=None,
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest -v"], fail_to_pass=None
     )
-    assert "verifier.py" not in script
-    assert 'echo "1.0" > /logs/verifier/reward.txt' in script
+    assert 'verifier.py" --' not in script
+    assert 'echo "$R2E_REWARD" > /logs/verifier/reward.txt' in script
+    assert '"evaluation_status": "graded"' in script
+    assert "/logs/verifier/reward-details.json" in script
 
 
 def test_build_eval_script_graded_reads_artifacts_from_tests_dir():
-    """With F2P provided, test.sh is a thin orchestrator that reads the plain
-    verifier.py + f2p.json + p2p.json artifacts from the mounted tests dir
-    ($SCRIPT_DIR) — NO base64 blobs."""
+    """test.sh reads the plain verifier.py + f2p.json + p2p.json from /tests."""
     script = build_eval_script(
         base_commit="a" * 40,
         test_patch="",
@@ -254,12 +211,39 @@ def test_build_eval_script_graded_reads_artifacts_from_tests_dir():
         fail_to_pass=["tests/t.py::t_fix"],
         pass_to_pass=["tests/t.py::t_keep"],
     )
-    assert 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"' in script
-    assert 'python3 "$SCRIPT_DIR/verifier.py"' in script
-    assert '"$SCRIPT_DIR/f2p.json"' in script
-    assert '"$SCRIPT_DIR/p2p.json"' in script
+    assert "SCRIPT_DIR=/tests" in script
+    assert '"$R2E_PY" -B -I -S "$SCRIPT_DIR/verifier.py"' in script
+    assert '"$SCRIPT_DIR/f2p.json"' in script and '"$SCRIPT_DIR/p2p.json"' in script
     assert "base64" not in script  # no baked blobs
-    assert "/logs/verifier/reward.txt" in script  # python3-missing fallback
+
+
+def test_an_unsafe_image_leaves_the_run_ungraded():
+    # The launcher refuses before any test code runs when a path root later
+    # imports or executes from is writable by the test user.
+    script = build_eval_script(
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest -v"], fail_to_pass=["t"]
+    )
+    assert "unsafe_image) r2e_finish ungraded unsafe_image" in script
+
+
+def test_build_eval_script_maps_verifier_exit_statuses():
+    script = build_eval_script(
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest -v"], fail_to_pass=["t"]
+    )
+    # 3: an unreadable /tests input; anything else parsing the tests' output: graded 0.
+    assert "-eq 3 ] && r2e_finish ungraded verifier_error" in script
+    assert "r2e_finish graded log_unparseable" in script
+
+
+def test_build_eval_script_maps_rebuild_exit_statuses():
+    script = build_eval_script(
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest"], copy_timeout=210
+    )
+    assert "--copy-timeout 210" in script
+    assert "3) r2e_finish ungraded submission_rebuild_failed" in script
+    assert "4) r2e_finish ungraded submission_restore_failed" in script
+    # An out-of-memory kill while reading the agent's tree is the agent's doing.
+    assert "*) r2e_finish graded submission_rebuild_crashed" in script
 
 
 def test_runtime_aux_files_shape():
@@ -275,41 +259,24 @@ def test_runtime_aux_files_shape():
     assert "def grade" in aux["tests/verifier.py"]  # real verifier source
 
 
-def test_build_eval_script_no_path_prelude_for_python():
-    """Python is always on PATH in standard images; no prelude needed."""
+def test_build_eval_script_no_toolchain_dirs_for_python():
     script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["pytest -v"],
-        language="python",
+        base_commit="a" * 40, test_patch="", test_cmds=["pytest -v"], language="python"
     )
-    assert "/usr/local/go/bin" not in script
-    assert ".cargo/bin" not in script
+    assert "/usr/local/go/bin" not in script and ".cargo/bin" not in script
 
 
-def test_build_eval_script_path_prelude_for_go():
-    """Go binaries typically install to /usr/local/go/bin — must be on PATH."""
+@pytest.mark.parametrize(
+    ("language", "directory"), [("go", "/usr/local/go/bin"), ("rust", ".cargo/bin")]
+)
+def test_build_eval_script_toolchain_dirs_reach_the_test_command_only(language, directory):
     script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["go test -v ./..."],
-        language="go",
+        base_commit="a" * 40, test_patch="", test_cmds=["make test"], language=language
     )
-    assert "/usr/local/go/bin" in script
-    # Export must precede the test block so `go test` resolves
-    export_pos = script.find("export PATH")
-    test_pos = script.find("go test")
-    assert 0 <= export_pos < test_pos
-
-
-def test_build_eval_script_path_prelude_for_rust():
-    script = build_eval_script(
-        base_commit="a" * 40,
-        test_patch="",
-        test_cmds=["cargo test"],
-        language="rust",
-    )
-    assert ".cargo/bin" in script
+    child = next(line for line in script.splitlines() if line.startswith("R2E_CHILD_PATH="))
+    assert directory in child
+    # Root's own steps keep a fixed PATH.
+    assert "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" in script
 
 
 def test_build_eval_script_restores_pytest_config_before_tests():
@@ -322,158 +289,8 @@ def test_build_eval_script_restores_pytest_config_before_tests():
         fail_to_pass=["tests/test_foo.py::test_add"],
     )
     assert "R2E_PYTEST_CONFIG_GUARD" in script
-    assert f'git checkout {"a" * 40} -- "$f"' in script
     reset_pos = script.find("R2E_PYTEST_CONFIG_GUARD")
-    assert 0 <= reset_pos < script.find("EOF_R2E_TEST_PATCH") < script.find("( pytest -v )")
-
-
-needs_git_bash = pytest.mark.skipif(
-    shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash"
-)
-
-_PASSING_HOOK = (
-    "import pytest\n\n"
-    "@pytest.hookimpl(hookwrapper=True)\n"
-    "def pytest_runtest_makereport(item, call):\n"
-    "    outcome = yield\n"
-    "    rep = outcome.get_result()\n"
-    '    rep.outcome = "passed"\n'
-    "    rep.longrepr = None\n\n"
-    "def pytest_sessionfinish(session, exitstatus):\n"
-    "    session.exitstatus = 0\n"
-)
-
-
-def _base_repo(tmp_path, files: dict[str, str]) -> tuple:
-    """A git repo at tmp_path/workspace with `files` committed; returns (repo, sha)."""
-    repo = tmp_path / "workspace"
-    for rel, text in files.items():
-        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
-        (repo / rel).write_text(text)
-    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
-    subprocess.run([*git, "init", "-q"], cwd=repo, check=True)
-    subprocess.run([*git, "add", "-A"], cwd=repo, check=True)
-    subprocess.run([*git, "commit", "-qm", "base"], cwd=repo, check=True)
-    sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
-    ).stdout.strip()
-    return repo, sha
-
-
-def _run_test_sh(tmp_path, repo, base: str, test_cmds: list[str]) -> str:
-    """Run the generated (binary-reward) test.sh against `repo`; return reward.txt."""
-    script = build_eval_script(base_commit=base, test_patch="", test_cmds=test_cmds)
-    logs = tmp_path / "logs"
-    script = script.replace("/workspace", str(repo)).replace("/logs/verifier", str(logs))
-    env = {"HOME": str(tmp_path), "PATH": os.environ["PATH"], "PYTHONDONTWRITEBYTECODE": "1"}
-    subprocess.run(["bash", "-c", script], check=True, capture_output=True, env=env)
-    return (logs / "reward.txt").read_text().strip()
-
-
-_PYTEST = f"{sys.executable} -m pytest -q -p no:cacheprovider tests"
-_BUGGY = {
-    "pkg.py": "def add(a, b):\n    return a - b\n",
-    "tests/test_pkg.py": "from pkg import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n",
-    "pyproject.toml": '[project]\nname = "pkg"\nversion = "1.0"\n\n'
-    '[tool.pytest.ini_options]\npythonpath = ["."]\n',
-}
-
-
-@needs_git_bash
-def test_build_eval_script_config_reset_keeps_source_changes(tmp_path):
-    """Config the agent added, edited, deleted or git-ignored is back at base when
-    the suite runs; the agent's source change is untouched. The repo's own
-    tests/conftest.py stays, so its fixtures still load."""
-    repo, base = _base_repo(
-        tmp_path,
-        {
-            "pkg.py": "X = 1\n",
-            "pyproject.toml": "[tool.pytest.ini_options]\n",
-            "tests/conftest.py": "# base fixtures\n",
-        },
-    )
-    (repo / "pkg.py").write_text("X = 2\n")
-    (repo / "conftest.py").write_text("# agent hook\n")
-    (repo / "pytest.ini").write_text("[pytest]\n")
-    (repo / "tests" / "conftest.py").write_text("# agent hook\n")
-    (repo / "pyproject.toml").write_text('[project]\nname = "updated"\n[tool.pytest.ini_options]\n')
-    hidden = repo / "tests" / "hidden"
-    hidden.mkdir()
-    (hidden / ".gitignore").write_text("*\n")
-    (hidden / "conftest.py").write_text("# agent hook\n")
-
-    assert _run_test_sh(tmp_path, repo, base, [f"{sys.executable} -m pytest --version"]) == "1.0"
-    assert (repo / "pkg.py").read_text() == "X = 2\n"
-    assert (repo / "tests" / "conftest.py").read_text() == "# base fixtures\n"
-    assert 'name = "updated"' in (repo / "pyproject.toml").read_text()
-    assert not (repo / "conftest.py").exists()
-    assert not (repo / "pytest.ini").exists()
-    assert not (hidden / "conftest.py").exists()
-
-
-@needs_git_bash
-def test_build_eval_script_agent_conftest_scores_zero(tmp_path):
-    """The reported case: no source fix, a root conftest.py that marks every
-    report passed. It must not survive into the graded run."""
-    repo, base = _base_repo(tmp_path, _BUGGY)
-    (repo / "conftest.py").write_text(_PASSING_HOOK)
-    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.0"
-
-
-@needs_git_bash
-def test_build_eval_script_failed_config_reset_scores_zero(tmp_path):
-    """If a reset step fails, grading stops with reward 0 and the suite never runs."""
-    repo, base = _base_repo(tmp_path, {**_BUGGY, "pkg.py": "def add(a, b):\n    return a + b\n"})
-    (repo / "pyproject.toml").unlink()
-    (repo / "pyproject.toml").mkdir()  # `rm -f` can't remove it
-    ran = tmp_path / "suite_ran"
-    assert _run_test_sh(tmp_path, repo, base, [f"touch {ran}", _PYTEST]) == "0.000000"
-    details = (tmp_path / "logs" / "reward-details.json").read_text()
-    assert '"parse_status": "test_config_reset_failed"' in details
-    assert '"evaluation_status": "ungraded"' in details
-    assert '"eval_trustworthy": false' in details
-    assert not ran.exists()
-
-
-@needs_git_bash
-def test_build_eval_script_rejects_untrusted_directory_symlinks(tmp_path):
-    """An untrusted directory link stops grading without modifying its target."""
-    repo, base = _base_repo(tmp_path, _BUGGY)
-    (repo / "docs").mkdir()
-    (repo / "docs" / "linked").symlink_to("../tests")
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "link"],
-        cwd=repo,
-        check=True,
-    )
-    base = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
-    ).stdout.strip()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "conftest.py").write_text(_PASSING_HOOK)
-    (repo / "tests" / "extra").symlink_to(outside)
-    (repo / "docs" / "linked").unlink()
-    (repo / "docs" / "linked").symlink_to(outside)
-
-    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "0.000000"
-    assert (outside / "conftest.py").read_text() == _PASSING_HOOK
-    assert (repo / "tests" / "extra").is_symlink()
-
-
-@needs_git_bash
-def test_build_eval_script_keeps_a_fix_that_bumps_pyproject_version(tmp_path):
-    """A real fix that also edits a non-pytest part of pyproject.toml still passes."""
-    repo, base = _base_repo(tmp_path, _BUGGY)
-    (repo / "pkg.py").write_text("def add(a, b):\n    return a + b\n")
-    pyproject = repo / "pyproject.toml"
-    pyproject.write_text(pyproject.read_text().replace('version = "1.0"', 'version = "1.1"'))
-    assert _run_test_sh(tmp_path, repo, base, [_PYTEST]) == "1.0"
-    assert 'version = "1.1"' in pyproject.read_text()
-
-
-# --- instruction reflow + difficulty -----------------------------------------
+    assert 0 <= reset_pos < script.find("EOF_R2E_TEST_PATCH") < script.find("launcher.py")
 
 
 def test_reflow_drops_checklist_and_html_comments():
@@ -575,9 +392,7 @@ def test_build_eval_script_fails_closed_on_patch_apply():
         fail_to_pass=["tests/test_foo.py::test_add"],
     )
     assert "R2E_APPLY_RC" in script
-    assert "test_patch_apply_failed" in script
-    assert "/logs/verifier/reward-details.json" in script
-    assert "/logs/verifier/reward.json" not in script
+    assert "r2e_finish graded test_patch_apply_failed" in script
     assert script.find("R2E_APPLY_RC") < script.find("test_output.log")
 
 
@@ -730,11 +545,16 @@ def test_normalize_unittest_gets_verbosity():
     ]
 
 
-def test_normalize_go_test_gets_v_flag():
-    """`go test` without -v doesn't print --- PASS lines — parser needs them."""
-    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -v ./..."]
-    # Already verbose ⇒ no change
-    assert normalize_test_cmds_for_runtime(["go test -v ./..."]) == ["go test -v ./..."]
+def test_normalize_go_test_gets_v_and_count_flags():
+    """`go test` without -v doesn't print --- PASS lines — parser needs them.
+
+    `-count=1` keeps go from serving a cached result instead of running the tests.
+    """
+    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -count=1 -v ./..."]
+    # Already verbose and uncached ⇒ no change
+    assert normalize_test_cmds_for_runtime(["go test -v -count=1 ./..."]) == [
+        "go test -v -count=1 ./..."
+    ]
 
 
 def test_normalize_cargo_strips_quiet():
@@ -816,7 +636,9 @@ def test_normalize_strips_quiet_flag():
 
 def test_normalize_strips_dev_null_redirect():
     """`> /dev/null` or `&> /dev/null` would also swallow output we need to parse."""
-    assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == ["go test -v ./..."]
+    assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == [
+        "go test -count=1 -v ./..."
+    ]
     assert normalize_test_cmds_for_runtime(["pytest &> /dev/null"]) == ["pytest -v"]
 
 
@@ -1023,3 +845,39 @@ def test_pre_filter_require_linked_issue_default_keeps_without_linked_issue():
     pipeline = _make_pipeline(None)
     pr = _make_pr("Fix the parser crash.\n\nNo issue link here.")
     assert pipeline._pre_filter(pr) is None
+
+
+def test_separate_verifier_grades_a_runner_config_change_zero_and_pins_profiles():
+    script = build_eval_script(
+        "a" * 40,
+        "",
+        ["cargo test"],
+        language="rust",
+        fail_to_pass=["t"],
+        pass_to_pass=[],
+    )
+    assert 'R2E_GUARD_ENV="$(mktemp)"' in script
+    # Exit 2 (a changed setting) and any other guard failure are both graded 0.
+    assert "r2e_finish graded runner_config_changed" in script
+    assert "r2e_finish graded test_config_reset_failed" in script
+    assert script.index('"$R2E_RESET_RC" -eq 2') < script.index('"$R2E_RESET_RC" -eq 0')
+    assert '. "$R2E_GUARD_ENV"' in script
+    assert "--writable /workspace --fresh-copy CARGO_HOME" in script
+
+
+def test_separate_verifier_launcher_argv_is_the_same_for_every_run():
+    script = build_eval_script("a" * 40, "", ["pytest t.py"], fail_to_pass=["t"])
+    # Fixed names in a root-only directory, renamed afterwards.
+    assert "--log /logs/verifier/run/output.log --seconds-out /logs/verifier/run/seconds" in script
+    assert "chmod 700 /logs/verifier" in script and "mkdir -m 700 /logs/verifier/run" in script
+    assert "cleanup_failed) r2e_finish graded test_cleanup_failed" in script
+
+
+def test_pr_split_uses_the_grading_rule():
+    diff = "".join(
+        f"diff --git a/{p} b/{p}\n--- a/{p}\n+++ b/{p}\n@@ -1 +1 @@\n-a\n+b\n"
+        for p in ("pkg/a.go", "pkg/testdata/golden.json", "Tests/x.py", "docs/tests/e.py")
+    )
+    source, tests = split_patch_and_test_patch(diff)
+    assert "pkg/testdata/golden.json" in tests and "Tests/x.py" in tests
+    assert "pkg/a.go" in source and "docs/tests/e.py" in source

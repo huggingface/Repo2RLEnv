@@ -195,6 +195,6 @@ def test_runtime_fix_is_only_a_learner_layer_and_public_hint(tmp_path, venv):
     expected = "/opt/tasksmith-venv/bin/python" if venv else "/usr/local/bin/python"
     assert (
         task / "tests/test.sh"
-    ).read_text() == f"#!/bin/sh\nset -eu\nexec {expected} -I /tests/grade.py\n"
+    ).read_text() == f"#!/bin/sh\nset -eu\nexec {expected} -B -I -S /tests/grade.py\n"
     assert (task / "environment/source/src/core.py").read_text() == "value = 0\n"
     assert (task / "solution/reference/src/core.py").read_text() == "value = 1\n"
