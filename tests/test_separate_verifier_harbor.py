@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 import tomli_w
 
-from tests.test_separate_verifier_container import FIXED, _build_task
+from tests.test_separate_verifier_container import FIXED, RUNTEST_PATCH, _build_task
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("R2E_HARBOR_TESTS") != "1",
@@ -56,7 +56,7 @@ def harbor_task_template(tmp_path_factory):
 
 
 @pytest.mark.asyncio(loop_scope="module")
-@pytest.mark.parametrize("submission", ["oracle", "nop", "conftest"])
+@pytest.mark.parametrize("submission", ["oracle", "nop", "conftest", "in_process"])
 async def test_harbor_separate_grading(harbor_task_template: Path, tmp_path: Path, submission):
     pytest.importorskip("harbor")
     from harbor.models.trial.config import TrialConfig
@@ -69,6 +69,9 @@ async def test_harbor_separate_grading(harbor_task_template: Path, tmp_path: Pat
     shutil.copytree(harbor_task_template, task)
     if submission == "oracle":
         source = FIXED
+        target = "/workspace/pkg/clamp.py"
+    elif submission == "in_process":
+        source = RUNTEST_PATCH
         target = "/workspace/pkg/clamp.py"
     elif submission == "conftest":
         source = (
@@ -100,3 +103,8 @@ async def test_harbor_separate_grading(harbor_task_template: Path, tmp_path: Pat
     assert result.verifier_result is not None
     assert result.verifier_result.rewards == {"reward": 1.0 if submission == "oracle" else 0.0}
     assert (trial.paths.verifier_dir / "submission.json").is_file()
+    if submission == "in_process":
+        import json
+
+        details = json.loads((trial.paths.verifier_dir / "reward-details.json").read_text())
+        assert details["tamper_check"] == "tripped"

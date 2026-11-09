@@ -59,6 +59,7 @@ from repo2rlenv.llm import complete
 from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines._grading_time import GradingTime
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.code_instruct import new_file_hunk
 from repo2rlenv.pipelines.pr_runtime import (
@@ -362,6 +363,7 @@ class CVEPatchesPipeline:
                 validation_status = "no_test_patch"
                 flaky_dropped = 0
                 timing: GradingTime | None = None
+                mutants: Mutants | None = None
                 validated_cmds: list[str] = []
                 effective_test_patch = test_patch
                 lang = self.bootstrap.language.value
@@ -396,6 +398,7 @@ class CVEPatchesPipeline:
                     )
                     flaky_dropped = len(outcome.flaky)
                     timing = outcome.timing
+                    mutants = outcome.mutants
                     validated_cmds = outcome.test_cmds
                 elif self.options.synthesize_poc_test and lang == "python" and self.input.llm:
                     if sandbox is None:
@@ -442,6 +445,7 @@ class CVEPatchesPipeline:
                             fail_to_pass, pass_to_pass = outcome.fail_to_pass, outcome.pass_to_pass
                             flaky_dropped = len(outcome.flaky)
                             timing = outcome.timing
+                            mutants = outcome.mutants
                             validated_cmds = outcome.test_cmds
                             validation_status = "poc_synthesized"
                             break
@@ -474,6 +478,7 @@ class CVEPatchesPipeline:
                     validation_status=validation_status,
                     flaky_dropped=flaky_dropped,
                     timing=timing,
+                    mutants=mutants,
                     test_cmds=validated_cmds or None,
                 )
                 write_harbor_task(task, out_dir)
@@ -526,6 +531,7 @@ class CVEPatchesPipeline:
         validation_status: str,
         flaky_dropped: int = 0,
         timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
         test_cmds: list[str] | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
@@ -551,6 +557,7 @@ class CVEPatchesPipeline:
             pass_to_pass=pass_to_pass or None,
             run_timeout=timing.run_timeout if timing is not None else None,
             copy_timeout=timing.copy_timeout if timing is not None else None,
+            mutants=mutants,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -588,6 +595,7 @@ class CVEPatchesPipeline:
                 "flaky_dropped": flaky_dropped,
                 "harbor_min_version": MIN_HARBOR_VERSION,
                 **({"grading_time": timing.metadata()} if timing is not None else {}),
+                "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
                 "poc_synthesized": validation_status == "poc_synthesized",
                 "llm_cost_usd": round(self._llm_cost_usd, 6),
                 "bootstrap_image": self.bootstrap.image_digest,
@@ -615,7 +623,7 @@ class CVEPatchesPipeline:
             artifacts=WORKSPACE_ARTIFACT,
             aux_files={
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
-                **separate_verifier_files(),
+                **separate_verifier_files(mutants),
                 "environment/docker-compose.yaml": egress_guard_compose(
                     fix_source_hosts(self.input.repo.source_kind)
                 ),

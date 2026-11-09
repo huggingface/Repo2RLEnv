@@ -671,6 +671,131 @@ def grade(
 
 
 # ---------------------------------------------------------------------------
+# Mutant runs (see repo2rlenv.pipelines._mutants)
+# ---------------------------------------------------------------------------
+
+
+def mutant_verdict(
+    ids: list[str],
+    run_a: dict[str, str],
+    run_b: dict[str, str],
+    tracked: list[str],
+    *,
+    exit_code_b: int,
+    exit_nonzero: bool,
+) -> str | None:
+    """Return the signal the two runs raise, or None.
+
+    Run A is the hidden suite as is; run B is the same tree with each mutated
+    test contradicting the original (changed expected value; same test ID).
+    No honest submission passes both a test and its
+    mutant, so only tests run A reports as passed count ("claimed"): a wrong
+    submission that fails a test may well pass its mutant. These mark the run
+    as tampered:
+      * `mutant_passed`        - a claimed test's mutant is passed or skipped in B;
+      * `mutant_missing`       - a claimed test's mutant is absent from B while
+                                 tracked tests pass there;
+      * `mutant_run_exit_zero` - B exited 0 although a claimed test's mutant
+                                 must fail;
+    These score 0 without the tampered label (`MISMATCH_SIGNALS`): flaky tests
+    are dropped at generation, so they most likely mean a forger, but a flake
+    or an honest solution slower than the reference under load can raise them:
+      * `status_mismatch`      - another tracked test (a decoy among them)
+                                 differs between A and B;
+      * `mutant_timeout`       - B ran past its time limit after A claimed a
+                                 mutated test (decided in `main`).
+    Tampering signals are checked first, so a run that raises both is tampered.
+    """
+    mutated = set(ids)
+    claimed = [test for test in ids if run_a.get(test) == PASSED]
+    for test in ids:
+        status = run_b.get(test)
+        if test in claimed and status is not None and status not in (FAILED, ERROR):
+            return "mutant_passed"
+        # A wrong implementation can coincidentally return the mutant's value.
+        # Unless it also claimed the original passed, there is no contradiction
+        # and no evidence of forgery; preserve its ordinary partial reward.
+    if any(test not in run_b for test in claimed) and any(
+        run_b.get(test) == PASSED for test in tracked
+    ):
+        return "mutant_missing"
+    if exit_nonzero and exit_code_b == 0 and claimed:
+        return "mutant_run_exit_zero"
+    for test in tracked:
+        if test not in mutated and run_a.get(test) != run_b.get(test):
+            return "status_mismatch"
+    return None
+
+
+# Signals a flaky suite could also raise: graded 0, but not labelled tampered.
+# Leaving them ungraded would let a forger that fails everything in run B drop
+# its own rollout instead of taking the 0.
+MISMATCH_SIGNALS = frozenset({"status_mismatch", "mutant_timeout"})
+
+
+def _read_mutants(path: str) -> tuple[list[str], bool]:
+    """The mutated test IDs from /tests/mutants.json (root-only, written at
+    generation); an unreadable spec is a broken task, not a skipped check."""
+    if not path:
+        return [], False
+    try:
+        with open(path, encoding="utf-8") as f:
+            spec = json.load(f)
+        ids = [str(x) for x in spec.get("ids", [])]
+    except (OSError, ValueError, AttributeError) as exc:
+        raise GraderInputError(f"{path}: {exc}") from exc
+    return ids, bool(spec.get("exit_nonzero")) and bool(ids)
+
+
+def _mutant_check(args, ids: list[str], exit_nonzero: bool, run_a: dict, run_b, tracked) -> dict:
+    """The tamper check's fields for reward-details.json (empty without mutants)."""
+    if not ids:
+        return {"tamper_check": "unavailable"}
+    out: dict = {}
+    signal = None
+    if args.timed_out:
+        pass  # run A is a graded 0 anyway; nothing for run B to check
+    elif args.mutant_skipped:
+        pass  # run A passed no mutated test, so run B could not change the verdict
+    elif args.mutant_timed_out:
+        # Run B differs from A by a few assertions, so it takes about as long;
+        # hanging it must not be a way out of the check.
+        if any(run_a.get(test) == PASSED for test in ids):
+            signal = "mutant_timeout"
+        out["mutant_exit_code"] = args.mutant_exit_code
+    else:
+        signal = mutant_verdict(
+            ids,
+            run_a,
+            run_b(),
+            tracked,
+            exit_code_b=args.mutant_exit_code,
+            exit_nonzero=exit_nonzero,
+        )
+        out["mutant_exit_code"] = args.mutant_exit_code
+    seconds_b = None if args.mutant_skipped else _read_seconds(args.mutant_seconds)
+    if seconds_b is not None:
+        out["mutant_run_seconds"] = seconds_b
+    if args.timed_out or (args.mutant_skipped and not signal):
+        out["tamper_check"] = "not_needed"
+    elif signal in MISMATCH_SIGNALS:
+        out["tamper_check"] = "inconclusive"
+    else:
+        out["tamper_check"] = "tripped" if signal else "passed"
+    if signal:
+        out.update(
+            {
+                "reward": 0.0,
+                "resolved": False,
+                "command_resolved": False,
+                "parse_status": signal if signal in MISMATCH_SIGNALS else "tampered",
+                "tamper_signal": signal,
+            }
+        )
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Entry point (invoked by tests/test.sh inside the container)
 # ---------------------------------------------------------------------------
 
@@ -730,6 +855,22 @@ def _load_test_results():
     return parse_junit
 
 
+def junit_statuses(report: bytes, exit_code: int) -> dict[str, str]:
+    """Upper-cased statuses from a JUnit report; {} when it can't be parsed."""
+    try:
+        results = _load_test_results()(report.decode("utf-8", "replace"), returncode=exit_code)
+    except ValueError:
+        return {}
+    return {name: status.upper() for name, status in results.statuses.items()}
+
+
+def _read_report(path: str) -> bytes:
+    try:
+        return _read_untrusted(path, 16 * 1024 * 1024)
+    except (OSError, ValueError):
+        return b""
+
+
 def junit_verdict(report: bytes, exit_code: int, expected: list[str]) -> dict:
     """code_instruct / equivalence_tests: grade a JUnit report against `expected`.
 
@@ -738,7 +879,7 @@ def junit_verdict(report: bytes, exit_code: int, expected: list[str]) -> dict:
     extra test fails, and so does a report that contradicts the exit code. A
     report the submission writes itself must name exactly the hidden tests;
     code under test that reads the test file and forges every one of them is
-    in-process forgery, which a single run can't detect.
+    in-process forgery, which the mutant check (`mutant_verdict`) catches.
     """
     try:
         results = _load_test_results()(report.decode("utf-8", "replace"), returncode=exit_code)
@@ -816,13 +957,11 @@ def _read_text(path: str) -> str:
         return ""
 
 
-def _log_breakdown(args) -> dict:
+def _log_breakdown(args, status_map: dict[str, str]) -> dict:
     """pr_runtime family: grade the captured log against the F2P/P2P lists."""
-    log = _read_text(args.log)
     f2p = _read_json_list(args.f2p)
     p2p = _read_json_list(args.p2p)
     runner = args.runner.strip() or _detect_runner(args.test_cmds)
-    status_map = parse_logs(runner, log)
     if not status_map:
         # Unparseable runner output → fall back to the binary exit-code reward
         # (a coarse TRAINING signal) so we never silently zero a real fix on an
@@ -876,10 +1015,25 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--expected", default="", help="JSON list: test IDs the JUnit report must hold")
     p.add_argument("--timed-out", type=int, default=0, help="1 if the test run hit its time limit")
     p.add_argument("--seconds", default="", help="file with the test run's wall time")
+    p.add_argument("--mutants", default="", help="JSON mutant spec (tests/mutants.json)")
+    p.add_argument("--mutant-log", default="", help="log of the run with mutants (run B)")
+    p.add_argument("--mutant-junit", default="", help="JUnit report of run B")
+    p.add_argument("--mutant-exit-code", type=int, default=1, help="exit code of run B")
+    p.add_argument("--mutant-timed-out", type=int, default=0, help="1 if run B hit its limit")
+    p.add_argument("--mutant-skipped", type=int, default=0, help="1 if run B was not needed")
+    p.add_argument("--mutant-seconds", default="", help="file with run B's wall time")
+    p.add_argument(
+        "--claimed",
+        action="store_true",
+        help="print 1 if run A passed a mutated test (or can't be read), else 0; write nothing",
+    )
     args = p.parse_args(argv)
     if argv is None:  # running as the task's verifier, not imported by a test
         _limit_cpu()
     try:
+        if args.claimed:
+            print(_claimed(args))
+            return 0
         breakdown = _breakdown(args)
     except GraderInputError as exc:
         sys.stderr.write(f"R2E verifier: unreadable grader input: {exc}\n")
@@ -887,21 +1041,55 @@ def main(argv: list[str] | None = None) -> int:
     return _write_verdict(args, breakdown)
 
 
-def _breakdown(args) -> dict:
+def _runner(args) -> str:
+    return args.runner.strip() or _detect_runner(args.test_cmds)
+
+
+def _claimed(args) -> str:
+    """Whether run B is needed. A run A that can't be read means "run it":
+    skipping is only safe when run A plainly passed no mutated test."""
+    ids, _ = _read_mutants(args.mutants)
     if args.junit:
-        try:
-            report = _read_untrusted(args.junit, 16 * 1024 * 1024)
-        except (OSError, ValueError):
-            report = b""
-        breakdown = junit_verdict(report, args.exit_code, _read_json_list(args.expected))
+        report = _read_report(args.junit)
+        run_a = junit_statuses(report, args.exit_code) if report else {}
+    else:
+        run_a = parse_logs(_runner(args), _read_text(args.log))
+    return "1" if not run_a or any(run_a.get(test) == PASSED for test in ids) else "0"
+
+
+def _breakdown(args) -> dict:
+    ids, exit_nonzero = _read_mutants(args.mutants)
+    if args.junit:
+        report = _read_report(args.junit)
+        expected = _read_json_list(args.expected)
+        breakdown = junit_verdict(report, args.exit_code, expected)
         if report:
             # Keep the bytes graded, root-only, for the record.
+            os.makedirs(args.out_dir, exist_ok=True)
             path = os.path.join(args.out_dir, "junit.xml")
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(descriptor, "wb") as f:
                 f.write(report)
+        run_a = junit_statuses(report, args.exit_code) if report else {}
+        tracked = sorted(set(expected or run_a) - set(ids))
+
+        def run_b() -> dict[str, str]:
+            data = _read_report(args.mutant_junit)
+            return junit_statuses(data, args.mutant_exit_code) if data else {}
     else:
-        breakdown = _log_breakdown(args)
+        runner = _runner(args)
+        run_a = parse_logs(runner, _read_text(args.log))
+        breakdown = _log_breakdown(args, run_a)
+        tracked = _read_json_list(args.f2p) + _read_json_list(args.p2p)
+
+        def run_b() -> dict[str, str]:
+            return parse_logs(runner, _read_text(args.mutant_log))
+
+    check = _mutant_check(args, ids, exit_nonzero, run_a, run_b, tracked)
+    seconds = _read_seconds(args.seconds)
+    if seconds and check.get("mutant_run_seconds") is not None:
+        check["mutant_time_ratio"] = round(check["mutant_run_seconds"] / seconds, 3)
+    breakdown.update(check)
     return breakdown
 
 
@@ -937,9 +1125,12 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "MISMATCH_SIGNALS",
     "grade",
+    "junit_statuses",
     "junit_verdict",
     "main",
+    "mutant_verdict",
     "parse_cargo_nextest",
     "parse_cargo_test",
     "parse_go_test",

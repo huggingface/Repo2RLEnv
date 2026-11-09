@@ -160,8 +160,9 @@ jobs. Audit results cover known advisories; they are not a guarantee of safety.
 - When testing a pipeline, prefer **fixture-based** input over mocking — load a recorded PR diff from a file rather than constructing one programmatically. Easier to read, easier to maintain.
 
 The separate-verifier CI job runs adversarial submissions in Docker on the Linux
-runner and exercises real Harbor artifact transfer with oracle, no-op and forged
-pytest-hook submissions. To repeat just the Harbor checks on a cloud provider:
+runner and exercises real Harbor artifact transfer with oracle, no-op, forged
+pytest-hook and in-process report-forgery submissions. To repeat just the Harbor
+checks on a cloud provider:
 
 ```bash
 R2E_HARBOR_TESTS=1 R2E_HARBOR_PROVIDER=modal \

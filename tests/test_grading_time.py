@@ -10,7 +10,7 @@ import pytest
 from repo2rlenv.pipelines import _grader_launcher as launcher
 from repo2rlenv.pipelines import _pr_runtime_verifier as verifier
 from repo2rlenv.pipelines._eval_script import build_single_file_eval_script
-from repo2rlenv.pipelines._grading_time import GradingTime, measure
+from repo2rlenv.pipelines._grading_time import GradingTime, fit_runs, measure
 from repo2rlenv.pipelines.pr_runtime import build_eval_script, verifier_config
 from repo2rlenv.pipelines.pr_runtime_validate import _build_stage_script
 
@@ -54,6 +54,24 @@ def test_verifier_config_sets_the_measured_timeout():
     config = verifier_config(GradingTime(run_seconds=400, overhead_seconds=20))
     assert config["timeout_sec"] == 1080.0 and config["environment_mode"] == "separate"
     assert verifier_config(None)["timeout_sec"] == 600.0
+
+
+@pytest.mark.parametrize(
+    ("run", "checked", "runs", "verifier_timeout", "keep"),
+    [
+        (5.0, True, 2, 720, True),  # 2 runs + 2 copies of the prepared tree at their floors
+        (400.0, True, 2, 2100, True),  # 2 x 810 + 2 x 120 + 30 + 125 + 60
+        (5.0, False, 1, 600, False),  # no mutants: one run
+        (700.0, True, 1, 1680, False),  # two runs would pass the cap: one run, no check
+    ],
+)
+def test_two_runs_only_when_the_task_has_mutants_and_they_fit(
+    run, checked, runs, verifier_timeout, keep
+):
+    timing, kept = fit_runs(GradingTime(run_seconds=run, overhead_seconds=20), checked)
+    assert (timing.runs, timing.verifier_timeout, kept) == (runs, verifier_timeout, keep)
+    assert timing.metadata()["runs_per_grading"] == runs
+    assert fit_runs(None, True) == (None, True)
 
 
 @pytest.mark.parametrize(

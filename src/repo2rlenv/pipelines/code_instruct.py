@@ -57,8 +57,10 @@ from repo2rlenv.pipelines._eval_script import (
     build_single_file_eval_script,
     run_python_tests,
     single_file_verifier_files,
+    validate_single_file_mutants,
 )
-from repo2rlenv.pipelines._grading_time import GradingTime, measure
+from repo2rlenv.pipelines._grading_time import GradingTime, fit_runs, measure
+from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines._oss_instruct import (
     PROMPT_SYSTEM,
     PROMPT_USER_TEMPLATE,
@@ -98,6 +100,7 @@ class _VerifyOutcome:
     # Test IDs the reference passed: the verifier requires exactly these.
     expected: list[str] = field(default_factory=list)
     timing: GradingTime | None = None
+    mutants: Mutants | None = None
 
 
 def new_file_hunk(content: str, path: str) -> str:
@@ -334,6 +337,7 @@ class CodeInstructPipeline:
                     test_filename = self._task_test_filename(seed, parsed)
                     expected: list[str] = []
                     timing = None
+                    mutants = None
                     if not self.options.skip_validation:
                         outcome = self._verify_task(sandbox, parsed, test_filename=test_filename)
                         if not outcome.accepted:
@@ -342,10 +346,16 @@ class CodeInstructPipeline:
                             continue
                         expected = outcome.expected
                         timing = outcome.timing
+                        mutants = outcome.mutants
 
                     # Emit
                     task = self._build_task(
-                        seed, parsed, test_filename=test_filename, expected=expected, timing=timing
+                        seed,
+                        parsed,
+                        test_filename=test_filename,
+                        expected=expected,
+                        timing=timing,
+                        mutants=mutants,
                     )
                     write_harbor_task(task, out_dir)
                     seen_fingerprints.update(parsed_fps)
@@ -436,13 +446,29 @@ class CodeInstructPipeline:
                 pre_log=a.log,
                 post_log=b.log,
             )
+        mutants = validate_single_file_mutants(
+            sandbox,
+            test_code=parsed.test_code,
+            passing_files=oracle,
+            reference=b,
+            pre=a,
+            seed=test_filename,
+            **common,
+        )
         timing = measure([run.sample for run in (a, b) if run.sample is not None])
+        timing, checked = fit_runs(timing, mutants is not None)
+        mutants = mutants if checked else None
         if timing is not None and timing.over_cap:
             return _VerifyOutcome(
                 accepted=False, reason="verifier_timeout_over_cap", pre_log=a.log, post_log=b.log
             )
         return _VerifyOutcome(
-            accepted=True, pre_log=a.log, post_log=b.log, expected=sorted(b.statuses), timing=timing
+            accepted=True,
+            pre_log=a.log,
+            post_log=b.log,
+            expected=sorted(b.statuses),
+            timing=timing,
+            mutants=mutants,
         )
 
     # ----- task builder -------------------------------------------------------
@@ -465,6 +491,7 @@ class CodeInstructPipeline:
         test_filename: str,
         expected: list[str] | None = None,
         timing: GradingTime | None = None,
+        mutants: Mutants | None = None,
     ) -> HarborTask:
         owner, name = self.input.repo.owner_name
         h = hashlib.sha256()
@@ -487,6 +514,8 @@ class CodeInstructPipeline:
             test_filename,
             language=self.bootstrap.language.value,
             run_timeout=timing.run_timeout if timing is not None else None,
+            mutants=mutants,
+            copy_timeout=timing.copy_timeout if timing is not None else None,
         )
         image_ref = (
             self.bootstrap.image_digest
@@ -519,6 +548,7 @@ class CodeInstructPipeline:
             "reward_kinds": ["test_execution"],
             "harbor_min_version": MIN_HARBOR_VERSION,
             **({"grading_time": timing.metadata()} if timing is not None else {}),
+            "tamper_check": "mutants" if mutants is not None and mutants.ids else "unavailable",
             "code_instruct": {
                 "seed_path": seed.relative_path,
                 "seed_start_line": seed.start_line,
@@ -559,5 +589,7 @@ class CodeInstructPipeline:
             test_script=eval_script,
             verifier=verifier_config(timing),
             artifacts=SUBMISSION_ARTIFACT,
-            aux_files=single_file_verifier_files(test_filename, parsed.test_code, expected or []),
+            aux_files=single_file_verifier_files(
+                test_filename, parsed.test_code, expected or [], mutants=mutants
+            ),
         )

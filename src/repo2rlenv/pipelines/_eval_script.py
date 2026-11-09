@@ -18,14 +18,19 @@ from pathlib import Path
 
 from repo2rlenv.pipelines import _pr_runtime_verifier as _verifier
 from repo2rlenv.pipelines._grading_time import UNMEASURED_RUN_SEC
+from repo2rlenv.pipelines._mutants import Mutants, junit_split, make_mutants, validated
 from repo2rlenv.pipelines.pr_runtime import (
     _PYTHONS,
+    RUN_DIR,
     _child_path,
     _finish_unless,
     launch_tests,
+    mutant_args,
     run_verifier,
     separate_head,
     separate_verifier_files,
+    settle_once,
+    two_runs,
 )
 
 
@@ -91,6 +96,8 @@ def build_single_file_eval_script(
     *,
     language: str | None = None,
     run_timeout: int | None = None,
+    mutants: Mutants | None = None,
+    copy_timeout: int | None = None,
 ) -> str:
     """`tests/test.sh` for a single-file submission in Harbor's separate verifier.
 
@@ -98,8 +105,23 @@ def build_single_file_eval_script(
     IDs the reference solution passed at generation (`tests/expected.json`),
     every one passed: a skipped, missing or extra test fails, so a report the
     submission wrote itself can't stand in for the real run. With
-    `run_timeout`, a run past it scores 0 (see `_grading_time`).
+    `run_timeout`, a run past it scores 0 (see `_grading_time`). With
+    `mutants`, the test runs twice (see `pr_runtime.two_runs`), each run's
+    report kept before the tree is reset; `copy_timeout` bounds copying the
+    tree between the runs.
     """
+    checked = mutants is not None and bool(mutants.ids)
+    launch = launch_tests(
+        python_test_command(test_filename),
+        language,
+        timeout=run_timeout or UNMEASURED_RUN_SEC,
+        purge=checked,
+    )
+    claimed = (
+        f'"$R2E_PY" -B -I -S "$SCRIPT_DIR/verifier.py" --claimed --junit {RUN_DIR}/junit_a.xml '
+        '--exit-code "$R2E_A_EXIT" --mutants "$SCRIPT_DIR/mutants.json"'
+    )
+    report = f"{RUN_DIR}/junit_a.xml" if checked else JUNIT_REPORT
     copies = f'cp "$SCRIPT_DIR/{test_filename}" /workspace/{test_filename}\n'
     return (
         separate_head(language)
@@ -113,16 +135,22 @@ def build_single_file_eval_script(
         "'submission not graded as submitted'\n"
         + copies
         + f"rm -f {JUNIT_REPORT}\n"
-        # One test run.
-        + launch_tests(
-            python_test_command(test_filename),
-            language,
-            timeout=run_timeout or UNMEASURED_RUN_SEC,
+        + (
+            two_runs(
+                launch,
+                [test_filename],
+                claimed,
+                keep_junit=JUNIT_REPORT,
+                copy_timeout=copy_timeout,
+            )
+            if checked
+            else settle_once([test_filename]) + launch
         )
         + "tail -c 1048576 /logs/verifier/test_output.log 2>/dev/null\n"
         + run_verifier(
-            f"--junit {JUNIT_REPORT} "
-            '--expected "$SCRIPT_DIR/expected.json" --exit-code "$TEST_EXIT_CODE" '
+            f"--junit {report} "
+            + (mutant_args(junit=True) if checked else "")
+            + '--expected "$SCRIPT_DIR/expected.json" --exit-code "$TEST_EXIT_CODE" '
             '--timed-out "$R2E_TIMED_OUT" --seconds /logs/verifier/run.seconds '
             "--out-dir /logs/verifier"
         )
@@ -136,6 +164,7 @@ def single_file_verifier_files(
     test_code: str,
     expected: list[str],
     extra: dict[str, str] | None = None,
+    mutants: Mutants | None = None,
 ) -> dict[str, str]:
     """Everything test.sh reads from /tests for a single-file submission."""
     here = Path(__file__).parent
@@ -147,7 +176,7 @@ def single_file_verifier_files(
         ),
         "tests/expected.json": json.dumps(sorted(expected), indent=2),
         **{f"tests/{name}": content for name, content in (extra or {}).items()},
-        **separate_verifier_files(),
+        **separate_verifier_files(mutants),
     }
 
 
@@ -346,6 +375,54 @@ def record_reference_calls(
 
 
 _RECORD_RE = _re.compile(r"R2E_RECORD_BEGIN\n([A-Za-z0-9+/=]*)\nR2E_RECORD_END")
+
+
+def validate_single_file_mutants(
+    sandbox,
+    *,
+    test_filename: str,
+    test_code: str,
+    passing_files: dict[str, str],
+    reference: PythonTestRun,
+    timeout: int,
+    seed: str,
+    remove: tuple[str, ...] = (),
+    pre: PythonTestRun | None = None,
+) -> Mutants | None:
+    """Mutants of the hidden test that fail with the reference (see `_mutants.validated`).
+
+    `reference.statuses` holds the expected test IDs (every one passed); `pre`
+    is the run without a solution, so only tests it doesn't pass (fail to
+    pass) get mutants; the others may get decoys. The edited test runs once
+    more with the reference solution, the way grading runs it.
+    """
+    tracked = sorted(reference.statuses)
+    targets = [t for t in tracked if pre is None or pre.statuses.get(t) != "PASSED"]
+    mutants = make_mutants(
+        targets,
+        lambda path: test_code if path == test_filename else None,
+        allowed_files={test_filename},
+        seed=seed,
+        split=junit_split(test_filename),
+        decoys=tracked,
+    )
+    if mutants is None:
+        return None
+    mutated = mutants.files()[test_filename]
+    fixed = run_python_tests(
+        sandbox,
+        files={**passing_files, test_filename: mutated},
+        test_filename=test_filename,
+        timeout=timeout,
+        remove=remove,
+    )
+    kept = validated(
+        mutants, fixed=reference.statuses, fixed_with_mutants=fixed.statuses, tracked=tracked
+    )
+    if kept is None or fixed.exit_code is None:
+        return None
+    kept.exit_nonzero = fixed.exit_code != 0
+    return kept
 
 
 # ---------------------------------------------------------------------------
