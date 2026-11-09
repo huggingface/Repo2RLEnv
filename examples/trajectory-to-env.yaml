@@ -1,0 +1,17 @@
+# Agent trajectories -> verified Harbor tasks on local Docker.
+#   repo2rlenv generate --config examples/trajectory-to-env.yaml
+# repair needs no LLM. For build, extend or qa, add for example:
+#   --pipeline-opt families=build --llm anthropic/claude-opus-5-5
+source:
+  kind: trajectory
+  path: workspace/trajectories  # ATIF .json files, searched recursively
+  format: atif                  # or claude-code, codex, pi (session .jsonl logs)
+pipeline:
+  name: trajectory_to_env
+  options:
+    families: [repair]
+    limit: 5
+output:
+  destination: workspace/trajectory-tasks
+  org: local
+  dataset_name: trajectory-tasks

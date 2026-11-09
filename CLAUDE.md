@@ -76,6 +76,7 @@ Per-pipeline detail (yield, sources, options, reference datasets):
 | `code_instruct` | LLM authors a problem + verifier anchored to real repo source | experimental | 0004 |
 | `equivalence_tests` | extract a pure function; LLM writes tests against a `reference_<name>` oracle | experimental | 0005 |
 | `cve_patches` | OSV CVE → fix commit → task; reuses the `pr_runtime` verifier | experimental | 0006 |
+| `trajectory_to_env` | agent trajectory replay → repair/build/extend/qa families; local Docker trials | experimental | 0034 |
 | `repo_mutate / swe_smith` | owned procedural source mutation and issue generation; separate Harbor verifier | experimental | 0012 |
 | `terminal_synth / seta_seed2synth, tmax` | owned seed/skill-based terminal task generation | experimental | 0013, 0018 |
 | `task_evolve / seta_evol` | evolve existing tasks with retained strategy prompts | experimental | 0014 |
@@ -136,6 +137,7 @@ src/repo2rlenv/
 │   ├── base.py                 # Pipeline Protocol + PipelineResult
 │   ├── pr_diff.py · pr_runtime.py · commit_runtime.py
 │   ├── code_instruct.py · equivalence_tests.py · cve_patches.py
+│   ├── trajectory/             # trajectory_to_env: ATIF replay, task families, Docker trials
 │   ├── pr_runtime_validate.py  # shared PR validation harness (pr_runtime, cve_patches)
 │   ├── _env_guard.py           # anti-contamination: git-history scrub + egress guard (EVERY task)
 │   ├── _eval_script.py         # verifier-script + diff helpers (make_unified_diff, all_tests_passed)

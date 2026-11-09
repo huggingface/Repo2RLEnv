@@ -209,6 +209,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
     # Keep the native CLI's historical default while distinguishing an explicit
     # spending flag from omission on the owned-recipe route.
+    explicit_spend_usd = args.max_spend_usd
     if args.max_spend_usd is None:
         args.max_spend_usd = 5.0
 
@@ -234,6 +235,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
         )
 
     options = parse_options(gen_input.pipeline.name.value, gen_input.pipeline.options)
+    # Pipelines that make their own LLM calls take the budget as an option; an explicit
+    # --max-spend-usd wins over the config file (0 = unlimited, as for bootstrap).
+    if explicit_spend_usd is not None and "max_llm_spend_usd" in type(options).model_fields:
+        options = options.model_copy(
+            update={"max_llm_spend_usd": explicit_spend_usd if explicit_spend_usd > 0 else None}
+        )
 
     # Pre-flight: can this input source serve what the pipeline needs?
     # PR-based pipelines (pr_diff, pr_runtime) and cve_patches require platform
@@ -241,8 +248,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
     # provide — block here with a clear message instead of failing mid-run.
     from repo2rlenv.sources import SourceKind, capabilities_for
 
-    src_kind = gen_input.repo.source_kind
-    available_caps = capabilities_for(src_kind)
+    # A non-repository source (trajectories) has no platform capabilities.
+    src_kind = gen_input.repo.source_kind if gen_input.repo is not None else None
+    available_caps = capabilities_for(src_kind) if src_kind is not None else frozenset()
     required_caps = getattr(pipeline_cls, "required_capabilities", frozenset())
     missing_caps = required_caps - available_caps
     if missing_caps:
@@ -384,7 +392,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     limit_hint = int(gen_input.pipeline.options.get("limit", 50)) or 50
 
     with generation_view_or_plain(
-        repo=gen_input.repo.url,
+        repo=gen_input.source_label,
         pipeline=gen_input.pipeline.name.value,
         model=gen_input.llm.qualified_name if gen_input.llm else "none",
         limit=limit_hint,
@@ -397,7 +405,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
             pipeline.set_progress_callback(on_candidate)
         elif on_candidate is None:
             console.info(f"generating with pipeline={gen_input.pipeline.name.value}")
-            console.dim(f"  repo: {gen_input.repo.url} (access={gen_input.repo.access})")
+            if gen_input.repo is not None:
+                console.dim(f"  repo: {gen_input.repo.url} (access={gen_input.repo.access})")
+            else:
+                console.dim(f"  source: {gen_input.source_label}")
             console.dim(f"  out:  {out_dir}")
 
         result = pipeline.run(out_dir)

@@ -31,6 +31,12 @@ ByteDance attribution, and accompanies its exported verifier code.
 | `r2e_gym` | [0d94c4eb9431](https://github.com/R2E-Gym/R2E-Gym/tree/0d94c4eb9431cd195c55a7ea3abd54006c9a1735) | Apache-2.0 | [Provenance](src/repo2rlenv/pipelines/recipes/r2e_gym/provenance.md) |
 | `scaler` | [60c6c5037866](https://github.com/ALEX-nlp/SCALER/tree/60c6c5037866c718f4c001ea338f9c5a91cb01ae) | Apache-2.0 | [Provenance](src/repo2rlenv/pipelines/recipes/scaler/provenance.md) |
 
+The native `trajectory_to_env` pipeline also retains adapted code:
+
+| Component | Source | Bundled material license | Scope and changes |
+|---|---|---|---|
+| `pipelines/trajectory/assets/grader.py` | [SmolDataEnvs](https://huggingface.co/datasets/FineEnvs/SmolDataEnvs-harbor-train) | MIT | Deterministic short-answer grader for `qa` tasks; reformatted only |
+
 ## DataArc revision boundary
 
 DataArc recipe version 2 credits the terminal augmentation method but uses
