@@ -57,9 +57,9 @@ Older releases are in the [version history](https://huggingface.github.io/Repo2R
 
 ## Quickstart
 
-For the current LiteLLM/filelock dependency conflict, use the
+For version 0.9.5's original LiteLLM/filelock dependency combination, use the
 [documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
-or a locked checkout when installing.
+or install from the current locked checkout, which uses compatible stable versions.
 
 Generate your first environments in about five minutes. This first pipeline needs no
 Docker and no LLM key, just Python 3.12+ and the [GitHub CLI](https://cli.github.com).

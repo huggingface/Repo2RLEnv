@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -20,7 +20,6 @@ constraints = [
     { name = "pyjwt", specifier = ">=2.15.0" },
     { name = "urllib3", specifier = ">=2.8.0" },
 ]
-overrides = [{ name = "filelock", specifier = ">=4.2.1,<5" }]
 
 [[package]]
 name = "aiofiles"
@@ -2731,6 +2730,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "anyio" },
+    { name = "filelock" },
     { name = "huggingface-hub" },
     { name = "litellm" },
     { name = "openai" },
@@ -2781,12 +2781,13 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.14.2,<5" },
     { name = "daytona", marker = "extra == 'daytona'", specifier = "==0.227.0" },
     { name = "dockerfile-parse", marker = "extra == 'modal'", specifier = "==2.0.1" },
+    { name = "filelock", specifier = ">=4.2.1,<5" },
     { name = "harbor", marker = "extra == 'harbor'", specifier = "==0.25.0" },
     { name = "huggingface-hub", specifier = ">=1.13.0,<2" },
     { name = "langgraph", marker = "extra == 'tasksmith'", specifier = ">=1.0,<2" },
     { name = "langgraph-checkpoint-sqlite", marker = "extra == 'tasksmith'", specifier = ">=3,<4" },
     { name = "libcst", marker = "extra == 'mutation'", specifier = "==1.9.0" },
-    { name = "litellm", specifier = ">=1.106.6,!=1.107.0" },
+    { name = "litellm", specifier = "!=1.107.0,>=1.108.3" },
     { name = "modal", marker = "extra == 'modal'", specifier = "==1.6.3" },
     { name = "openai", specifier = ">=2.24.0,<4" },
     { name = "pydantic", specifier = ">=2.12.5" },

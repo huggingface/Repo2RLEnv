@@ -119,26 +119,22 @@ for Pi's glob matching. The docs preview uses `sirv-cli` to avoid the affected
 OpenCode plugin to address [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5);
 updating the runtime's direct Zod dependency alone leaves the plugin's nested
 copy vulnerable. Pi pins an affected Undici release; its scoped override selects 8.12.2.
-The Python lock overrides LiteLLM's `filelock<4` constraint to use patched
-filelock 4.2.1 or later. LiteLLM 1.106.0 has no runtime filelock imports;
-Harbor and HF Hub use the locking library. Keep all-extras tests and dependency
-audits green when changing this exception. The override affects this repository's
-uv lock, not downstream wheel installations.
+LiteLLM 1.108.3 supports filelock 4.x. The direct `filelock>=4.2.1,<5`
+dependency keeps the patched locking library in both the repository lock and
+published wheel metadata; the earlier uv-only override is no longer needed.
 Remove an override when the parent supports a patched version.
 Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.
 
-OpenAI stays below 3 and Hugging Face Hub below 2 while the supported stable
-LiteLLM line requires those ranges. Upgrade the clients together after checking
-provider calls, tool arguments, usage accounting and Hub transfers. Do not
-silently downgrade LiteLLM or select a development release to satisfy a major
-SDK update. The LiteLLM minimum is 1.106.6, which includes the stable-line
-[failure-log hardening](https://github.com/BerriAI/litellm/releases/tag/v1.106.5)
-and [compression fix](https://github.com/BerriAI/litellm/releases/tag/v1.106.6).
-Its [released dependency metadata](https://github.com/BerriAI/litellm/blob/v1.106.6/pyproject.toml)
-still requires OpenAI <3 and Hub <2; broader bounds on upstream `main` do not
-establish compatibility for a released wheel. `tests/test_sdk_contracts.py`
+The tested stable combination is LiteLLM 1.108.3, OpenAI 3.42.1 and Hugging Face
+Hub 1.33.0. LiteLLM 1.108.3 is the minimum; its
+[released dependency metadata](https://pypi.org/pypi/litellm/1.108.3/json)
+supports OpenAI <4 but still requires Hub <2. Upgrade the clients together after
+checking provider calls, tool arguments, usage accounting and Hub transfers. Do
+not silently downgrade LiteLLM or select a development release to satisfy a major
+SDK update. Broader bounds on upstream `main` do not establish compatibility for
+a released wheel. `tests/test_sdk_contracts.py`
 exercises the installed SDKs against loopback HTTP: provider requests, usage,
 Responses tool arguments, authentication errors and revision-pinned Hub downloads.
 Run it alongside the all-extras suite when updating these clients.
