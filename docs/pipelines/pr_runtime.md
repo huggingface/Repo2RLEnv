@@ -290,11 +290,13 @@ At grading the suite runs twice, in random order: as is (scored) and with the
 mutants and decoys swapped in. Both runs start from the same prepared tree,
 every hidden test file is rewritten with one mtime per grading in both, the
 launcher gets the same arguments, and the test user's processes, files and IPC
-objects are removed between the runs. A mutant that passes (for a test the
-scored run passed: one that passes, is missing, or a mutant run that exits 0;
-for a test it failed: one that passes, since no honest result has the mutant's
-value) marks the run tampered (`parse_status: "tampered"`, `tamper_signal`,
-graded 0). Any other tracked test that differs between the runs, a decoy among
+objects are removed between the runs. For a test the scored run passed, a
+mutant that also passes or is skipped, a missing mutant while other tracked
+tests pass, or a mutant run that contradicts its required nonzero exit marks
+the run tampered (`parse_status: "tampered"`, `tamper_signal`, graded 0).
+Passing a mutant when its original test failed is not evidence of forgery:
+ordinary wrong code can happen to return the mutant's expected value, and
+keeps its partial reward. Any other tracked test that differs between the runs, a decoy among
 them, scores 0 as `status_mismatch`, and a mutant run past its time limit as
 `mutant_timeout` (neither labelled tampered: a flake or a slow honest fix under
 load can cause them, which is the price of the second run). When the scored run
