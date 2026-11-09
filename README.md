@@ -90,7 +90,7 @@ harbor run -p ./tasks -a claude-code -m anthropic/claude-sonnet-4-6 \
 
 Without an available judge, PR-diff results are **ungraded**: the verifier
 writes no reward file, Harbor reports the trial as `VERIFIER_FAILED`, and RL
-consumers drop it. A judge answer with no valid score is a graded 0.
+consumers drop it. A completed judge answer with no valid score is a graded 0; a reported output limit stays ungraded.
 
 The [quickstart guide](https://huggingface.github.io/Repo2RLEnv/quickstart/) walks through
 every step and what each file in a task is for.

@@ -89,7 +89,7 @@ tasks
 | `tests/oracle.patch` | The verifier's copy of the reference diff. |
 | `tests/instruction.md` | The verifier's copy of the instruction, used by the LLM judge. |
 
-Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an LLM judge. Without a judge, the run is ungraded and writes no reward file; a judge answer without a valid score is a graded 0. Deterministic similarity remains diagnostic only. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
+Harbor uploads `tests/` only when it verifies, so the agent never sees the reference diff. The reward is a weighted diff similarity between 0 and 1. It combines file targeting, region overlap, line similarity and patch size, plus an LLM judge. Without a judge, the run is ungraded and writes no reward file; a completed judge answer without a valid score is a graded 0, while a reported output limit stays ungraded. Deterministic similarity remains diagnostic only. [`pr_diff`](pipelines/pr_diff.md) documents the weights.
 
 </Step>
 <Step>

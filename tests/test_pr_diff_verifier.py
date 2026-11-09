@@ -372,12 +372,30 @@ def test_llm_judge_endpoint_anthropic_shaped_reply_is_parse_error() -> None:
 
 
 def test_llm_judge_endpoint_null_content_is_missing_score() -> None:
-    """A thinking-mode server can spend the whole budget on reasoning and leave
-    content null. The agent's patch can provoke that, so it grades 0."""
+    """Without a reported output limit, an empty answer follows the no-score policy."""
     null_content = b'{"choices": [{"message": {"content": null, "reasoning_content": "..."}}]}'
     score, status, _ = _judge_via(_ENDPOINT, null_content, model="m")
     assert score is None
     assert status == "missing_score"
+
+
+@pytest.mark.parametrize("text", [None, "", '{"score":', '{"score": 1}'])
+@pytest.mark.parametrize(
+    ("endpoint", "stop_reason"),
+    [(None, "max_tokens"), (None, "model_context_window_exceeded"), (_ENDPOINT, "length")],
+)
+def test_judge_output_limit_never_grades_a_partial_answer(endpoint, text, stop_reason):
+    if endpoint:
+        body = {
+            "choices": [{"message": {"content": text}, "finish_reason": "length"}],
+        }
+    else:
+        body = {
+            "content": [] if text is None else [{"type": "text", "text": text}],
+            "stop_reason": stop_reason,
+        }
+    score, status, _ = _judge_via(endpoint, json.dumps(body).encode(), model="m")
+    assert (score, status) == (None, "output_limit")
 
 
 @pytest.mark.parametrize(
@@ -596,7 +614,9 @@ def _main_with_judge(tmp_path, monkeypatch, status):
     return json.loads((tmp_path / "out/reward-details.json").read_text())
 
 
-@pytest.mark.parametrize("status", ["no_api_key", "no_judge_model", "network", "parse"])
+@pytest.mark.parametrize(
+    "status", ["no_api_key", "no_judge_model", "network", "parse", "output_limit"]
+)
 def test_unavailable_judge_is_ungraded_even_for_oracle(tmp_path, monkeypatch, status):
     result = _main_with_judge(tmp_path, monkeypatch, status)
     assert result["final_reward"] is None

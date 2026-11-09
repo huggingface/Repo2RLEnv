@@ -181,7 +181,10 @@ and writes **no reward file**. Harbor raises `RewardFileNotFoundError`, classes 
 rather than training on a 0, while Harbor's job mean and pass@k count it as 0.
 A provider reply that isn't JSON or has the wrong shape (`judge_status`
 `parse`) is ungraded too, as is a crashed verifier (`verifier_status: "error"`).
-When the judge answers without a valid score (`missing_score` or
+A provider-reported output or context limit (`output_limit`) is also ungraded,
+even if the truncated answer contains a score. Retry with a suitable judge
+budget or configuration; truncation is not a correctness judgment.
+When the judge completes without a valid score (`missing_score` or
 `invalid_score`), including a refusal, a content filter or an empty reply, the
 run is a graded 0 instead: the agent's patch is part of the judge prompt, so it
 can provoke those replies. A predicted patch over 10x the oracle's changed lines

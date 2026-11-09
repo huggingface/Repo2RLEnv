@@ -328,7 +328,9 @@ def llm_judge(
     ``score`` is a float in [0, 1] on success, ``None`` on failure.
     ``status`` is a short string: ``"ok"`` / ``"no_api_key"`` /
     ``"no_judge_model"`` / ``"empty_predicted"`` / ``"network"`` /
-    ``"parse"`` / ``"missing_score"`` / ``"invalid_score"``. ``parse`` means
+    ``"parse"`` / ``"output_limit"`` / ``"missing_score"`` / ``"invalid_score"``.
+    ``output_limit`` means the judge exhausted its configured token budget
+    (ungraded, even if a partial answer contains a score). ``parse`` means
     the provider's body isn't JSON or has the wrong shape (ungraded); a reply
     with no usable text (refusal, content filter, empty) or no valid score is
     ``missing_score`` / ``invalid_score`` (a graded 0). A missing score never
@@ -384,9 +386,25 @@ def llm_judge(
         return None, "network"
 
     try:
-        text = _judge_text(json.loads(raw), openai_compatible=bool(endpoint))
+        response = json.loads(raw)
     except json.JSONDecodeError:
-        text = None
+        return None, "parse"
+    # Provider-reported truncation is a grader capacity failure, not evidence
+    # that the submitted patch is wrong. Reasoning models can spend the entire
+    # output budget before producing visible text. Never grade a partial score.
+    if isinstance(response, dict):
+        choices = response.get("choices")
+        if endpoint:
+            if (
+                isinstance(choices, list)
+                and choices
+                and isinstance(choices[0], dict)
+                and choices[0].get("finish_reason") == "length"
+            ):
+                return None, "output_limit"
+        elif response.get("stop_reason") in {"max_tokens", "model_context_window_exceeded"}:
+            return None, "output_limit"
+    text = _judge_text(response, openai_compatible=bool(endpoint))
     if text is None:
         return None, "parse"
 
@@ -461,8 +479,8 @@ def _judge_text(payload: object, *, openai_compatible: bool) -> str | None:
 # Judge replies the agent can provoke: its patch text is part of the judge
 # prompt, so it can steer the answer away from a valid score. These are a
 # graded 0. An unreadable provider envelope (`parse`), missing configuration,
-# a disabled judge and transport errors are outside the agent's control and
-# leave the evaluation ungraded.
+# a disabled judge, transport errors and an exhausted judge output budget leave
+# the evaluation ungraded. Truncation alone cannot establish an incorrect patch.
 _JUDGE_GRADED_ZERO = frozenset({"missing_score", "invalid_score"})
 
 
