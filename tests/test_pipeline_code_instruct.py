@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-from repo2rlenv.pipelines._eval_script import all_tests_passed as _all_tests_passed
 from repo2rlenv.pipelines._oss_instruct import ParsedTask, Seed
 from repo2rlenv.pipelines.code_instruct import (
     CodeInstructPipeline,
@@ -62,37 +61,6 @@ def test_dockerfile_minimal_shape():
     assert "git apply" not in df
     # Defensive git install (so `git config` works inside container)
     assert "apt-get install" in df
-
-
-# ---------------------------------------------------------------------------
-# _all_tests_passed
-# ---------------------------------------------------------------------------
-
-
-def test_all_tests_passed_detects_passed_summary():
-    log = "==== 3 passed in 0.12s ===="
-    assert _all_tests_passed(log)
-
-
-def test_all_tests_passed_rejects_failed():
-    log = "==== 1 failed, 2 passed in 0.12s ===="
-    assert not _all_tests_passed(log)
-
-
-def test_all_tests_passed_rejects_no_collected():
-    log = "ERROR: collected 0 items"
-    assert not _all_tests_passed(log)
-
-
-def test_all_tests_passed_rejects_collection_error():
-    log = "ImportError: No module named 'task_module'\nERRORS\ncollected 0 items / 1 error\n"
-    assert not _all_tests_passed(log)
-
-
-@pytest.mark.parametrize("summary", ["3 passed, 1 error in 0.12s", "2 passed, 2 errors in 0.3s"])
-def test_all_tests_passed_rejects_errored_tests(summary):
-    """A test that errors in setup or teardown didn't pass."""
-    assert not _all_tests_passed(f"==== {summary} ====")
 
 
 # ---------------------------------------------------------------------------

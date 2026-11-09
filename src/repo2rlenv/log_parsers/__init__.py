@@ -87,6 +87,10 @@ def _detect_runner(test_cmds: list[str]) -> str:
     return "unknown"
 
 
+# Kept equal to `_pr_runtime_verifier.MAX_LINE`.
+MAX_LINE = 4096
+
+
 def parse_logs(
     test_cmds: list[str],
     log: str,
@@ -108,6 +112,9 @@ def parse_logs(
     runner can be identified — caller should treat that as "test suite
     didn't produce parseable output, treat as env issue".
     """
+    # Same bound as the task verifier: no test result line is this long, and
+    # it caps what any parser's regex can cost on output the tests printed.
+    log = "\n".join(line if len(line) <= MAX_LINE else "" for line in log.split("\n"))
     runner = _detect_runner(test_cmds)
     # Language fallback when test_cmds is unhelpful (e.g. a wrapper script)
     if runner == "unknown" and language:
