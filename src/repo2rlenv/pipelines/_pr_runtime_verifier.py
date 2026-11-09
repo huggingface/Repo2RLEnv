@@ -687,14 +687,12 @@ def mutant_verdict(
     """Return the signal the two runs raise, or None.
 
     Run A is the hidden suite as is; run B is the same tree with each mutated
-    test contradicting the original (changed expected literal, or a flipped
-    comparison; same test ID). No honest submission passes both a test and its
+    test contradicting the original (changed expected value; same test ID).
+    No honest submission passes both a test and its
     mutant, so only tests run A reports as passed count ("claimed"): a wrong
     submission that fails a test may well pass its mutant. These mark the run
     as tampered:
-      * `mutant_passed`        - a claimed test's mutant is passed or skipped in B,
-                                 or any mutant passes in B while its original
-                                 failed in A;
+      * `mutant_passed`        - a claimed test's mutant is passed or skipped in B;
       * `mutant_missing`       - a claimed test's mutant is absent from B while
                                  tracked tests pass there;
       * `mutant_run_exit_zero` - B exited 0 although a claimed test's mutant
@@ -714,11 +712,9 @@ def mutant_verdict(
         status = run_b.get(test)
         if test in claimed and status is not None and status not in (FAILED, ERROR):
             return "mutant_passed"
-        # A mutant expects a value no honest result has (a digit three or more
-        # away, another word, a one-element list): passing it while the
-        # original failed is no accident either.
-        if test not in claimed and status == PASSED:
-            return "mutant_passed"
+        # A wrong implementation can coincidentally return the mutant's value.
+        # Unless it also claimed the original passed, there is no contradiction
+        # and no evidence of forgery; preserve its ordinary partial reward.
     if any(test not in run_b for test in claimed) and any(
         run_b.get(test) == PASSED for test in tracked
     ):

@@ -372,13 +372,13 @@ TRACK = ["t.py::test_m", "t.py::test_a", "t.py::test_b"]
             1,
             None,
         ),
-        # Passing a mutant whose original failed: the mutant expects a value no
-        # honest result has (run B passed every mutant in the losing order).
+        # An ordinary wrong implementation can match the mutant's expected
+        # value. Only passing both contradictory tests is a forgery signal.
         (
             {**dict.fromkeys(TRACK, "PASSED"), IDS[0]: "FAILED"},
             {**dict.fromkeys(TRACK, "PASSED"), IDS[0]: "PASSED"},
             0,
-            "mutant_passed",
+            None,
         ),
     ],
 )
@@ -389,10 +389,12 @@ def test_mutant_verdict(run_a, run_b, exit_b, signal):
     )
 
 
-def _main(tmp_path: Path, log_a: str, log_b: str, exit_a: int, exit_b: int, *extra: str) -> dict:
+def _main(
+    tmp_path: Path, log_a: str, log_b: str, exit_a: int, exit_b: int, *extra: str, f2p=None
+) -> dict:
     (tmp_path / "a.log").write_text(log_a)
     (tmp_path / "b.log").write_text(log_b)
-    (tmp_path / "f2p.json").write_text(json.dumps(["t.py::test_m"]))
+    (tmp_path / "f2p.json").write_text(json.dumps(f2p or ["t.py::test_m"]))
     (tmp_path / "p2p.json").write_text(json.dumps(["t.py::test_a"]))
     (tmp_path / "mutants.json").write_text(
         json.dumps({"files": {}, "ids": ["t.py::test_m"], "exit_nonzero": True})
@@ -462,6 +464,22 @@ def test_honest_failure_is_not_tampering(tmp_path: Path):
     log = "t.py::test_m FAILED\nt.py::test_a PASSED\n"
     details = _main(tmp_path, log, log, 1, 1)
     assert details["reward_txt"] == "0.000000" and details["tamper_check"] == "passed"
+
+
+def test_wrong_result_matching_mutant_preserves_partial_reward(tmp_path: Path):
+    other = "t.py::test_other PASSED\nt.py::test_a PASSED\n"
+    details = _main(
+        tmp_path,
+        "t.py::test_m FAILED\n" + other,
+        "t.py::test_m PASSED\n" + other,
+        1,
+        0,
+        f2p=["t.py::test_m", "t.py::test_other"],
+    )
+    assert details["reward_txt"] == "0.500000"
+    assert details["tamper_check"] == "passed"
+    assert details["parse_status"] == "ok"
+    assert "tamper_signal" not in details
 
 
 def _junit(path: Path, cases: str) -> str:

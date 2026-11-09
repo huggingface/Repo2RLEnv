@@ -161,7 +161,7 @@ count it as 0. A failure the submission can cause is a graded 0 instead
 | `evaluation_status` | string | `"graded"` on every run with a verdict, including the graded 0s below; `"ungraded"` (reward `null`, no reward file) otherwise. |
 | `run_seconds` | float | Wall time of the test run, measured by the grader launcher. |
 | `tamper_check` | string | The mutant check (see the `pr_runtime` docs): `"passed"`, `"tripped"` (tampered), `"inconclusive"` (`status_mismatch` or `mutant_timeout`), `"not_needed"` (the scored run passed no mutated test, or timed out), `"unavailable"` (the task has no mutant). |
-| `tamper_signal` | string | Only when the check fired: `mutant_passed`, `mutant_missing`, `mutant_run_exit_zero`, `status_mismatch` or `mutant_timeout`. |
+| `tamper_signal` | string | Only when the check fired: `mutant_passed`, `mutant_missing`, `mutant_run_exit_zero`, `status_mismatch` or `mutant_timeout`. Passing a mutant when the original test failed is not evidence of tampering and does not remove ordinary partial credit. |
 | `mutant_exit_code`, `mutant_run_seconds`, `mutant_time_ratio` | int, float, float | The run with mutants: exit code, wall time, and its wall time over the scored run's. |
 
 **Grading outcomes before or around the tests.** Each writes `parse_status`,
