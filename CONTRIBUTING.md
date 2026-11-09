@@ -159,6 +159,20 @@ jobs. Audit results cover known advisories; they are not a guarantee of safety.
 - Use **specific exception types** in `pytest.raises(...)` — `pytest.raises(ValidationError)`, not `pytest.raises(Exception)`. Ruff flags the latter (`B017`).
 - When testing a pipeline, prefer **fixture-based** input over mocking — load a recorded PR diff from a file rather than constructing one programmatically. Easier to read, easier to maintain.
 
+The separate-verifier CI job runs adversarial submissions in Docker on the Linux
+runner and exercises real Harbor artifact transfer with oracle, no-op and forged
+pytest-hook submissions. To repeat just the Harbor checks on a cloud provider:
+
+```bash
+R2E_HARBOR_TESTS=1 R2E_HARBOR_PROVIDER=modal \
+  uv run --all-extras --frozen pytest tests/test_separate_verifier_harbor.py -q
+```
+
+Use `daytona` instead of `modal` for Daytona. These opt-in checks require provider
+credentials and incur sandbox charges; they make no model calls. Each trial uses
+one CPU, 1 GiB of RAM and fresh agent/verifier environments, deleted after use.
+Images are built remotely. Use `docker` to run locally when appropriate.
+
 ## Adding a new pipeline
 
 That's a structured task with its own walkthrough — see [**`docs/contributing/ADDING_A_PIPELINE.md`**](./docs/contributing/ADDING_A_PIPELINE.md). It covers the enum + Options + Pipeline class + tests + doc page, with template snippets and conventions taken from `pr_diff` / `pr_runtime`.

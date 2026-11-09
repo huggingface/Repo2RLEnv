@@ -214,7 +214,9 @@ def _git(cwd: Path, *args: str) -> str:
     ).stdout
 
 
-def _build_task(root: Path, image: str, base_image: str, setup: str = "") -> Path:
+def _build_task(
+    root: Path, image: str, base_image: str, setup: str = "", *, build_image: bool = True
+) -> Path:
     repo = root / "repo"
     (repo / "pkg").mkdir(parents=True)
     (repo / "tests").mkdir()
@@ -266,7 +268,8 @@ def _build_task(root: Path, image: str, base_image: str, setup: str = "") -> Pat
         "COPY repo /workspace\n"
         "WORKDIR /workspace\n" + stash_pristine()
     )
-    subprocess.run(["docker", "build", "-q", "-t", image, str(root)], check=True)
+    if build_image:
+        subprocess.run(["docker", "build", "-q", "-t", image, str(root)], check=True)
     root.joinpath("image").write_text(image)
     return root
 
