@@ -56,23 +56,48 @@ def test_bootstrap_image_registry_optional():
     assert s2.image_registry == "ghcr.io/myorg/r2e"
 
 
-def test_model_copy_update_supports_cache_dir_override():
-    """Drives the `--bootstrap-opt cache_dir=...` CLI plumbing.
+def test_bootstrap_opt_converts_cache_dir_to_path():
+    """`--bootstrap-opt cache_dir=...` must yield a Path, not the raw string (#245)."""
+    from repo2rlenv.bootstrap.cache import cache_key
+    from repo2rlenv.cli import _apply_bootstrap_opts
 
-    The CLI uses `bspec.model_copy(update={k: v})` to override any field;
-    Pydantic should coerce a string path to a Path automatically.
-    """
-    bspec = BootstrapSpec()
-    overridden = bspec.model_copy(update={"cache_dir": "./envs-matrix/sonnet-4-6"})
-    # Pydantic preserves the literal string; just check the Path resolves correctly.
-    assert Path(overridden.cache_dir).resolve() == Path("envs-matrix/sonnet-4-6").resolve()
+    overridden = _apply_bootstrap_opts(BootstrapSpec(), ["cache_dir=./envs-matrix/sonnet-4-6"])
+    assert isinstance(overridden.cache_dir, Path)
+    assert overridden.cache_dir == Path("envs-matrix/sonnet-4-6")
+    # The bug surfaced here: `str / str` in the cache path computation.
+    cache_key("pallets/click", "main", overridden.cache_dir)
 
 
-def test_model_copy_update_supports_numeric_field():
-    bspec = BootstrapSpec()
-    overridden = bspec.model_copy(update={"max_iterations": 30, "max_seconds": 2400})
+def test_bootstrap_opt_converts_numeric_fields():
+    from repo2rlenv.cli import _apply_bootstrap_opts
+
+    overridden = _apply_bootstrap_opts(
+        BootstrapSpec(), ["max_iterations=30", "max_seconds=2400", "max_llm_spend_usd=2.5"]
+    )
     assert overridden.max_iterations == 30
     assert overridden.max_seconds == 2400
+    assert overridden.max_llm_spend_usd == 2.5
+
+
+def test_bootstrap_opt_keeps_unset_fields():
+    from repo2rlenv.cli import _apply_bootstrap_opts
+
+    bspec = BootstrapSpec(languages_hint=["python"], base_image="python:3.12-slim")
+    overridden = _apply_bootstrap_opts(bspec, ["max_iterations=5"])
+    assert overridden.languages_hint == ["python"]
+    assert overridden.base_image == "python:3.12-slim"
+    assert overridden.max_iterations == 5
+
+
+@pytest.mark.parametrize(
+    "item",
+    ["no_such_field=1", "model_dump=1", "max_iterations=lots", "platform=linux/s390x"],
+)
+def test_bootstrap_opt_rejects_unknown_or_invalid_values(item):
+    from repo2rlenv.cli import _apply_bootstrap_opts
+
+    with pytest.raises(SystemExit):
+        _apply_bootstrap_opts(BootstrapSpec(), [item])
 
 
 def test_llm_fallback_round_trips_through_dict():
