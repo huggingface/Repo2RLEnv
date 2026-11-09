@@ -19,8 +19,12 @@ Reward = weighted sum of 6 components (5 deterministic + 1 required LLM):
   llm_judge       ([0, 1] or null) — an LLM rates "does this address the issue?"
                                      Anthropic Haiku by default; any OpenAI-
                                      compatible server via ``R2E_JUDGE_ENDPOINT``.
-                                     null on API failure / missing key →
-                                     evaluation is ungraded with zero reward
+                                     null when the judge is unavailable
+                                     (no key or model, network, unreadable
+                                     reply) → ungraded, no reward file; a
+                                     reply without a valid score (refusal,
+                                     content filter, empty, no "score") → a
+                                     graded 0
 
 Default weights: 0.00 / 0.08 / 0.12 / 0.20 / 0.10 / 0.50 (retuned from
 the original 0.05 / 0.05 / 0.10 / 0.20 / 0.20 / 0.40 after a 23-task
@@ -43,7 +47,8 @@ when ``size_sanity < 0.10`` (catastrophic-size hard cap — stops a
 charitable judge from inflating scores on wildly wrong-sized patches).
 
 Outputs (mirrors `_pr_runtime_verifier.py` after #75):
-  /logs/verifier/reward.txt           — single float (Harbor reads this)
+  /logs/verifier/reward.txt           — single float (Harbor reads this);
+                                        graded runs only
   /logs/verifier/reward-details.json  — full component breakdown + status
       (structured diagnostics; Harbor's `reward.json` schema is flat-numeric-
       only, so the breakdown goes to the `reward-details.json` sidecar which
@@ -254,7 +259,30 @@ def similarity(oracle: str, predicted: str) -> float:
     p = _normalize_changes_only(predicted)
     if not o:
         return 0.0
-    return difflib.SequenceMatcher(a=o, b=p, autojunk=False).ratio()
+    # Exact matching is quadratic-or-worse on repeated lines: 200 x 2,000
+    # identical changed lines take ~2 s, 500 x 5,000 take ~35 s, which can
+    # run the verifier past Harbor's timeout. Above this many line pairs,
+    # fall back to difflib's popular-element heuristic, which stays fast.
+    exact = len(o) * len(p) <= _SIMILARITY_EXACT_PAIRS
+    return difflib.SequenceMatcher(a=o, b=p, autojunk=not exact).ratio()
+
+
+_SIMILARITY_EXACT_PAIRS = 400_000
+
+# A predicted patch over 10x the oracle's changed lines is already a
+# catastrophic size mismatch (size_sanity < 0.10). Past this floor such a
+# patch is a graded 0 instead of being scored, so one huge file can't slow
+# the verifier past its timeout and turn a failing episode into a dropped,
+# ungraded one. The byte cap stops it from being read at all.
+_MAX_PREDICTED_FACTOR = 10
+_MAX_PREDICTED_FLOOR_LOC = 1_000
+_MAX_PREDICTED_BYTES = 16 * 1024 * 1024
+
+
+def predicted_too_large(oracle: str, predicted: str) -> bool:
+    """Whether the predicted patch is too large to score (a graded 0)."""
+    limit = max(_MAX_PREDICTED_FACTOR * _count_loc_changes(oracle), _MAX_PREDICTED_FLOOR_LOC)
+    return _count_loc_changes(predicted) > limit
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +328,13 @@ def llm_judge(
     ``score`` is a float in [0, 1] on success, ``None`` on failure.
     ``status`` is a short string: ``"ok"`` / ``"no_api_key"`` /
     ``"no_judge_model"`` / ``"empty_predicted"`` / ``"network"`` /
-    ``"parse"`` / ``"missing_score"`` / ``"invalid_score"``. A missing
-    score leaves the evaluation ungraded; it never increases other weights.
+    ``"parse"`` / ``"output_limit"`` / ``"missing_score"`` / ``"invalid_score"``.
+    ``output_limit`` means the judge exhausted its configured token budget
+    (ungraded, even if a partial answer contains a score). ``parse`` means
+    the provider's body isn't JSON or has the wrong shape (ungraded); a reply
+    with no usable text (refusal, content filter, empty) or no valid score is
+    ``missing_score`` / ``invalid_score`` (a graded 0). A missing score never
+    increases the other weights.
 
     ``endpoint`` — base URL of an OpenAI-compatible server. When set, the
     request goes to ``<endpoint>/chat/completions`` with ``api_key`` as a
@@ -353,14 +386,26 @@ def llm_judge(
         return None, "network"
 
     try:
-        payload = json.loads(raw)
+        response = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, "parse"
+    # Provider-reported truncation is a grader capacity failure, not evidence
+    # that the submitted patch is wrong. Reasoning models can spend the entire
+    # output budget before producing visible text. Never grade a partial score.
+    if isinstance(response, dict):
+        choices = response.get("choices")
         if endpoint:
-            text = payload["choices"][0]["message"]["content"]
-        else:
-            text = payload["content"][0]["text"]
-        if not isinstance(text, str):
-            raise TypeError("judge response text is not a string")
-    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+            if (
+                isinstance(choices, list)
+                and choices
+                and isinstance(choices[0], dict)
+                and choices[0].get("finish_reason") == "length"
+            ):
+                return None, "output_limit"
+        elif response.get("stop_reason") in {"max_tokens", "model_context_window_exceeded"}:
+            return None, "output_limit"
+    text = _judge_text(response, openai_compatible=bool(endpoint))
+    if text is None:
         return None, "parse"
 
     # Pull the first JSON object out of the model's response
@@ -377,16 +422,81 @@ def llm_judge(
     return float(score), "ok"
 
 
+def _judge_text(payload: object, *, openai_compatible: bool) -> str | None:
+    """The judge's answer text, ``""`` when it gave none, ``None`` for a wrong shape.
+
+    A refusal or a content filter is a well-formed reply with no usable text.
+    The agent's patch is in the prompt, so it can provoke one: that is ``""``,
+    which grades 0, not ``None``, which leaves the run ungraded.
+
+    Anthropic: a refusal is HTTP 200 with ``stop_reason: "refusal"`` and
+    ``content`` empty or holding partial text to discard. OpenAI-compatible:
+    ``message.content`` is null with a ``refusal`` string or
+    ``finish_reason: "content_filter"``.
+    """
+    if not isinstance(payload, dict):
+        return None
+    if openai_compatible:
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            return None
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            return None
+        if message.get("refusal") or choices[0].get("finish_reason") == "content_filter":
+            return ""
+        content = message.get("content")
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):  # content parts
+            return "".join(
+                part.get("text", "")
+                for part in content
+                if isinstance(part, dict) and isinstance(part.get("text", ""), str)
+            )
+        return None
+    content = payload.get("content")
+    if not isinstance(content, list):
+        return None
+    if payload.get("stop_reason") == "refusal":
+        return ""
+    return "".join(
+        block["text"]
+        for block in content
+        if isinstance(block, dict)
+        and block.get("type", "text") == "text"
+        and isinstance(block.get("text"), str)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Combination
 # ---------------------------------------------------------------------------
 
 
+# Judge replies the agent can provoke: its patch text is part of the judge
+# prompt, so it can steer the answer away from a valid score. These are a
+# graded 0. An unreadable provider envelope (`parse`), missing configuration,
+# a disabled judge, transport errors and an exhausted judge output budget leave
+# the evaluation ungraded. Truncation alone cannot establish an incorrect patch.
+_JUDGE_GRADED_ZERO = frozenset({"missing_score", "invalid_score"})
+
+
+def evaluation_status(judge_score: float | None, judge_status: str) -> str:
+    """`graded` when the judge scored or the agent can have caused its failure."""
+    if judge_score is not None or judge_status in _JUDGE_GRADED_ZERO:
+        return "graded"
+    return "ungraded"
+
+
 def combine(components: dict[str, float | None], weights: dict[str, float]) -> float:
     """Combine declared components, requiring a positively weighted judge.
 
-    Zero is the fail-closed Harbor sentinel for an ungraded evaluation.
-    Consumers must use evaluation_status to distinguish it from model failure.
+    Without a judge score the result is 0. ``main`` records it as a graded 0
+    when the agent can have caused the judge failure, and otherwise writes no
+    reward file, so Harbor reports the trial as VERIFIER_FAILED.
     """
     if weights.get("llm_judge", 0) <= 0 or components.get("llm_judge") is None:
         return 0.0
@@ -495,8 +605,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("instruction")
     parser.add_argument("--out-dir", default="/logs/verifier")
     args = parser.parse_args(argv)
+    os.makedirs(args.out_dir, exist_ok=True)
+    # This run is the only authority on the reward: an earlier or planted
+    # reward file must not stand if this evaluation ends up ungraded.
+    for name in ("reward.txt", "reward.json"):
+        try:
+            os.unlink(os.path.join(args.out_dir, name))
+        except FileNotFoundError:
+            pass
     oracle = _read_or_empty(args.oracle)
-    predicted = _read_or_empty(args.predicted)
+    try:
+        oversized = os.path.getsize(args.predicted) > _MAX_PREDICTED_BYTES
+    except OSError:
+        oversized = False
+    predicted = "" if oversized else _read_or_empty(args.predicted)
+    if oversized or predicted_too_large(oracle, predicted):
+        breakdown = {
+            "final_reward": 0.0,
+            "evaluation_status": "graded",
+            "eval_trustworthy": False,
+            "predicted_status": "predicted_too_large",
+        }
+        _write_outputs(args.out_dir, 0.0, breakdown)
+        return 0
     instruction = _read_or_empty(args.instruction)
     api_key, judge_model, judge_endpoint = _judge_config_from_env()
 
@@ -537,9 +668,11 @@ def main(argv: list[str] | None = None) -> int:
     if ss < _CATASTROPHIC_SIZE_THRESHOLD:
         final = min(final, _CATASTROPHIC_SIZE_CAP)
 
+    status = evaluation_status(judge_score, judge_status)
     breakdown = {
-        "final_reward": round(final, 6),
-        "evaluation_status": "graded" if judge_score is not None else "ungraded",
+        # No reward exists for an ungraded evaluation: null, not a placeholder 0.
+        "final_reward": round(final, 6) if status == "graded" else None,
+        "evaluation_status": status,
         "eval_trustworthy": judge_score is not None,
         "diagnostic_similarity": round(
             _weighted_mean(components, {k: w for k, w in weights.items() if k != "llm_judge"}),
@@ -552,20 +685,29 @@ def main(argv: list[str] | None = None) -> int:
         "judge_status": judge_status,
     }
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    with open(os.path.join(args.out_dir, "reward.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{final:.6f}\n")
+    _write_outputs(args.out_dir, final, breakdown)
+    return 0
+
+
+def _write_outputs(out_dir: str, final: float, breakdown: dict) -> None:
+    # An ungraded evaluation writes no reward file. Harbor then raises
+    # RewardFileNotFoundError: the trial is VERIFIER_FAILED, reward_valid is
+    # false, and RL consumers (OpenEnv harbor_env -> TRL) drop the rollout
+    # instead of training on a 0. Harbor's job mean and pass@k still count the
+    # trial as 0, so evaluation stays fail-closed.
+    if breakdown["evaluation_status"] == "graded":
+        with open(os.path.join(out_dir, "reward.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{final:.6f}\n")
     # Harbor's `reward.json` must be a flat map of floats/ints (spec, see
     # <https://harborframework.com/docs/tasks>); our breakdown carries nested
     # dicts, judge strings, and status strings, so it goes to the sidecar the
     # Harbor UI renders under Verifier Logs → Rewards. Mirrors #75 (Neubig)
     # for `_pr_runtime_verifier.py`.
-    with open(os.path.join(args.out_dir, "reward-details.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(out_dir, "reward-details.json"), "w", encoding="utf-8") as f:
         json.dump(breakdown, f, indent=2)
 
     # Also print to stdout so harbor's log captures the breakdown
     print(json.dumps(breakdown, indent=2))
-    return 0
 
 
 def _read_or_empty(path: str) -> str:
@@ -588,6 +730,7 @@ __all__ = [
     "hunk_ranges",
     "llm_judge",
     "main",
+    "predicted_too_large",
     "region_overlap",
     "similarity",
     "size_sanity",

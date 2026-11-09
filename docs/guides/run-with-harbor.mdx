@@ -117,7 +117,7 @@ harbor run -p ./pr-diff \
   --env docker
 ```
 
-Without a judge key, the current `pr_diff` verifier records `judge_status = "no_api_key"`, `evaluation_status = "ungraded"` and reward 0. Exclude these runs from training and solved-rate denominators; retry grading the saved candidate patch after restoring the judge. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
+Without a judge key, the current `pr_diff` verifier records `judge_status = "no_api_key"`, `evaluation_status = "ungraded"` and writes no reward file, so Harbor reports the trial as `VERIFIER_FAILED` and RL consumers drop it; retry grading the saved candidate patch after restoring the judge. To use a self-hosted judge instead of Anthropic, pass `--ve R2E_JUDGE_ENDPOINT=…` and `--ve R2E_JUDGE_MODEL=…`. The component weights are also verifier variables (`R2E_W_*`); see [`pr_diff` reward tuning](../reference/ENV.md#pr_diff-reward-tuning).
 
 Test-based tasks (`pr_runtime`, `commit_runtime`, `cve_patches`, the research recipes and Tasksmith) grade by running tests and need no verifier keys.
 

@@ -371,12 +371,77 @@ def test_llm_judge_endpoint_anthropic_shaped_reply_is_parse_error() -> None:
     assert status == "parse"
 
 
-def test_llm_judge_endpoint_null_content_is_parse_error() -> None:
-    """Thinking-mode servers can return content=null with the text elsewhere."""
+def test_llm_judge_endpoint_null_content_is_missing_score() -> None:
+    """Without a reported output limit, an empty answer follows the no-score policy."""
     null_content = b'{"choices": [{"message": {"content": null, "reasoning_content": "..."}}]}'
     score, status, _ = _judge_via(_ENDPOINT, null_content, model="m")
     assert score is None
-    assert status == "parse"
+    assert status == "missing_score"
+
+
+@pytest.mark.parametrize("text", [None, "", '{"score":', '{"score": 1}'])
+@pytest.mark.parametrize(
+    ("endpoint", "stop_reason"),
+    [(None, "max_tokens"), (None, "model_context_window_exceeded"), (_ENDPOINT, "length")],
+)
+def test_judge_output_limit_never_grades_a_partial_answer(endpoint, text, stop_reason):
+    if endpoint:
+        body = {
+            "choices": [{"message": {"content": text}, "finish_reason": "length"}],
+        }
+    else:
+        body = {
+            "content": [] if text is None else [{"type": "text", "text": text}],
+            "stop_reason": stop_reason,
+        }
+    score, status, _ = _judge_via(endpoint, json.dumps(body).encode(), model="m")
+    assert (score, status) == (None, "output_limit")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # Anthropic refusal: HTTP 200, stop_reason "refusal", empty content.
+        {"content": [], "stop_reason": "refusal", "stop_details": {"type": "refusal"}},
+        # Streaming-classifier refusal: partial text to discard.
+        {"content": [{"type": "text", "text": '{"score": 1}'}], "stop_reason": "refusal"},
+        # Empty answer.
+        {"content": [], "stop_reason": "end_turn"},
+    ],
+)
+def test_llm_judge_anthropic_refusal_or_empty_is_missing_score(body) -> None:
+    score, status, _ = _judge_via(None, json.dumps(body).encode())
+    assert (score, status) == (None, "missing_score")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"choices": [{"message": {"content": None, "refusal": "I can't help."}}]},
+        {"choices": [{"message": {"content": None}, "finish_reason": "content_filter"}]},
+        {"choices": [{"message": {"content": '{"score": 1}'}, "finish_reason": "content_filter"}]},
+        {"choices": [{"message": {"content": ""}}]},
+    ],
+)
+def test_llm_judge_endpoint_refusal_or_filter_is_missing_score(body) -> None:
+    score, status, _ = _judge_via(_ENDPOINT, json.dumps(body).encode(), model="m")
+    assert (score, status) == (None, "missing_score")
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "raw"),
+    [
+        (None, b"<html>bad gateway</html>"),
+        (None, b'{"type": "error", "error": {"type": "overloaded_error"}}'),
+        (None, b"[]"),
+        (_ENDPOINT, b'{"error": {"message": "model not found"}}'),
+        (_ENDPOINT, b'{"choices": []}'),
+        (_ENDPOINT, b'{"choices": [{"message": "text"}]}'),
+    ],
+)
+def test_llm_judge_wrong_shape_is_parse(endpoint, raw) -> None:
+    score, status, _ = _judge_via(endpoint, raw, model="m")
+    assert (score, status) == (None, "parse")
 
 
 def test_llm_judge_endpoint_network_error() -> None:
@@ -526,8 +591,7 @@ def test_default_weights_match_pilot_recommendations() -> None:
     )  # correlated → don't double-count
 
 
-@pytest.mark.parametrize("status", ["no_api_key", "network", "parse", "invalid_score"])
-def test_judge_failure_is_ungraded_even_for_oracle(tmp_path, monkeypatch, status):
+def _main_with_judge(tmp_path, monkeypatch, status):
     from repo2rlenv.pipelines import _pr_diff_verifier as verifier
 
     diff = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
@@ -547,14 +611,34 @@ def test_judge_failure_is_ungraded_even_for_oracle(tmp_path, monkeypatch, status
         )
         == 0
     )
-    result = json.loads((tmp_path / "out/reward-details.json").read_text())
-    assert result["final_reward"] == 0
+    return json.loads((tmp_path / "out/reward-details.json").read_text())
+
+
+@pytest.mark.parametrize(
+    "status", ["no_api_key", "no_judge_model", "network", "parse", "output_limit"]
+)
+def test_unavailable_judge_is_ungraded_even_for_oracle(tmp_path, monkeypatch, status):
+    result = _main_with_judge(tmp_path, monkeypatch, status)
+    assert result["final_reward"] is None
     assert result["evaluation_status"] == "ungraded"
     assert result["eval_trustworthy"] is False
     assert result["diagnostic_similarity"] == 1
     assert result["components"]["llm_judge"] is None
     assert result["judge_status"] == status
-    assert float((tmp_path / "out/reward.txt").read_text()) == 0
+    # Ungraded: no reward file, so Harbor reports VERIFIER_FAILED.
+    assert not (tmp_path / "out/reward.txt").exists()
+
+
+@pytest.mark.parametrize("status", ["missing_score", "invalid_score"])
+def test_unusable_judge_reply_is_a_graded_zero(tmp_path, monkeypatch, status):
+    # The agent's patch is in the judge prompt, so it can provoke these replies:
+    # dropping the rollout would let it dodge a failing episode.
+    result = _main_with_judge(tmp_path, monkeypatch, status)
+    assert result["final_reward"] == 0
+    assert result["evaluation_status"] == "graded"
+    assert result["eval_trustworthy"] is False
+    assert result["judge_status"] == status
+    assert (tmp_path / "out/reward.txt").read_text() == "0.000000\n"
 
 
 def test_disabling_judge_never_enables_similarity_reward():
@@ -573,3 +657,88 @@ def test_large_relative_weights_do_not_overflow():
     assert combine(dict.fromkeys(_WEIGHTS, 0.5), dict.fromkeys(_WEIGHTS, 1e308)) == pytest.approx(
         0.5
     )
+
+
+def test_disabled_judge_is_ungraded(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    weights = {**verifier._DEFAULT_WEIGHTS, "llm_judge": 0.0}
+    monkeypatch.setattr(verifier, "_read_weights_from_env", lambda: weights)
+    diff = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
+    for name, content in (("oracle", diff), ("predicted", diff), ("instruction", "Fix x")):
+        (tmp_path / name).write_text(content)
+    args = [str(tmp_path / n) for n in ("oracle", "predicted", "instruction")]
+    assert verifier.main([*args, "--out-dir", str(tmp_path / "out")]) == 0
+    result = json.loads((tmp_path / "out/reward-details.json").read_text())
+    assert result["judge_status"] == "disabled"
+    assert result["evaluation_status"] == "ungraded" and result["final_reward"] is None
+    assert not (tmp_path / "out/reward.txt").exists()
+
+
+def _run_main(tmp_path, oracle, predicted):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    for name, content in (("oracle", oracle), ("predicted", predicted), ("instruction", "Fix x")):
+        (tmp_path / name).write_text(content)
+    args = [str(tmp_path / n) for n in ("oracle", "predicted", "instruction")]
+    assert verifier.main([*args, "--out-dir", str(tmp_path / "out")]) == 0
+    return json.loads((tmp_path / "out/reward-details.json").read_text())
+
+
+_SMALL = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
+
+
+def test_main_removes_stale_reward_files_before_an_ungraded_result(tmp_path, monkeypatch):
+    # A planted or earlier reward must not stand when this run is ungraded.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("R2E_JUDGE_ENDPOINT", raising=False)
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out/reward.txt").write_text("1.0\n")
+    (tmp_path / "out/reward.json").write_text('{"reward": 1}')
+    result = _run_main(tmp_path, _SMALL, _SMALL)
+    assert result["evaluation_status"] == "ungraded"
+    assert not (tmp_path / "out/reward.txt").exists()
+    assert not (tmp_path / "out/reward.json").exists()
+
+
+def test_oversized_predicted_patch_is_a_graded_zero(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    monkeypatch.setattr(verifier, "llm_judge", lambda **kwargs: pytest.fail("judge called"))
+    huge = "diff --git a/x b/x\n@@ -1 +1,1001 @@\n" + "+line\n" * 1001
+    result = _run_main(tmp_path, _SMALL, huge)
+    assert result["final_reward"] == 0
+    assert result["evaluation_status"] == "graded"
+    assert result["predicted_status"] == "predicted_too_large"
+    assert (tmp_path / "out/reward.txt").read_text() == "0.000000\n"
+
+
+def test_predicted_patch_over_the_byte_cap_is_not_read(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    monkeypatch.setattr(verifier, "_MAX_PREDICTED_BYTES", 10)
+    monkeypatch.setattr(verifier, "llm_judge", lambda **kwargs: pytest.fail("judge called"))
+    result = _run_main(tmp_path, _SMALL, _SMALL)
+    assert result["predicted_status"] == "predicted_too_large"
+    assert result["final_reward"] == 0
+
+
+def test_size_cap_scales_with_the_oracle():
+    from repo2rlenv.pipelines._pr_diff_verifier import predicted_too_large
+
+    oracle = "diff --git a/x b/x\n" + "+a\n" * 500
+    assert not predicted_too_large(oracle, "diff --git a/x b/x\n" + "+b\n" * 5000)
+    assert predicted_too_large(oracle, "diff --git a/x b/x\n" + "+b\n" * 5001)
+    assert not predicted_too_large(_SMALL, "diff --git a/x b/x\n" + "+b\n" * 1000)
+
+
+def test_similarity_stays_fast_on_repeated_lines():
+    import time
+
+    oracle = "diff --git a/x b/x\n" + "+x\n" * 500
+    predicted = "diff --git a/x b/x\n" + "+x\n+y\n" * 2500
+    start = time.monotonic()
+    value = similarity(oracle, predicted)
+    assert 0 <= value <= 1
+    # Exact matching takes ~35 s on this input; the fallback is near-instant.
+    assert time.monotonic() - start < 5
