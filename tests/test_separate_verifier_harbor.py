@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pytest
 import tomli_w
-from test_separate_verifier_container import FIXED, _build_task
+
+from tests.test_separate_verifier_container import FIXED, _build_task
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("R2E_HARBOR_TESTS") != "1",
