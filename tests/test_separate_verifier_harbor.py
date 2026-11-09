@@ -55,7 +55,7 @@ def harbor_task_template(tmp_path_factory):
     return root
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 @pytest.mark.parametrize("submission", ["oracle", "nop", "conftest"])
 async def test_harbor_separate_grading(harbor_task_template: Path, tmp_path: Path, submission):
     pytest.importorskip("harbor")
