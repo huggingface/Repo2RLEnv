@@ -39,13 +39,14 @@ problem families. Each one becomes a standard
 any agent, and share on the Hugging Face Hub.
 
 <p align="center">
-  <b>23 generators</b> · <b>21 published datasets</b> · <b>1,930 tasks on the Hub</b> · runs with any Harbor agent
+  <b>24 generators</b> · <b>21 published datasets</b> · <b>1,930 tasks on the Hub</b> · runs with any Harbor agent
 </p>
 
 ## What's new
 
 | When | What |
 |---|---|
+| **Nov 11, 2026** · v0.9.6 | **Trajectory generation and isolated grading**: turn recorded agent sessions into Harbor tasks, grade in fresh verifiers, detect supported reward forgeries, and fix bootstrap, collection and dependency issues. [Release notes →](https://github.com/huggingface/Repo2RLEnv/releases/tag/v0.9.6) |
 | **Nov 4, 2026** · v0.9.5 | **Verifier hardening and stable dependency updates**: stricter test grading, ungraded PR-diff evaluations when the judge is unavailable, Harbor 0.25 support and tested inference SDK updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Oct 23, 2026** · v0.9.4 | **Task quality review and runtime fixes**, with evidence-backed reviews, Harbor 0.24 compatibility, Windows process cleanup and dependency security updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
@@ -57,7 +58,8 @@ Older releases are in the [version history](https://huggingface.github.io/Repo2R
 
 ## Quickstart
 
-For version 0.9.5's original LiteLLM/filelock dependency combination, use the
+Version 0.9.6 includes compatible stable LiteLLM and patched filelock dependencies.
+For version 0.9.5's original dependency combination, use the
 [documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
 or install from the current locked checkout, which uses compatible stable versions.
 
