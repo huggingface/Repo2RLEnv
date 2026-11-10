@@ -559,11 +559,18 @@ def validate_pr(
     # imports what the fix adds, has no test IDs there: pytest reports one
     # file-level ERROR. Its tests failed at base all the same.
     uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
+    promoted: dict[str, int] = {}
     for tname, post_st in post_status.items():
         if tname in pre_status or tname in flaky or post_st != "PASSED":
             continue
-        if tname.split("::", 1)[0] in uncollected:
+        module = tname.split("::", 1)[0]
+        if module in uncollected:
             fail_to_pass.append(tname)
+            promoted[module] = promoted.get(module, 0) + 1
+    if promoted:
+        logger.info(
+            "validate_pr: fail-to-pass tests inferred from base collection errors: %s", promoted
+        )
 
     # Diagnostics: when yield is poor, this tells us whether the suite even
     # ran (test counts) and where transitions went — distinguishing "genuine

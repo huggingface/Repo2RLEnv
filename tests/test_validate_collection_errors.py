@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import base64
+import os
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -115,3 +118,46 @@ def test_only_the_pre_fix_stage_keeps_collecting_after_an_import_error():
     _run(sandbox)
     assert "--continue-on-collection-errors" in sandbox.scripts["pre"]
     assert "--continue-on-collection-errors" not in sandbox.scripts["post"]
+
+
+def test_real_pytest_collection_failure_preserves_other_modules(tmp_path, caplog):
+    """Feed actual pytest logs through validation, including old and new tests."""
+    module = tmp_path / "m.py"
+    module.write_text("def old(): return 1\n")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_m.py").write_text(
+        "from m import old, new\n"
+        "def test_old(): assert old() in (1, 2)\n"
+        "def test_new(): assert new() == 2\n"
+    )
+    (tests / "test_other.py").write_text(
+        "from m import old\n"
+        "def test_fixed(): assert old() == 2\n"
+        "def test_kept(): assert old() in (1, 2)\n"
+    )
+    env = {
+        **os.environ,
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTEST_ADDOPTS": "--continue-on-collection-errors",
+    }
+    command = [sys.executable, "-m", "pytest", "-v", "-o", "addopts=", "tests"]
+    pre = subprocess.run(command, cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30)
+    assert pre.returncode == 1
+    module.write_text("def old(): return 2\ndef new(): return 2\n")
+    env.pop("PYTEST_ADDOPTS")
+    post = subprocess.run(
+        command, cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30
+    )
+    assert post.returncode == 0
+    with caplog.at_level("INFO", logger=validate.__name__):
+        outcome = _run(_Sandbox(_log(pre.stdout), _log(post.stdout)))
+    assert outcome.status == "verified"
+    assert outcome.fail_to_pass == [
+        "tests/test_m.py::test_new",
+        "tests/test_m.py::test_old",
+        "tests/test_other.py::test_fixed",
+    ]
+    assert outcome.pass_to_pass == ["tests/test_other.py::test_kept"]
+    assert "'tests/test_m.py': 2" in caplog.text
