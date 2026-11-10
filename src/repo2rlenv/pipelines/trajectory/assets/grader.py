@@ -19,7 +19,8 @@ Adapted from the deterministic grader shipped with SmolDataEnvs:
   https://huggingface.co/datasets/FineEnvs/SmolDataEnvs-harbor-train (MIT)
 
 This file is a DERIVATIVE WORK: the grading tiers and their code come from
-SmolDataEnvs, reformatted only. The MIT terms apply to this file and are
+SmolDataEnvs. Repo2RLEnv adds strict answer types and bounded Decimal parsing;
+trajectory tasks use these instead of the legacy permissive tiers. The MIT terms apply and are
 recorded in THIRD_PARTY_NOTICES.md at the repo root.
 ----------------------------------------------------------------------------
 """
@@ -30,8 +31,10 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 _NUMERIC_RE = re.compile(r"-?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?")
+_STRICT_NUMBER = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 
 
 @dataclass
@@ -107,6 +110,37 @@ def grade(
 ) -> GradeResult:
     if not gold or candidate is None:
         return GradeResult(0.0, "miss")
+
+    # Tasksmith-style typed answers: no inferred units, substring numbers or symbolic
+    # fallback. A count of 50 is never equivalent to 0.5; labels are text, even with digits.
+    if reward_mode.startswith("strict_"):
+        kind = reward_mode.removeprefix("strict_")
+        if kind == "number":
+            if any(
+                len(value.strip()) > 256 or not _STRICT_NUMBER.fullmatch(value.strip())
+                for value in (gold, candidate)
+            ):
+                return GradeResult(0.0, "miss")
+            try:
+                g, c = Decimal(gold.strip()), Decimal(candidate.strip())
+            except InvalidOperation:
+                return GradeResult(0.0, "miss")
+            matched = (
+                g.is_finite()
+                and c.is_finite()
+                and max(abs(g.adjusted()), abs(c.adjusted())) <= 1000
+                and (
+                    abs(g - c) <= Decimal(str(abs_tol))
+                    or abs(g - c) <= abs(g) * Decimal(str(rel_tol))
+                )
+            )
+        elif kind == "list":
+            matched = sorted(_normalize(x) for x in gold.split(",")) == sorted(
+                _normalize(x) for x in candidate.split(",")
+            )
+        else:
+            matched = _normalize(gold) == _normalize(candidate)
+        return GradeResult(float(matched), "typed" if matched else "miss")
 
     # Tier 1: exact
     if _normalize(gold) == _normalize(candidate):

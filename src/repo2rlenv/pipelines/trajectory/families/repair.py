@@ -15,8 +15,12 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from repo2rlenv.log_parsers import parse_logs
+from repo2rlenv.pipelines.pr_runtime import normalize_test_cmds_for_runtime
+
 from ..docker import read_files_from_image, run_in_container
-from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml
+from ..grading import project_image, repair_verifier_files
+from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml, write_files
 from ..trajectory import ShellRun, Trajectory
 
 CHECK_COMMAND = re.compile(
@@ -54,13 +58,6 @@ CHECK_CONFIG_FILE = re.compile(
 ERROR_LINE = re.compile(r"error|FAIL|failed|Traceback|assert|Exception|TS\d{4}", re.I)
 ANSI_COLOR = re.compile(r"\x1b\[[0-9;]*m")
 
-TEST_SH = """#!/usr/bin/env bash
-# Restore the check's own files, run the check, reward 1 if it exits 0.
-mkdir -p /logs/verifier
-[ -d /tests/protected ] && cp -a /tests/protected/. {root}/
-cd {cwd} && timeout 600 bash -lc {command} > /logs/verifier/check.log 2>&1
-[ $? -eq 0 ] && echo 1 > /logs/verifier/reward.txt || echo 0 > /logs/verifier/reward.txt
-"""
 TAMPER_WITH_CHECK = r"""cd "{root}"
 [ -f package.json ] && node -e 'const p=require("./package.json");for(const k in p.scripts||{{}})p.scripts[k]="true";require("fs").writeFileSync("package.json",JSON.stringify(p))'
 find . -path ./node_modules -prune -o \( -name 'test_*.py' -o -name '*.test.*' \) -print | while read f; do : > "$f"; done
@@ -99,6 +96,8 @@ class RepairCandidate:
     changed_files: list[str]
     setup_commands: list[tuple[str, str | None]]  # (command, cwd) that succeeded before the failure
     protected_files: dict[str, str] = field(default_factory=dict)
+    fail_to_pass: list[str] = field(default_factory=list)
+    pass_to_pass: list[str] = field(default_factory=list)
 
     @property
     def cwd(self) -> str:
@@ -249,11 +248,12 @@ class Repair(Family):
             f"COPY before/ {c.project_root}/",  # installs must not rewrite the code under test
         ]
         return {
-            "Dockerfile": "\n".join(dockerfile) + "\n",
+            "Dockerfile": "\n".join(dockerfile) + "\n" + project_image(c.project_root),
             **{f"before/{path}": content for path, content in c.files_at_failure.items()},
         }
 
     def check_in_image(self, c: RepairCandidate, image: str, scratch_dir: Path) -> None:
+        c.passing_run.command = normalize_test_cmds_for_runtime([c.passing_run.command])[0]
         exit_code, output = run_in_container(
             image,
             f"cd {shlex.quote(c.cwd)} && timeout 600 bash -lc {shlex.quote(c.passing_run.command)}",
@@ -270,6 +270,34 @@ class Repair(Family):
             for path, content in {**found_in_image, **c.files_at_failure}.items()
             if is_check_file(path) and path not in c.changed_files
         }
+        before = parse_logs([c.passing_run.command], output)
+        fixed = scratch_dir / "reference"
+        write_files(
+            fixed, {p: c.files_at_success[p] for p in c.changed_files if p in c.files_at_success}
+        )
+        deleted = "".join(
+            f"rm -f {shlex.quote(posixpath.join(c.project_root, p))}\n"
+            for p in c.changed_files
+            if p not in c.files_at_success
+        )
+        status, reference_output = run_in_container(
+            image,
+            f"cp -a /reference/. {shlex.quote(c.project_root)}/\n{deleted}cd {shlex.quote(c.cwd)} && {c.passing_run.command}",
+            {fixed: "/reference:ro"},
+        )
+        if status:
+            raise Reject("reference_check_failed")
+        after = parse_logs([c.passing_run.command], reference_output)
+        c.fail_to_pass = sorted(
+            name
+            for name, state in after.items()
+            if state == "PASSED" and before.get(name) != "PASSED"
+        )
+        c.pass_to_pass = sorted(
+            name
+            for name, state in after.items()
+            if state == "PASSED" and before.get(name) == "PASSED"
+        )
 
     def task_files(self, c: RepairCandidate) -> dict[str, str]:
         root = shlex.quote(c.project_root)
@@ -298,8 +326,12 @@ class Repair(Family):
                 user_requests="\n>\n".join(user_requests[-4:]) or "> (not recorded)",
                 protected_files=", ".join(f"`{path}`" for path in protected) or "(none)",
             ),
-            "tests/test.sh": TEST_SH.format(
-                root=root, cwd=shlex.quote(c.cwd), command=shlex.quote(c.passing_run.command)
+            **repair_verifier_files(
+                c.project_root,
+                f"cd {shlex.quote(c.cwd)} && {c.passing_run.command}",
+                c.protected_files,
+                c.fail_to_pass,
+                c.pass_to_pass,
             ),
             **{f"tests/protected/{path}": content for path, content in c.protected_files.items()},
             "solution/solve.sh": solve_sh,

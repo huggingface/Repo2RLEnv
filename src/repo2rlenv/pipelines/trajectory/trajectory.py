@@ -164,7 +164,10 @@ class Trajectory:
 
     @classmethod
     def load(cls, path: Path) -> Trajectory:
-        return cls(json.loads(Path(path).read_text()), Path(path))
+        data = json.loads(Path(path).read_text())
+        if isinstance(data, dict) and data.get("conversion_error"):
+            raise ValueError(data["conversion_error"])
+        return cls(data, Path(path))
 
     def short_id(self) -> str:
         return re.sub(r"[^a-z0-9]+", "-", self.session_id.lower())[:24].strip("-")

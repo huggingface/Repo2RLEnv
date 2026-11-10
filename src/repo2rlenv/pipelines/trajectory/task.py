@@ -6,26 +6,33 @@ A family finds candidates in a trajectory and fills in a few hooks; `make_tasks`
     -> write the task files -> run the trial matrix -> keep, or drop with a reason
 
 Any hook can drop a candidate by raising `Reject("reason")`. A kept candidate is a Harbor task
-folder (task.toml, instruction.md, environment/, tests/, solution/) that passed every trial:
-its own environment image, tests/ at /tests, solution/ at /solution, networking off.
+folder (task.toml, instruction.md, environment/, tests/, solution/) that passed every trial.
+Each trial uses separate agent and verifier containers with networking off. Only declared
+submission files cross that boundary; tests and reference code remain private.
 """
 
 from __future__ import annotations
 
 import shlex
 import shutil
+import tempfile
+import threading
+import tomllib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import tomli_w
 
-from .docker import build_image, remove_as_root, run_in_container
+from .docker import build_image, remove_as_root, run_separate_trial
 from .llm import BudgetExceeded
+from .paths import relative_path, within
 from .trajectory import Trajectory
 
 # Terminal agents (e.g. Harbor's terminus-2) drive a tmux session; tasks run offline, so it must be in the image.
 AGENT_TOOLS = "RUN apt-get update && apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*"
+
+_CLAIM_LOCK = threading.Lock()
 
 
 class Reject(Exception):
@@ -38,7 +45,7 @@ class Reject(Exception):
 class Trial:
     name: str
     setup_script: str  # runs in the task image before tests/test.sh
-    expected_reward: str  # first line of /logs/verifier/reward.txt, compared as text
+    expected_reward: str  # first line of /logs/verifier/reward.txt, compared numerically
 
 
 class Family:
@@ -95,17 +102,30 @@ def make_tasks(
     """
     for candidate in family.find_candidates(trajectory):
         task_id = family.task_id(candidate)
-        task_dir, scratch_dir = out_dir / task_id, out_dir / ".scratch" / task_id
         record = {"task_id": task_id, "family": family.name, "source_trace": trajectory.source}
-        try:
-            if task_id in seen_task_ids:
-                raise Reject("duplicate")
+        # Claim before entering cleanup: a duplicate never owns the first task's files.
+        with _CLAIM_LOCK:
+            duplicate = task_id in seen_task_ids
             seen_task_ids.add(task_id)
+        if duplicate:
+            yield {**record, "kept": False, "reason": "duplicate"}
+            continue
+        staging = None
+        try:
+            relative_path(task_id)
+            if "/" in task_id:
+                raise Reject("invalid_task_id")
+            destination = within(out_dir, task_id)
+            if destination.exists():
+                raise Reject("already_exists")
             family.prepare(candidate)
             if propose_only:
                 yield {**record, "kept": False, "reason": "proposed"}
                 continue
-            fresh_directory(task_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            staging = tempfile.TemporaryDirectory(prefix=".trajectory-", dir=out_dir)
+            task_dir = Path(staging.name) / "task"
+            scratch_dir = Path(staging.name) / "scratch"
             write_files(task_dir / "environment", family.environment_files(candidate))
             image = family.image_tag(candidate)
             if error := build_image(image, task_dir / "environment"):
@@ -115,16 +135,18 @@ def make_tasks(
             write_files(task_dir, family.task_files(candidate))
             trials, mounts = family.trials(candidate, scratch_dir)
             rewards = run_trials(task_dir, image, trials, mounts, family.verifier_env(candidate))
-            if any(rewards[trial.name] != trial.expected_reward for trial in trials):
+            if any(
+                not reward_matches(rewards[trial.name], trial.expected_reward) for trial in trials
+            ):
                 raise Reject("trials_failed", rewards)
+            # Publish only a fully checked bundle. Failed reruns never delete prior tasks.
+            task_dir.rename(destination)
             yield {**record, "kept": True, "reason": "ok", **family.summary(candidate)}
         except Reject as rejection:
-            shutil.rmtree(task_dir, ignore_errors=True)
             yield {**record, "kept": False, "reason": rejection.reason, "detail": rejection.detail}
         except (
             Exception
         ) as error:  # one bad candidate (e.g. an LLM call that kept failing) must not stop a batch
-            shutil.rmtree(task_dir, ignore_errors=True)
             reason = "budget_exhausted" if isinstance(error, BudgetExceeded) else "error"
             yield {
                 **record,
@@ -133,7 +155,8 @@ def make_tasks(
                 "detail": f"{type(error).__name__}: {error}"[:500],
             }
         finally:
-            shutil.rmtree(scratch_dir, ignore_errors=True)
+            if staging is not None:
+                staging.cleanup()
 
 
 def run_trials(
@@ -143,21 +166,19 @@ def run_trials(
     extra_mounts: dict[Path, str],
     verifier_env: dict[str, str],
 ) -> dict[str, str]:
-    mounts = {
-        task_dir / "tests": "/tests:ro",
-        task_dir / "solution": "/solution:ro",
-        **extra_mounts,
-    }
+    config = tomllib.loads((task_dir / "task.toml").read_text())
     exports = "".join(
         f"export {name}={shlex.quote(value)}\n" for name, value in verifier_env.items()
     )
     rewards = {}
     for trial in trials:
         script = (
-            f"{trial.setup_script}\n{exports}bash /tests/test.sh >/dev/null 2>&1\n"
+            f"{exports}bash /tests/test.sh >/dev/null 2>&1\n"
             "echo; echo REWARD=$(head -n 1 /logs/verifier/reward.txt)"
         )
-        _, output = run_in_container(image, script, mounts)
+        _, output = run_separate_trial(
+            image, task_dir, trial.setup_script, script, config["artifacts"], extra_mounts
+        )
         rewards[trial.name] = next(
             (
                 line[len("REWARD=") :]
@@ -167,6 +188,13 @@ def run_trials(
             "no reward",
         )
     return rewards
+
+
+def reward_matches(actual: str, expected: str) -> bool:
+    try:
+        return float(actual) == float(expected)
+    except ValueError:
+        return False
 
 
 def task_toml(
@@ -189,7 +217,7 @@ def task_toml(
         "memory_mb": memory_mb,
         "storage_mb": 10240,
         "gpus": 0,
-        "allow_internet": allow_internet,
+        "network_mode": "public" if allow_internet else "no-network",
         "mcp_servers": [],
     }
     if healthcheck_command:  # Harbor runs it after container start, before the agent
@@ -199,11 +227,16 @@ def task_toml(
             "timeout_sec": 180.0,
             "retries": 30,
         }
-    verifier = {"timeout_sec": 900.0, **({"env": verifier_env} if verifier_env else {})}
+    verifier = {
+        "timeout_sec": 1800.0,
+        "environment_mode": "separate",
+        "user": "root",
+        **({"env": verifier_env} if verifier_env else {}),
+    }
     return tomli_w.dumps(
         {
             "schema_version": "1.2",
-            "artifacts": [],
+            "artifacts": [{"source": "/workdir/answer.txt" if family == "qa" else "/workspace"}],
             "task": {
                 "name": f"trajectory-{family}/{task_id}",
                 "description": description[:200],
@@ -221,8 +254,8 @@ def task_toml(
 
 def write_files(root: Path, files: dict[str, str]) -> None:
     """Write {relative path: content}; shell scripts are made executable."""
-    for relative_path, content in files.items():
-        path = root / relative_path
+    for filename, content in files.items():
+        path = within(root, filename)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
         if path.suffix == ".sh":

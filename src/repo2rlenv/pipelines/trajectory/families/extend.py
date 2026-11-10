@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from .. import llm
 from ..docker import run_in_container
+from ..grading import project_image, python_verifier_files
 from ..llm import ask
 from ..mutants import make_mutants
 from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml, write_files
@@ -59,28 +60,6 @@ DOCKERFILE_HEAD = [
     AGENT_TOOLS,
     "RUN pip install --no-cache-dir pytest==8.4.2 pytest-timeout==2.4.0",
 ]
-TEST_SH = """#!/usr/bin/env bash
-# Run the hidden tests; reward = fraction of new tests passed, 0 if an existing behaviour broke.
-mkdir -p /logs/verifier
-cd /tmp && python -m pytest -q -p no:cacheprovider --timeout=60 --junitxml=/logs/verifier/junit.xml \\
-  /tests/test_hidden.py > /logs/verifier/pytest.log 2>&1
-python - <<'PY'
-import json, xml.etree.ElementTree as ET
-grading = json.load(open("/tests/grading.json"))
-passed = set()
-try:
-    for case in ET.parse("/logs/verifier/junit.xml").getroot().iter("testcase"):
-        class_name = case.get("classname", "").split(".")[-1]
-        name = (class_name + "::" if class_name.startswith("Test") else "") + case.get("name")
-        if not any(child.tag in ("failure", "error", "skipped") for child in case):
-            passed.add(name)
-except Exception:
-    pass
-new = grading["new"]
-reward = 0.0 if not set(grading["existing"]) <= passed else len(passed & set(new)) / len(new)
-open("/logs/verifier/reward.txt", "w").write(f"{reward:.4f}\\n")
-PY
-"""
 INSTRUCTION = """You are working on an existing Python project in `{root}`.
 
 ## Earlier requests (already implemented)
@@ -246,7 +225,7 @@ class Extend(Family):
             f"COPY before/ {c.project_root}/",  # installs must not rewrite the starting code
         ]
         return {
-            "Dockerfile": "\n".join(dockerfile) + "\n",
+            "Dockerfile": "\n".join(dockerfile) + "\n" + project_image(c.project_root),
             **{f"before/{path}": content for path, content in c.files_before.items()},
         }
 
@@ -340,13 +319,14 @@ class Extend(Family):
                 request=c.request,
                 contract=c.generated.contract.strip() or "(none)",
             ),
-            "tests/test_hidden.py": keep_only_tests(
-                c.generated.tests, c.new_tests | c.existing_tests
+            **python_verifier_files(
+                keep_only_tests(c.generated.tests, c.new_tests | c.existing_tests),
+                c.new_tests,
+                c.existing_tests,
             ),
             "tests/grading.json": json.dumps(
                 {"new": sorted(c.new_tests), "existing": sorted(c.existing_tests)}, indent=1
             ),
-            "tests/test.sh": TEST_SH,
             "solution/solve.sh": solve_sh,
             **{
                 f"solution/files/{path}": c.files_after[path]

@@ -27,17 +27,30 @@ def scan_trajectory(path: Path) -> tuple[bool, str]:
     atif_scan = shutil.which("atif-scan")
     if atif_scan is None:
         return True, "skipped (atif-scan not installed)"
-    process = subprocess.run(
-        [atif_scan, str(path), "--format", "json"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=600,
-    )
+    try:
+        process = subprocess.run(
+            [atif_scan, str(path), "--format", "json"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=600,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return False, f"scan error: {type(error).__name__}"
     try:
         assessments = json.loads(process.stdout)["inputs"][0]["assessments"]
-    except (ValueError, KeyError, IndexError):
-        return True, "skipped (atif-scan output unreadable)"
+    except (ValueError, KeyError, IndexError, TypeError):
+        return False, "scan error: output unreadable"
+    if not isinstance(assessments, list) or any(not isinstance(a, dict) for a in assessments):
+        return False, "scan error: invalid assessments"
+    statuses = {a.get("id"): a.get("status") for a in assessments}
+    unresolved = sorted(
+        key
+        for key in BLOCKING_FINDINGS
+        if statuses.get(key) not in {"match", "no_match", "not_applicable"}
+    )
+    if unresolved:
+        return False, "scan incomplete: " + ", ".join(unresolved)
     findings = sorted(
         a["id"] for a in assessments if a["status"] == "match" and a["id"] in BLOCKING_FINDINGS
     )

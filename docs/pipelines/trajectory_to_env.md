@@ -91,8 +91,29 @@ flowchart TD
 7. **Check in the image.** `repair` must fail the way the trajectory recorded.
    `build` and `extend` calibrate each test against the reference, a stub and the
    start state, then require a minimum mutant kill rate.
-8. **Run the trial matrix** with networking off and `/tests` and `/solution` mounted
-   read-only.
+8. **Run the trial matrix** with networking off. Apply a control in the agent
+   container, stop it, then transfer only the submission into a fresh verifier.
+   Project tasks transfer `/workspace`; QA transfers `/workdir/answer.txt`.
+   The agent never receives `/tests`. The verifier rebuilds source against the
+   pristine image, restores test configuration, and runs project tests as an
+   unprivileged user. Supported assertions receive contradictory test controls
+   through the same verifier used by the native runtime pipelines.
+
+```mermaid
+flowchart LR
+  A["Agent container<br/>recorded project path"] --> S["Stop agent<br/>collect submission only"]
+  S --> V["Fresh verifier image<br/>trusted interpreter and dependencies"]
+  V --> R["Rebuild source<br/>restore tests and configuration"]
+  R --> T["Unprivileged test runs<br/>original and contradictory assertions"]
+  T --> G["Trusted reward writer"]
+```
+
+Every candidate is staged privately and published only after its controls pass.
+Duplicates and failed reruns preserve existing task directories. Per-input and
+provider failures are recorded in `report.json` while other inputs continue.
+An installed scanner that errors or cannot resolve the blocking checks does not
+produce a clean label; its input is retained as a skipped record. Explicit
+`scan=false` and an absent optional scanner remain distinguishable in the report.
 
 ## Model calls
 
@@ -154,10 +175,10 @@ Task IDs are `<session>-<fix hash>` for `repair`, `<session>-build`,
 
 | Family | Reward | Verifier |
 |---|---|---|
-| `repair` | 1.0 if the recorded check passes, else 0.0 | The check's own command. Its test and config files are restored before grading, so rewriting them scores 0 |
+| `repair` | 1.0 only when the recorded check passes; otherwise 0.0 | Native separate verifier, tracked test IDs where available; test hooks and installed dependencies cannot cross as source |
 | `build` | Fraction of hidden tests passed | Calibrated pytest module, `tests/test_hidden.py` |
 | `extend` | Fraction of new tests passed, or 0 if any existing test fails | Calibrated pytest module, split SWE-bench style into new and existing tests |
-| `qa` | 1.0 for a matching answer, else 0.0 | Deterministic grader: exact, numeric with tolerance, list, then symbolic. No LLM judge |
+| `qa` | 1.0 for a matching answer, else 0.0 | Typed exact answers: finite decimal numbers, normalized labels/yes-no, or unordered lists. No percentage inference or LLM judge |
 
 ## Yield and cost
 
@@ -182,11 +203,16 @@ LiteLLM's price table, or from the cost the provider reports when LiteLLM can't 
   data by `source_trace`.
 - **Trace datasets often carry no license.** Publish privately until redistribution
   is cleared.
-- **`qa` tasks need the internet at start.** A healthcheck downloads the pinned input
-  files before the agent runs, so `allow_internet = true`.
-- **No egress guard.** Unlike the runtime pipelines, these tasks don't get `_env_guard`.
+- **Harbor 0.25 or later is required.** Every task uses a separate verifier and
+  explicit `network_mode = "no-network"`. QA downloads pinned data while building
+  the image; agent and verifier execution stay offline.
+- **Tamper detection is bounded.** Contradictory assertions detect known in-process
+  result forgeries; they are not a proof against arbitrary malicious programs.
+  Build/lint repair checks without parseable test IDs have no assertion controls.
 - **Local files only.** `hf://` trajectory paths aren't supported yet.
-- **Tasks depend on local images** until you publish them with `repo2rlenv push`.
+- **Native generation needs Docker.** Set `DOCKER_HOST` for a remote Docker worker.
+  Emitted bundles include their build context and can be rebuilt by Harbor's
+  Docker, Modal or Daytona provider; published bundles need no controller-local image.
 
 ## Related
 
@@ -209,6 +235,7 @@ The checks and the skip reasons they record:
 | LLM | The model declines, or its output doesn't parse | `llm_declined` |
 | Size | The `extend` prompt exceeds 150,000 characters | `project_too_large` |
 | `qa` grounding | The answer isn't verbatim in the cited output, appears in the question, or an input can't be pinned | `answer_not_in_cited_output`, `answer_in_question`, `input_not_resolvable` |
+| `qa` inputs | Missing dated evidence, or empty/colliding input filenames | `missing_trajectory_date`, `missing_trajectory_timezone`, `invalid_inputs` |
 | `repair` fix scope | The fix edits the check's own configuration | `fix_changes_check_config` |
 | Image | `docker buildx build` fails | `image_build_failed` |
 | `repair` reproduction | The check passes before the fix, or fails with different errors | `check_passes_before_fix`, `check_fails_differently` |
@@ -219,5 +246,28 @@ The checks and the skip reasons they record:
 
 - `solution/solve.sh` restores reference files, so `[metadata.repo2env].recipe` is
   set and `validate --oracle` doesn't require a `patch.diff`.
-- Trials run with `--network none` and a memory cap, so a candidate that only
-  passes online is dropped at generation time.
+- Generated bundles retain the uniform `unverified` evaluation label. Passing
+  construction controls does not substitute for the review and blind rollout
+  evidence required by the quality loop.
+
+## Regression checks
+
+The `Trajectory lifecycle and Harbor controls` CI job runs real Docker generation
+controls and Harbor trials for all four families, using small deterministic
+projects and no model calls. The Harbor cases cover the reference, no-op,
+in-process result forgery and injected pytest-hook submissions. To exercise the
+same emitted tasks on Modal (remote image builds):
+
+```bash
+R2E_HARBOR_TESTS=1 R2E_HARBOR_PROVIDER=modal \
+  uv run --all-extras --frozen pytest tests/test_trajectory_execution.py -q
+```
+
+Provider credentials are required. These opt-in tests incur sandbox charges,
+delete their agent/verifier sandboxes afterward, and make no model calls.
+The ordinary test suite covers unsafe paths, duplicate preservation, malformed
+inputs, scan failures, parameterized test selection and strict answer grading.
+- `tests/test_trajectory_execution.py` covers all families with real generation
+  controls and Harbor oracle/no-op/forgery controls. CI runs these on Docker;
+  `R2E_HARBOR_TESTS=1 R2E_HARBOR_PROVIDER=modal` selects cloud validation without
+  local image builds. Synthetic fixtures exercise the mechanics, not dataset yield.

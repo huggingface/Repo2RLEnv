@@ -78,10 +78,13 @@ flowchart LR
   if an existing test fails. `qa` is binary from a deterministic grader.
 - **Oracle invariant:** every kept task passed a trial where the reference scored
   exactly full reward, inside the task's own image, offline.
-- **Non-tamper:** `repair` restores the check's tests and configuration from
-  `tests/protected/` before grading; hidden tests ship only in `tests/`, which Harbor
-  uploads at verify time. Trials include degenerate attempts (no-op, rewritten check
-  files) that must score 0.
+- **Non-tamper:** use the shared native separate verifier. Only the project
+  submission (or QA answer file) crosses from the stopped agent. Project grading
+  rebuilds source against the pristine image, restores test configuration and
+  uses an unprivileged test runner. Supported assertions receive contradictory
+  test controls to detect in-process result forgery. This is bounded detection,
+  not a guarantee against all malicious code. No-op and tampering controls must
+  score zero; grader infrastructure failures remain ungraded.
 
 ## Anti-contamination
 
@@ -90,9 +93,9 @@ flowchart LR
   from the fix. Package registries
   can serve newer code, so `repair` pins npm to the trajectory's date and `qa` pins
   inputs to the dataset commit at that date.
-- **Guards:** `_env_guard` isn't applied. There is no git history to scrub, and the
-  egress guard would break `qa`, which downloads its inputs in a healthcheck.
-  Trials run with networking off, so generation never relies on the internet.
+- **Guards:** project images retain only a fresh synthetic base commit, with no
+  upstream history. Harbor's explicit no-network policy applies to execution.
+  QA fetches pinned inputs during image construction, before that boundary.
 - **Benchmark material:** the atif-scan gate drops trajectories that saw benchmark
   material or tampered with grading.
 
@@ -116,7 +119,9 @@ scales with the number of `build`, `extend` and `qa` candidates, not emitted tas
 
 ## Dependencies
 
-- **Reused machinery:** `PipelineResult`, the shared LLM client, `validate`, `push`.
+- **Reused machinery:** `PipelineResult`, the shared LLM client, `validate`, `push`,
+  native source reconstruction, configuration guards, unprivileged launcher and
+  contradictory-assertion verifier.
 - **New code:** `pipelines/trajectory/`.
 - **New external deps:** none. atif-scan is optional at runtime.
 

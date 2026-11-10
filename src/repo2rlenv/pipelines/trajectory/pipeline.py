@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import collections
 import concurrent.futures
+import hashlib
 import json
 import shutil
 import tempfile
@@ -22,6 +23,7 @@ from typing import ClassVar
 
 import tomli_w
 
+from repo2rlenv.emitter.evaluation import generated_evaluation
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.trajectory import docker, llm
 from repo2rlenv.pipelines.trajectory.adapters import convert
@@ -50,8 +52,13 @@ def convert_sessions(root: Path, fmt: str, out_dir: Path, limit: int | None) -> 
     sessions = sorted(root.rglob("*.jsonl")) if root.is_dir() else [root]
     converted = []
     for session in sessions[:limit]:
-        destination = out_dir / f"{session.stem}.json"
-        trajectory = convert(str(session), fmt, str(session.resolve()))
+        identity = hashlib.sha256(str(session.resolve()).encode()).hexdigest()[:16]
+        destination = out_dir / f"{session.stem}-{identity}.json"
+        try:
+            trajectory = convert(str(session), fmt, str(session.resolve()))
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+            # Retain a per-input failure for the same reporting boundary as ATIF inputs.
+            trajectory = {"conversion_error": f"{type(error).__name__}: {error}"[:500]}
         destination.write_text(json.dumps(trajectory, indent=1, ensure_ascii=False))
         converted.append(destination)
     return converted
@@ -70,6 +77,7 @@ def add_provenance(task_dir: Path, record: dict) -> None:
         "reproducibility": {"mode": "inline_dockerfile"},
         "family": record["family"],
         "source_trace": str(record["source_trace"]),
+        "evaluation": generated_evaluation(provenance="unattended"),
     }
     toml_path.write_text(tomli_w.dumps(data))
 
@@ -129,6 +137,20 @@ class TrajectoryPipeline:
         seen_task_ids = {name: set() for name in options.families}
 
         def process(path: Path) -> list[dict]:
+            try:
+                return process_one(path)
+            except Exception as error:
+                return [
+                    {
+                        "trajectory": str(path),
+                        "family": "-",
+                        "kept": False,
+                        "reason": "input_error",
+                        "detail": f"{type(error).__name__}: {error}"[:500],
+                    }
+                ]
+
+        def process_one(path: Path) -> list[dict]:
             passed_gate, gate_result = scan_trajectory(path) if options.scan else (True, "skipped")
             if not passed_gate:
                 return [
@@ -153,7 +175,7 @@ class TrajectoryPipeline:
                         records.append({"trajectory": str(path), "gate": gate_result, **record})
                         status = "kept" if record["kept"] else "drop"
                         console.dim(f"{status}  {name:<7} {record['reason']:<28} {path.name}")
-                except llm.BudgetExceeded as error:
+                except Exception as error:
                     # qa asks the model inside find_candidates, before make_tasks' own handling
                     records.append(
                         {
@@ -162,8 +184,10 @@ class TrajectoryPipeline:
                             "family": name,
                             "source_trace": trajectory.source,
                             "kept": False,
-                            "reason": "budget_exhausted",
-                            "detail": str(error),
+                            "reason": "budget_exhausted"
+                            if isinstance(error, llm.BudgetExceeded)
+                            else "error",
+                            "detail": f"{type(error).__name__}: {error}"[:500],
                         }
                     )
             return records

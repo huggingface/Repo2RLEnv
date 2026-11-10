@@ -35,7 +35,10 @@ The native `trajectory_to_env` pipeline also retains adapted code:
 
 | Component | Source | Bundled material license | Scope and changes |
 |---|---|---|---|
-| `pipelines/trajectory/assets/grader.py` | [SmolDataEnvs](https://huggingface.co/datasets/FineEnvs/SmolDataEnvs-harbor-train) | MIT | Deterministic short-answer grader for `qa` tasks; reformatted only |
+| `pipelines/trajectory/assets/grader.py` | [SmolDataEnvs](https://huggingface.co/datasets/FineEnvs/SmolDataEnvs-harbor-train) | MIT | Deterministic short-answer grader; added strict answer types and bounded Decimal parsing for trajectory tasks |
+
+The trajectory grader's [license and attribution](src/repo2rlenv/pipelines/trajectory/assets/UPSTREAM_LICENSE)
+ship in the package and in each emitted QA task's `tests/` directory.
 
 ## DataArc revision boundary
 

@@ -8,6 +8,8 @@
 Writes /calibration/results.json: {variant: {test name: "passed" | "failure" | "error" | "skipped"}}
 """
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
@@ -17,7 +19,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 CALIBRATION = Path("/calibration")
-workspace = Path(os.environ["WORKSPACE"])
+workspace = Path(os.environ["WORKSPACE"]).resolve()
 known_files_path = CALIBRATION / "known_files.json"
 known_files = json.loads(known_files_path.read_text()) if known_files_path.exists() else None
 base = Path("/tmp/workspace_base")

@@ -13,8 +13,10 @@ import io
 import shlex
 import subprocess
 import tarfile
+import tempfile
+import uuid
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 PLATFORM = "linux/amd64"
 CONTAINER_MEMORY = "4g"  # the most any task.toml asks for (memory_mb)
@@ -64,6 +66,7 @@ def build_image(tag: str, context_dir: Path) -> str | None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        timeout=1200,
     )
     if process.returncode == 0:
         return None
@@ -84,26 +87,154 @@ def run_in_container(
     network_args = [] if network else ["--network", "none"]
     # A runaway test must fail its own trial, not exhaust the host (the out-of-memory killer then hits anything).
     memory_args = ["--memory", CONTAINER_MEMORY, "--memory-swap", CONTAINER_MEMORY]
-    process = subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
+    name = "r2e-trajectory-" + uuid.uuid4().hex
+    try:
+        process = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--name",
+                name,
+                *platform_args(),
+                *network_args,
+                *memory_args,
+                *volume_args,
+                image,
+                "bash",
+                "-c",
+                script,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout_seconds,
+        )
+        return process.returncode, process.stdout + process.stderr
+    finally:
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+
+
+def _submission_archive(source: Path, target: Path, root: str) -> None:
+    """Copy bounded ordinary files only; never extract an agent archive on the host."""
+    size = 0
+    names = set()
+    with tarfile.open(source) as incoming, tarfile.open(target, "w") as outgoing:
+        for member in incoming:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] != root:
+                raise ValueError("Submission archive escapes its artifact root")
+            if member.name in names or len(names) >= 50_000:
+                raise ValueError("Submission archive has duplicate or excessive entries")
+            names.add(member.name)
+            size += member.size
+            if size > 256 * 1024 * 1024:
+                raise ValueError("Submission archive exceeds 256 MiB")
+            # Dependencies and links are not a submission transport. The native
+            # grader rebuilds dependencies from the fresh image after transfer.
+            if not (member.isfile() or member.isdir()):
+                continue
+            member.uid = member.gid = 0
+            member.uname = member.gname = "root"
+            member.mode = 0o755 if member.isdir() or member.mode & 0o111 else 0o644
+            outgoing.addfile(member, incoming.extractfile(member) if member.isfile() else None)
+
+
+def run_separate_trial(
+    image: str,
+    task_dir: Path,
+    setup: str,
+    verify: str,
+    artifacts: list[dict],
+    mounts: dict[Path, str],
+) -> tuple[int, str]:
+    """Run a control with the same fresh-verifier boundary as the emitted Harbor task.
+
+    The agent receives /solution only for the reference control, never /tests.
+    Stop it before artifact capture. Tests are copied into a new container, not
+    bind-mounted: the root grader changes their ownership and permissions.
+    """
+    names = ["r2e-trajectory-" + uuid.uuid4().hex for _ in range(2)]
+    agent, verifier = names
+    transfer = "/tmp/" + uuid.uuid4().hex
+    sources = [PurePosixPath(artifact["source"]) for artifact in artifacts]
+    if any(str(source) not in {"/workspace", "/workdir/answer.txt"} for source in sources):
+        raise ValueError("Unsupported trajectory artifact")
+    # Docker cp merges existing directories. Replace each destination explicitly
+    # so a submitted deletion cannot silently resurrect a file from the image.
+    restore = ""
+    for source in sources:
+        incoming = f"{transfer}/{source.name}"
+        restore += f"rm -rf -- {source}\nif [ -e {incoming} ]; then mv -- {incoming} {source}; fi\n"
+
+    def docker(*args, **kwargs):
+        return subprocess.run(["docker", *args], timeout=kwargs.pop("timeout", 60), **kwargs)
+
+    def create(name, command, volumes):
+        args = []
+        for source, target in volumes.items():
+            args += ["-v", f"{source.resolve()}:{target}"]
+        docker(
+            "create",
+            "--name",
+            name,
             *platform_args(),
-            *network_args,
-            *memory_args,
-            *volume_args,
+            "--network",
+            "none",
+            "--memory",
+            CONTAINER_MEMORY,
+            "--memory-swap",
+            CONTAINER_MEMORY,
+            "--cpus",
+            "2",
+            "--pids-limit",
+            "512",
+            *args,
             image,
             "bash",
             "-c",
-            script,
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=timeout_seconds,
-    )
-    return process.returncode, process.stdout + process.stderr
+            command,
+            capture_output=True,
+            check=True,
+        )
+
+    try:
+        create(agent, setup, {task_dir / "solution": "/solution:ro", **mounts})
+        result = docker("start", "-a", agent, capture_output=True, text=True, timeout=900)
+        if result.returncode:
+            return result.returncode, result.stdout + result.stderr
+        docker("stop", agent, capture_output=True)
+        create(verifier, "set -e\n" + restore + verify, {})
+        docker("cp", str(task_dir / "tests"), f"{verifier}:/tests", capture_output=True, check=True)
+        with tempfile.TemporaryDirectory(prefix="trajectory-artifacts-") as temporary:
+            raw, safe = Path(temporary) / "raw.tar", Path(temporary) / "safe.tar"
+            empty = Path(temporary) / "empty"
+            empty.mkdir()
+            docker("cp", str(empty), f"{verifier}:{transfer}", capture_output=True, check=True)
+            for source in sources:
+                with raw.open("wb") as output:
+                    copied = docker(
+                        "cp", f"{agent}:{source}", "-", stdout=output, stderr=subprocess.PIPE
+                    )
+                if copied.returncode:
+                    # Missing answers are a valid no-op control; infrastructure
+                    # errors still fail at verification rather than becoming a reward.
+                    continue
+                _submission_archive(raw, safe, source.name)
+                with safe.open("rb") as payload:
+                    docker(
+                        "cp",
+                        "-",
+                        f"{verifier}:{transfer}",
+                        stdin=payload,
+                        capture_output=True,
+                        check=True,
+                    )
+            result = docker("start", "-a", verifier, capture_output=True, text=True, timeout=1800)
+            return result.returncode, result.stdout + result.stderr
+    finally:
+        for name in names:
+            docker("rm", "-f", name, capture_output=True)
 
 
 def read_files_from_image(

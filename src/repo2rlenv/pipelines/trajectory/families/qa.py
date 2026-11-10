@@ -17,9 +17,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from repo2rlenv.pipelines.pr_runtime import separate_head, separate_verifier_files
 
 from ..llm import ask
+from ..paths import relative_path, within
 from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml
 from ..trajectory import Trajectory
 
@@ -46,9 +49,10 @@ DOCKERFILE = f"""FROM python:3.12-slim
 {AGENT_TOOLS}
 RUN pip install --no-cache-dir pandas==2.2.3 numpy==2.1.3 scipy==1.14.1 pyarrow==18.1.0 duckdb==1.1.3 huggingface_hub==0.30.2
 COPY pull_inputs.py inputs.json /opt/
+RUN python3 /opt/pull_inputs.py
 WORKDIR /workdir
 """
-PULL_INPUTS = '''"""Stage the pinned input files into /home/user/input (run by the healthcheck, before the agent)."""
+PULL_INPUTS = '''"""Stage pinned input files during image construction; execution stays offline."""
 import json
 import shutil
 from pathlib import Path
@@ -61,11 +65,16 @@ for file in json.loads(Path("/opt/inputs.json").read_text()):
         local = hf_hub_download(file["repo_id"], file["path_in_repo"], repo_type="dataset", revision=file["commit"])
         shutil.copyfile(local, destination / file["local_name"])
 '''
-TEST_SH = """#!/usr/bin/env bash
-mkdir -p /logs/verifier
-[ -s /workdir/answer.txt ] || { echo 0.0 > /logs/verifier/reward.txt; exit 0; }
-python3 /tests/grader.py < /workdir/answer.txt > /logs/verifier/reward.txt
+TEST_SH = (
+    separate_head(None)
+    + """
+status="$("$R2E_PY" -B -I -S /tests/grader_tools.py check --path /workdir/answer.txt --max-bytes 65536)"
+[ "$?" -eq 0 ] && [ "$status" = ok ] || r2e_finish graded invalid_answer 'missing or unsafe answer'
+"$R2E_PY" -B -I -S /tests/grader.py < /workdir/answer.txt > /logs/verifier/reward.txt
+[ "$?" -eq 0 ] || r2e_finish ungraded grader_error 'answer grader failed'
+r2e_open_logs
 """
+)
 SOLVE_SH = f"""#!/usr/bin/env bash
 # The reference solution, which reproduced the gold answer on the pinned inputs.
 INPUT_DIR={INPUT_DIR} python3 /solution/solve.py | tail -n 1 | tr -d '\\n' > /workdir/answer.txt
@@ -90,6 +99,14 @@ class InputFile(BaseModel):
     revision: str
     path_in_repo: str
     local_name: str
+
+    @field_validator("local_name")
+    @classmethod
+    def safe_local_name(cls, value: str) -> str:
+        relative_path(value)
+        if "/" in value:
+            raise ValueError("QA inputs must be single filenames")
+        return value
 
 
 class ProposedQuestion(BaseModel):
@@ -150,7 +167,10 @@ def pin_to_commit_at(input_file: InputFile, when: datetime) -> dict:
     commits = HfApi().list_repo_commits(
         input_file.repo_id, repo_type="dataset", revision=input_file.revision
     )
-    commit = ([c for c in commits if c.created_at <= when] or commits)[0].commit_id  # newest first
+    eligible = [c for c in commits if c.created_at <= when]
+    if not eligible:
+        raise ValueError("No dataset commit exists at the trajectory date")
+    commit = eligible[0].commit_id  # newest first
     downloaded = hf_hub_download(
         input_file.repo_id, input_file.path_in_repo, repo_type="dataset", revision=commit
     )
@@ -189,9 +209,15 @@ class QA(Family):
             raise Reject("answer_in_question")
         first_timestamp = next(
             (s["timestamp"] for s in c.trajectory.steps if s.get("timestamp")),
-            "2100-01-01T00:00:00Z",
+            None,
         )
+        if first_timestamp is None:
+            raise Reject("missing_trajectory_date")
         when = datetime.fromisoformat(first_timestamp.replace("Z", "+00:00"))
+        if when.tzinfo is None:
+            raise Reject("missing_trajectory_timezone")
+        if not p.inputs or len({f.local_name for f in p.inputs}) != len(p.inputs):
+            raise Reject("invalid_inputs", "Need inputs with distinct local filenames")
         try:
             c.pinned_inputs = [pin_to_commit_at(input_file, when) for input_file in p.inputs]
         except Exception as error:
@@ -208,11 +234,8 @@ class QA(Family):
             "inputs.json": json.dumps(inputs_json, indent=1),
         }
 
-    def image_tag(self, c: QACandidate) -> str:
-        return "repo2rlenv-trajectory-qa"  # same image for every qa task; inputs are pulled at start, not baked in
-
     def verifier_env(self, c: QACandidate) -> dict[str, str]:
-        reward_mode = "list" if c.proposal.answer_kind == "list" else "flexible"
+        reward_mode = "strict_" + c.proposal.answer_kind
         return {
             "EXPECTED_ANSWER": c.proposal.gold_answer,
             "QUESTION": c.proposal.question,
@@ -229,7 +252,9 @@ class QA(Family):
                 question=p.question,
             ),
             "tests/test.sh": TEST_SH,
+            **separate_verifier_files(),
             "tests/grader.py": GRADER.read_text(),
+            "tests/UPSTREAM_LICENSE": GRADER.with_name("UPSTREAM_LICENSE").read_text(),
             "solution/solve.py": p.reference_solution,
             "solution/solve.sh": SOLVE_SH,
             "task.toml": task_toml(
@@ -246,18 +271,16 @@ class QA(Family):
                     "input_commits": [f["commit"] for f in c.pinned_inputs],
                 },
                 verifier_env=self.verifier_env(c),
-                allow_internet=True,
-                healthcheck_command=f'python3 /opt/pull_inputs.py && [ -n "$(ls {INPUT_DIR})" ]',
+                allow_internet=False,
             ),
         }
 
     def trials(self, c: QACandidate, scratch_dir: Path) -> tuple[list[Trial], dict]:
-        staged_inputs = (
-            scratch_dir / "inputs"
-        )  # stands in for the healthcheck download (trials run offline)
+        # Reuse the pinned download for controls without a second runtime fetch.
+        staged_inputs = scratch_dir / "inputs"
         staged_inputs.mkdir()
         for f in c.pinned_inputs:
-            shutil.copyfile(f["downloaded_path"], staged_inputs / f["local_name"])
+            shutil.copyfile(f["downloaded_path"], within(staged_inputs, f["local_name"]))
         wrong_answer = (
             "-987654321" if c.proposal.answer_kind == "number" else "certainly not the answer"
         )

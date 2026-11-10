@@ -16,12 +16,14 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .. import llm
 from ..docker import run_in_container
+from ..grading import project_image, python_verifier_files
 from ..llm import ask
 from ..mutants import make_mutants
+from ..paths import relative_path
 from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml, write_files
 from ..trajectory import Trajectory
 
@@ -58,22 +60,6 @@ ENV WORKSPACE={root}
 WORKDIR {root}
 """
 )
-TEST_SH = """#!/usr/bin/env bash
-# Run the hidden tests against the workspace; reward = fraction passed.
-mkdir -p /logs/verifier
-cd /tmp && python -m pytest -q -p no:cacheprovider --timeout=60 --junitxml=/logs/verifier/junit.xml \\
-  /tests/test_hidden.py > /logs/verifier/pytest.log 2>&1
-python - <<'PY'
-import xml.etree.ElementTree as ET
-passed = 0
-try:
-    for case in ET.parse("/logs/verifier/junit.xml").getroot().iter("testcase"):
-        passed += not any(child.tag in ("failure", "error", "skipped") for child in case)
-except Exception:
-    pass
-open("/logs/verifier/reward.txt", "w").write(f"{{min(passed, {total}) / {total}:.4f}}\\n")
-PY
-"""
 INSTRUCTION = """Build the following project from scratch in `{root}` (it is currently empty).
 
 ## Request
@@ -96,6 +82,8 @@ class GeneratedFile(BaseModel):
     path: str = Field(description="path relative to the project root")
     content: str
 
+    _safe_path = field_validator("path")(relative_path)
+
 
 class GeneratedTests(BaseModel):
     contract: str
@@ -117,6 +105,7 @@ class BuildCandidate:
 def keep_only_tests(test_module: str, kept_test_names: set[str]) -> str:
     """Remove test functions (and TestClass methods) whose pytest name isn't kept."""
     tree = ast.parse(test_module)
+    kept_functions = {name.split("[", 1)[0] for name in kept_test_names}
 
     def filter_body(body: list[ast.stmt], prefix: str = "") -> list[ast.stmt]:
         kept = []
@@ -124,7 +113,7 @@ def keep_only_tests(test_module: str, kept_test_names: set[str]) -> str:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
                 "test"
             ):
-                if prefix + node.name in kept_test_names:
+                if prefix + node.name in kept_functions:
                     kept.append(node)
             elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
                 node.body = filter_body(node.body, node.name + "::") or [ast.Pass()]
@@ -175,6 +164,8 @@ class Build(Family):
             f"### {path}\n```\n{content}\n```"
             for path, content in sorted(c.reference_files.items())
         )
+        if len(reference) + len(c.request) > 150_000:
+            raise Reject("project_too_large")
         c.generated = ask(
             SYSTEM_PROMPT.format(root=c.project_root),
             f"<request>\n{c.request}\n</request>\n\n<reference>\n{reference}\n</reference>",
@@ -184,7 +175,9 @@ class Build(Family):
             raise Reject("llm_declined")
 
     def environment_files(self, c: BuildCandidate) -> dict[str, str]:
-        return {"Dockerfile": DOCKERFILE.format(root=c.project_root)}
+        return {
+            "Dockerfile": DOCKERFILE.format(root=c.project_root) + project_image(c.project_root)
+        }
 
     def check_in_image(self, c: BuildCandidate, image: str, scratch_dir: Path) -> None:
         """Run the candidate tests on the reference, the stub, an empty workspace and mutants."""
@@ -245,8 +238,9 @@ class Build(Family):
             "instruction.md": INSTRUCTION.format(
                 root=c.project_root, request=c.request, contract=c.generated.contract.strip()
             ),
-            "tests/test_hidden.py": keep_only_tests(c.generated.tests, c.kept_tests),
-            "tests/test.sh": TEST_SH.format(total=len(c.kept_tests)),
+            **python_verifier_files(
+                keep_only_tests(c.generated.tests, c.kept_tests), c.kept_tests, set()
+            ),
             "solution/solve.sh": f"#!/usr/bin/env bash\nset -e\n# The original agent's implementation.\ncp -a /solution/files/. {c.project_root}/\n",
             **{f"solution/files/{path}": content for path, content in c.reference_files.items()},
             "task.toml": task_toml(
