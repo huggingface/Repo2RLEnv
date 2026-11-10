@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tomllib
 from importlib.resources import files
+from types import SimpleNamespace
 
 import pytest
 
 from repo2rlenv.pipelines.recipes.catalog import get_recipe
+from repo2rlenv.pipelines.recipes.scaler import worker
 from repo2rlenv.pipelines.recipes.scaler.export import export_task
 from repo2rlenv.pipelines.recipes.scaler.families import (
     load_families,
@@ -35,6 +38,50 @@ def test_native_scaling_and_tuple_parser():
     assert parse_testcase("'3 4', {\"a\": 3}") == ("3 4", {"a": 3})
     with pytest.raises(ValueError):
         parse_testcase("('1 2', ['wrong'])")
+
+
+@pytest.mark.parametrize(
+    ("stdout", "answer"), [("YES\n", "\\boxed{YES}"), ("YES 3\n", None)], ids=["one", "two"]
+)
+def test_string_reference_output_must_be_one_token(tmp_path, monkeypatch, stdout, answer):
+    def fake_execute(image, code, language, stdin, directory, timeout):
+        directory.mkdir(parents=True)
+        generator = "generate_testcase(" in code
+        return {
+            "returncode": 0,
+            "oom": False,
+            "output_truncated": False,
+            "stdout": "('5 2', {'n': 5})\n" if generator else stdout,
+            "stderr": "",
+            "language": language,
+            "code_sha256": "0" * 64,
+        }
+
+    monkeypatch.setattr(worker, "execute", fake_execute)
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr="")
+    )
+    monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: json.dumps([{"Id": "img"}]))
+    string_family = {
+        **family(),
+        "output_type": "string",
+        "difficulty_dict": {"2": 1},
+        "solutions": {"solution": ["print('YES')"], "language": [3]},
+    }
+    result = worker.generate(
+        {
+            "options": {"difficulties": [2], "target": 1, "max_candidates": 1},
+            "families": {"verdict": string_family},
+            "source_sha256": "0" * 64,
+        },
+        tmp_path / "generation",
+    )
+    if answer is None:
+        assert result["candidates"] == []
+        assert [r["reason"] for r in result["rejected"]] == ["family_execution"]
+        assert "single token" in result["rejected"][0]["detail"]
+    else:
+        assert [c["reference_answer"] for c in result["candidates"]] == [answer]
 
 
 def test_family_controller_requires_no_model_and_hashes_input(tmp_path):
