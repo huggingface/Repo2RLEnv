@@ -116,17 +116,17 @@ holds 50 verified tasks from Accelerate, Diffusers, PEFT, Transformers and TRL.
 ## What you can build
 
 Every generator produces a Harbor task. They differ in what they start from and how the
-agent's work is scored. **[Browse all 23 →](https://huggingface.github.io/Repo2RLEnv/pipelines/)**
+agent's work is scored. **[Browse all 24 →](https://huggingface.github.io/Repo2RLEnv/pipelines/)**
 
 | Kind of task | Generators | How it's scored |
 |---|---|---|
-| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
+| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), [`trajectory_to_env`](https://huggingface.github.io/Repo2RLEnv/pipelines/trajectory_to_env/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
 | **Implementation and reconstruction:** write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
 | **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Diff similarity plus a required correctness judge; unavailable judgments are ungraded. No test suite needed |
 | **Terminal tasks:** reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
 | **Reasoning and optimization:** no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
 
-The six native pipelines run on your machine. Tasksmith and the research recipes run
+The seven native pipelines run on your machine. Tasksmith and the research recipes run
 their target code on Modal or Daytona workers, inside a budget you set.
 
 ### Watch how they work

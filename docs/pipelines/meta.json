@@ -7,6 +7,7 @@
     "pr_runtime",
     "commit_runtime",
     "cve_patches",
+    "trajectory_to_env",
     "repo_mutate",
     "swe_next",
     "r2e_gym",

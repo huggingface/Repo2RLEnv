@@ -23,7 +23,7 @@ Three kinds of generator write the same output format. Pick one by the input you
 
 | Generator | Input | Entry point | Runs on | Status |
 |---|---|---|---|---|
-| [Native pipelines](glossary.mdx#native-pipeline) | A repository and its PRs, commits, CVE advisories or functions | `repo2rlenv generate --repo <repo> --pipeline <name>` | Your machine | `pr_diff`, `pr_runtime`, `commit_runtime` stable; `code_instruct`, `equivalence_tests`, `cve_patches` experimental |
+| [Native pipelines](glossary.mdx#native-pipeline) | A repository and its PRs, commits, CVE advisories or functions, or recorded agent trajectories | `repo2rlenv generate --repo <repo> --pipeline <name>`, or `--config <file>` for trajectories | Your machine | `pr_diff`, `pr_runtime`, `commit_runtime` stable; `code_instruct`, `equivalence_tests`, `cve_patches`, `trajectory_to_env` experimental |
 | [Tasksmith](../pipelines/tasksmith.md) | Merged PRs | `repo2rlenv tasksmith run` | Controller plus remote worker | Experimental |
 | [Research recipes](../pipelines/owned_recipes.md) | Repositories, PR history, question/answer seeds, Harbor seed tasks, terminal recordings or reasoning families | `repo2rlenv generate --config <file>`, with `pipeline.name` and `pipeline.recipe` set in the file | Controller plus remote worker | 16 recipes, all experimental |
 

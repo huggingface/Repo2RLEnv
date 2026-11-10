@@ -8,6 +8,43 @@ only the compressed summary; the detail lives here.
 For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
 `v0.8.3/`).
 
+## v0.9.6: Trajectory generation and isolated grading
+
+Released November 11, 2026.
+
+- Adds the experimental [`trajectory_to_env`](../pipelines/trajectory_to_env.md)
+  pipeline: replay ATIF, Claude Code, Codex or Pi sessions into repair, build,
+  extend and question-answering Harbor tasks. Generation checks reference
+  solutions, rejects unsafe paths and preserves per-candidate failures without
+  aborting the batch. Thanks to @younesbelkada for the original implementation
+  ([#237](https://github.com/huggingface/Repo2RLEnv/pull/237)).
+- Native pipelines grade a captured submission in a fresh verifier environment.
+  Hidden tests and grading tools stay outside the agent environment; supported
+  test suites also run contradictory assertions to detect forged passing results
+  ([#232](https://github.com/huggingface/Repo2RLEnv/pull/232),
+  [#234](https://github.com/huggingface/Repo2RLEnv/pull/234)).
+- PR-diff runs with unavailable correctness evidence emit no reward file, keeping
+  ungraded attempts distinguishable from genuine zero rewards
+  ([#233](https://github.com/huggingface/Repo2RLEnv/pull/233)).
+- Updates the stable SDK combination to LiteLLM **1.108.3**, OpenAI **3.42.1** and
+  Hugging Face Hub **1.33.0**. The package now requires patched
+  `filelock>=4.2.1,<5` directly, so new wheel installations no longer need the
+  earlier uv-only override. Also updates Python dependencies, coding runtimes,
+  docs tooling and pinned GitHub Actions.
+
+The trajectory implementation passed 21 Docker generation and Harbor controls,
+16 Modal controls and the full 2,678-test local suite. These checks cover task
+construction and known verifier attacks; broad task-quality evaluation and blind
+model rollouts remain separate work. Generated tasks retain unverified quality
+labels until evaluated. The verifier controls do not prove resistance to arbitrary
+malicious code.
+
+Upgrade with `pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.6`,
+adding the extras your pipeline needs. Rebuild remote worker wheels and rerun
+`repo2rlenv tasksmith install-runtime` for coding-runtime updates. Existing Hub
+datasets are unchanged: regenerate tasks to adopt the new verifier layout and
+rerun baseline, oracle and forgery controls before using them for training.
+
 ## v0.9.5: Verifier hardening and stable dependency updates
 
 Released November 4, 2026.

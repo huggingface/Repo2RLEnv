@@ -19,7 +19,7 @@ Building these by hand takes hours per task, and a useful training run needs tho
 
 ## Three ways to generate tasks
 
-- **[Native pipelines](concepts/glossary.mdx#native-pipeline):** six built-in generators that mine a repository's PRs, commits, functions or CVEs. They run on your machine, with Docker for test-based tasks.
+- **[Native pipelines](concepts/glossary.mdx#native-pipeline):** seven built-in generators that mine a repository's PRs, commits, functions or CVEs, or recorded agent trajectories. They run on your machine, with Docker for test-based tasks.
 - **[Tasksmith](pipelines/tasksmith.md):** an agent investigates one merged PR, builds its environment, designs the task, then reviews and repairs it. It runs on Modal or Daytona workers.
 - **[Research recipes](pipelines/owned_recipes.md):** 16 in-repo implementations of published methods (SWE-smith, SWE-gen, R2E-Gym, SETA, SCALER, FrontierSmith and more) for repair, terminal and reasoning tasks. These also run on Modal or Daytona workers.
 
