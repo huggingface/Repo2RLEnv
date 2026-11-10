@@ -1,12 +1,13 @@
 [project]
 name = "repo2rlenv"
-version = "0.9.5"
+version = "0.9.6"
 description = "Turn any repository into an RL environment for training and evaluation."
 readme = "README.md"
 license = "Apache-2.0 AND MIT"
 license-files = [
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
+    "src/repo2rlenv/pipelines/trajectory/assets/UPSTREAM_LICENSE",
     "src/repo2rlenv/pipelines/recipes/cli_gym/UPSTREAM_LICENSE",
     "src/repo2rlenv/pipelines/recipes/endless_terminals/UPSTREAM_LICENSE",
     "src/repo2rlenv/pipelines/recipes/r2e/UPSTREAM_LICENSE",

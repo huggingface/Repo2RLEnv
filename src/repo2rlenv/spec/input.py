@@ -26,6 +26,8 @@ class PipelineName(StrEnum):
     TERMINAL_SYNTH = "terminal_synth"
     TERMINAL_RECONSTRUCT = "terminal_reconstruct"
     TASK_EVOLVE = "task_evolve"
+    # Mined from agent trajectories (ATIF or harness session logs)
+    TRAJECTORY_TO_ENV = "trajectory_to_env"
     ENV_REPAIR = "env_repair"
     REASONING_SYNTH = "reasoning_synth"
     OPTIMIZATION_SYNTH = "optimization_synth"
@@ -149,6 +151,15 @@ class RecordingSource(BaseModel):
     path: Path
 
 
+class TrajectorySource(BaseModel):
+    """Agent trajectories: ATIF .json files, or raw Claude Code / Codex / pi session .jsonl logs."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["trajectory"] = "trajectory"
+    path: Path
+    format: Literal["atif", "claude-code", "codex", "pi"] = "atif"
+
+
 class FamilySource(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["family"] = "family"
@@ -156,7 +167,13 @@ class FamilySource(BaseModel):
 
 
 SourceSpec = Annotated[
-    RepositorySource | PRSource | SeedSource | TaskSource | RecordingSource | FamilySource,
+    RepositorySource
+    | PRSource
+    | SeedSource
+    | TaskSource
+    | RecordingSource
+    | TrajectorySource
+    | FamilySource,
     Field(discriminator="kind"),
 ]
 
@@ -320,7 +337,11 @@ class GenerationInput(BaseModel):
             self.repo = self.source.repo
         elif self.repo is not None:
             raise ValueError("A non-repository source cannot also specify repo")
-        if self.pipeline.recipe == "native" and self.repo is None:
+        if (
+            self.pipeline.recipe == "native"
+            and self.repo is None
+            and not isinstance(self.source, TrajectorySource)
+        ):
             raise ValueError(
                 "Native pipelines require a repository; select an owned recipe for this source"
             )
