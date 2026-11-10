@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import ast
 import importlib
+import os
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -59,6 +63,54 @@ def test_build_environment_dockerfile_includes_scrub_and_keeps_base():
     assert "git reset --hard 9d2747057c4a" in df  # working tree at base
     assert "git remote remove origin" in df  # future pruned
     assert "git gc --prune=now" in df
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+
+
+@pytest.mark.skipif(shutil.which("git") is None or os.name == "nt", reason="needs git and sh")
+@pytest.mark.parametrize("clone_args", [["--filter=blob:none"], []], ids=["partial", "full"])
+def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_args):
+    """Run the scrub's RUN lines on a clone of base -> fix; only base may survive."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for var in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{var}_NAME", "t")
+        monkeypatch.setenv(f"GIT_{var}_EMAIL", "t@example.com")
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    _git(upstream, "init", "-q", "-b", "main")
+    _git(upstream, "config", "uploadpack.allowFilter", "true")
+    (upstream / "lib.py").write_text("def f():\n    return 1\n")
+    _git(upstream, "add", ".")
+    _git(upstream, "commit", "-qm", "base")
+    base = _git(upstream, "rev-parse", "HEAD").stdout.strip()
+    (upstream / "lib.py").write_text("def f():\n    return 2  # the fix\n")
+    _git(upstream, "commit", "-qam", "Fix f")
+    fix = _git(upstream, "rev-parse", "HEAD").stdout.strip()
+
+    workspace = tmp_path / "workspace"
+    cloned = _git(tmp_path, "clone", "-q", *clone_args, f"file://{upstream}", str(workspace))
+    assert cloned.returncode == 0, cloned.stderr
+    assert _git(workspace, "reset", "-q", "--hard", base).returncode == 0
+    for run in re.split(r"^RUN ", git_history_scrub(base), flags=re.MULTILINE):
+        step = run.replace("\\\n", " ").strip()
+        if step:
+            done = subprocess.run(["sh", "-c", step], cwd=workspace, capture_output=True, text=True)
+            assert done.returncode == 0, (step, done.stderr)
+
+    assert _git(workspace, "cat-file", "-e", fix).returncode != 0
+    objects = subprocess.run(
+        ["git", "cat-file", "--batch-all-objects", "--batch"], cwd=workspace, capture_output=True
+    )
+    assert b"the fix" not in objects.stdout
+    commits = _git(workspace, "cat-file", "--batch-all-objects", "--batch-check")
+    assert [line.split()[0] for line in commits.stdout.splitlines() if " commit " in line] == [base]
+    # The verifier still resets files against base and diffs against it.
+    assert _git(workspace, "checkout", base, "--", "lib.py").returncode == 0
+    assert _git(workspace, "diff", "--quiet", base).returncode == 0
+    assert _git(workspace, "fsck", "--no-progress").returncode == 0
 
 
 # --- source-aware host list ---------------------------------------------------

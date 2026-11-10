@@ -356,7 +356,10 @@ brackets are left behind:
 - The Dockerfile clones over HTTPS (SSH and `http://` inputs are rewritten), fetches
   the base commit, runs `git reset --hard` and `git clean`, then scrubs history:
   it removes `origin`, deletes every other branch and tag, expires the reflog and
-  garbage-collects, keeping only the base commit reachable.
+  garbage-collects, keeping only the base commit reachable. The clone is partial
+  (`--filter=blob:none`), and `gc` keeps unreachable objects from partial-clone
+  packs, so the scrub then repacks just what the base reaches and drops the old
+  packs.
 - No agent tooling is installed. Harbor's agent adapter installs what it needs when
   the container starts, so the same task works with any harness.
 - `test.sh` stages new files before diffing (`git add -A`). Without that, files the
