@@ -156,7 +156,13 @@ def make_tasks(
             }
         finally:
             if staging is not None:
-                staging.cleanup()
+                try:
+                    staging.cleanup()
+                except PermissionError:
+                    # Calibration can create root-owned directories on a Linux
+                    # bind mount. Delete only this candidate's private staging,
+                    # never the destination or a duplicate's accepted task.
+                    remove_as_root(Path(staging.name))
 
 
 def run_trials(

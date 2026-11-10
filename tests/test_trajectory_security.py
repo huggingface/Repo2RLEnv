@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import subprocess
 import tarfile
 import tomllib
@@ -115,6 +116,27 @@ def test_same_basename_sessions_remain_distinct(tmp_path):
     paths = convert_sessions(tmp_path / "source", "pi", destination, None)
     assert len(set(paths)) == 2
     assert [json.loads(p.read_text())["session_id"] for p in paths] == ["a", "b"]
+
+
+def test_root_owned_staging_cleanup_preserves_published_task(tmp_path, monkeypatch):
+    monkeypatch.setattr(task, "build_image", lambda *a: None)
+    monkeypatch.setattr(task, "run_trials", lambda *a: {})
+    monkeypatch.setattr(
+        task.tempfile.TemporaryDirectory,
+        "cleanup",
+        lambda self: (_ for _ in ()).throw(PermissionError("root-owned calibration output")),
+    )
+    removed = []
+
+    def remove(path):
+        removed.append(path)
+        shutil.rmtree(path)
+
+    monkeypatch.setattr(task, "remove_as_root", remove)
+    records = list(task.make_tasks(MinimalFamily(), Trajectory({"steps": []}), tmp_path, set()))
+    assert len(records) == 1 and records[0]["kept"]
+    assert len(removed) == 1 and removed[0].name.startswith(".trajectory-")
+    assert (tmp_path / "one/task.toml").is_file()
 
 
 def test_bad_input_and_provider_failure_are_reported(tmp_path, monkeypatch):

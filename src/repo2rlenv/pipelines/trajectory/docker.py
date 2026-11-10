@@ -33,6 +33,8 @@ def remove_as_root(path: Path) -> None:
             "docker",
             "run",
             "--rm",
+            "--network",
+            "none",
             "-v",
             f"{path.parent.resolve()}:/parent",
             "busybox:1.36",
@@ -42,6 +44,7 @@ def remove_as_root(path: Path) -> None:
         ],
         capture_output=True,
         check=True,
+        timeout=120,
     )
 
 

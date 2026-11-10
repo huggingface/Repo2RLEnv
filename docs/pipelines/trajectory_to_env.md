@@ -210,7 +210,8 @@ LiteLLM's price table, or from the cost the provider reports when LiteLLM can't 
   result forgeries; they are not a proof against arbitrary malicious programs.
   Build/lint repair checks without parseable test IDs have no assertion controls.
 - **Local files only.** `hf://` trajectory paths aren't supported yet.
-- **Native generation needs Docker.** Set `DOCKER_HOST` for a remote Docker worker.
+- **Native generation needs Docker.** Run the CLI on the Docker worker, or use
+  `DOCKER_HOST` with a shared workspace at the same paths: calibration uses bind mounts.
   Emitted bundles include their build context and can be rebuilt by Harbor's
   Docker, Modal or Daytona provider; published bundles need no controller-local image.
 
