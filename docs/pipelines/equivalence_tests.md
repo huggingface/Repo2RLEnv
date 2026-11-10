@@ -119,15 +119,21 @@ pytoolz__toolz-eqv-<hash>
 │   └── solve.sh
 └── tests
     ├── test.sh
-    └── test_r2e_<hash>.py
+    ├── test_r2e_<hash>.py
+    ├── verifier.py
+    ├── launcher.py
+    ├── grader_tools.py
+    ├── test_results.py
+    └── expected.json
 ```
 
 - `task.toml`: Harbor 1.0 task. `reference` links to the function's lines; `[metadata.repo2env.equivalence_tests]` records the function name, source path and lines, body size, argument names, test file name, bootstrap image and `llm_cost_usd`. The [evaluation label](task_evaluation_labels.md) starts as `unverified`.
 - `instruction.md`: the function's signature and docstring, where to implement it, and how grading works.
 - `environment/Dockerfile`: `FROM` the bootstrap image, writing `/workspace/task_module.py` with `reference_<name>` and a stub `<name>`.
 - `solution/patch.diff`: replaces the stub with the original implementation (the [oracle](../concepts/glossary.mdx#oracle)); `solve.sh` applies it.
-- `tests/test_r2e_<hash>.py`: the equivalence test, delivered by Harbor at verify time.
-- `tests/test.sh`: copies the test into `/workspace` and runs `python -m pytest` on it.
+- `tests/test_r2e_<hash>.py`: the equivalence test, delivered by Harbor at verify time. At generation it runs twice (under different hash seeds, as the unprivileged grader user) against the original implementation, which records what each of the test's own `reference_<name>` calls returned or raised, keyed by the test and the call's position in it; the graded test answers those calls from the recording, so no reference code exists at grading. A submission that redefines `reference_<name>` (`reference_f = f`) or plants a module changes nothing, and a call the recording doesn't have fails. A solution may still build on the visible `reference_<name>`: only the test's own calls are replayed. A candidate whose results can't be replayed exactly (not a Python literal, a non-builtin exception, or different between the two runs) is dropped (`reference_not_recordable`).
+- `task.toml` sets `[verifier] environment_mode = "separate"` and collects only `/workspace/task_module.py`: Harbor grades in a fresh container from the task image with that one file copied in.
+- `tests/test.sh`: copies the test into `/workspace`, runs `python -m pytest` on it as an unprivileged user with a JUnit report, and calls `tests/verifier.py` (see [`pr_runtime`](pr_runtime.md#grading-in-a-separate-verifier) for the launcher and time limits).
 
 The output directory also gets a `.debug_skips/<function>/` folder for each
 rejected candidate, with its last test and sandbox logs. These aren't tasks.
@@ -135,9 +141,10 @@ rejected candidate, with its last test and sandbox logs. These aren't tasks.
 ## Reward
 
 `tests/test.sh` writes 1.0 to `/logs/verifier/reward.txt` when every equivalence
-assertion holds and 0.0 otherwise. There is no partial credit and no
-`reward-details.json`. A no-op agent scores 0, because the stub raises. See
+assertion holds and 0.0 otherwise. There is no partial credit. A no-op agent scores 0, because the stub raises. See
 [Rewards](../concepts/rewards.mdx#binary-test-execution).
+
+The verifier reads the JUnit report only after every process of the test user is gone. Reward is 1.0 only if pytest exits 0 and the report holds exactly the test IDs the reference solution passed at generation (`tests/expected.json`, root-only), every one passed: a skipped, missing or extra test fails, so a report the submission writes itself and exits early with scores 0. Generation applies the same verdict. `reward-details.json` records the counts and `parse_status`; see the [reward schema](../reference/REWARD_SCHEMA.md#code_instruct--equivalence_tests). Forged results from inside the test process (a patched report, the expected IDs read from the test file and reported as passing) are caught by the mutant check: the test also runs with the expected value of a few of its fail-to-pass assertions changed (for `equivalence_tests`, a recorded reference result), and a contradiction between the runs scores 0 as tampered (see [`pr_runtime`](pr_runtime.md#grading-in-a-separate-verifier)).
 
 ## Yield and cost
 

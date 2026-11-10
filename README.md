@@ -57,9 +57,9 @@ Older releases are in the [version history](https://huggingface.github.io/Repo2R
 
 ## Quickstart
 
-For the current LiteLLM/filelock dependency conflict, use the
+For version 0.9.5's original LiteLLM/filelock dependency combination, use the
 [documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
-or a locked checkout when installing.
+or install from the current locked checkout, which uses compatible stable versions.
 
 Generate your first environments in about five minutes. This first pipeline needs no
 Docker and no LLM key, just Python 3.12+ and the [GitHub CLI](https://cli.github.com).
@@ -88,8 +88,9 @@ harbor run -p ./tasks -a claude-code -m anthropic/claude-sonnet-4-6 \
   --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" --env docker
 ```
 
-Without a valid judge response, PR-diff results are **ungraded** with a zero
-reward placeholder. Exclude them from training and solve-rate reports.
+Without an available judge, PR-diff results are **ungraded**: the verifier
+writes no reward file, Harbor reports the trial as `VERIFIER_FAILED`, and RL
+consumers drop it. A completed judge answer with no valid score is a graded 0; a reported output limit stays ungraded.
 
 The [quickstart guide](https://huggingface.github.io/Repo2RLEnv/quickstart/) walks through
 every step and what each file in a task is for.

@@ -192,7 +192,10 @@ def export_repository_task(
             if options.use_system_site_packages
             else "/usr/local/bin/python"
         )
-        + " -I /tests/grade.py\n",
+        # -S as well: -I still runs site-packages .pth files, and an editable
+        # install's .pth can put submitted source (and a sitecustomize.py in
+        # it) on root's path. grade.py needs only the stdlib.
+        + " -B -I -S /tests/grade.py\n",
         executable=True,
     )
     assets["tests/grade.py"] = TaskFile(

@@ -40,14 +40,13 @@ To run tasks, install the Harbor CLI as well: `uv tool install harbor`. The `har
 
 ### Filelock security override
 
-LiteLLM 1.106.6 requires `filelock` below 4, but the fixes for
-[filelock's local filesystem vulnerabilities](https://github.com/tox-dev/filelock/security/advisories)
-require 4.2.1 or later. A fresh ordinary installation currently selects filelock
-3.32.7 with 13 reported advisories. The repository's tested lock overrides this
-bound; PyPI installations do not inherit that override.
+The current source requires LiteLLM 1.108.3 or later and `filelock>=4.2.1,<5`.
+These versions are compatible without overrides. The filelock minimum addresses
+[its local filesystem vulnerabilities](https://github.com/tox-dev/filelock/security/advisories)
+and is included in the package dependency metadata.
 
-Until LiteLLM releases compatible dependency metadata, use the locked checkout
-below or apply the same override explicitly:
+For the older **0.9.5 release**, whose lock uses LiteLLM 1.106.6 with a
+`filelock<4` bound, the tested installation workaround remains:
 
 ```bash
 echo 'filelock>=4.2.1,<5' > repo2rlenv-overrides.txt
@@ -57,7 +56,8 @@ uv tool install --upgrade --overrides repo2rlenv-overrides.txt 'repo2rlenv==0.9.
 Add extras inside the package specification as needed. For an existing virtual
 environment, use `uv pip install --upgrade --overrides repo2rlenv-overrides.txt
 'repo2rlenv==0.9.5'`. Keep the override on subsequent installations and upgrades.
-It intentionally overrides LiteLLM's metadata, so `pip check` reports that
+For that older dependency combination, it intentionally overrides LiteLLM's
+metadata, so `pip check` reports that
 specific constraint conflict. The all-extras suite and SDK contracts pass with
 filelock 4.x; the tested overridden base installation has no known vulnerabilities
 reported by `pip-audit` as of November 4, 2026. This does not establish the absence

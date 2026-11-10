@@ -21,7 +21,7 @@ The runtime pipelines also list `diff_similarity` in `reward_kinds` because they
 
 | File | Written by | Contents |
 |---|---|---|
-| `/logs/verifier/reward.txt` | Every verifier | One number. Harbor reads it and stores it in the trial's `result.json` as `verifier_result.rewards.reward` |
+| `/logs/verifier/reward.txt` | Every verifier (`pr_diff`: graded runs only) | One number. Harbor reads it and stores it in the trial's `result.json` as `verifier_result.rewards.reward` |
 | `/logs/verifier/reward-details.json` | `pr_diff` and the graded runtime verifiers | The full breakdown. Harbor's own `reward.json` must be a flat map of numbers, so the nested breakdown goes in this sidecar file |
 | `/logs/verifier/result.json` | Most recipe and Tasksmith graders | Pass or fail, the test command's exit code and per-test statuses |
 
@@ -40,9 +40,9 @@ Harbor mounts `/logs/verifier` into the trial directory, so after a run you find
 | `similarity` | 0.10 | Sequence similarity over changed lines only |
 | `llm_judge` | 0.50 | A model rates whether the patch addresses the issue |
 
-The result is clipped to [0, 1], and capped at 0.40 when `size_sanity` is below 0.10. An empty diff scores 0. The judge runs at verify time only when it gets credentials through `harbor run --ve` (`ANTHROPIC_API_KEY`, or `R2E_JUDGE_ENDPOINT` and `R2E_JUDGE_MODEL` for an OpenAI-compatible server). Without a judge score, the evaluation is `ungraded` and reward is 0. The deterministic weighted mean remains in `diagnostic_similarity`; exclude ungraded runs from training and solved-rate denominators and retry grading the saved patch. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, also passed with `--ve`.
+The result is clipped to [0, 1], and capped at 0.40 when `size_sanity` is below 0.10. An empty diff scores 0. The judge runs at verify time only when it gets credentials through `harbor run --ve` (`ANTHROPIC_API_KEY`, or `R2E_JUDGE_ENDPOINT` and `R2E_JUDGE_MODEL` for an OpenAI-compatible server). When the judge is unavailable, the evaluation is `ungraded`: no reward file, so Harbor records a verifier failure and RL consumers drop the rollout, while Harbor's job mean still counts it as 0. A completed judge answer without a valid score is a graded 0, because the agent's patch is in the judge prompt. A reported output or context limit stays ungraded. The deterministic weighted mean remains in `diagnostic_similarity`; retry grading the saved patch once the judge is available. Override any weight per run with `R2E_W_FORMAT`, `R2E_W_SIZE`, `R2E_W_FILE`, `R2E_W_REGION`, `R2E_W_SIM` or `R2E_W_JUDGE`, also passed with `--ve`.
 
-With the judge disabled, even the oracle diff is ungraded: its diagnostic similarity is 1 but its reward is 0. With the judge enabled, its rating is part of the score, so an oracle run can land below 1. This is a heuristic score, not proof of functional correctness. See [the pr_diff guide](../pipelines/pr_diff.md#multi-component-reward) for how each component is computed and for the calibration baseline.
+With the judge disabled, even the oracle diff is ungraded: its diagnostic similarity is 1 but it gets no reward. With the judge enabled, its rating is part of the score, so an oracle run can land below 1. This is a heuristic score, not proof of functional correctness. See [the pr_diff guide](../pipelines/pr_diff.md#multi-component-reward) for how each component is computed and for the calibration baseline.
 
 ## Graded test execution
 

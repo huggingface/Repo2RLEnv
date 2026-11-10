@@ -26,9 +26,13 @@ from repo2rlenv.pipelines.pr_diff import (
     build_pr_diff_eval_script,
 )
 from repo2rlenv.pipelines.pr_runtime import (
+    MIN_HARBOR_VERSION,
+    WORKSPACE_ARTIFACT,
     _runtime_aux_files,
     build_environment_dockerfile,
     build_eval_script,
+    separate_verifier_files,
+    verifier_config,
 )
 from repo2rlenv.registry.integration import ReproMode
 from repo2rlenv.ui import console
@@ -517,3 +521,42 @@ def test_oracle_search_replace_patch_skips_diff_header_check(tmp_path: Path):
         lambda d: d["metadata"]["repo2env"].update(pr_diff={"diff_format": "search_replace"}),
     )
     assert validate_task(task_dir, data, oracle=True) == []
+
+
+def _pr_runtime_separate(tmp_path: Path) -> Path:
+    task = _task(
+        "pr_runtime",
+        repo2env={
+            "reward_kinds": ["test_execution", "diff_similarity"],
+            "pr_runtime": {
+                "fail_to_pass": F2P,
+                "pass_to_pass": P2P,
+                "harbor_min_version": MIN_HARBOR_VERSION,
+            },
+        },
+        environment_dockerfile=build_environment_dockerfile(
+            "local/r2e-bootstrap/demo__repo:abc", BASE
+        ),
+        test_script=build_eval_script(BASE, "", ["pytest -q"], fail_to_pass=F2P, pass_to_pass=P2P),
+        verifier=verifier_config(None),
+        artifacts=WORKSPACE_ARTIFACT,
+        aux_files={**_runtime_aux_files(F2P, P2P), **separate_verifier_files()},
+    )
+    return write_harbor_task(task, tmp_path)
+
+
+def test_separate_verifier_task_is_clean(tmp_path):
+    task_dir = _pr_runtime_separate(tmp_path)
+    assert validate_task(task_dir, _load(task_dir)) == []
+
+
+def test_separate_verifier_task_needs_its_grading_helpers(tmp_path):
+    task_dir = _pr_runtime_separate(tmp_path)
+    (task_dir / "tests" / "launcher.py").unlink()
+    dockerfile = task_dir / "environment" / "Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("/opt/r2e/pristine", "/opt/elsewhere"))
+    data = _rewrite(task_dir, lambda d: d.pop("artifacts"))
+    paths = {
+        finding.path for finding in validate_task(task_dir, data) if finding.severity == "error"
+    }
+    assert {"tests/launcher.py", "environment/Dockerfile", "task.toml"} <= paths

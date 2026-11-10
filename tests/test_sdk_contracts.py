@@ -25,7 +25,9 @@ def sdk_server(monkeypatch):
     class Handler(BaseHTTPRequestHandler):
         def handle_request(self):
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-            state["requests"].append((self.command, self.path, body, dict(self.headers)))
+            # HTTP field names are case-insensitive; SDKs may change their casing.
+            headers = {name.lower(): value for name, value in self.headers.items()}
+            state["requests"].append((self.command, self.path, body, headers))
             payload = state["body"]
             data = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
             self.send_response(state["status"])
@@ -84,15 +86,24 @@ def test_completion_wire_contract_and_usage(sdk_server, provider):
             "usage": {"input_tokens": 100, "output_tokens": 20},
         }
     endpoint = sdk_server["url"] + ("/v1" if provider == "openai" else "")
-    spec = LLMSpec(provider=provider, model=model, endpoint=endpoint)
+    spec = LLMSpec(
+        provider=provider,
+        model=model,
+        endpoint=endpoint,
+        api_key_env="OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY",
+    )
     result = complete(spec, system="System", user="Hello", max_tokens=64)
     assert result.content == "Done"
     assert (result.prompt_tokens, result.completion_tokens) == (100, 20)
     assert result.cost_usd > 0
     assert len(sdk_server["requests"]) == 1
-    method, path, data, _headers = sdk_server["requests"][0]
+    method, path, data, headers = sdk_server["requests"][0]
     assert method == "POST"
     assert path == ("/v1/chat/completions" if provider == "openai" else "/v1/messages")
+    if provider == "openai":
+        assert headers["authorization"] == "Bearer sdk-contract-key"
+    else:
+        assert headers["x-api-key"] == "sdk-contract-key"
     request = json.loads(data)
     assert request["model"] == model
     assert request["max_tokens"] == 64
@@ -157,7 +168,7 @@ async def test_async_responses_tool_arguments_and_usage(sdk_server):
     assert result.usage.output_tokens_details.reasoning_tokens == 5
     method, path, data, headers = sdk_server["requests"][0]
     assert (method, path) == ("POST", "/v1/responses")
-    assert headers["Authorization"] == "Bearer sdk-contract-key"
+    assert headers["authorization"] == "Bearer sdk-contract-key"
     assert json.loads(data)["tools"] == [tool]
 
 

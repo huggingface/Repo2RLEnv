@@ -49,9 +49,10 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.14.4,<4",
     "anyio>=4.14.2,<5",
+    "filelock>=4.2.1,<5",
     "huggingface-hub>=1.13.0,<2",
-    "litellm>=1.106.6,!=1.107.0",
-    "openai>=2.24.0,<3",
+    "litellm!=1.107.0,>=1.108.3",
+    "openai>=2.24.0,<4",
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
@@ -73,11 +74,11 @@ tasksmith = [
     "langgraph-checkpoint-sqlite>=3,<4",
 ]
 modal = [
-    "modal==1.6.2",
+    "modal==1.6.3",
     "dockerfile-parse==2.0.1",
 ]
 daytona = [
-    "daytona==0.226.1",
+    "daytona==0.227.0",
 ]
 mutation = [
     "libcst==1.9.0",
@@ -86,6 +87,13 @@ mutation = [
 harbor = [
     # Offline/native adapters require this tested contract; upgrade them together.
     "harbor==0.25.0",
+]
+mutants = [
+    "tree-sitter==0.26.0",
+    "tree-sitter-go==0.25.0",
+    "tree-sitter-javascript==0.25.0",
+    "tree-sitter-rust==0.24.2",
+    "tree-sitter-typescript==0.23.2",
 ]
 
 [build-system]
@@ -106,12 +114,6 @@ constraint-dependencies = [
     "pyjwt>=2.15.0",
     "urllib3>=2.8.0",
 ]
-
-# LiteLLM 1.106.x declares filelock<4; its runtime does not import filelock.
-# Keep the patched locking library used by Harbor and HF Hub without silently
-# downgrading LiteLLM. Remove this override when LiteLLM relaxes its upper bound.
-# Repository lock only; downstream wheel installations do not inherit overrides.
-override-dependencies = ["filelock>=4.2.1,<5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
