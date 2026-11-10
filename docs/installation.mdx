@@ -12,7 +12,7 @@ Repo2RLEnv is a Python package with one CLI, `repo2rlenv`. The base install cove
 | Python 3.12 or later | Everything. |
 | Git | Cloning source repositories. |
 | [GitHub CLI](https://cli.github.com) (`gh`) | Every GitHub API call during generation (listing PRs, fetching diffs, issues and commits), even when you authenticate with `GITHUB_TOKEN`. |
-| Docker | Native runtime pipelines (`pr_runtime`, `commit_runtime`, `code_instruct`, `equivalence_tests`, `cve_patches`), which build and check environments locally, and running any task locally with `harbor run --env docker`. Generating `pr_diff` tasks doesn't need it. |
+| Docker | Native runtime pipelines (`pr_runtime`, `commit_runtime`, `code_instruct`, `equivalence_tests`, `cve_patches`, `trajectory_to_env`), which build and check environments locally, and running any task locally with `harbor run --env docker`. Generating `pr_diff` tasks doesn't need it. |
 | A [Modal](https://modal.com) or [Daytona](https://www.daytona.io) account | Research recipes, Tasksmith and the quality loop. They build and execute on remote workers; there's no local Docker fallback. |
 | Node.js 22.19 or later | Tasksmith's Pi and OpenCode adapters. |
 

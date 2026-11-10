@@ -58,3 +58,29 @@ def test_current_openai_models_use_completion_limit(monkeypatch, model):
     assert "max_tokens" not in calls[0]
     assert "temperature" not in calls[0]
     assert calls[0]["num_retries"] == 0
+
+
+def test_reasoning_effort_and_provider_reported_cost(monkeypatch):
+    calls = []
+
+    def completion(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=litellm.Usage(prompt_tokens=1, completion_tokens=2, total_tokens=3, cost=0.07),
+        )
+
+    def unpriced(**kwargs):
+        raise litellm.NotFoundError("model not mapped", llm_provider="huggingface", model="x")
+
+    monkeypatch.setattr(litellm, "completion", completion)
+    monkeypatch.setattr(litellm, "completion_cost", unpriced)
+    monkeypatch.setattr("repo2rlenv.llm.resolve_llm_api_key", lambda *args: "test-key")
+    model = LLMSpec(provider="huggingface", model="org/model:provider")
+
+    response = complete(model, user="user", reasoning_effort="low")
+    assert response.cost_usd == pytest.approx(0.07)
+    assert calls[0]["reasoning_effort"] == "low"
+    assert calls[0]["allowed_openai_params"] == ["reasoning_effort"]
+    complete(model, user="user")
+    assert "reasoning_effort" not in calls[1] and "allowed_openai_params" not in calls[1]
