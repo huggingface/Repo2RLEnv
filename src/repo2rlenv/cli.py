@@ -441,7 +441,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
                 auth=gen_input.auth,
                 private=(gen_input.output.visibility == "private"),
                 pipeline=gen_input.pipeline.name.value,
-                repo_source=f"{gen_input.repo.owner_name[0]}/{gen_input.repo.owner_name[1]}",
+                repo_source="/".join(gen_input.repo.owner_name) if gen_input.repo else None,
             )
             console.kv(
                 {
@@ -453,7 +453,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
                 title="HF Hub push",
             )
 
-    return 0 if result.emitted > 0 else 1
+    proposed = getattr(options, "propose_only", False) and result.skip_reasons.get("proposed", 0)
+    return 0 if result.emitted > 0 or proposed else 1
 
 
 def cmd_validate(args: argparse.Namespace) -> int:

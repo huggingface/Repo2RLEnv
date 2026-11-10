@@ -8,6 +8,7 @@ import subprocess
 import tarfile
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -271,3 +272,50 @@ def test_unreadable_scan_is_not_clean(tmp_path, monkeypatch, output):
         gate.subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess([], 0, output)
     )
     assert not gate.scan_trajectory(tmp_path / "trace")[0]
+
+
+@pytest.mark.parametrize("publish", [False, True])
+def test_trajectory_cli_proposal_and_publish_routes(tmp_path, monkeypatch, publish):
+    from repo2rlenv import cli, hub
+    from repo2rlenv.pipelines.base import PipelineResult
+
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "source.json"
+    source.write_text('{"schema_version": "ATIF-v1.7", "steps": []}')
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "source": {"kind": "trajectory", "path": str(source)},
+                "pipeline": {
+                    "name": "trajectory_to_env",
+                    "options": {"propose_only": not publish, "scan": False},
+                },
+                "output": {
+                    "destination": "hf://local/smoke" if publish else str(tmp_path / "out"),
+                    "org": "local",
+                    "dataset_name": "smoke",
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        TrajectoryPipeline,
+        "run",
+        lambda self, path: PipelineResult(
+            1, int(publish), int(not publish), path, {} if publish else {"proposed": 1}
+        ),
+    )
+    pushed = []
+
+    def push(**kwargs):
+        pushed.append(kwargs)
+        return SimpleNamespace(
+            repo_id="local/smoke", commit_sha="synthetic", registry_url=None, task_count=1
+        )
+
+    monkeypatch.setattr(hub, "push_to_hub", push)
+    assert cli.main(["--no-ui", "generate", "--config", str(config)]) == 0
+    assert len(pushed) == int(publish)
+    if publish:
+        assert pushed[0]["repo_source"] is None

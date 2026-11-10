@@ -163,7 +163,7 @@ def run_separate_trial(
         raise ValueError("Unsupported trajectory artifact")
     # Docker cp merges existing directories. Replace each destination explicitly
     # so a submitted deletion cannot silently resurrect a file from the image.
-    restore = ""
+    restore = "cd /\n"  # replacing /workspace must not leave bash in a deleted cwd
     for source in sources:
         incoming = f"{transfer}/{source.name}"
         restore += f"rm -rf -- {source}\nif [ -e {incoming} ]; then mv -- {incoming} {source}; fi\n"
