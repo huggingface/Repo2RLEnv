@@ -26,14 +26,29 @@ Released November 11, 2026.
 - PR-diff runs with unavailable correctness evidence emit no reward file, keeping
   ungraded attempts distinguishable from genuine zero rewards
   ([#233](https://github.com/huggingface/Repo2RLEnv/pull/233)).
+- Validates `--bootstrap-opt` values, including paths and JSON lists, before
+  bootstrap uses them
+  ([#246](https://github.com/huggingface/Repo2RLEnv/pull/246)).
+- Removes unreachable fix-bearing Git objects from partial clones, preserves
+  pytest fail-to-pass evidence when a module cannot be collected at base, and
+  rejects SCALER string references that would otherwise be truncated
+  ([#247](https://github.com/huggingface/Repo2RLEnv/pull/247),
+  [#248](https://github.com/huggingface/Repo2RLEnv/pull/248),
+  [#249](https://github.com/huggingface/Repo2RLEnv/pull/249)).
 - Updates the stable SDK combination to LiteLLM **1.108.3**, OpenAI **3.42.1** and
   Hugging Face Hub **1.33.0**. The package now requires patched
   `filelock>=4.2.1,<5` directly, so new wheel installations no longer need the
   earlier uv-only override. Also updates Python dependencies, coding runtimes,
   docs tooling and pinned GitHub Actions.
+- Patches OpenCode's transitive Effect dependency for cookie attribute injection
+  (CVE-2026-115779), retaining the tested coding-agent versions
+  ([#250](https://github.com/huggingface/Repo2RLEnv/pull/250)). Hub 2 remains
+  deferred until stable LiteLLM compatibility is available.
 
 The trajectory implementation passed 21 Docker generation and Harbor controls,
-16 Modal controls and the full 2,678-test local suite. These checks cover task
+16 Modal controls. The combined release changes passed 2,696 local tests and all
+25 Pi/OpenCode mock-server contracts. Python, coding-runtime and website audits
+found no known vulnerabilities. These checks cover task
 construction and known verifier attacks; broad task-quality evaluation and blind
 model rollouts remain separate work. Generated tasks retain unverified quality
 labels until evaluated. The verifier controls do not prove resistance to arbitrary
