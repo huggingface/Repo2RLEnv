@@ -50,14 +50,16 @@ def _load_dotenv_if_present() -> None:
         logger.warning("could not load %s: %s", path, exc, extra={"markup": False})
 
 
-def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
-    """Parse repeated --pipeline-opt key=value into a dict (with type coercion)."""
+def _parse_pipeline_opts(
+    items: list[str] | None, *, flag: str = "--pipeline-opt"
+) -> dict[str, Any]:
+    """Parse repeated key=value options into a dict (with type coercion)."""
     out: dict[str, Any] = {}
     if not items:
         return out
     for item in items:
         if "=" not in item:
-            raise SystemExit(f"--pipeline-opt expects key=value, got {item!r}")
+            raise SystemExit(f"{flag} expects key=value, got {item!r}")
         k, v = item.split("=", 1)
         if v.lower() in {"true", "false"}:
             out[k] = v.lower() == "true"
@@ -77,14 +79,16 @@ def _apply_bootstrap_opts(bspec: BootstrapSpec, items: list[str] | None) -> Boot
     Each update is re-validated so values are converted to the field's type
     (str -> Path for cache_dir, etc.); `model_copy(update=...)` would skip that.
     """
+    from pydantic import ValidationError
+
     from repo2rlenv.spec.input import BootstrapSpec
 
-    for k, v in _parse_pipeline_opts(items).items():
+    for k, v in _parse_pipeline_opts(items, flag="--bootstrap-opt").items():
         if k not in BootstrapSpec.model_fields:
             raise SystemExit(f"--bootstrap-opt: unknown BootstrapSpec field {k!r}")
         try:
             bspec = BootstrapSpec.model_validate({**bspec.model_dump(), k: v})
-        except Exception as exc:
+        except ValidationError as exc:
             raise SystemExit(f"--bootstrap-opt {k}={v!r}: {exc}") from exc
     return bspec
 
@@ -1140,7 +1144,8 @@ def _dispatch(argv: list[str]) -> int:
         metavar="KEY=VALUE",
         help=(
             "override any BootstrapSpec field (e.g. cache_dir=./envs-matrix/sonnet-4-6, "
-            "max_iterations=30, max_seconds=2400). Repeatable."
+            "max_iterations=30, max_seconds=2400). Repeatable. "
+            "Use JSON for lists, e.g. languages_hint='[\"python\"]'."
         ),
     )
     g.add_argument(

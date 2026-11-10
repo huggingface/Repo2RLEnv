@@ -91,13 +91,33 @@ def test_bootstrap_opt_keeps_unset_fields():
 
 @pytest.mark.parametrize(
     "item",
-    ["no_such_field=1", "model_dump=1", "max_iterations=lots", "platform=linux/s390x"],
+    [
+        "no_such_field=1",
+        "model_dump=1",
+        "max_iterations=lots",
+        "platform=linux/s390x",
+        "languages_hint=python",
+    ],
 )
 def test_bootstrap_opt_rejects_unknown_or_invalid_values(item):
     from repo2rlenv.cli import _apply_bootstrap_opts
 
     with pytest.raises(SystemExit):
         _apply_bootstrap_opts(BootstrapSpec(), [item])
+
+
+def test_bootstrap_opt_accepts_json_list():
+    from repo2rlenv.cli import _apply_bootstrap_opts
+
+    overridden = _apply_bootstrap_opts(BootstrapSpec(), ['languages_hint=["python"]'])
+    assert overridden.languages_hint == ["python"]
+
+
+def test_bootstrap_opt_malformed_value_names_the_correct_flag():
+    from repo2rlenv.cli import _apply_bootstrap_opts
+
+    with pytest.raises(SystemExit, match="--bootstrap-opt expects key=value"):
+        _apply_bootstrap_opts(BootstrapSpec(), ["cache_dir"])
 
 
 def test_llm_fallback_round_trips_through_dict():
