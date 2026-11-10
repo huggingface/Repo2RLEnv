@@ -87,7 +87,14 @@ flowchart TD
 6. **Validate twice** in one container started from the bootstrap image. Reset to
    the base commit, apply the test patch and run the tests that patch touches; then
    reset, apply the fix and the test patch, and run them again. Keep the PR if at
-   least `min_fail_to_pass` tests move from failed or errored to passed.
+   least `min_fail_to_pass` tests move from failed or errored to passed. A pytest
+   module that can't be imported at the base commit, because it imports something
+   the fix adds, counts as errored for every test in it, and the other files still
+   run unless the repository explicitly requests early stopping (such as `-x` or
+   `--maxfail=1`). The validation log records which modules contributed inferred
+   fail-to-pass tests. This includes pre-existing tests in those modules: collection
+   failed with the test patch applied, even if their bodies were unchanged. Go and
+   Rust compilation failures without per-test records are not yet inferred this way.
 7. **Write the instruction** from the linked issue (`Fixes #123`, including the
    `[#123](url)` form) when there is one, otherwise from the PR title and
    description. Solution pointers and template sections are stripped.

@@ -46,6 +46,7 @@ from repo2rlenv.pipelines._mutants import Mutants, make_mutants, validated
 from repo2rlenv.pipelines._mutants_ts import language_of, make_tree_sitter_mutants
 from repo2rlenv.pipelines._node_runner import freeze_node_commands
 from repo2rlenv.pipelines.pr_runtime import (
+    _PYTEST_COMMAND_RE,
     _PYTHONS,
     _access_flags,
     _child_path,
@@ -162,12 +163,16 @@ def _build_stage_script(
     test_cmds: list[str],
     language: str | None = None,
     staged: dict[str, str] | None = None,
+    keep_collecting: bool = False,
 ) -> str:
     """Build the shell script for one validation stage (pre-fix or post-fix).
 
     Always resets to base_commit first, then applies whichever patches the
     caller supplies (None ⇒ skip), then runs the test commands wrapped in
     START/END markers so the parser knows where output starts.
+
+    `keep_collecting` lets pytest run the remaining test files when one of them
+    fails to import (the pre-fix stage, where a test may import what the fix adds).
 
     Assumes the caller has already ensured `base_commit` is fetchable in the
     container's git object database (see `_fetch_base_commit`). The bootstrap
@@ -252,6 +257,11 @@ def _build_stage_script(
     test_block = _test_block(test_cmds)
     writable = _access_flags(language)
     log = f"{_LOG_DIR}/test_output.log"
+    if keep_collecting and any(_PYTEST_COMMAND_RE.search(cmd) for cmd in test_cmds):
+        parts.append(
+            'export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+$PYTEST_ADDOPTS }'
+            '--continue-on-collection-errors"'
+        )
     parts.append(_child_path(language).rstrip("\n"))
     parts.append("set +x")
     parts.append(
@@ -449,6 +459,7 @@ def validate_pr(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, test_patch=test_patch),
+        keep_collecting=True,
     )
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = clock.run(sandbox, pre_script, timeout)
@@ -544,6 +555,22 @@ def validate_pr(
             fail_to_pass.append(tname)
         elif pre_st == "PASSED" and post_st == "PASSED":
             pass_to_pass.append(tname)
+    # A test module that can't be imported at base, typically because it
+    # imports what the fix adds, has no test IDs there: pytest reports one
+    # file-level ERROR. Its tests failed at base all the same.
+    uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
+    promoted: dict[str, int] = {}
+    for tname, post_st in post_status.items():
+        if tname in pre_status or tname in flaky or post_st != "PASSED":
+            continue
+        module = tname.split("::", 1)[0]
+        if module in uncollected:
+            fail_to_pass.append(tname)
+            promoted[module] = promoted.get(module, 0) + 1
+    if promoted:
+        logger.info(
+            "validate_pr: fail-to-pass tests inferred from base collection errors: %s", promoted
+        )
 
     # Diagnostics: when yield is poor, this tells us whether the suite even
     # ran (test counts) and where transitions went — distinguishing "genuine
