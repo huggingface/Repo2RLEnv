@@ -141,6 +141,7 @@ def _do_complete(
     max_tokens: int,
     temperature: float,
     response_schema: dict | None = None,
+    reasoning_effort: str | None = None,
 ) -> LLMResponse:
     """One non-fallback chat-completion call. Internal helper for `complete()`."""
     import litellm  # type: ignore[import-untyped]
@@ -168,6 +169,11 @@ def _do_complete(
         kwargs["temperature"] = temperature
     if spec.endpoint:
         kwargs["api_base"] = spec.endpoint
+    # Reasoning models count their thinking against max_tokens; a lower effort leaves room to answer.
+    # LiteLLM's per-provider allowlist omits it for OpenAI-compatible routers that do accept it.
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+        kwargs["allowed_openai_params"] = ["reasoning_effort"]
     if response_schema is not None:
         kwargs["response_format"] = {
             "type": "json_schema",
@@ -197,6 +203,12 @@ def _do_complete(
         cost_usd = float(litellm.completion_cost(completion_response=response))
     except Exception as exc:
         logger.debug("completion_cost failed for %s: %s", spec.qualified_name, exc)
+    if not cost_usd:
+        # LiteLLM can't price models missing from its catalog; routers such as
+        # OpenRouter (via HF Inference Providers) report the billed cost in usage.
+        reported = getattr(usage_obj, "cost", None)
+        if isinstance(reported, int | float) and reported > 0:
+            cost_usd = float(reported)
 
     return LLMResponse(
         content=content,
@@ -215,6 +227,7 @@ def complete(
     max_tokens: int = 1024,
     temperature: float = 0.7,
     response_schema: dict | None = None,
+    reasoning_effort: str | None = None,
     _depth: int = 0,
 ) -> LLMResponse:
     """Single chat-completion call with automatic fallback on transient errors.
@@ -224,7 +237,8 @@ def complete(
     to 3 levels deep, then re-raises). 4xx errors (bad model, auth, etc.)
     are NOT retried — those signal config bugs, not transient failures.
 
-    Honors `LLMSpec.endpoint` for self-hosted backends.
+    Honors `LLMSpec.endpoint` for self-hosted backends. `reasoning_effort`
+    (e.g. "low") is forwarded to providers that support it.
     """
     try:
         return _do_complete(
@@ -234,6 +248,7 @@ def complete(
             max_tokens=max_tokens,
             temperature=temperature,
             response_schema=response_schema,
+            reasoning_effort=reasoning_effort,
         )
     except Exception as exc:
         if _depth >= 3 or spec.fallback is None or not _is_failover_eligible(exc):
@@ -251,5 +266,6 @@ def complete(
             max_tokens=max_tokens,
             temperature=temperature,
             response_schema=response_schema,
+            reasoning_effort=reasoning_effort,
             _depth=_depth + 1,
         )

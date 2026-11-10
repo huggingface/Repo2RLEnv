@@ -80,6 +80,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0031 | `repo_reconstruct` / `codemidas` | implemented in 0.9.2; 100 local tasks | [0031-codemidas-recipe.md](0031-codemidas-recipe.md) | Local campaign; dataset unpublished |
 | 0032 | `optimization_synth` / `frontiersmith` | implemented in 0.9.3; experimental | [0032-frontiersmith-recipe.md](0032-frontiersmith-recipe.md) | Local campaign; dataset unpublished |
 | 0033 | Evidence-based quality review | draft | [0033-evidence-based-quality-review.md](0033-evidence-based-quality-review.md) | Proposed reviewer benchmark; not run |
+| 0034 | `trajectory_to_env` | experimental implementation | [0034-trajectory-to-env.md](0034-trajectory-to-env.md) | Local smoke run; dataset unpublished |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 

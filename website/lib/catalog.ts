@@ -104,6 +104,16 @@ export const pipelines: Pipeline[] = [
     film: 'cve-patches',
   },
   {
+    id: 'trajectory_to_env',
+    page: 'trajectory_to_env',
+    group: 'repair',
+    kind: 'native',
+    shape: 'Repair, build or extend what a recorded agent trajectory worked on',
+    reward: 'Check passes (0/1) or fraction of hidden tests',
+    runs: 'local',
+    status: 'experimental',
+  },
+  {
     id: 'swe_smith',
     page: 'repo_mutate',
     group: 'repair',
