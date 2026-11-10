@@ -24,6 +24,8 @@ def relative_path(value: str) -> str:
 def within(root: Path, value: str) -> Path:
     """Resolve a validated name without following any existing symlink."""
     relative_path(value)
+    if root.is_symlink():
+        raise ValueError(f"Symlink output directory: {root}")
     root = root.resolve()
     target = root
     for part in value.split("/"):

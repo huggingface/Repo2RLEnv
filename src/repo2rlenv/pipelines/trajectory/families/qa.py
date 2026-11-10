@@ -68,6 +68,7 @@ for file in json.loads(Path("/opt/inputs.json").read_text()):
 TEST_SH = (
     separate_head(None)
     + """
+[ -f /workdir/answer.txt ] || r2e_finish graded missing_answer 'no answer submitted'
 status="$("$R2E_PY" -B -I -S /tests/grader_tools.py check --path /workdir/answer.txt --max-bytes 65536)"
 [ "$?" -eq 0 ] && [ "$status" = ok ] || r2e_finish graded invalid_answer 'missing or unsafe answer'
 "$R2E_PY" -B -I -S /tests/grader.py < /workdir/answer.txt > /logs/verifier/reward.txt

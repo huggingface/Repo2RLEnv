@@ -137,6 +137,7 @@ def _submission_archive(source: Path, target: Path, root: str) -> None:
             member.uid = member.gid = 0
             member.uname = member.gname = "root"
             member.mode = 0o755 if member.isdir() or member.mode & 0o111 else 0o644
+            member.pax_headers = {}
             outgoing.addfile(member, incoming.extractfile(member) if member.isfile() else None)
 
 

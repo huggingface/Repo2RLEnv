@@ -23,7 +23,7 @@ from ..docker import run_in_container
 from ..grading import project_image, python_verifier_files
 from ..llm import ask
 from ..mutants import make_mutants
-from ..paths import relative_path
+from ..paths import relative_path, within
 from ..task import AGENT_TOOLS, Family, Reject, Trial, task_toml, write_files
 from ..trajectory import Trajectory
 
@@ -202,7 +202,7 @@ class Build(Family):
             {scratch_dir: "/calibration"},
             timeout_seconds=3600,
         )
-        results_file = scratch_dir / "results.json"
+        results_file = within(scratch_dir, "results.json")
         if not results_file.exists():
             raise Reject("calibration_failed")
         outcomes = json.loads(results_file.read_text())  # {variant: {test name: outcome}}

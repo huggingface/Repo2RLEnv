@@ -13,7 +13,7 @@ Turn recorded coding-agent trajectories into Harbor tasks. A trajectory is repla
 over a virtual filesystem, task families mine candidates from it (a fixed check, a
 project build, a follow-up feature, a data question), and a candidate is kept only
 if its trial matrix passes offline in Docker. It is a native pipeline: it runs on
-local Docker, and its `repair` family needs no LLM.
+a Docker worker (local or `DOCKER_HOST`), and its `repair` family needs no LLM.
 
 ## Motivation
 
@@ -148,8 +148,9 @@ scales with the number of `build`, `extend` and `qa` candidates, not emitted tas
 ## Open questions
 
 - Should `hf://datasets/...` trajectory paths be supported directly?
-- Should `extend` and `build` adopt `log_parsers/` for per-test F2P/P2P reporting?
-- Should the `qa` family move to a recipe-style evaluation label once measured?
+- How much task diversity survives the construction controls across harnesses?
+- Which blind rollout sample is sufficient to promote the generated `unverified`
+  labels through the repository's quality loop?
 
 ## References
 
@@ -161,7 +162,7 @@ scales with the number of `build`, `extend` and `qa` candidates, not emitted tas
 
 | | |
 |---|---|
-| **Initial PR** | (link) |
+| **Initial PR** | [#237](https://github.com/huggingface/Repo2RLEnv/pull/237) |
 | **Shipping release** | unreleased |
 | **Source file** | `src/repo2rlenv/pipelines/trajectory/` |
 | **Options model** | [`src/repo2rlenv/spec/options.py`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/spec/options.py) (`TrajectoryOptions`) |

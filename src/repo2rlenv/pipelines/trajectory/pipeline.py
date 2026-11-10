@@ -1,4 +1,4 @@
-"""Agent trajectories -> verified Harbor tasks.
+"""Agent trajectories -> Harbor tasks with passing construction controls.
 
 Each family (repair, build, extend, qa) mines candidates from a trajectory replayed over a
 virtual filesystem, builds the environment image, and keeps a task only when its trial matrix

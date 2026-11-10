@@ -60,6 +60,8 @@ def test_existing_output_symlink_rejected(tmp_path):
         pytest.skip("symlinks unavailable")
     with pytest.raises(ValueError):
         task.write_files(output, {"linked/file": "unsafe"})
+    with pytest.raises(ValueError):
+        task.write_files(output / "linked", {"file": "unsafe"})
     assert not list(outside.iterdir())
 
 

@@ -16,9 +16,17 @@ from tests.trajectory_fixtures import FORGED, environment_files, fixture
 @pytest.mark.skipif(
     os.environ.get("R2E_DOCKER_TESTS") != "1", reason="requires Docker on the test worker"
 )
-@pytest.mark.parametrize("name", ["repair", "build", "extend", "qa"])
+@pytest.mark.parametrize("name", ["repair", "repair_delete", "build", "extend", "qa"])
 def test_generation_controls(tmp_path, monkeypatch, name):
-    family, candidate = fixture(name)
+    family, candidate = fixture(name.removesuffix("_delete"))
+    if name == "repair_delete":
+        candidate.files_at_failure["obsolete.py"] = "obsolete = True\n"
+        candidate.changed_files.append("obsolete.py")
+        for files in (candidate.files_at_failure, candidate.files_at_success):
+            files["test_calc.py"] += (
+                "\ndef test_deleted_source():\n    from pathlib import Path\n"
+                "    assert not Path('/app/obsolete.py').exists()\n"
+            )
     files = environment_files(family, candidate)
     if name == "qa":
         source = tmp_path / "data.csv"
