@@ -539,9 +539,14 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
         return error("no task.toml")
     try:
         config = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError, OSError) as exc:
         return error(f"cannot parse task.toml: {exc}")
-    repo2env = config.get("metadata", {}).get("repo2env", {})
+    metadata = config.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return error("task.toml metadata must be a table")
+    repo2env = metadata.get("repo2env", {})
+    if not isinstance(repo2env, dict):
+        return error("task.toml metadata.repo2env must be a table")
     if repo2env.get("pipeline") != "pr_diff":
         return {"task": name, "action": "skipped", "detail": "not a pr_diff task"}
 
@@ -568,10 +573,12 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
         dockerfile = dockerfile_path.read_bytes().decode("utf-8")
     except UnicodeDecodeError as exc:
         return error(f"cannot decode environment/Dockerfile: {exc}")
+    except OSError as exc:
+        return error(f"cannot read environment/Dockerfile: {exc}")
     baked = _BAKED_ORACLE_MARKER in dockerfile
 
     base_commit = repo2env.get("ref")
-    if not base_commit:
+    if not isinstance(base_commit, str) or not base_commit.strip():
         return error("cannot recover base_commit from task.toml")
     repo_url = _recover_repo_url(dockerfile) if baked else None
     if baked and not repo_url:
@@ -581,8 +588,11 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     oracle_path = task_dir / "solution" / "patch.diff"
     if not instruction_path.is_file() or not oracle_path.is_file():
         return error("missing instruction.md or solution/patch.diff")
-    instruction_raw = instruction_path.read_bytes()
-    oracle_raw = oracle_path.read_bytes()
+    try:
+        instruction_raw = instruction_path.read_bytes()
+        oracle_raw = oracle_path.read_bytes()
+    except OSError as exc:
+        return error(f"cannot read instruction.md or solution/patch.diff: {exc}")
 
     claimed_hash = repo2env.get("content_hash")
     recomputed_hash = _harbor_content_hash(instruction_raw, oracle_raw)
@@ -620,8 +630,13 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
             ).items()
         ),
     ]
-    if not baked and all(path.is_file() and path.read_bytes() == data for path, data, _ in writes):
-        return {"task": name, "action": "already_safe", "detail": ""}
+    if not baked:
+        try:
+            current = all(path.is_file() and path.read_bytes() == data for path, data, _ in writes)
+        except OSError as exc:
+            return error(f"cannot read grading assets: {exc}")
+        if current:
+            return {"task": name, "action": "already_safe", "detail": ""}
     if baked and repo_url:
         writes.append(
             (
