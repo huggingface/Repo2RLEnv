@@ -1,6 +1,10 @@
-"""Go test (`go test -v`) output parser.
+"""Go test JSON events, with a legacy verbose-text fallback.
 
-Go's verbose test output uses unambiguous marker lines:
+New tasks use ``go test -json`` and key tests as ``package::test``. Build
+failures are scoped to the package reported by Go, not every absent test.
+See https://pkg.go.dev/cmd/test2json for the event contract.
+
+Legacy verbose output uses marker lines:
 
     === RUN   TestParseConfig
         ... test body output ...
@@ -30,6 +34,7 @@ Released under Apache-2.0.
 
 from __future__ import annotations
 
+import json
 import re
 
 from repo2rlenv.log_parsers.pytest_parser import TestStatus, _record_worst
@@ -49,18 +54,54 @@ _STATUS_MAP: dict[str, TestStatus] = {
 
 
 def parse_go_test(log: str) -> dict[str, TestStatus]:
-    """Return {test_name -> status} parsed from `go test -v` output.
+    """Parse Go JSON events as ``package::test``, or legacy verbose text.
 
-    Test names include any subtest path (`TestX/subY/subZ`). Lines that
-    don't match the `--- STATUS:` shape are ignored — they're either test
-    body output (`fmt.Println` from inside the test) or package-level
-    summary lines (`ok`, `FAIL <package>`, `PASS`).
+    A package with explicit build-failure evidence gets a package-level ERROR.
+    Validation can attribute post-fix tests to that package without promoting
+    unrelated tests. Output events are never parsed as test results. Keep this
+    implementation in sync with the standalone task verifier.
     """
     out: dict[str, TestStatus] = {}
-    if not log:
-        return out
+    legacy: dict[str, TestStatus] = {}
+    structured = False
+    build_errors: set[str] = set()
+    package_failures: set[str] = set()
     for raw in log.split("\n"):
-        m = _GO_TEST_RE.match(raw)
-        if m:
-            _record_worst(out, m.group("name"), _STATUS_MAP[m.group("status")])
+        try:
+            event = json.loads(raw) if raw.startswith("{") else None
+        except (ValueError, RecursionError):
+            event = None
+        if not isinstance(event, dict):
+            m = _GO_TEST_RE.match(raw)
+            if m:
+                _record_worst(legacy, m.group("name"), _STATUS_MAP[m.group("status")])
+            continue
+        package, action, test = event.get("Package"), event.get("Action"), event.get("Test")
+        if not isinstance(package, str) or not package or "::" in package:
+            continue
+        if not isinstance(action, str):
+            continue
+        structured = True
+        if isinstance(test, str) and test:
+            status = _STATUS_MAP.get(action.upper())
+            if status:
+                _record_worst(out, f"{package}::{test}", status)
+        elif not test:
+            if action == "fail":
+                package_failures.add(package)
+                if isinstance(event.get("FailedBuild"), str) and event["FailedBuild"]:
+                    build_errors.add(package)
+            # Go before FailedBuild was introduced reports this exact package
+            # summary in an output event, followed by the package's fail event.
+            elif action == "output" and event.get("Output") == f"FAIL\t{package} [build failed]\n":
+                build_errors.add(package)
+    if not structured:
+        return legacy
+    for package in build_errors & package_failures:
+        out[package] = "ERROR"
+        # A repeated command that passed once then failed to build must not
+        # retain a passing result from the earlier run.
+        for name in out:
+            if name.startswith(package + "::"):
+                _record_worst(out, name, "ERROR")
     return out

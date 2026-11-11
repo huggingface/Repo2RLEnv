@@ -1060,7 +1060,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
           for `manage.py test`, and `--verbosity 2` for Django's in-repo
           `tests/runtests.py`, which takes no `-v` count.
       go test:
-        - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
+        - Add `-json` for package-qualified test and build-failure events
         - Add `-count=1` if missing (no cached results)
       cargo test:
         - Default output is already parseable; no transform needed
@@ -1114,12 +1114,14 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
 
         # --- go test ---
         elif re.search(r"\bgo\s+test\b", cleaned):
-            if not re.search(r"\s-v\b", cleaned):
-                # Insert -v right after `go test`; positional args go after
-                cleaned = re.sub(r"\bgo\s+test\b", "go test -v", cleaned, count=1)
-            if not re.search(r"\s-count(?:=|\s)", cleaned):
+            # -args starts test-binary arguments; their flags are not Go flags.
+            parts = re.split(r"(\s+-args(?:\s|$))", cleaned, maxsplit=1)
+            driver = re.sub(r"\s+-json(?:=(?:true|false))?(?=\s|$)", "", parts[0])
+            if not re.search(r"\s-count(?:=|\s)", driver):
                 # Never serve a cached result: every graded run executes the tests.
-                cleaned = re.sub(r"\bgo\s+test\b", "go test -count=1", cleaned, count=1)
+                driver = re.sub(r"\bgo\s+test\b", "go test -count=1", driver, count=1)
+            parts[0] = re.sub(r"\bgo\s+test\b", "go test -json", driver, count=1)
+            cleaned = "".join(parts)
 
         # --- cargo nextest ---
         elif re.search(r"\bcargo\s+nextest\s+run\b", cleaned):

@@ -150,16 +150,24 @@ def test_go_changes_expected_values_never_the_comparison():
 
 
 @pytest.mark.skipif(shutil.which("go") is None, reason="needs go")
-def test_go_mutants_fail_and_originals_pass(tmp_path: Path):
+@pytest.mark.parametrize("structured", [False, True])
+def test_go_mutants_fail_and_originals_pass(tmp_path: Path, structured):
     targets = ["TestAdd/small", "TestAdd/big_one", "TestSplit"]
-    mutants = _make("calc_test.go", GO, targets, decoys=[*targets, "TestQuiet"])
+    decoys = [*targets, "TestQuiet"]
+    if structured:
+        targets = ["calc::" + name for name in targets]
+        decoys = ["calc::" + name for name in decoys]
+    sources = {"go.mod": "module calc\n\ngo 1.21\n", "calc_test.go": GO}
+    mutants = make_tree_sitter_mutants(
+        targets, sources.get, allowed_files={"calc_test.go"}, seed="s", decoys=decoys
+    )
     (tmp_path / "go.mod").write_text("module calc\n\ngo 1.21\n")
     (tmp_path / "calc.go").write_text(GO_SOURCE)
 
     def run(test_source: str) -> dict[str, str]:
         (tmp_path / "calc_test.go").write_text(test_source)
         result = subprocess.run(
-            ["go", "test", "-v", "-count=1", "./..."],
+            ["go", "test", "-json" if structured else "-v", "-count=1", "./..."],
             cwd=tmp_path,
             capture_output=True,
             text=True,
@@ -243,3 +251,38 @@ def test_a_negated_bool_check_gets_no_mutant():
     literal = source.replace("if !cast.ToBool(-1) {", "if got := cast.ToBool(-1); got != true {")
     mutants = _make("x_test.go", literal, ["TestTrue"])
     assert "got != false {" in mutants.files()["x_test.go"]
+
+
+def test_go_qualified_ids_select_their_own_package_and_table_case():
+    sources = {"go.mod": 'module "example.org/project"\n', "a/x_test.go": GO, "b/x_test.go": GO}
+    targets = ["example.org/project/a::TestSplit", "example.org/project/b::TestAdd/small"]
+    mutants = make_tree_sitter_mutants(
+        targets,
+        sources.get,
+        allowed_files={"a/x_test.go", "b/x_test.go"},
+        seed="s",
+        decoys=["example.org/project/a::TestQuiet"],
+    )
+    assert mutants is not None
+    assert set(mutants.ids) == set(targets)
+    assert "got != 2 {" not in mutants.files()["a/x_test.go"]
+    assert "got != 2 {" in mutants.files()["b/x_test.go"]
+
+
+def test_go_nested_module_is_used_and_unknown_package_is_not_guessed():
+    sources = {
+        "go.mod": "module wrong.example\n",
+        "nested/go.mod": "module example.org/nested/v2\n",
+        "nested/a/x_test.go": GO,
+    }
+
+    def make(target):
+        return make_tree_sitter_mutants(
+            [target], sources.get, allowed_files={"nested/a/x_test.go"}, seed="s"
+        )
+
+    assert make("wrong.example/nested/a::TestSplit") is None
+    assert make("example.org/nested/v2/a::TestSplit") is not None
+    sources.pop("nested/go.mod")
+    sources.pop("go.mod")
+    assert make("example.org/nested/v2/a::TestSplit") is None
