@@ -356,7 +356,7 @@ def _pr_diff_aux_files(*, oracle_diff: str, instruction: str) -> dict[str, str]:
 _BAKED_ORACLE_MARKER = "base64 -d > /verifier/oracle.patch"
 
 # Everything the fixed eval script reads from ``tests/`` at verify time. A task
-# whose Dockerfile is already safe but that lacks any of these is *not* repaired.
+# whose Dockerfile no longer bakes the oracle must also carry current contents.
 _GRADING_ASSETS = (
     "tests/capture.py",
     "tests/test.sh",
@@ -457,7 +457,8 @@ def _write_staged(writes: list[tuple[Path, bytes, int | None]]) -> None:
     staging leaves the task exactly as it was. The caller orders ``writes`` so
     that the Dockerfile — the file whose baked marker marks a task as unrepaired
     — is swapped last: a failure midway through the swap leaves it unrepaired
-    and a retry finishes the job.
+    and a retry finishes the job. For grading-only updates, the caller compares
+    asset contents on retry to find any writes that did not complete.
     """
     staged: list[tuple[Path, Path]] = []
     try:
@@ -486,10 +487,12 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     Pre-#145, ``environment/Dockerfile`` baked the oracle patch, instruction, and
     verifier into the agent's own image — readable and ``git apply``-able for a
     perfect score. This detects that shape and rewrites ``environment/Dockerfile``
-    + ``tests/{test.sh,verifier.py,oracle.patch,instruction.md}`` using the exact
-    builder functions fresh ``generate`` calls today, so a migrated task is
-    byte-identical to one emitted now — not a hand-maintained parallel
-    implementation that could drift from the real fix.
+    + ``tests/{test.sh,capture.py,verifier.py,oracle.patch,instruction.md}`` using the exact
+    builder functions fresh ``generate`` calls today. Existing grading files
+    are compared by content, so later verifier fixes also reach tasks that
+    were already migrated once. Dockerfiles without the baked-oracle marker
+    are preserved, including custom build steps; they still need an image
+    isolation review and rebuild before publishing.
 
     ``instruction.md`` and ``solution/patch.diff`` (the oracle diff itself) are
     never modified, so ``content_hash`` — which only covers those two files
@@ -503,8 +506,9 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
 
     The repair is staged in full before anything live changes, with the
     Dockerfile swapped in last. A Dockerfile that is already safe is only
-    reported ``already_safe`` when every grading asset is present too; missing
-    ones are rebuilt.
+    reported ``already_safe`` after checking the source content hash and every
+    grading asset's current contents. Missing or stale assets are rebuilt.
+    This result is not an adversarial-safety or rollout certification.
 
     A symlinked or non-regular path is refused before any read or write, so a
     hostile dataset cannot redirect the repair outside its own directory.
@@ -517,9 +521,9 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     ``action`` is one of:
 
     - ``"migrated"`` / ``"would_migrate"`` — rewritten in place / would be
-    - ``"already_safe"``   — no baked oracle and every grading asset present
+    - ``"already_safe"``   — no baked oracle and grading assets match current builders
     - ``"skipped"``        — not a pr_diff task (different pipeline, or malformed)
-    - ``"error"``          — needs manual review; nothing was written
+    - ``"error"``          — input refused, or a write failed (retry may finish it)
     """
     import tomllib
 
@@ -565,9 +569,6 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
     except UnicodeDecodeError as exc:
         return error(f"cannot decode environment/Dockerfile: {exc}")
     baked = _BAKED_ORACLE_MARKER in dockerfile
-    missing = [asset for asset in _GRADING_ASSETS if not (task_dir / asset).is_file()]
-    if not baked and not missing:
-        return {"task": name, "action": "already_safe", "detail": ""}
 
     base_commit = repo2env.get("ref")
     if not base_commit:
@@ -599,9 +600,6 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
             f"{recomputed_hash} ({cause}) — needs manual review, not auto-migrated"
         )
 
-    if dry_run:
-        return {"task": name, "action": "would_migrate", "detail": ""}
-
     try:
         instruction = instruction_raw.decode("utf-8")
         oracle_diff = oracle_raw.decode("utf-8")
@@ -622,6 +620,8 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
             ).items()
         ),
     ]
+    if not baked and all(path.is_file() and path.read_bytes() == data for path, data, _ in writes):
+        return {"task": name, "action": "already_safe", "detail": ""}
     if baked and repo_url:
         writes.append(
             (
@@ -632,6 +632,8 @@ def migrate_pr_diff_task(task_dir: Path, *, dry_run: bool = False) -> dict[str, 
                 None,
             )
         )
+    if dry_run:
+        return {"task": name, "action": "would_migrate", "detail": ""}
     try:
         (task_dir / "tests").mkdir(exist_ok=True)
         _write_staged(writes)

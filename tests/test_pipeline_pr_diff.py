@@ -627,6 +627,9 @@ def test_migrate_already_safe_task_is_a_noop(tmp_path: Path) -> None:
     that and touch nothing."""
     task_dir = tmp_path / "x__y-1"
     task_dir.mkdir()
+    (task_dir / "instruction.md").write_bytes(b"i")
+    (task_dir / "solution").mkdir()
+    (task_dir / "solution/patch.diff").write_bytes(b"d\n")
     env_dir = task_dir / "environment"
     env_dir.mkdir()
     (env_dir / "Dockerfile").write_text(
@@ -988,3 +991,82 @@ def test_verifier_crash_is_ungraded_with_a_sidecar(tmp_path: Path):
         "eval_trustworthy": False,
         "verifier_status": "error",
     }
+
+
+@pytest.mark.parametrize(
+    "asset",
+    [
+        "tests/test.sh",
+        "tests/verifier.py",
+        "tests/capture.py",
+        "tests/oracle.patch",
+        "tests/instruction.md",
+    ],
+)
+def test_migrate_refreshes_stale_assets_even_when_every_file_exists(tmp_path: Path, asset: str):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task, instruction=b"# Issue\r\ndo it\r\n")
+    migrate_pr_diff_task(task)
+    expected = (task / asset).read_bytes()
+    (task / asset).write_bytes(b"old grading asset\n")
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+
+    assert migrate_pr_diff_task(task, dry_run=True)["action"] == "would_migrate"
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+    assert migrate_pr_diff_task(task)["action"] == "migrated"
+    assert (task / asset).read_bytes() == expected
+    for relative in [
+        "instruction.md",
+        "solution/patch.diff",
+        "task.toml",
+        "environment/Dockerfile",
+    ]:
+        assert (task / relative).read_bytes() == before[Path(relative)]
+    assert migrate_pr_diff_task(task)["action"] == "already_safe"
+
+
+def test_migrate_checks_identity_before_reporting_already_safe(tmp_path: Path):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    migrate_pr_diff_task(task)
+    (task / "instruction.md").write_bytes(b"changed task\n")
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+    for dry_run in (True, False):
+        result = migrate_pr_diff_task(task, dry_run=dry_run)
+        assert result["action"] == "error"
+        assert "content_hash mismatch" in result["detail"]
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+
+
+def test_migrate_dry_run_rejects_undecodable_input_like_apply(tmp_path: Path):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task, instruction=b"\xff")
+    dry = migrate_pr_diff_task(task, dry_run=True)
+    applied = migrate_pr_diff_task(task)
+    assert dry == applied
+    assert dry["action"] == "error"
+    assert "cannot decode" in dry["detail"]
+
+
+def test_migrate_refresh_retries_a_partly_committed_asset_update(tmp_path: Path, monkeypatch):
+    import os
+
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    migrate_pr_diff_task(task)
+    for relative in ("tests/test.sh", "tests/verifier.py"):
+        (task / relative).write_bytes(b"old grader\n")
+    replace = os.replace
+
+    def fail_verifier(source, destination):
+        if Path(destination).name == "verifier.py":
+            raise OSError("swap failed")
+        return replace(source, destination)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "replace", fail_verifier)
+        assert migrate_pr_diff_task(task)["action"] == "error"
+    assert not list(task.rglob("*.migrate-tmp"))
+    assert (task / "tests/verifier.py").read_bytes() == b"old grader\n"
+    assert migrate_pr_diff_task(task)["action"] == "migrated"
+    assert migrate_pr_diff_task(task)["action"] == "already_safe"
