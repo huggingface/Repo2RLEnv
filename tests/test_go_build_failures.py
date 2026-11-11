@@ -95,7 +95,15 @@ def test_legacy_text_remains_readable():
 
 
 @pytest.mark.parametrize(
-    "command", ["go test -json=false ./...", "go test -json=true ./...", "go test -json ./..."]
+    "command",
+    [
+        "go test -json=false ./...",
+        "go test -json=true ./...",
+        "go test -json ./...",
+        "go test --json=false ./...",
+        "go test -json=0 ./...",
+        "go test --json=FALSE ./...",
+    ],
 )
 def test_normalized_json_cannot_be_disabled_and_is_idempotent(command):
     normalized = normalize_test_cmds_for_runtime([command])
@@ -103,9 +111,16 @@ def test_normalized_json_cannot_be_disabled_and_is_idempotent(command):
     assert normalize_test_cmds_for_runtime(normalized) == normalized
 
 
-def test_test_binary_arguments_are_preserved():
-    assert normalize_test_cmds_for_runtime(["go test ./... -args -json=false"]) == [
-        "go test -json -count=1 ./... -args -json=false"
+@pytest.mark.parametrize("separator", ["-args", "--args", "--"])
+def test_test_binary_arguments_are_preserved(separator):
+    assert normalize_test_cmds_for_runtime([f"go test ./... {separator} -json=false"]) == [
+        f"go test -json -count=1 ./... {separator} -json=false"
+    ]
+
+
+def test_explicit_go_repeat_count_is_preserved():
+    assert normalize_test_cmds_for_runtime(["go test --count=2 ./..."]) == [
+        "go test -json --count=2 ./..."
     ]
 
 

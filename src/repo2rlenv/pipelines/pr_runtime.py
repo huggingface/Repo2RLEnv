@@ -1114,10 +1114,15 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
 
         # --- go test ---
         elif re.search(r"\bgo\s+test\b", cleaned):
-            # -args starts test-binary arguments; their flags are not Go flags.
-            parts = re.split(r"(\s+-args(?:\s|$))", cleaned, maxsplit=1)
-            driver = re.sub(r"\s+-json(?:=(?:true|false))?(?=\s|$)", "", parts[0])
-            if not re.search(r"\s-count(?:=|\s)", driver):
+            # Go accepts both one- and two-dash flags. Everything after -args,
+            # --args or -- belongs to the test binary and must stay unchanged.
+            parts = re.split(r"(\s+(?:--?args|--)(?:\s|$))", cleaned, maxsplit=1)
+            driver = re.sub(
+                r"\s+--?json(?:=(?:true|false|True|False|TRUE|FALSE|t|f|T|F|1|0))?(?=\s|$)",
+                "",
+                parts[0],
+            )
+            if not re.search(r"\s--?count(?:=|\s)", driver):
                 # Never serve a cached result: every graded run executes the tests.
                 driver = re.sub(r"\bgo\s+test\b", "go test -count=1", driver, count=1)
             parts[0] = re.sub(r"\bgo\s+test\b", "go test -json", driver, count=1)
