@@ -1663,7 +1663,8 @@ class PRRuntimePipeline:
                 **(_runtime_aux_files(fail_to_pass, pass_to_pass) if fail_to_pass else {}),
                 **separate_verifier_files(mutants),
                 "environment/docker-compose.yaml": egress_guard_compose(
-                    fix_source_hosts(self.input.repo.source_kind)
+                    fix_source_hosts(self.input.repo.source_kind, self.bootstrap.language),
+                    self.bootstrap.language,
                 ),
             },
         )
