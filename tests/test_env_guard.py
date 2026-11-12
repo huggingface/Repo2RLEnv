@@ -12,12 +12,16 @@ from pathlib import Path
 
 import pytest
 
+from repo2rlenv.bootstrap.spec import LanguageHint
 from repo2rlenv.pipelines._env_guard import (
     FIX_SOURCE_HOSTS,
     GITLAB_FIX_SOURCE_HOSTS,
+    GO_FIX_SOURCE_HOSTS,
+    RUST_FIX_SOURCE_HOSTS,
     egress_guard_compose,
     fix_source_hosts,
     git_history_scrub,
+    offline_env,
 )
 from repo2rlenv.sources import SourceKind
 
@@ -140,6 +144,16 @@ def test_gitlab_compose_is_valid_yaml():
     assert "gitlab.com:0.0.0.0" in eh
 
 
+def _is_bootstrap_language(node: ast.expr) -> bool:
+    """True for the AST of `self.bootstrap.language`."""
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "language"
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "bootstrap"
+    )
+
+
 @pytest.mark.parametrize("module", ["pr_runtime", "commit_runtime", "cve_patches"])
 def test_pipelines_pass_the_source_aware_host_list(module):
     """Every emitted task must blackhole its own forge, not just github.com."""
@@ -154,6 +168,93 @@ def test_pipelines_pass_the_source_aware_host_list(module):
     ]
     assert calls, f"{module} no longer emits an egress guard"
     for call in calls:
-        assert len(call.args) == 1, f"{module} calls egress_guard_compose() with no hosts"
-        arg = call.args[0]
-        assert isinstance(arg, ast.Call) and getattr(arg.func, "id", "") == "fix_source_hosts"
+        # The guard takes (hosts, language): a task that drops the language
+        # silently loses its Go/Rust registry block.
+        assert len(call.args) == 2, f"{module} calls egress_guard_compose() without a language"
+        hosts_arg, language_arg = call.args
+        assert isinstance(hosts_arg, ast.Call)
+        assert getattr(hosts_arg.func, "id", "") == "fix_source_hosts"
+        assert len(hosts_arg.args) == 2, f"{module} picks hosts without the task's language"
+        assert _is_bootstrap_language(hosts_arg.args[1]), f"{module} hosts arg is not the language"
+        assert _is_bootstrap_language(language_arg), f"{module} overlay env is not the language"
+
+
+# --- per-language registries (Go / Rust) --------------------------------------
+
+
+def test_go_blackholes_the_module_proxy():
+    hosts = fix_source_hosts(SourceKind.GITHUB, LanguageHint.GO)
+    # The module proxy mirrors the repo: leaving it up closes nothing for Go.
+    assert set(GO_FIX_SOURCE_HOSTS).issubset(hosts)
+    assert set(FIX_SOURCE_HOSTS).issubset(hosts)
+
+
+def test_rust_blackholes_the_crate_registries():
+    hosts = fix_source_hosts(SourceKind.GITHUB, LanguageHint.RUST)
+    assert set(RUST_FIX_SOURCE_HOSTS).issubset(hosts)
+    assert set(FIX_SOURCE_HOSTS).issubset(hosts)
+
+
+@pytest.mark.parametrize(
+    "language",
+    [
+        LanguageHint.PYTHON,
+        LanguageHint.NODE,
+        LanguageHint.JAVA,
+        LanguageHint.C_CPP,
+        LanguageHint.UNKNOWN,
+        None,
+    ],
+)
+def test_other_languages_keep_the_base_list(language):
+    """A non-Go/Rust task's host list and overlay must not change."""
+    assert fix_source_hosts(SourceKind.GITHUB, language) == FIX_SOURCE_HOSTS
+    assert offline_env(language) == {}
+    assert "environment:" not in egress_guard_compose(fix_source_hosts(None, language), language)
+
+
+def test_language_may_be_passed_as_a_plain_string():
+    """Callers hold either the enum or its value; both must work."""
+    assert fix_source_hosts(None, "go") == fix_source_hosts(None, LanguageHint.GO)
+    assert fix_source_hosts(None, "RUST") == fix_source_hosts(None, LanguageHint.RUST)
+
+
+def test_gitlab_and_go_compose_together():
+    hosts = fix_source_hosts(SourceKind.GITLAB, LanguageHint.GO)
+    assert "gitlab.com" in hosts and "proxy.golang.org" in hosts
+
+
+def test_go_overlay_sets_goproxy_off():
+    compose = egress_guard_compose(fix_source_hosts(None, LanguageHint.GO), LanguageHint.GO)
+    assert 'GOPROXY: "off"' in compose
+    # A cache miss must not go looking for a checksum either.
+    assert 'GOSUMDB: "off"' in compose
+
+
+def test_rust_overlay_sets_cargo_offline():
+    compose = egress_guard_compose(fix_source_hosts(None, LanguageHint.RUST), LanguageHint.RUST)
+    assert 'CARGO_NET_OFFLINE: "true"' in compose
+
+
+def test_go_overlay_preserves_vendoring():
+    """`GOFLAGS=-mod=mod` would drop vendor/ and force a proxy fetch."""
+    compose = egress_guard_compose(fix_source_hosts(None, LanguageHint.GO), LanguageHint.GO)
+    assert "GOFLAGS" not in compose
+
+
+@pytest.mark.parametrize("language", [LanguageHint.GO, LanguageHint.RUST])
+def test_language_overlay_is_valid_yaml(language):
+    import yaml  # pyyaml is a transitive dep; skip cleanly if absent
+
+    hosts = fix_source_hosts(None, language)
+    service = yaml.safe_load(egress_guard_compose(hosts, language))["services"]["main"]
+    assert [f"{h}:0.0.0.0" for h in hosts] == service["extra_hosts"]
+    assert service["environment"] == offline_env(language)
+
+
+def test_language_overlay_keeps_the_agent_installable():
+    """The agent fetches itself at run time; its registries must stay up."""
+    for language in (LanguageHint.GO, LanguageHint.RUST):
+        compose = egress_guard_compose(fix_source_hosts(None, language), language)
+        for allowed in ("registry.npmjs.org", "api.anthropic.com", "deb.debian.org"):
+            assert allowed not in compose
