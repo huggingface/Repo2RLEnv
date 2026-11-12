@@ -46,6 +46,7 @@ from repo2rlenv.pipelines._mutants import Mutants, make_mutants, validated
 from repo2rlenv.pipelines._mutants_ts import language_of, make_tree_sitter_mutants
 from repo2rlenv.pipelines._node_runner import freeze_node_commands
 from repo2rlenv.pipelines.pr_runtime import (
+    _GIT_CLEAN_EXCLUDES,
     _PYTEST_COMMAND_RE,
     _PYTHONS,
     _access_flags,
@@ -184,10 +185,9 @@ def _build_stage_script(
         "cd /workspace",
         "git config --global --add safe.directory /workspace",
         f"git reset --hard {base_commit}",
-        # Keep language dep/build dirs (node_modules, target, vendor, ...) so
-        # the clean doesn't wipe deps the suite needs. See _GIT_CLEAN_EXCLUDES.
-        "git clean -fdx -e .venv -e venv -e __pycache__ -e .tox "
-        "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache || true",
+        # Same clean as the task image, so validation sees the tree the agent
+        # and the verifier see. See _GIT_CLEAN_EXCLUDES.
+        f"git clean -fdx {_GIT_CLEAN_EXCLUDES} || true",
     ]
     candidates = " ".join(_PYTHONS)
     parts.append(
