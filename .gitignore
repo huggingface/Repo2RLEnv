@@ -248,3 +248,6 @@ scripts/
 !/docs/pipelines/prompts/meta.json
 # Raw campaign evidence belongs in workspace/, not in public documentation.
 /docs/pipelines/evidence/
+
+# Symbiotic Security - Security Rules (auto-generated)
+.github/instructions/symbiotic_security_rules.instructions.md

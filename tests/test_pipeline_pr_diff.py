@@ -35,6 +35,79 @@ from repo2rlenv.pipelines.pr_diff import (
 )
 
 
+def test_pr_diff_option_defaults_to_none() -> None:
+    from repo2rlenv.spec.options import PRDiffOptions
+
+    assert PRDiffOptions().pr is None
+
+
+def test_should_skip_targeted_pr_ignores_draft_and_merge_state() -> None:
+    """--pr N targets one PR explicitly; draft/merge-state must not drop it."""
+    from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
+    from repo2rlenv.spec.input import (
+        GenerationInput,
+        OutputSpec,
+        PipelineName,
+        PipelineSpec,
+        RepoSpec,
+    )
+    from repo2rlenv.spec.options import PRDiffOptions
+
+    gen_input = GenerationInput(
+        repo=RepoSpec(url="huggingface/trl"),
+        pipeline=PipelineSpec(name=PipelineName.PR_DIFF, options={}),
+        output=OutputSpec(destination="./out", org="x", dataset_name="y"),
+    )
+    pipeline = PRDiffPipeline(gen_input, PRDiffOptions(pr=42))
+    unmerged_draft = PullRequestSummary(
+        number=42,
+        title="Fix the bug",
+        body="",
+        state="OPEN",
+        merged_at=None,
+        base_ref="main",
+        base_sha="0" * 40,
+        head_sha="1" * 40,
+        is_draft=True,
+        url="https://github.com/example/repo/pull/42",
+        changed_files=["a.py"],
+    )
+    assert pipeline._should_skip(unmerged_draft) is None
+
+
+def test_should_skip_targeted_pr_still_applies_max_files() -> None:
+    from repo2rlenv.pipelines.pr_diff import PRDiffPipeline
+    from repo2rlenv.spec.input import (
+        GenerationInput,
+        OutputSpec,
+        PipelineName,
+        PipelineSpec,
+        RepoSpec,
+    )
+    from repo2rlenv.spec.options import PRDiffOptions
+
+    gen_input = GenerationInput(
+        repo=RepoSpec(url="huggingface/trl"),
+        pipeline=PipelineSpec(name=PipelineName.PR_DIFF, options={}),
+        output=OutputSpec(destination="./out", org="x", dataset_name="y"),
+    )
+    pipeline = PRDiffPipeline(gen_input, PRDiffOptions(pr=42, max_files_per_pr=1))
+    pr = PullRequestSummary(
+        number=42,
+        title="Fix the bug",
+        body="",
+        state="OPEN",
+        merged_at=None,
+        base_ref="main",
+        base_sha="0" * 40,
+        head_sha="1" * 40,
+        is_draft=False,
+        url="https://github.com/example/repo/pull/42",
+        changed_files=["a.py", "b.py"],
+    )
+    assert pipeline._should_skip(pr) == "too_many_files"
+
+
 def _pr(*, title: str = "Fix the bug", body: str = "") -> PullRequestSummary:
     """Build a minimal PullRequestSummary stub."""
     return PullRequestSummary(

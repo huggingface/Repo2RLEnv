@@ -112,6 +112,32 @@ def list_merged_prs(
     return summaries
 
 
+def fetch_pr(owner: str, name: str, number: int, *, token: str | None = None) -> PullRequestSummary:
+    """Return a single MR's summary regardless of state (mirrors github.fetch_pr).
+
+    Draft/date/state filters are intentionally NOT applied — the caller targeted
+    this MR explicitly. Raises GitLabError if the MR can't be fetched.
+    """
+    pid = _project_id(owner, name)
+    r = _request(f"{GITLAB_API}/projects/{pid}/merge_requests/{number}", token)
+    changes = _request(f"{GITLAB_API}/projects/{pid}/merge_requests/{number}/changes", token)
+    refs = changes.get("diff_refs") or {}
+    files = [c["new_path"] for c in changes.get("changes", []) if c.get("new_path")]
+    return PullRequestSummary(
+        number=r.get("iid", number),
+        title=r.get("title") or "",
+        body=r.get("description") or "",
+        state=r.get("state") or "",
+        merged_at=r.get("merged_at"),
+        base_ref=r.get("target_branch") or "",
+        base_sha=refs.get("base_sha") or "",
+        head_sha=refs.get("head_sha") or r.get("sha") or "",
+        is_draft=bool(r.get("draft")),
+        url=r.get("web_url") or "",
+        changed_files=files,
+    )
+
+
 def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = None) -> str:
     """Return the MR's unified diff via the `<mr>.diff` web route (git-format).
 

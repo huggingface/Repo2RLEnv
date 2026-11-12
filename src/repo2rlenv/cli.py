@@ -168,6 +168,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
         overrides["pipeline"] = {"name": args.pipeline}
     if args.pipeline_opt:
         overrides.setdefault("pipeline", {})["options"] = _parse_pipeline_opts(args.pipeline_opt)
+    if getattr(args, "pr", None) is not None:
+        overrides.setdefault("pipeline", {}).setdefault("options", {})["pr"] = args.pr
     if getattr(args, "recipe", None):
         overrides.setdefault("pipeline", {})["recipe"] = args.recipe
     if getattr(args, "resume", False):
@@ -1069,6 +1071,15 @@ def _dispatch(argv: list[str]) -> int:
     g.add_argument("--ref", default="HEAD", help="branch/tag/commit (default: HEAD)")
     g.add_argument("--access", choices=["public", "private", "auto"], default="auto")
     g.add_argument("--pipeline", help="pipeline name")
+    g.add_argument(
+        "--pr",
+        type=int,
+        metavar="NUMBER",
+        help=(
+            "target a single PR by number (pr_diff / pr_runtime) instead of mining "
+            "recent PRs; bypasses --limit/--since/--until and merge-state filters"
+        ),
+    )
     g.add_argument("--recipe", help="owned recipe name (native by default)")
     g.add_argument(
         "--resume",

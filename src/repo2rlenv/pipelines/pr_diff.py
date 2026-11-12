@@ -804,20 +804,26 @@ class PRDiffPipeline:
 
         provider = provider_for(self.input.repo)
         owner, name = self.input.repo.owner_name
-        logger.info("listing merged PRs for %s/%s (limit=%d)", owner, name, self.options.limit)
-
-        try:
-            prs = provider.list_merged_prs(
-                owner,
-                name,
-                limit=self.options.limit,
-                since=self.options.since,
-                until=self.options.until,
-                skip_drafts=self.options.skip_drafts,
-                token=token,
-            )
-        except _PROVIDER_ERRORS as exc:
-            raise RuntimeError(f"failed to list PRs: {exc}") from exc
+        if self.options.pr is not None:
+            logger.info("targeting PR %s/%s#%d (single-PR mode)", owner, name, self.options.pr)
+            try:
+                prs = [provider.fetch_pr(owner, name, self.options.pr, token=token)]
+            except _PROVIDER_ERRORS as exc:
+                raise RuntimeError(f"failed to fetch PR #{self.options.pr}: {exc}") from exc
+        else:
+            logger.info("listing merged PRs for %s/%s (limit=%d)", owner, name, self.options.limit)
+            try:
+                prs = provider.list_merged_prs(
+                    owner,
+                    name,
+                    limit=self.options.limit,
+                    since=self.options.since,
+                    until=self.options.until,
+                    skip_drafts=self.options.skip_drafts,
+                    token=token,
+                )
+            except _PROVIDER_ERRORS as exc:
+                raise RuntimeError(f"failed to list PRs: {exc}") from exc
 
         skip_reasons: dict[str, int] = {}
         emitted = 0
@@ -866,14 +872,17 @@ class PRDiffPipeline:
         )
 
     def _should_skip(self, pr: PullRequestSummary) -> str | None:
-        if pr.is_draft and self.options.skip_drafts:
-            return "draft"
+        # In single-PR mode the user targeted this PR explicitly, so draft/merge
+        # state must not silently drop it. Structural quality filters still apply.
+        if self.options.pr is None:
+            if pr.is_draft and self.options.skip_drafts:
+                return "draft"
+            if not pr.merged_at:
+                return "not_merged"
         if not pr.changed_files:
             return "no_files"
         if len(pr.changed_files) > self.options.max_files_per_pr:
             return "too_many_files"
-        if not pr.merged_at:
-            return "not_merged"
         return None
 
     def _build_task(self, pr: PullRequestSummary, diff: str) -> HarborTask:

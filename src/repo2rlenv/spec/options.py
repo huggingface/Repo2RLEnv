@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from repo2rlenv.spec.recipe_options import (
     CodeMidasOptions,
@@ -41,6 +41,7 @@ class PRRuntimeOptions(_BaseOptions):
     """
 
     # --- Mining (mirrors PRDiffOptions where overlap exists) ---
+    pr: int | None = None  # target a single PR by number; bypasses limit/since/until/state
     limit: int = 50
     since: date | None = None
     until: date | None = None
@@ -64,6 +65,13 @@ class PRRuntimeOptions(_BaseOptions):
     require_new_test_funcs: bool = True  # test_patch must add ≥1 new test func/class
     skip_ci_only: bool = True  # auto-skip when source patch is 100% under .github/
 
+    @field_validator("pr")
+    @classmethod
+    def _validate_pr(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("pr must be a positive PR number")
+        return v
+
 
 class PRDiffOptions(_BaseOptions):
     """SWE-RL-style PR mining with a Harbor-runnable diff-similarity verifier.
@@ -77,6 +85,7 @@ class PRDiffOptions(_BaseOptions):
     cheap.
     """
 
+    pr: int | None = None  # target a single PR by number; bypasses limit/since/until/state
     limit: int = 50
     since: date | None = None
     until: date | None = None
@@ -94,6 +103,13 @@ class PRDiffOptions(_BaseOptions):
     # Below this is too trivial to be a meaningful RL signal — typically
     # a one-character typo fix or a doc tweak.
     min_loc_changed: int = 3
+
+    @field_validator("pr")
+    @classmethod
+    def _validate_pr(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("pr must be a positive PR number")
+        return v
 
 
 class CommitRuntimeOptions(_BaseOptions):

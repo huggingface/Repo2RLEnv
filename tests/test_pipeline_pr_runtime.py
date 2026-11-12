@@ -881,3 +881,62 @@ def test_pr_split_uses_the_grading_rule():
     source, tests = split_patch_and_test_patch(diff)
     assert "pkg/testdata/golden.json" in tests and "Tests/x.py" in tests
     assert "pkg/a.go" in source and "docs/tests/e.py" in source
+
+
+# --- single-PR targeting (--pr) ----------------------------------------------
+
+
+def test_pr_option_defaults_to_none():
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    assert PRRuntimeOptions().pr is None
+
+
+def test_pr_option_accepts_a_specific_number():
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    assert PRRuntimeOptions(pr=1234).pr == 1234
+
+
+def test_pr_option_rejects_non_positive_number():
+    from pydantic import ValidationError
+
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    with pytest.raises(ValidationError):
+        PRRuntimeOptions(pr=0)
+    with pytest.raises(ValidationError):
+        PRRuntimeOptions(pr=-5)
+
+
+def test_pre_filter_targeted_pr_ignores_draft_and_merge_state():
+    """--pr N targets one PR explicitly; draft/merge-state must not drop it."""
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = _make_pipeline(None)
+    pipeline.options = PRRuntimeOptions(pr=42)
+    unmerged_draft = PullRequestSummary(
+        number=42,
+        title="Fix crash in argument parsing",
+        body="Real bug.",
+        state="OPEN",
+        merged_at=None,
+        base_ref="main",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        is_draft=True,
+        url="https://github.com/owner/repo/pull/42",
+        changed_files=["src/foo.py"],
+    )
+    assert pipeline._pre_filter(unmerged_draft) is None
+
+
+def test_pre_filter_targeted_pr_still_applies_quality_filters():
+    """Single-PR mode keeps quality gates (e.g. no changed files)."""
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = _make_pipeline(None)
+    pipeline.options = PRRuntimeOptions(pr=42)
+    pr = _make_pr("Fix the parser crash.")
+    pr.changed_files = []
+    assert pipeline._pre_filter(pr) == "no_files"
