@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 import time
@@ -41,6 +42,9 @@ class PullRequestSummary:
     changed_files: list[str]
 
 
+_SERVER_ERROR_RE = re.compile(r"\bHTTP 5\d\d\b")
+
+
 def _run_gh(args: list[str], token: str | None = None) -> str:
     if not shutil.which("gh"):
         raise GitHubError("gh CLI not found on PATH; install it or use a different auth path")
@@ -60,7 +64,8 @@ def _run_gh(args: list[str], token: str | None = None) -> str:
         )
         or args[:2] in (["pr", "list"], ["pr", "view"], ["pr", "diff"])
     )
-    for attempt in range(3 if read_only else 1):
+    attempts = 3 if read_only else 1
+    for attempt in range(attempts):
         try:
             proc = subprocess.run(
                 ["gh", *args],
@@ -71,11 +76,16 @@ def _run_gh(args: list[str], token: str | None = None) -> str:
                 env=env,
                 check=False,
             )
-            break
         except subprocess.TimeoutExpired:
-            if not read_only or attempt == 2:
+            if attempt == attempts - 1:
                 raise
-            time.sleep(0.5 * 2**attempt)
+        else:
+            # A read that hit a transient server error (`HTTP 502: Bad Gateway`) is retried too.
+            if proc.returncode == 0 or attempt == attempts - 1:
+                break
+            if not _SERVER_ERROR_RE.search(proc.stderr or ""):
+                break
+        time.sleep(0.5 * 2**attempt)
     if proc.returncode != 0:
         raise GitHubError(f"gh {' '.join(args)!r} failed: {proc.stderr.strip()}")
     return proc.stdout
@@ -100,6 +110,17 @@ def _fetch_base_sha(owner: str, name: str, number: int, *, token: str | None = N
     return sha
 
 
+def _merged_window(since: date | None, until: date | None) -> str:
+    """GitHub search qualifier for a merge-date window, or "" without one."""
+    if since and until:
+        return f"merged:{since.isoformat()}..{until.isoformat()}"
+    if since:
+        return f"merged:>={since.isoformat()}"
+    if until:
+        return f"merged:<={until.isoformat()}"
+    return ""
+
+
 def list_merged_prs(
     owner: str,
     name: str,
@@ -110,9 +131,10 @@ def list_merged_prs(
     skip_drafts: bool = True,
     token: str | None = None,
 ) -> list[PullRequestSummary]:
-    """List recently merged PRs ordered newest-first.
+    """List merged PRs ordered newest-first.
 
-    Uses `gh pr list` (REST under the hood). Filters by date client-side.
+    Uses `gh pr list`. A `since`/`until` window is sent to GitHub as a `merged:`
+    search, so a window older than the newest PRs still finds its candidates.
     """
     args = [
         "pr",
@@ -122,12 +144,16 @@ def list_merged_prs(
         "--state",
         "merged",
         "--limit",
-        str(min(limit * 3, 1000)),  # over-fetch to allow client-side filtering
+        str(min(limit * 3, 1000)),  # over-fetch: drafts and unresolvable bases are dropped
         "--json",
         "number,title,body,state,mergedAt,baseRefName,headRefOid,isDraft,url,files",
     ]
+    window = _merged_window(since, until)
+    if window:
+        args += ["--search", window]
     raw = _run_gh(args, token=token)
-    rows = json.loads(raw)
+    # Search results come back in relevance order.
+    rows = sorted(json.loads(raw), key=lambda r: r.get("mergedAt") or "", reverse=True)
 
     summaries: list[PullRequestSummary] = []
     for r in rows:
