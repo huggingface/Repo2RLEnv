@@ -355,6 +355,64 @@ def test_llm_judge_endpoint_trailing_slash_and_explicit_key() -> None:
     assert req.get_header("Authorization") == "Bearer srv"
 
 
+# ---------------------------------------------------------------------------
+# llm_judge — opt-in reasoning_effort on the endpoint route
+# ---------------------------------------------------------------------------
+
+
+def test_llm_judge_omits_reasoning_effort_when_unset() -> None:
+    """Default behavior must be byte-for-byte unchanged: no reasoning_effort."""
+    _, _, req = _judge_via(_ENDPOINT, _OPENAI_STYLE_OK, model="m")
+    assert "reasoning_effort" not in json.loads(req.data)
+
+
+def test_llm_judge_sends_reasoning_effort_when_set() -> None:
+    _, status, req = _judge_via(_ENDPOINT, _OPENAI_STYLE_OK, model="m", reasoning_effort="none")
+    assert status == "ok"
+    assert json.loads(req.data)["reasoning_effort"] == "none"
+
+
+def test_llm_judge_reasoning_effort_not_sent_on_anthropic_route() -> None:
+    """The Anthropic Messages API doesn't take OpenAI's reasoning_effort field."""
+    fake = b'{"content": [{"text": "{\\"score\\": 0.5}"}]}'
+    _, status, req = _judge_via(
+        None, fake, api_key="sk-ant", model="claude-x", reasoning_effort="none"
+    )
+    assert status == "ok"
+    assert "reasoning_effort" not in json.loads(req.data)
+
+
+@pytest.mark.parametrize("value", ["none", "low", "medium", "high", "xhigh", "max", "minimal"])
+def test_read_reasoning_effort_accepts_known_levels(monkeypatch, value) -> None:
+    from repo2rlenv.pipelines._pr_diff_verifier import _read_reasoning_effort
+
+    monkeypatch.setenv("R2E_JUDGE_REASONING_EFFORT", value)
+    assert _read_reasoning_effort() == value
+
+
+def test_read_reasoning_effort_is_case_and_whitespace_insensitive(monkeypatch) -> None:
+    from repo2rlenv.pipelines._pr_diff_verifier import _read_reasoning_effort
+
+    monkeypatch.setenv("R2E_JUDGE_REASONING_EFFORT", "  NONE  ")
+    assert _read_reasoning_effort() == "none"
+
+
+@pytest.mark.parametrize("value", ["", "bogus", "medium; rm -rf /", "x" * 5000, "0"])
+def test_read_reasoning_effort_drops_unknown_values(monkeypatch, value) -> None:
+    """Untrusted env input is allow-listed; anything else yields None."""
+    from repo2rlenv.pipelines._pr_diff_verifier import _read_reasoning_effort
+
+    monkeypatch.setenv("R2E_JUDGE_REASONING_EFFORT", value)
+    assert _read_reasoning_effort() is None
+
+
+def test_read_reasoning_effort_unset_is_none(monkeypatch) -> None:
+    from repo2rlenv.pipelines._pr_diff_verifier import _read_reasoning_effort
+
+    monkeypatch.delenv("R2E_JUDGE_REASONING_EFFORT", raising=False)
+    assert _read_reasoning_effort() is None
+
+
 def test_llm_judge_endpoint_requires_model() -> None:
     score, status = llm_judge(
         instruction="i", oracle="o", predicted="p", api_key="EMPTY", model="", endpoint=_ENDPOINT
@@ -612,6 +670,62 @@ def _main_with_judge(tmp_path, monkeypatch, status):
         == 0
     )
     return json.loads((tmp_path / "out/reward-details.json").read_text())
+
+
+def test_main_threads_reasoning_effort_into_judge_and_breakdown(tmp_path, monkeypatch):
+    """R2E_JUDGE_REASONING_EFFORT reaches llm_judge and is recorded."""
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    diff = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
+    for name, content in (("oracle", diff), ("predicted", diff), ("instruction", "Fix x")):
+        (tmp_path / name).write_text(content)
+    seen: dict = {}
+
+    def _fake_judge(**kwargs):
+        seen.update(kwargs)
+        return 0.9, "ok"
+
+    monkeypatch.setenv("R2E_JUDGE_REASONING_EFFORT", "none")
+    monkeypatch.setattr(verifier, "llm_judge", _fake_judge)
+    assert (
+        verifier.main(
+            [
+                str(tmp_path / "oracle"),
+                str(tmp_path / "predicted"),
+                str(tmp_path / "instruction"),
+                "--out-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+        == 0
+    )
+    assert seen["reasoning_effort"] == "none"
+    result = json.loads((tmp_path / "out/reward-details.json").read_text())
+    assert result["judge_reasoning_effort"] == "none"
+
+
+def test_main_records_null_reasoning_effort_when_unset(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines import _pr_diff_verifier as verifier
+
+    diff = "diff --git a/x b/x\n@@ -1 +1 @@\n-old\n+new\n"
+    for name, content in (("oracle", diff), ("predicted", diff), ("instruction", "Fix x")):
+        (tmp_path / name).write_text(content)
+    monkeypatch.delenv("R2E_JUDGE_REASONING_EFFORT", raising=False)
+    monkeypatch.setattr(verifier, "llm_judge", lambda **kwargs: (0.9, "ok"))
+    assert (
+        verifier.main(
+            [
+                str(tmp_path / "oracle"),
+                str(tmp_path / "predicted"),
+                str(tmp_path / "instruction"),
+                "--out-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+        == 0
+    )
+    result = json.loads((tmp_path / "out/reward-details.json").read_text())
+    assert result["judge_reasoning_effort"] is None
 
 
 @pytest.mark.parametrize(

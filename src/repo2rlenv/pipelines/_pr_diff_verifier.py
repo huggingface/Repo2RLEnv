@@ -42,6 +42,14 @@ server (vLLM, Ollama, a gateway) and switches the request to
 servers ignore it. ``ANTHROPIC_API_KEY`` is only read on the default
 route and is never sent to a custom endpoint.
 
+Reasoning judges on the endpoint route can be pinned to a thinking
+budget with ``R2E_JUDGE_REASONING_EFFORT`` (one of ``none`` / ``low`` /
+``medium`` / ``high`` / ``xhigh`` / ``max``). An unset or unrecognized
+value is ignored, so the field is only ever sent when the operator asks
+for it — a model that rejects the parameter is never broken by default.
+Setting it to ``none`` stops a reasoning judge from spending its whole
+output budget on hidden thinking and leaving the run ungraded.
+
 Final reward is clipped to [0, 1] and additionally clamped to ≤ 0.40
 when ``size_sanity < 0.10`` (catastrophic-size hard cap — stops a
 charitable judge from inflating scores on wildly wrong-sized patches).
@@ -308,6 +316,27 @@ _JUDGE_PROMPT = (
 
 _DEFAULT_JUDGE_MODEL = "claude-haiku-4-5-20251001"
 _ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+
+# Reasoning-effort levels accepted on the OpenAI-compatible endpoint route.
+# `none` disables hidden reasoning entirely, which is the fix for a reasoning
+# judge that exhausts its output budget on thinking (leaving the run ungraded).
+# Restricted to a closed allow-list: the value is operator-controlled but still
+# untrusted input, so an unrecognized string is dropped rather than forwarded.
+_REASONING_EFFORT_LEVELS = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
+
+
+def _read_reasoning_effort() -> str | None:
+    """``R2E_JUDGE_REASONING_EFFORT`` when it names a known level, else ``None``.
+
+    Only values in ``_REASONING_EFFORT_LEVELS`` are forwarded, so a typo or an
+    oversized value can't be smuggled into the request body. Unset or unknown
+    returns ``None`` — the caller then omits the field so behavior is byte-for-
+    byte identical to before this knob existed.
+    """
+    value = os.environ.get("R2E_JUDGE_REASONING_EFFORT", "").strip().lower()
+    return value if value in _REASONING_EFFORT_LEVELS else None
+
+
 # Bearer token for a self-hosted judge when R2E_JUDGE_API_KEY is unset. vLLM /
 # Ollama ignore it; the OpenAI wire format still wants one. Same value llm.py uses.
 _PLACEHOLDER_API_KEY = "EMPTY"
@@ -322,6 +351,7 @@ def llm_judge(
     model: str = _DEFAULT_JUDGE_MODEL,
     timeout: int = 60,
     endpoint: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> tuple[float | None, str]:
     """Return ``(score, status)``.
 
@@ -340,6 +370,11 @@ def llm_judge(
     request goes to ``<endpoint>/chat/completions`` with ``api_key`` as a
     bearer token, at temperature 0, and ``model`` must be given explicitly;
     otherwise it goes to Anthropic's Messages API unchanged.
+
+    ``reasoning_effort`` — optional cap on a reasoning judge's hidden thinking,
+    forwarded as the OpenAI ``reasoning_effort`` field. Only sent on the
+    endpoint route (the Anthropic Messages API uses a different shape) and only
+    when it names a known level; ``None`` leaves the request unchanged.
     """
     if not api_key:
         return None, "no_api_key"
@@ -365,6 +400,10 @@ def llm_judge(
         # them to greedy. The Anthropic route keeps its defaults — the weights
         # were calibrated against them.
         payload["temperature"] = 0
+        # Opt-in only: an unset/unknown effort must not add the field, so a
+        # model that rejects `reasoning_effort` keeps working by default.
+        if reasoning_effort in _REASONING_EFFORT_LEVELS:
+            payload["reasoning_effort"] = reasoning_effort
         url = endpoint.rstrip("/") + "/chat/completions"
         headers = {
             "authorization": f"Bearer {api_key}",
@@ -630,6 +669,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     instruction = _read_or_empty(args.instruction)
     api_key, judge_model, judge_endpoint = _judge_config_from_env()
+    judge_reasoning_effort = _read_reasoning_effort()
 
     fv = format_valid(predicted)
     ss = size_sanity(oracle, predicted)
@@ -647,6 +687,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=api_key,
             model=judge_model,
             endpoint=judge_endpoint,
+            reasoning_effort=judge_reasoning_effort,
         )
 
     components: dict[str, float | None] = {
@@ -682,6 +723,7 @@ def main(argv: list[str] | None = None) -> int:
         "weights": {k: round(v, 6) for k, v in weights.items()},
         "judge_model": judge_model if judge_status == "ok" else None,
         "judge_endpoint": judge_endpoint,
+        "judge_reasoning_effort": judge_reasoning_effort,
         "judge_status": judge_status,
     }
 
@@ -723,6 +765,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "_read_reasoning_effort",
     "combine",
     "file_paths",
     "file_targeting",
