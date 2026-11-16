@@ -627,6 +627,9 @@ def test_migrate_already_safe_task_is_a_noop(tmp_path: Path) -> None:
     that and touch nothing."""
     task_dir = tmp_path / "x__y-1"
     task_dir.mkdir()
+    (task_dir / "instruction.md").write_bytes(b"i")
+    (task_dir / "solution").mkdir()
+    (task_dir / "solution/patch.diff").write_bytes(b"d\n")
     env_dir = task_dir / "environment"
     env_dir.mkdir()
     (env_dir / "Dockerfile").write_text(
@@ -988,3 +991,154 @@ def test_verifier_crash_is_ungraded_with_a_sidecar(tmp_path: Path):
         "eval_trustworthy": False,
         "verifier_status": "error",
     }
+
+
+@pytest.mark.parametrize(
+    "asset",
+    [
+        "tests/test.sh",
+        "tests/verifier.py",
+        "tests/capture.py",
+        "tests/oracle.patch",
+        "tests/instruction.md",
+    ],
+)
+def test_migrate_refreshes_stale_assets_even_when_every_file_exists(tmp_path: Path, asset: str):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task, instruction=b"# Issue\r\ndo it\r\n")
+    migrate_pr_diff_task(task)
+    expected = (task / asset).read_bytes()
+    (task / asset).write_bytes(b"old grading asset\n")
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+
+    assert migrate_pr_diff_task(task, dry_run=True)["action"] == "would_migrate"
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+    assert migrate_pr_diff_task(task)["action"] == "migrated"
+    assert (task / asset).read_bytes() == expected
+    for relative in [
+        "instruction.md",
+        "solution/patch.diff",
+        "task.toml",
+        "environment/Dockerfile",
+    ]:
+        assert (task / relative).read_bytes() == before[Path(relative)]
+    assert migrate_pr_diff_task(task)["action"] == "already_safe"
+
+
+def test_migrate_checks_identity_before_reporting_already_safe(tmp_path: Path):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    migrate_pr_diff_task(task)
+    (task / "instruction.md").write_bytes(b"changed task\n")
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+    for dry_run in (True, False):
+        result = migrate_pr_diff_task(task, dry_run=dry_run)
+        assert result["action"] == "error"
+        assert "content_hash mismatch" in result["detail"]
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+
+
+def test_migrate_dry_run_rejects_undecodable_input_like_apply(tmp_path: Path):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task, instruction=b"\xff")
+    dry = migrate_pr_diff_task(task, dry_run=True)
+    applied = migrate_pr_diff_task(task)
+    assert dry == applied
+    assert dry["action"] == "error"
+    assert "cannot decode" in dry["detail"]
+
+
+def test_migrate_refresh_retries_a_partly_committed_asset_update(tmp_path: Path, monkeypatch):
+    import os
+
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    migrate_pr_diff_task(task)
+    for relative in ("tests/test.sh", "tests/verifier.py"):
+        (task / relative).write_bytes(b"old grader\n")
+    replace = os.replace
+
+    def fail_verifier(source, destination):
+        if Path(destination).name == "verifier.py":
+            raise OSError("swap failed")
+        return replace(source, destination)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "replace", fail_verifier)
+        assert migrate_pr_diff_task(task)["action"] == "error"
+    assert not list(task.rglob("*.migrate-tmp"))
+    assert (task / "tests/verifier.py").read_bytes() == b"old grader\n"
+    assert migrate_pr_diff_task(task)["action"] == "migrated"
+    assert migrate_pr_diff_task(task)["action"] == "already_safe"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    ["task.toml", "environment/Dockerfile", "instruction.md", "tests/test.sh"],
+)
+def test_migrate_unreadable_file_is_reported_without_writes(tmp_path, monkeypatch, relative):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    migrate_pr_diff_task(task)
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+    read_bytes, read_text = Path.read_bytes, Path.read_text
+
+    def deny_read_bytes(path):
+        if path == task / relative:
+            raise PermissionError("unreadable fixture")
+        return read_bytes(path)
+
+    def deny_read_text(path, *args, **kwargs):
+        if path == task / relative:
+            raise PermissionError("unreadable fixture")
+        return read_text(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "read_bytes", deny_read_bytes)
+        patch.setattr(Path, "read_text", deny_read_text)
+        for dry_run in (True, False):
+            result = migrate_pr_diff_task(task, dry_run=dry_run)
+            assert result["action"] == "error"
+            assert "unreadable fixture" in result["detail"]
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        'metadata = "invalid"\n',
+        "[metadata]\nrepo2env = []\n",
+        '[metadata.repo2env]\npipeline = "pr_diff"\nref = 42\n',
+    ],
+)
+def test_migrate_reports_invalid_metadata_types(tmp_path, config):
+    task = tmp_path / "task"
+    _write_old_style_pr_diff_task(task)
+    (task / "task.toml").write_text(config)
+    before = {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()}
+    for dry_run in (True, False):
+        assert migrate_pr_diff_task(task, dry_run=dry_run)["action"] == "error"
+    assert {p.relative_to(task): p.read_bytes() for p in task.rglob("*") if p.is_file()} == before
+
+
+def test_migrate_cli_continues_after_an_unreadable_task(tmp_path, monkeypatch):
+    from argparse import Namespace
+
+    from repo2rlenv.cli import cmd_migrate
+
+    broken, good = tmp_path / "a-broken", tmp_path / "b-good"
+    for task in (broken, good):
+        _write_old_style_pr_diff_task(task)
+        migrate_pr_diff_task(task)
+        (task / "tests/verifier.py").write_text("stale verifier\n")
+    read_bytes = Path.read_bytes
+
+    def deny(path):
+        if path == broken / "tests/verifier.py":
+            raise PermissionError("unreadable fixture")
+        return read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", deny)
+    assert cmd_migrate(Namespace(path=str(tmp_path), apply=True)) == 1
+    assert migrate_pr_diff_task(good)["action"] == "already_safe"
+    assert read_bytes(broken / "tests/verifier.py") == b"stale verifier\n"

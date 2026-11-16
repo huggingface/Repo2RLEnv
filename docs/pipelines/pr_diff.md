@@ -232,6 +232,16 @@ on a copy to inspect required repairs; review changed assets and revalidate
 before publishing a new dataset revision. Old scores do not become trustworthy
 just because the installed package was upgraded.
 
+The migration checks the instruction/solution content hash and compares generated
+grading assets with the installed version's builders. `--apply` replaces missing
+or stale grading assets, including files left by an earlier migration. The root
+instruction, solution patch and task metadata are preserved byte for byte.
+An `already_safe` result means those checks passed; it does not certify a task's
+image, network policy or resistance to reward forging. Dockerfiles without the
+old baked-oracle marker are preserved, so review them for later history-scrubbing
+fixes and rebuild before running oracle/no-op and isolation controls. Migration
+does not add a separate verifier or republish the Hub dataset.
+
 ### LLM judge
 
 | Setting (via `--ve`) | Effect |
