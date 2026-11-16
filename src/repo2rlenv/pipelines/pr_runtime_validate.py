@@ -557,7 +557,9 @@ def validate_pr(
             pass_to_pass.append(tname)
     # A test module that can't be imported at base, typically because it
     # imports what the fix adds, has no test IDs there: pytest reports one
-    # file-level ERROR. Its tests failed at base all the same.
+    # file-level ERROR. Go JSON likewise reports a package-level ERROR only
+    # with explicit build-failure evidence; its tests use package::test IDs.
+    # In either case, only tests from that exact unit can be inferred.
     uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
     promoted: dict[str, int] = {}
     for tname, post_st in post_status.items():
@@ -569,7 +571,8 @@ def validate_pr(
             promoted[module] = promoted.get(module, 0) + 1
     if promoted:
         logger.info(
-            "validate_pr: fail-to-pass tests inferred from base collection errors: %s", promoted
+            "validate_pr: fail-to-pass tests inferred from base collection/build errors: %s",
+            promoted,
         )
 
     # Diagnostics: when yield is poor, this tells us whether the suite even

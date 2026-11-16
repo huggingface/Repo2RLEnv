@@ -4,14 +4,12 @@ Each parser turns the raw stdout/stderr of a test runner into a
 `dict[test_name -> status]`, where status ∈ {PASSED, FAILED, SKIPPED, ERROR}.
 
 The validation harness for `pr_runtime` uses these to compute FAIL_TO_PASS
-and PASS_TO_PASS sets per SWE-bench's grading semantics. Each parser is
-intentionally simple — heuristic line matching, not full structured-output
-parsing — because the runners' output formats are stable enough across
-versions.
+and PASS_TO_PASS sets per SWE-bench's grading semantics. Parsers use runner-specific output: Go JSON events preserve package
+identity, while legacy Go output and other runners use their text formats.
 
 Public API:
   * `parse_pytest`    — pytest
-  * `parse_go_test`   — `go test -v`
+  * `parse_go_test`   — `go test -json` or legacy `go test -v`
   * `parse_cargo_test`— `cargo test`
   * `parse_cargo_nextest` — `cargo nextest run`
   * `parse_jest`      — Jest / Mocha / Vitest

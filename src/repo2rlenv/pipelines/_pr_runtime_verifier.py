@@ -323,14 +323,56 @@ _GO_STATUS = {"PASS": PASSED, "FAIL": FAILED, "SKIP": SKIPPED}
 
 
 def parse_go_test(log: str) -> dict[str, str]:
-    """{test_name -> status} from `go test -v` output."""
+    """Parse Go JSON events as ``package::test``, or legacy verbose text.
+
+    A package with explicit build-failure evidence gets a package-level ERROR.
+    Validation can attribute post-fix tests to that package without promoting
+    unrelated tests. Output events are never parsed as test results. Keep this
+    implementation in sync with the standalone task verifier.
+    """
     out: dict[str, str] = {}
-    if not log:
-        return out
+    legacy: dict[str, str] = {}
+    structured = False
+    build_errors: set[str] = set()
+    package_failures: set[str] = set()
     for raw in log.split("\n"):
-        m = _GO_TEST_RE.match(raw)
-        if m:
-            _record_worst(out, m.group("name"), _GO_STATUS[m.group("status")])
+        try:
+            event = json.loads(raw) if raw.startswith("{") else None
+        except (ValueError, RecursionError):
+            event = None
+        if not isinstance(event, dict):
+            m = _GO_TEST_RE.match(raw)
+            if m:
+                _record_worst(legacy, m.group("name"), _GO_STATUS[m.group("status")])
+            continue
+        package, action, test = event.get("Package"), event.get("Action"), event.get("Test")
+        if not isinstance(package, str) or not package or "::" in package:
+            continue
+        if not isinstance(action, str):
+            continue
+        structured = True
+        if isinstance(test, str) and test:
+            status = _GO_STATUS.get(action.upper())
+            if status:
+                _record_worst(out, f"{package}::{test}", status)
+        elif not test:
+            if action == "fail":
+                package_failures.add(package)
+                if isinstance(event.get("FailedBuild"), str) and event["FailedBuild"]:
+                    build_errors.add(package)
+            # Go before FailedBuild was introduced reports this exact package
+            # summary in an output event, followed by the package's fail event.
+            elif action == "output" and event.get("Output") == f"FAIL\t{package} [build failed]\n":
+                build_errors.add(package)
+    if not structured:
+        return legacy
+    for package in build_errors & package_failures:
+        out[package] = "ERROR"
+        # A repeated command that passed once then failed to build must not
+        # retain a passing result from the earlier run.
+        for name in out:
+            if name.startswith(package + "::"):
+                _record_worst(out, name, "ERROR")
     return out
 
 
@@ -586,10 +628,12 @@ def parse_logs(runner: str, log: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 def _has_go_parent(name: str, status_map: dict[str, str]) -> bool:
     """Return True if a Go test has an ancestor represented in the status map."""
-    parts = name.split("/")
+    package, separator, test = name.partition("::")
+    prefix = package + separator if separator else ""
+    parts = (test if separator else name).split("/")
 
     for i in range(1, len(parts)):
-        parent = "/".join(parts[:i])
+        parent = prefix + "/".join(parts[:i])
         if status_map.get(parent) == FAILED:
             return True
 

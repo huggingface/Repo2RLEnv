@@ -93,8 +93,11 @@ flowchart TD
    run unless the repository explicitly requests early stopping (such as `-x` or
    `--maxfail=1`). The validation log records which modules contributed inferred
    fail-to-pass tests. This includes pre-existing tests in those modules: collection
-   failed with the test patch applied, even if their bodies were unchanged. Go and
-   Rust compilation failures without per-test records are not yet inferred this way.
+   failed with the test patch applied, even if their bodies were unchanged. Go
+   commands use `-json`: tests are keyed as `package::test`, and an explicit build
+   failure at base allows the same inference only within that package. Missing
+   tests in other packages are not inferred. Legacy Go text logs remain readable
+   without build-failure inference; Rust compilation failures remain unsupported.
 7. **Write the instruction** from the linked issue (`Fixes #123`, including the
    `[#123](url)` form) when there is one, otherwise from the PR title and
    description. Solution pointers and template sections are stripped.
@@ -458,7 +461,7 @@ adapts them so they emit per-test lines, then targets them at the PR's test file
 | Runner | Adjustment | Targeting |
 |---|---|---|
 | pytest | Drop `--collect-only`, `--co`, `-q`; add `-v` | Append the changed `.py` test files |
-| `go test` | Add `-v` | Replace `./...` with the changed test packages |
+| `go test` | Add `-json` and `-count=1` | Replace `./...` with the changed test packages |
 | `cargo test` | Drop `-q` | Whole suite (Rust filters by name, not file) |
 | Jest, Mocha | Drop `--silent`; add `--verbose` | Append the changed JS/TS test files |
 | Vitest | Use `--reporter=verbose` | Append the changed JS/TS test files |

@@ -22,9 +22,11 @@ from repo2rlenv.pipelines._eval_script import (
     single_file_verifier_files,
 )
 from repo2rlenv.pipelines._mutants import junit_split, make_mutants
+from repo2rlenv.pipelines._mutants_ts import make_tree_sitter_mutants
 from repo2rlenv.pipelines.pr_runtime import (
     _runtime_aux_files,
     build_eval_script,
+    normalize_test_cmds_for_runtime,
     separate_verifier_files,
     stash_pristine,
 )
@@ -302,6 +304,100 @@ def task_unsafe(tmp_path_factory):
         "RUN mkdir -p /usr/local/lib/python3.12/json/__pycache__"
         " && chmod 777 /usr/local/lib/python3.12/json/__pycache__\n",
     )
+
+
+GO_FIXED = "package broken\nfunc New() int { return 2 }\n"
+
+
+@pytest.fixture(scope="module")
+def task_go(tmp_path_factory):
+    root = tmp_path_factory.mktemp("task_go")
+    repo = root / "repo"
+    repo.mkdir()
+    (repo / "go.mod").write_text("module example.org\n\ngo 1.20\n")
+    hidden = (
+        'package broken\nimport "testing"\n'
+        'func TestParse(t *testing.T) { if New() != 2 { t.Fatal("value") } }\n'
+        'func TestOther(t *testing.T) { if New() != 2 { t.Fatal("value") } }\n'
+    )
+    for package in ("broken", "working"):
+        directory = repo / package
+        directory.mkdir()
+        source = (
+            "package broken\nfunc Old() int { return 1 }\n" if package == "broken" else GO_FIXED
+        )
+        (directory / "value.go").write_text(source.replace("package broken", f"package {package}"))
+    (repo / "working/value_test.go").write_text(hidden.replace("package broken", "package working"))
+    _git(repo, "init", "-q")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / "broken/value_test.go").write_text(hidden)
+    _git(repo, "add", "-N", "broken/value_test.go")
+    test_patch = _git(repo, "diff", "--", "broken/value_test.go")
+
+    f2p = [f"example.org/broken::{test}" for test in ("TestParse", "TestOther")]
+    p2p = [name.replace("/broken::", "/working::") for name in f2p]
+    mutants = make_tree_sitter_mutants(
+        f2p,
+        lambda path: (repo / path).read_text() if (repo / path).is_file() else None,
+        allowed_files={"broken/value_test.go"},
+        seed="go-container-test",
+        decoys=f2p,
+    )
+    assert mutants is not None and mutants.ids
+    mutants.exit_nonzero = True
+    (repo / "broken/value_test.go").unlink()
+    (root / "tests").mkdir()
+    files = {
+        "tests/test.sh": build_eval_script(
+            base,
+            test_patch,
+            normalize_test_cmds_for_runtime(["go test --json=false ./..."]),
+            language="go",
+            fail_to_pass=f2p,
+            pass_to_pass=p2p,
+            run_timeout=120,
+            mutants=mutants,
+        ),
+        **_runtime_aux_files(f2p, p2p),
+        **separate_verifier_files(mutants),
+    }
+    for relative, content in files.items():
+        (root / relative).write_text(content)
+    # This older Go version exercises the pre-FailedBuild event format. No
+    # dependencies or network are needed while grading the stdlib-only fixture.
+    (root / "Dockerfile").write_text(
+        "FROM golang:1.23.12 AS toolchain\nFROM python:3.12\n"
+        "COPY --from=toolchain /usr/local/go /usr/local/go\n"
+        'ENV PATH="/usr/local/go/bin:${PATH}" GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off\n'
+        "COPY repo /workspace\nWORKDIR /workspace\n" + stash_pristine()
+    )
+    image = "r2e-separate-verifier-test-go:latest"
+    subprocess.run(["docker", "build", "-q", "-t", image, str(root)], check=True, timeout=600)
+    (root / "image").write_text(image)
+    return root
+
+
+@pytest.mark.parametrize(
+    ("edits", "reward"),
+    [
+        pytest.param({}, 0, id="build-failure"),
+        pytest.param({"broken/value.go": GO_FIXED}, 1, id="oracle"),
+        pytest.param(
+            {
+                "broken/value.go": GO_FIXED,
+                "working/value.go": "package working\nfunc New() int { return 0 }\n",
+            },
+            0,
+            id="other-package-regression",
+        ),
+    ],
+)
+def test_go_generated_grader(task_go, tmp_path, edits, reward):
+    details = _grade(task_go, tmp_path, edits, docker_args=("--network=none",))
+    assert details["evaluation_status"] == "graded", details
+    assert details["reward_txt"] == reward, details
 
 
 def _grade(
