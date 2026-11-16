@@ -84,9 +84,11 @@ _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 #   node_modules (npm/yarn) · target (cargo) · vendor (go) · .venv/venv/.tox
 #   (python) · .gradle/build (jvm). Without these, Node/Rust repos would yield
 #   ZERO tasks because the suite can't even import its deps after the clean.
+# `__pycache__` and `.pytest_cache` are NOT kept: the bootstrap's test run at
+# its own ref (usually past the PR) leaves the fixed source and the hidden
+# tests compiled there, and the test node IDs in the cache.
 _GIT_CLEAN_EXCLUDES = (
-    "-e .venv -e venv -e __pycache__ -e .tox "
-    "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache"
+    "-e .venv -e venv -e .tox -e node_modules -e target -e vendor -e .gradle -e .next"
 )
 
 # Which issue does this PR close? Used to source the problem statement from
