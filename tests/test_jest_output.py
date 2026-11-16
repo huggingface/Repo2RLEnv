@@ -132,6 +132,26 @@ def test_sibling_describes_keep_same_titled_tests_apart(parser):
     assert parser(_SIBLINGS_SAME_TITLE) == _JEST_NESTING_CASES["siblings_same_title"][1]
 
 
+def test_consecutive_nested_suites_after_a_direct_test_keep_their_titles(parser):
+    log = (
+        "FAIL src/nested.test.js\n"
+        "  Parent\n"
+        "    ✓ direct\n"
+        "    Outer\n"
+        "      First\n"
+        "        ✓ works\n"
+        "      Second\n"
+        "        ✕ works\n"
+        "    ✓ after\n"
+    )
+    assert parser(log) == {
+        "src/nested.test.js > Parent > direct": "PASSED",
+        "src/nested.test.js > Parent > Outer > First > works": "PASSED",
+        "src/nested.test.js > Parent > Outer > Second > works": "FAILED",
+        "src/nested.test.js > Parent > after": "PASSED",
+    }
+
+
 @pytest.mark.parametrize(
     "first, second",
     [("✓", "✕"), ("✕", "✓")],

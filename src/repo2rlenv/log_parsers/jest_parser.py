@@ -219,8 +219,8 @@ def parse_jest(log: str) -> dict[str, TestStatus]:
     # describe stack indexed by indent depth (in characters). On a new test
     # line at indent N, the prefix is every entry with indent < N.
     describe_stack: list[tuple[int, str]] = []
-    # Track the lowest indent we've seen for tests; describe headers are
-    # anything above that level. We rebuild this opportunistically.
+    # Track the most recent test indent since the last suite header. Until
+    # another test appears, consecutive suite headers can descend further.
     last_test_indent: int | None = None
 
     for raw in log.split("\n"):
@@ -254,7 +254,7 @@ def parse_jest(log: str) -> dict[str, TestStatus]:
             continue
 
         # Possibly a describe-block header line. Heuristic: non-empty line
-        # whose indent is less than the most recent test's indent, AND it
+        # whose indent is at most the most recent test's indent, AND it
         # doesn't start with a known runner-output token (PASS/FAIL/Tests/
         # error markers). If we don't have a test indent yet, any line that
         # follows a file header is a candidate describe.
@@ -274,5 +274,6 @@ def parse_jest(log: str) -> dict[str, TestStatus]:
             # Drop any describes at >= this indent (we descended out of them)
             describe_stack = [(i, d) for i, d in describe_stack if i < indent_here]
             describe_stack.append((indent_here, stripped))
+            last_test_indent = None
 
     return out
