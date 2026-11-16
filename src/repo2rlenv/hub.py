@@ -160,7 +160,12 @@ def _reward_doc_for(pipeline: str) -> str:
             ' "p2p_passed": 595, "p2p_total": 595, "regressions": [], "parse_status": "ok"}\n'
             "```\n\n"
             "`resolved` requires **all** FAIL_TO_PASS to pass AND **all** PASS_TO_PASS "
-            "to be maintained. No API key is needed — grading is purely test-based."
+            "to be maintained. No API key is needed — grading is purely test-based.\n\n"
+            "Tasks named `*-loc` are the report-only **localization** sibling of the task "
+            "with the same prefix: the agent writes `/workspace/FINDINGS.md` (no patch is "
+            "applied) and `tests/test.sh` scores `0.4 × file F1 + 0.6 × region overlap` "
+            "of the files and changed lines the report points at against the fix, in "
+            "[0, 1]. `R2E_LOC_JUDGE=1` adds a judge that can lower, never raise, a score."
         )
     if pipeline == "pr_diff":
         return (
