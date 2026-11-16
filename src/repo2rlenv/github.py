@@ -162,6 +162,45 @@ def list_merged_prs(
     return summaries
 
 
+def fetch_pr(owner: str, name: str, number: int, *, token: str | None = None) -> PullRequestSummary:
+    """Return a single PR's summary regardless of state (mirrors list_merged_prs).
+
+    Used when the caller targets one specific PR (e.g. `--pr N`), so draft/date/
+    merge-state filters are intentionally NOT applied here — the caller asked
+    for exactly this PR. Raises GitHubError if the PR can't be fetched.
+    """
+    raw = _run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            f"{owner}/{name}",
+            "--json",
+            "number,title,body,state,mergedAt,baseRefName,headRefOid,isDraft,url,files",
+        ],
+        token=token,
+    )
+    r = json.loads(raw)
+    base_sha = _fetch_base_sha(owner, name, number, token=token)
+    if base_sha is None:
+        raise GitHubError(f"PR #{number}: base_sha unavailable")
+    files = [f["path"] for f in (r.get("files") or [])]
+    return PullRequestSummary(
+        number=r["number"],
+        title=r.get("title") or "",
+        body=r.get("body") or "",
+        state=r.get("state") or "",
+        merged_at=r.get("mergedAt"),
+        base_ref=r.get("baseRefName") or "",
+        base_sha=base_sha,
+        head_sha=r.get("headRefOid") or "",
+        is_draft=bool(r.get("isDraft")),
+        url=r.get("url") or "",
+        changed_files=files,
+    )
+
+
 def fetch_pr_diff(owner: str, name: str, number: int, *, token: str | None = None) -> str:
     """Return the unified diff for a PR via `gh pr diff`."""
     return _run_gh(

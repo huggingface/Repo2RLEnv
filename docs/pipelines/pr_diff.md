@@ -97,6 +97,7 @@ Pass each option with `--pipeline-opt key=value`.
 
 | Key | Default | What it does |
 |---|---|---|
+| `pr` | none | Target a single PR by number (`--pr 1234`). Bypasses `limit`/`since`/`until` and the draft/merge-state filters; quality filters still apply |
 | `limit` | `50` | Maximum merged PRs to list. You get at most this many tasks |
 | `since` / `until` | none | ISO dates (`2026-01-31`) bounding the merge date |
 | `max_files_per_pr` | `5` | Skip PRs that change more files than this |
