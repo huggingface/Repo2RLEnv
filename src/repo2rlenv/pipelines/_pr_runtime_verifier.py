@@ -572,9 +572,10 @@ def parse_jest(log: str) -> dict[str, str]:
         ):
             continue
         indent_here = len(line) - len(stripped)
-        if current_file and (last_test_indent is None or indent_here < last_test_indent):
+        if current_file and (last_test_indent is None or indent_here <= last_test_indent):
             describe_stack = [(i, d) for i, d in describe_stack if i < indent_here]
             describe_stack.append((indent_here, stripped))
+            last_test_indent = None
     return out
 
 
