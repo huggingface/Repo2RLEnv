@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -54,7 +55,14 @@ def test_e2e_public_trl(tmp_path: Path):
             dataset_name="trl-r2e",
         ),
     )
-    options = PRDiffOptions(limit=2, max_files_per_pr=10)
+    # Keep the live smoke test independent of whichever PRs merged most recently.
+    # This window includes source changes; a test-only batch legitimately emits no tasks.
+    options = PRDiffOptions(
+        limit=2,
+        max_files_per_pr=10,
+        since=date(2026, 3, 5),
+        until=date(2026, 3, 5),
+    )
     pipeline = PRDiffPipeline(gen_input, options)
 
     result = pipeline.run(tmp_path)
