@@ -46,7 +46,7 @@ PIPELINES = frozenset(p.value for p in PipelineName)
 REPRO_MODES = frozenset(get_args(ReproMode))
 IMAGE_VISIBILITIES = frozenset({"public", "private", "unknown"})
 INLINE_RECIPE_SOURCES = frozenset({"user_dockerfile", "agent_replay"})
-REWARD_KINDS = frozenset({"test_execution", "diff_similarity"})
+REWARD_KINDS = frozenset({"test_execution", "diff_similarity", "localization"})
 # Early v0.8.3 pr_diff emitted this before it was renamed to the spec's
 # `diff_similarity` (commit 5125778); published datasets still carry it.
 _LEGACY_REWARD_KINDS = {"diff_similarity_multi_component": "diff_similarity"}
@@ -225,6 +225,79 @@ def _check_python(task_dir: Path, rel: str, report: _Report) -> None:
             report.error(rel, f"not valid Python: {exc.msg} (line {exc.lineno})")
 
 
+def _check_localization(
+    task_dir: Path, data: dict[str, Any], r2e: dict[str, Any], report: _Report
+) -> None:
+    for rel in ("tests/grader_tools.py", "tests/verifier.py"):
+        _check_python(task_dir, rel, report)
+    sub = r2e.get("localization")
+    if not isinstance(sub, dict) or not sub.get("report_path"):
+        report.error("task.toml", "localization metadata must state report_path")
+        return
+    grading = sub.get("grading")
+    if grading == "template":
+        report.warn("task.toml", "localization grading is a template")
+    elif grading == "oracle":
+        oracle_path = task_dir / "tests/oracle.json"
+        try:
+            oracle = json.loads(oracle_path.read_text(encoding="utf-8"))
+            files = oracle.get("files")
+            hunks = oracle.get("hunks")
+            if (
+                not isinstance(files, list)
+                or not files
+                or not all(isinstance(item, str) for item in files)
+            ):
+                raise ValueError("malformed localization oracle files")
+            if not isinstance(hunks, list) or not hunks:
+                raise ValueError("malformed localization oracle hunks")
+            for hunk in hunks:
+                if (
+                    not isinstance(hunk, dict)
+                    or hunk.get("path") not in files
+                    or type(hunk.get("start")) is not int
+                    or type(hunk.get("end")) is not int
+                    or not 1 <= hunk["start"] <= hunk["end"]
+                ):
+                    raise ValueError("malformed localization oracle hunk")
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            report.error("tests/oracle.json", f"invalid localization oracle: {type(exc).__name__}")
+        if any((task_dir / "environment").rglob("oracle*")):
+            report.error("environment", "localization oracle is present in the agent image")
+        instruction = task_dir / "instruction.md"
+        if instruction.is_file():
+            contents = instruction.read_text(encoding="utf-8", errors="replace")
+            missing = [
+                section for section in sub.get("sections", []) if f"## {section}" not in contents
+            ]
+            if missing:
+                report.error("instruction.md", f"missing localization section(s): {missing}")
+        artifacts = data.get("artifacts")
+        if not artifacts or not any(
+            isinstance(item, dict) and item.get("source") == sub["report_path"]
+            for item in artifacts
+        ):
+            report.error("task.toml", "artifacts do not include localization report_path")
+    shortcuts = task_dir / "tests/shortcuts"
+    if not shortcuts.is_dir():
+        report.warn("tests/shortcuts", "localization attack scripts are missing")
+    dockerfile = task_dir / "environment/Dockerfile"
+    network = sub.get("agent_network")
+    agent = data.get("agent") if isinstance(data.get("agent"), dict) else {}
+    if not isinstance(agent, dict):
+        agent = {}
+    if network == "offline" and (
+        not isinstance(agent, dict) or agent.get("network_mode") != "no-network"
+    ):
+        report.error("task.toml", "offline localization agent must declare no-network")
+    if network == "egress_guard_only":
+        report.warn("task.toml", "egress guard is the only network control")
+    if dockerfile.is_file() and "tmux" not in dockerfile.read_text(
+        encoding="utf-8", errors="replace"
+    ):
+        report.warn("environment/Dockerfile", "localization image lacks tmux")
+
+
 def _check_separate_verifier(
     task_dir: Path, data: dict[str, Any], r2e: dict[str, Any] | None, report: _Report
 ) -> None:
@@ -237,15 +310,23 @@ def _check_separate_verifier(
     verifier_cfg = data.get("verifier", {})
     if not isinstance(verifier_cfg, dict) or verifier_cfg.get("environment_mode") != "separate":
         return
-    pipeline = r2e.get("pipeline") if r2e else None
+    if isinstance(r2e, dict) and r2e.get("mission") == "localization":
+        _check_localization(task_dir, data, r2e, report)
+        return
+
+    pipeline = r2e.get("pipeline") if isinstance(r2e, dict) else None
     if pipeline not in GRADED_VERIFIER_PIPELINES | TEST_FILE_PIPELINES:
         return
     for rel in ("tests/launcher.py", "tests/grader_tools.py"):
         _check_python(task_dir, rel, report)
     if not data.get("artifacts"):
         report.error("task.toml", "separate verifier without artifacts: nothing reaches grading")
-    sub = r2e.get(pipeline) if isinstance(r2e.get(pipeline), dict) else {}
-    if "harbor_min_version" not in r2e and "harbor_min_version" not in sub:
+    sub: dict[str, Any] = {}
+    if isinstance(r2e, dict) and isinstance(r2e.get(pipeline), dict):
+        sub = r2e[pipeline]
+    if isinstance(r2e, dict) and (
+        "harbor_min_version" not in r2e and "harbor_min_version" not in sub
+    ):
         report.warn("task.toml", "separate-verifier task does not state harbor_min_version")
     if pipeline in GRADED_VERIFIER_PIPELINES:
         dockerfile = task_dir / "environment" / "Dockerfile"

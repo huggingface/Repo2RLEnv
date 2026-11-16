@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from repo2rlenv.spec.recipe_options import (
     CodeMidasOptions,
@@ -64,6 +64,8 @@ class PRRuntimeOptions(_BaseOptions):
     # --- Structural filters (cheap, applied before validation) ---
     require_new_test_funcs: bool = True  # test_patch must add ≥1 new test func/class
     skip_ci_only: bool = True  # auto-skip when source patch is 100% under .github/
+    mission: Literal["remediation", "localization", "both"] = "remediation"
+    loc_offline: bool = True
 
 
 class PRDiffOptions(_BaseOptions):
@@ -95,6 +97,14 @@ class PRDiffOptions(_BaseOptions):
     # Below this is too trivial to be a meaningful RL signal — typically
     # a one-character typo fix or a doc tweak.
     min_loc_changed: int = 3
+    mission: Literal["remediation", "localization", "both"] = "remediation"
+    loc_offline: bool = True
+
+    @model_validator(mode="after")
+    def localization_requires_harbor_tasks(self) -> PRDiffOptions:
+        if self.mission != "remediation" and not self.emit_harbor_env:
+            raise ValueError("non-remediation missions require emit_harbor_env=True")
+        return self
 
 
 class CommitRuntimeOptions(_BaseOptions):
@@ -141,6 +151,8 @@ class CommitRuntimeOptions(_BaseOptions):
     min_problem_statement_words: int = 8
     llm_temperature: float = 0.3
     max_llm_tokens: int = 1024
+    mission: Literal["remediation", "localization", "both"] = "remediation"
+    loc_offline: bool = True
 
 
 class CodeInstructOptions(_BaseOptions):
@@ -226,6 +238,8 @@ class CVEPatchesOptions(_BaseOptions):
     # --- Structural filters ---
     require_new_test_funcs: bool = False  # security commits often DON'T add new tests
     max_source_files_per_fix: int = 50
+    mission: Literal["remediation", "localization", "both"] = "remediation"
+    loc_offline: bool = True
 
 
 class EquivalenceTestsOptions(_BaseOptions):
