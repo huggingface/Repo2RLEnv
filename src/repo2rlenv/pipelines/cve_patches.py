@@ -48,7 +48,7 @@ from typing import ClassVar
 
 from repo2rlenv.auth import resolve_github_token
 from repo2rlenv.bootstrap.spec import BootstrapResult
-from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
+from repo2rlenv.emitter.harbor import HarborTask
 from repo2rlenv.github import (
     GitHubError,
     fetch_commit_diff,
@@ -59,6 +59,7 @@ from repo2rlenv.llm import complete
 from repo2rlenv.osv import OSVError, OSVVuln, guess_ecosystem, query_vulns, severity_at_least
 from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines._grading_time import GradingTime
+from repo2rlenv.pipelines._localization import emit_missions
 from repo2rlenv.pipelines._mutants import Mutants
 from repo2rlenv.pipelines.base import PipelineResult
 from repo2rlenv.pipelines.code_instruct import new_file_hunk
@@ -481,16 +482,30 @@ class CVEPatchesPipeline:
                     mutants=mutants,
                     test_cmds=validated_cmds or None,
                 )
-                write_harbor_task(task, out_dir)
-                emitted += 1
+                written, no_loc = emit_missions(
+                    task,
+                    out_dir,
+                    mission=self.options.mission,
+                    offline=self.options.loc_offline,
+                    patch=patch,
+                    base_commit=parent_sha,
+                )
+                if not written:
+                    skip_reasons[no_loc or "not_emitted"] = (
+                        skip_reasons.get(no_loc or "not_emitted", 0) + 1
+                    )
+                    self._emit_progress(label, "skip", no_loc or "not_emitted")
+                    continue
+                emitted += len(written)
                 logger.info(
-                    "emitted task %s (CVE=%s, F2P=%d, P2P=%d)",
-                    task.name,
+                    "emitted %s (CVE=%s, F2P=%d, P2P=%d)",
+                    ", ".join(written),
                     vuln.cve_id or vuln.id,
                     len(fail_to_pass),
                     len(pass_to_pass),
                 )
-                self._emit_progress(task.name, "emit")
+                for written_name in written:
+                    self._emit_progress(written_name, "emit")
         finally:
             if sandbox is not None:
                 sandbox.cleanup()
