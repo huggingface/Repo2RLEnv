@@ -66,6 +66,10 @@ class HarborTask:
     # agent-container paths Harbor copies into that separate verifier.
     verifier: dict[str, Any] = field(default_factory=dict)
     artifacts: list[dict[str, Any]] = field(default_factory=list)
+    solve_script: str | None = None
+    # Extra `[agent]` keys, e.g. {"network_mode": "no-network"} for a task whose agent must
+    # work from the repository alone. Merged over the default agent timeout.
+    agent: dict[str, Any] = field(default_factory=dict)
 
 
 def _content_hash(task: HarborTask) -> str:
@@ -136,7 +140,7 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
             "keywords": task.keywords,
             "repo2env": repo2env,
         },
-        "agent": {"timeout_sec": 1800.0},
+        "agent": {"timeout_sec": 1800.0, **task.agent},
         "verifier": {"timeout_sec": 300.0, **task.verifier},
     }
     if task.artifacts:
@@ -155,7 +159,7 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
     # container; it should leave the working tree in the "fixed" state. We
     # `git apply` the canonical patch.diff so we keep one oracle artifact
     # (patch.diff) and just provide the execution shim Harbor needs.
-    (sol_dir / "solve.sh").write_text(
+    default_solve = (
         "#!/bin/bash\n"
         "set -euxo pipefail\n"
         "cd /workspace\n"
@@ -163,9 +167,9 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
         # Harbor uploads the whole solution/ dir into the container under
         # /solution; the patch.diff sits next to this script.
         'PATCH="$(dirname "$0")/patch.diff"\n'
-        'git apply --verbose --reject "$PATCH"\n',
-        encoding="utf-8",
+        'git apply --verbose --reject "$PATCH"\n'
     )
+    (sol_dir / "solve.sh").write_text(task.solve_script or default_solve, encoding="utf-8")
     (sol_dir / "solve.sh").chmod(0o755)
 
     # Optional environment/Dockerfile + tests/test.sh — written only for
@@ -178,20 +182,25 @@ def write_harbor_task(task: HarborTask, dest_dir: Path) -> Path:
         tests_dir = task_path / "tests"
         tests_dir.mkdir(exist_ok=True)
         (tests_dir / "test.sh").write_text(task.test_script, encoding="utf-8")
-        # mark executable; harbor expects test.sh to be runnable
         (tests_dir / "test.sh").chmod(0o755)
 
-    # Auxiliary task files (relative paths under the task dir). Harbor mounts
-    # the task's tests/ dir into the container at /tests, so a pipeline can
-    # ship e.g. tests/verifier.py + tests/f2p.json + tests/p2p.json as plain,
-    # inspectable artifacts and have test.sh read them — instead of baking
-    # everything as base64 blobs inside test.sh.
     for rel_path, content in (task.aux_files or {}).items():
-        # Defensive: keep aux files inside the task dir.
-        target = (task_path / rel_path).resolve()
-        if not str(target).startswith(str(task_path.resolve())):
+        relative = Path(rel_path)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in rel_path or "\0" in rel_path:
             raise ValueError(f"aux_file path escapes task dir: {rel_path!r}")
+        current = task_path
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError(f"aux_file path escapes task dir: {rel_path!r}")
+        target = task_path / relative
+        try:
+            target.resolve().relative_to(task_path.resolve())
+        except ValueError as exc:
+            raise ValueError(f"aux_file path escapes task dir: {rel_path!r}") from exc
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+        if target.suffix == ".sh":
+            target.chmod(0o755)
 
     return task_path

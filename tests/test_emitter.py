@@ -130,8 +130,29 @@ def test_aux_file_path_cannot_escape_task_dir(tmp_path: Path):
         write_harbor_task(task, tmp_path)
 
 
+def test_aux_files_are_emitted_without_a_test_script(tmp_path: Path):
+    task = _make_task("aux-only")
+    task.aux_files = {"tests/controls.txt": "control data"}
+    out = write_harbor_task(task, tmp_path)
+    assert (out / "tests/controls.txt").read_text() == "control data"
+
+
+def test_aux_file_rejects_symlinked_parent(tmp_path: Path):
+    import pytest
+
+    task = _make_task("symlink-parent")
+    task.aux_files = {"tests/payload.txt": "payload"}
+    out = tmp_path / task.name
+    out.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (out / "tests").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="aux_file path escapes task dir"):
+        write_harbor_task(task, tmp_path)
+
+
 def test_omits_environment_and_test_script_when_absent(tmp_path: Path):
-    """Lite tasks (pr_diff) don't write environment/ or tests/."""
+    """Lite tasks (pr_diff) don't write environment/ or tests/ without aux files."""
     task = _make_task("lite-task")
     out = write_harbor_task(task, tmp_path)
     assert not (out / "environment").exists()
