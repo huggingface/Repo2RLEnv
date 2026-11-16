@@ -12,12 +12,12 @@
   "dependencies": {
     "@remotion/player": "4.0.466",
     "cn": "0.5.2",
-    "fumadocs-core": "16.17.9",
-    "fumadocs-mdx": "15.4.10",
+    "fumadocs-core": "16.18.4",
+    "fumadocs-mdx": "15.5.3",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.9",
-    "lucide-react": "1.66.0",
-    "mermaid": "12.2.0",
-    "next": "16.4.3",
+    "lucide-react": "1.70.0",
+    "mermaid": "12.3.0",
+    "next": "16.4.5",
     "next-themes": "0.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -25,14 +25,14 @@
     "remotion": "4.0.466"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.5",
     "@types/mdx": "2.0.14",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "postcss": "8.5.32",
     "sirv-cli": "3.0.1",
-    "tailwindcss": "4.3.3",
+    "tailwindcss": "4.3.5",
     "typescript": "7.0.2"
   },
   "overrides": {
