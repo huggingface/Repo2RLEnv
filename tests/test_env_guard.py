@@ -6,6 +6,7 @@ import ast
 import importlib
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -111,6 +112,35 @@ def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_
     assert _git(workspace, "checkout", base, "--", "lib.py").returncode == 0
     assert _git(workspace, "diff", "--quiet", base).returncode == 0
     assert _git(workspace, "fsck", "--no-progress").returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("path", "kept"),
+    [
+        # Written by the bootstrap's test run at the tip, where the fix and its
+        # hidden test already exist: compiled source, compiled tests, node IDs.
+        ("pkg/__pycache__/mod.cpython-312.pyc", False),
+        ("tests/__pycache__/test_new.cpython-312-pytest-9.1.1.pyc", False),
+        (".pytest_cache/v/cache/nodeids", False),
+        # Installed dependencies stay so the suite still runs at base_commit.
+        (".venv/lib/site.py", True),
+        ("node_modules/dep/index.js", True),
+    ],
+)
+def test_build_environment_dockerfile_clean_drops_bootstrap_caches(tmp_path, path, kept):
+    from repo2rlenv.pipelines.pr_runtime import build_environment_dockerfile
+
+    df = build_environment_dockerfile("local/r2e-bootstrap/x:abc", "9d2747057c4a")
+    clean = next(line for line in df.splitlines() if "git clean" in line)
+    clean = clean.split("&& ", 1)[1]
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    leftover = tmp_path / path
+    leftover.parent.mkdir(parents=True)
+    leftover.write_text("from the bootstrap-time tip")
+    subprocess.run(shlex.split(clean), cwd=tmp_path, check=True, capture_output=True)
+
+    assert leftover.exists() is kept
 
 
 # --- source-aware host list ---------------------------------------------------

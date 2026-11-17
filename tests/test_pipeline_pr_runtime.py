@@ -545,15 +545,15 @@ def test_normalize_unittest_gets_verbosity():
     ]
 
 
-def test_normalize_go_test_gets_v_and_count_flags():
-    """`go test` without -v doesn't print --- PASS lines — parser needs them.
+def test_normalize_go_test_gets_json_and_count_flags():
+    """`go test -json` retains package identity and reports build failures.
 
     `-count=1` keeps go from serving a cached result instead of running the tests.
     """
-    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -count=1 -v ./..."]
-    # Already verbose and uncached ⇒ no change
-    assert normalize_test_cmds_for_runtime(["go test -v -count=1 ./..."]) == [
-        "go test -v -count=1 ./..."
+    assert normalize_test_cmds_for_runtime(["go test ./..."]) == ["go test -json -count=1 ./..."]
+    # Already structured and uncached ⇒ no change
+    assert normalize_test_cmds_for_runtime(["go test -json -count=1 ./..."]) == [
+        "go test -json -count=1 ./..."
     ]
 
 
@@ -637,7 +637,7 @@ def test_normalize_strips_quiet_flag():
 def test_normalize_strips_dev_null_redirect():
     """`> /dev/null` or `&> /dev/null` would also swallow output we need to parse."""
     assert normalize_test_cmds_for_runtime(["go test ./... > /dev/null"]) == [
-        "go test -count=1 -v ./..."
+        "go test -json -count=1 ./..."
     ]
     assert normalize_test_cmds_for_runtime(["pytest &> /dev/null"]) == ["pytest -v"]
 

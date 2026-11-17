@@ -71,3 +71,111 @@ def test_mts_and_cts_files_get_their_own_header(parser):
         "src/b.test.mts > B > works": "PASSED",
         "src/c.test.cts > C > works": "FAILED",
     }
+
+
+# Issue #255: jest prints a nested describe at the same indent as the direct
+# tests before it. Suites below are expected in every fully qualified name.
+_NESTED_AFTER_DIRECT = (
+    "FAIL src/a.test.js\n"
+    "  Parent\n"
+    "    ✓ direct before (1 ms)\n"
+    "    Nested\n"
+    "      ✓ inner passes\n"
+    "      ✕ inner fails (2 ms)\n"
+    "    ✓ direct after\n"
+)
+
+_SIBLINGS_SAME_TITLE = (
+    "FAIL src/b.test.js\n"
+    "  Parent\n"
+    "    ✓ direct\n"
+    "    First\n"
+    "      ✓ works\n"
+    "    Second\n"
+    "      ✕ works\n"
+)
+
+_JEST_NESTING_CASES = {
+    "nested_after_direct": (
+        _NESTED_AFTER_DIRECT,
+        {
+            "src/a.test.js > Parent > direct before": "PASSED",
+            "src/a.test.js > Parent > Nested > inner passes": "PASSED",
+            "src/a.test.js > Parent > Nested > inner fails": "FAILED",
+            "src/a.test.js > Parent > direct after": "PASSED",
+        },
+    ),
+    "siblings_same_title": (
+        _SIBLINGS_SAME_TITLE,
+        {
+            "src/b.test.js > Parent > direct": "PASSED",
+            "src/b.test.js > Parent > First > works": "PASSED",
+            "src/b.test.js > Parent > Second > works": "FAILED",
+        },
+    ),
+}
+
+
+def test_nested_describe_after_a_direct_test_keeps_its_title(parser):
+    out = parser(_NESTED_AFTER_DIRECT)
+    assert out["src/a.test.js > Parent > Nested > inner passes"] == "PASSED"
+    assert out["src/a.test.js > Parent > Nested > inner fails"] == "FAILED"
+
+
+def test_direct_test_after_a_nested_describe_returns_to_the_parent(parser):
+    out = parser(_NESTED_AFTER_DIRECT)
+    assert out["src/a.test.js > Parent > direct after"] == "PASSED"
+    assert "src/a.test.js > Parent > Nested > direct after" not in out
+
+
+def test_sibling_describes_keep_same_titled_tests_apart(parser):
+    assert parser(_SIBLINGS_SAME_TITLE) == _JEST_NESTING_CASES["siblings_same_title"][1]
+
+
+def test_consecutive_nested_suites_after_a_direct_test_keep_their_titles(parser):
+    log = (
+        "FAIL src/nested.test.js\n"
+        "  Parent\n"
+        "    ✓ direct\n"
+        "    Outer\n"
+        "      First\n"
+        "        ✓ works\n"
+        "      Second\n"
+        "        ✕ works\n"
+        "    ✓ after\n"
+    )
+    assert parser(log) == {
+        "src/nested.test.js > Parent > direct": "PASSED",
+        "src/nested.test.js > Parent > Outer > First > works": "PASSED",
+        "src/nested.test.js > Parent > Outer > Second > works": "FAILED",
+        "src/nested.test.js > Parent > after": "PASSED",
+    }
+
+
+@pytest.mark.parametrize(
+    "first, second",
+    [("✓", "✕"), ("✕", "✓")],
+    ids=["pass-then-fail", "fail-then-pass"],
+)
+def test_repeated_nested_test_id_keeps_the_failure(parser, first, second):
+    # Two same-titled describes after a direct test give one fully qualified
+    # id twice; a failure in either one wins.
+    log = (
+        "FAIL src/c.test.js\n"
+        "  Parent\n"
+        "    ✓ direct\n"
+        "    Same\n"
+        f"      {first} works\n"
+        "    Same\n"
+        f"      {second} works\n"
+    )
+    assert parser(log) == {
+        "src/c.test.js > Parent > direct": "PASSED",
+        "src/c.test.js > Parent > Same > works": "FAILED",
+    }
+
+
+@pytest.mark.parametrize("case", sorted(_JEST_NESTING_CASES))
+def test_nesting_parsers_agree(case):
+    log, expected = _JEST_NESTING_CASES[case]
+    assert parse_jest(log) == verifier.parse_jest(log) == expected

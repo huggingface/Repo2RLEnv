@@ -438,6 +438,39 @@ def _pytest_settings(name: str, data: bytes):
     }
 
 
+def _check_base_symlink(workspace, relative, blob, base, read, original) -> None:
+    """A configuration file committed as a symlink must be unchanged, and so must
+    what the runner reads through it (judged the way `relative` itself would be)."""
+    path = workspace / relative
+    if not path.is_symlink() or os.fsencode(os.readlink(path)) != read("cat-file", "blob", blob):
+        raise AgentChange("Symlinked runner configuration changed")
+    # Follow exactly one link: a chain could be retargeted halfway.
+    linked = Path(os.path.normpath(relative.parent / os.readlink(path)))
+    if linked.is_absolute() or not linked.parts or linked.parts[0] in ("..", *_ROOT_DEPS):
+        raise ValueError("Base configuration symlink points outside the source tree")
+    target = workspace / linked
+    if target.is_symlink() or target.resolve() != target:
+        raise AgentChange("Symlinked runner configuration must point to a regular file")
+    if linked not in base:
+        if target.exists():
+            raise AgentChange("Symlinked runner configuration created")
+        return
+    expected = original(linked)
+    actual = target.read_bytes() if target.is_file() else b""
+    if actual == expected:
+        return
+    if relative.name == "package.json":
+        if restore_package_json(actual, expected) == actual:
+            return
+    elif relative.name in _SHARED and not _dedicated(relative):
+        try:
+            if _pytest_settings(relative.name, actual) == _pytest_settings(relative.name, expected):
+                return
+        except (ValueError, UnicodeDecodeError, configparser.Error) as exc:
+            raise AgentChange(f"Unreadable shared configuration: {relative}") from exc
+    raise AgentChange("Symlinked runner configuration changed")
+
+
 def protect(workspace: Path, base_commit: str, env_out: str = "") -> None:
     """Restore hooks; reject changed pytest settings without erasing source edits."""
     if not re.fullmatch(r"[a-fA-F0-9]{40}", base_commit):
@@ -548,6 +581,10 @@ def protect(workspace: Path, base_commit: str, env_out: str = "") -> None:
             # Never write through a directory symlink, even a base symlink.
             if any(parent.is_symlink() for parent in path.parents if parent != workspace):
                 raise AgentChange("Symlink parent of pytest configuration")
+            item = base.get(relative)
+            if item is not None and item[0] == "120000":
+                _check_base_symlink(workspace, relative, item[1], base, read, original)
+                continue
             expected = original(relative)
             if relative.name == "package.json":
                 if path.is_symlink():

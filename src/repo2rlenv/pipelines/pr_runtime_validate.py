@@ -46,6 +46,7 @@ from repo2rlenv.pipelines._mutants import Mutants, make_mutants, validated
 from repo2rlenv.pipelines._mutants_ts import language_of, make_tree_sitter_mutants
 from repo2rlenv.pipelines._node_runner import freeze_node_commands
 from repo2rlenv.pipelines.pr_runtime import (
+    _GIT_CLEAN_EXCLUDES,
     _PYTEST_COMMAND_RE,
     _PYTHONS,
     _access_flags,
@@ -184,10 +185,9 @@ def _build_stage_script(
         "cd /workspace",
         "git config --global --add safe.directory /workspace",
         f"git reset --hard {base_commit}",
-        # Keep language dep/build dirs (node_modules, target, vendor, ...) so
-        # the clean doesn't wipe deps the suite needs. See _GIT_CLEAN_EXCLUDES.
-        "git clean -fdx -e .venv -e venv -e __pycache__ -e .tox "
-        "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache || true",
+        # Same clean as the task image, so validation sees the tree the agent
+        # and the verifier see. See _GIT_CLEAN_EXCLUDES.
+        f"git clean -fdx {_GIT_CLEAN_EXCLUDES} || true",
     ]
     candidates = " ".join(_PYTHONS)
     parts.append(
@@ -557,7 +557,9 @@ def validate_pr(
             pass_to_pass.append(tname)
     # A test module that can't be imported at base, typically because it
     # imports what the fix adds, has no test IDs there: pytest reports one
-    # file-level ERROR. Its tests failed at base all the same.
+    # file-level ERROR. Go JSON likewise reports a package-level ERROR only
+    # with explicit build-failure evidence; its tests use package::test IDs.
+    # In either case, only tests from that exact unit can be inferred.
     uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
     promoted: dict[str, int] = {}
     for tname, post_st in post_status.items():
@@ -569,7 +571,8 @@ def validate_pr(
             promoted[module] = promoted.get(module, 0) + 1
     if promoted:
         logger.info(
-            "validate_pr: fail-to-pass tests inferred from base collection errors: %s", promoted
+            "validate_pr: fail-to-pass tests inferred from base collection/build errors: %s",
+            promoted,
         )
 
     # Diagnostics: when yield is poor, this tells us whether the suite even

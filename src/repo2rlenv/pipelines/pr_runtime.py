@@ -84,9 +84,11 @@ _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
 #   node_modules (npm/yarn) · target (cargo) · vendor (go) · .venv/venv/.tox
 #   (python) · .gradle/build (jvm). Without these, Node/Rust repos would yield
 #   ZERO tasks because the suite can't even import its deps after the clean.
+# `__pycache__` and `.pytest_cache` are NOT kept: the bootstrap's test run at
+# its own ref (usually past the PR) leaves the fixed source and the hidden
+# tests compiled there, and the test node IDs in the cache.
 _GIT_CLEAN_EXCLUDES = (
-    "-e .venv -e venv -e __pycache__ -e .tox "
-    "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache"
+    "-e .venv -e venv -e .tox -e node_modules -e target -e vendor -e .gradle -e .next"
 )
 
 # Which issue does this PR close? Used to source the problem statement from
@@ -1060,7 +1062,7 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
           for `manage.py test`, and `--verbosity 2` for Django's in-repo
           `tests/runtests.py`, which takes no `-v` count.
       go test:
-        - Add `-v` if missing (default `go test` doesn't print --- PASS lines)
+        - Add `-json` for package-qualified test and build-failure events
         - Add `-count=1` if missing (no cached results)
       cargo test:
         - Default output is already parseable; no transform needed
@@ -1114,12 +1116,19 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
 
         # --- go test ---
         elif re.search(r"\bgo\s+test\b", cleaned):
-            if not re.search(r"\s-v\b", cleaned):
-                # Insert -v right after `go test`; positional args go after
-                cleaned = re.sub(r"\bgo\s+test\b", "go test -v", cleaned, count=1)
-            if not re.search(r"\s-count(?:=|\s)", cleaned):
+            # Go accepts both one- and two-dash flags. Everything after -args,
+            # --args or -- belongs to the test binary and must stay unchanged.
+            parts = re.split(r"(\s+(?:--?args|--)(?:\s|$))", cleaned, maxsplit=1)
+            driver = re.sub(
+                r"\s+--?json(?:=(?:true|false|True|False|TRUE|FALSE|t|f|T|F|1|0))?(?=\s|$)",
+                "",
+                parts[0],
+            )
+            if not re.search(r"\s--?count(?:=|\s)", driver):
                 # Never serve a cached result: every graded run executes the tests.
-                cleaned = re.sub(r"\bgo\s+test\b", "go test -count=1", cleaned, count=1)
+                driver = re.sub(r"\bgo\s+test\b", "go test -count=1", driver, count=1)
+            parts[0] = re.sub(r"\bgo\s+test\b", "go test -json", driver, count=1)
+            cleaned = "".join(parts)
 
         # --- cargo nextest ---
         elif re.search(r"\bcargo\s+nextest\s+run\b", cleaned):
