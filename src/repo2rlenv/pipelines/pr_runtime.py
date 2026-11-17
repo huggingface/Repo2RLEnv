@@ -43,12 +43,14 @@ import logging
 import posixpath
 import re
 import shlex
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
 from repo2rlenv import github
 from repo2rlenv.auth import resolve_repo_token
+from repo2rlenv.bootstrap.docker import DockerError
 from repo2rlenv.bootstrap.spec import BootstrapResult
 from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
 from repo2rlenv.github import GitHubError, PullRequestSummary
@@ -75,6 +77,8 @@ logger = logging.getLogger(__name__)
 
 # PR/MR data calls dispatch by source (GitHub vs GitLab); either can raise.
 _PROVIDER_ERRORS = (GitHubError, GitLabError)
+# Failures of the machinery rather than of a candidate PR.
+_INFRA_ERRORS = (DockerError, OSError, subprocess.SubprocessError)
 
 
 _CLOSES_RE = re.compile(r"\b(?:closes|fixes|resolves)\s+#\d+\b", re.IGNORECASE)
@@ -1335,119 +1339,139 @@ class PRRuntimePipeline:
         try:
             for pr in prs:
                 pr_label = f"{owner}/{name}#{pr.number}"
-
-                # Pre-validation skip filters
-                reason = self._pre_filter(pr)
-                if reason:
-                    skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
-                    self._emit_progress(pr_label, "skip", reason)
-                    continue
-
-                # Fetch diff
                 try:
-                    diff = self._provider.fetch_pr_diff(owner, name, pr.number, token=token)
-                except _PROVIDER_ERRORS as exc:
-                    logger.warning("PR #%d: diff fetch failed: %s", pr.number, exc)
-                    skip_reasons["diff_fetch_failed"] = skip_reasons.get("diff_fetch_failed", 0) + 1
-                    self._emit_progress(pr_label, "error", "diff_fetch_failed")
-                    continue
-
-                patch, test_patch = split_patch_and_test_patch(diff)
-                if not patch.strip():
-                    skip_reasons["empty_source_patch"] = (
-                        skip_reasons.get("empty_source_patch", 0) + 1
-                    )
-                    self._emit_progress(pr_label, "skip", "empty_source_patch")
-                    continue
-                if not test_patch.strip():
-                    skip_reasons["no_test_patch"] = skip_reasons.get("no_test_patch", 0) + 1
-                    self._emit_progress(pr_label, "skip", "no_test_patch")
-                    continue
-
-                # Structural quality filters (cheap, run before validation):
-                # - CI-only PRs: source patch is 100% under .github/
-                # - No new test functions: test_patch only edits comments/docstrings
-                structural_reason = self._structural_quality_filter(patch, test_patch)
-                if structural_reason:
-                    skip_reasons[structural_reason] = skip_reasons.get(structural_reason, 0) + 1
-                    self._emit_progress(pr_label, "skip", structural_reason)
-                    continue
-
-                # Lite-style structural filters
-                lite_reason = self._lite_filter(pr, patch)
-                if lite_reason:
-                    skip_reasons[lite_reason] = skip_reasons.get(lite_reason, 0) + 1
-                    self._emit_progress(pr_label, "skip", lite_reason)
-                    continue
-
-                # Validation (optional via skip_validation)
-                fail_to_pass: list[str] = []
-                pass_to_pass: list[str] = []
-                timing: GradingTime | None = None
-                mutants: Mutants | None = None
-                validated_cmds: list[str] = []
-                flaky_dropped = 0
-                validation_status = "skipped"
-                if not self.options.skip_validation:
-                    if sandbox is None:
-                        sandbox = self._start_validation_sandbox()
-                    from repo2rlenv.pipelines.pr_runtime_validate import validate_pr
-
-                    targeted_cmds = targeted_test_cmds_for_pr(
-                        normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
-                        _files_in_patch(test_patch),
-                    )
-                    outcome = validate_pr(
-                        sandbox=sandbox,
-                        base_commit=pr.base_sha,
-                        patch=patch,
-                        test_patch=test_patch,
-                        test_cmds=targeted_cmds,
-                        language=self.bootstrap.language.value,
-                        timeout=self.options.validation_timeout_sec,
-                    )
-                    fail_to_pass = outcome.fail_to_pass
-                    pass_to_pass = outcome.pass_to_pass
-                    timing = outcome.timing
-                    mutants = outcome.mutants
-                    validated_cmds = outcome.test_cmds
-                    flaky_dropped = len(outcome.flaky)
-                    validation_status = outcome.status
-                    if timing is not None and timing.over_cap:
-                        reason = "verifier_timeout_over_cap"
+                    # Pre-validation skip filters
+                    reason = self._pre_filter(pr)
+                    if reason:
                         skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
-                        self._emit_progress(pr_label, "skip", outcome.reason or reason)
-                        continue
-                    if (
-                        self.options.require_fail_to_pass
-                        and len(fail_to_pass) < self.options.min_fail_to_pass
-                    ):
-                        skip_reasons["no_fail_to_pass"] = skip_reasons.get("no_fail_to_pass", 0) + 1
-                        self._emit_progress(pr_label, "skip", outcome.reason or "no_fail_to_pass")
+                        self._emit_progress(pr_label, "skip", reason)
                         continue
 
-                # Emit the Harbor task
-                task = self._build_task(
-                    pr,
-                    patch,
-                    test_patch,
-                    fail_to_pass=fail_to_pass,
-                    pass_to_pass=pass_to_pass,
-                    validation_status=validation_status,
-                    flaky_dropped=flaky_dropped,
-                    timing=timing,
-                    mutants=mutants,
-                    test_cmds=validated_cmds or None,
-                )
-                write_harbor_task(task, out_dir)
-                emitted += 1
-                logger.info(
-                    "emitted task %s (F2P=%d, P2P=%d)",
-                    task.name,
-                    len(fail_to_pass),
-                    len(pass_to_pass),
-                )
-                self._emit_progress(task.name, "emit")
+                    # Fetch diff
+                    try:
+                        diff = self._provider.fetch_pr_diff(owner, name, pr.number, token=token)
+                    except _PROVIDER_ERRORS as exc:
+                        logger.warning("PR #%d: diff fetch failed: %s", pr.number, exc)
+                        skip_reasons["diff_fetch_failed"] = (
+                            skip_reasons.get("diff_fetch_failed", 0) + 1
+                        )
+                        self._emit_progress(pr_label, "error", "diff_fetch_failed")
+                        continue
+
+                    patch, test_patch = split_patch_and_test_patch(diff)
+                    if not patch.strip():
+                        skip_reasons["empty_source_patch"] = (
+                            skip_reasons.get("empty_source_patch", 0) + 1
+                        )
+                        self._emit_progress(pr_label, "skip", "empty_source_patch")
+                        continue
+                    if not test_patch.strip():
+                        skip_reasons["no_test_patch"] = skip_reasons.get("no_test_patch", 0) + 1
+                        self._emit_progress(pr_label, "skip", "no_test_patch")
+                        continue
+
+                    # Structural quality filters (cheap, run before validation):
+                    # - CI-only PRs: source patch is 100% under .github/
+                    # - No new test functions: test_patch only edits comments/docstrings
+                    structural_reason = self._structural_quality_filter(patch, test_patch)
+                    if structural_reason:
+                        skip_reasons[structural_reason] = skip_reasons.get(structural_reason, 0) + 1
+                        self._emit_progress(pr_label, "skip", structural_reason)
+                        continue
+
+                    # Lite-style structural filters
+                    lite_reason = self._lite_filter(pr, patch)
+                    if lite_reason:
+                        skip_reasons[lite_reason] = skip_reasons.get(lite_reason, 0) + 1
+                        self._emit_progress(pr_label, "skip", lite_reason)
+                        continue
+
+                    # Validation (optional via skip_validation)
+                    fail_to_pass: list[str] = []
+                    pass_to_pass: list[str] = []
+                    timing: GradingTime | None = None
+                    mutants: Mutants | None = None
+                    validated_cmds: list[str] = []
+                    flaky_dropped = 0
+                    validation_status = "skipped"
+                    if not self.options.skip_validation:
+                        if sandbox is None:
+                            sandbox = self._start_validation_sandbox()
+                        from repo2rlenv.pipelines.pr_runtime_validate import validate_pr
+
+                        targeted_cmds = targeted_test_cmds_for_pr(
+                            normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                            _files_in_patch(test_patch),
+                        )
+                        outcome = validate_pr(
+                            sandbox=sandbox,
+                            base_commit=pr.base_sha,
+                            patch=patch,
+                            test_patch=test_patch,
+                            test_cmds=targeted_cmds,
+                            language=self.bootstrap.language.value,
+                            timeout=self.options.validation_timeout_sec,
+                        )
+                        fail_to_pass = outcome.fail_to_pass
+                        pass_to_pass = outcome.pass_to_pass
+                        timing = outcome.timing
+                        mutants = outcome.mutants
+                        validated_cmds = outcome.test_cmds
+                        flaky_dropped = len(outcome.flaky)
+                        validation_status = outcome.status
+                        if timing is not None and timing.over_cap:
+                            reason = "verifier_timeout_over_cap"
+                            skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                            self._emit_progress(pr_label, "skip", outcome.reason or reason)
+                            continue
+                        if (
+                            self.options.require_fail_to_pass
+                            and len(fail_to_pass) < self.options.min_fail_to_pass
+                        ):
+                            skip_reasons["no_fail_to_pass"] = (
+                                skip_reasons.get("no_fail_to_pass", 0) + 1
+                            )
+                            self._emit_progress(
+                                pr_label, "skip", outcome.reason or "no_fail_to_pass"
+                            )
+                            continue
+
+                    # Emit the Harbor task
+                    task = self._build_task(
+                        pr,
+                        patch,
+                        test_patch,
+                        fail_to_pass=fail_to_pass,
+                        pass_to_pass=pass_to_pass,
+                        validation_status=validation_status,
+                        flaky_dropped=flaky_dropped,
+                        timing=timing,
+                        mutants=mutants,
+                        test_cmds=validated_cmds or None,
+                    )
+                    write_harbor_task(task, out_dir)
+                    emitted += 1
+                    logger.info(
+                        "emitted task %s (F2P=%d, P2P=%d)",
+                        task.name,
+                        len(fail_to_pass),
+                        len(pass_to_pass),
+                    )
+                    self._emit_progress(task.name, "emit")
+                except Exception as exc:
+                    # One candidate's failure must not end the run. Infrastructure
+                    # failures (Docker, OS, subprocess) are counted apart from
+                    # failures of the candidate itself, and the sandbox is replaced.
+                    infra = isinstance(exc, _INFRA_ERRORS)
+                    reason = "infra_error" if infra else "candidate_error"
+                    logger.warning(
+                        "%s: %s: %s: %s", pr_label, reason, type(exc).__name__, exc, exc_info=True
+                    )
+                    skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                    self._emit_progress(pr_label, "error", f"{reason}: {type(exc).__name__}")
+                    if infra and sandbox is not None:
+                        sandbox.cleanup()
+                        sandbox = None
         finally:
             if sandbox is not None:
                 sandbox.cleanup()
