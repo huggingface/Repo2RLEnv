@@ -50,7 +50,7 @@ from typing import ClassVar
 from repo2rlenv import github
 from repo2rlenv.auth import resolve_repo_token
 from repo2rlenv.bootstrap.spec import BootstrapResult
-from repo2rlenv.emitter.harbor import HarborTask, write_harbor_task
+from repo2rlenv.emitter.harbor import HarborTask
 from repo2rlenv.github import GitHubError, PullRequestSummary
 from repo2rlenv.gitlab import GitLabError
 from repo2rlenv.pipelines._env_guard import (
@@ -1439,15 +1439,31 @@ class PRRuntimePipeline:
                     mutants=mutants,
                     test_cmds=validated_cmds or None,
                 )
-                write_harbor_task(task, out_dir)
-                emitted += 1
+                from repo2rlenv.pipelines._localization import emit_missions
+
+                written, no_loc = emit_missions(
+                    task,
+                    out_dir,
+                    mission=self.options.mission,
+                    offline=self.options.loc_offline,
+                    patch=patch,
+                    base_commit=pr.base_sha,
+                )
+                if not written:
+                    skip_reasons[no_loc or "not_emitted"] = (
+                        skip_reasons.get(no_loc or "not_emitted", 0) + 1
+                    )
+                    self._emit_progress(pr_label, "skip", no_loc or "not_emitted")
+                    continue
+                emitted += len(written)
                 logger.info(
-                    "emitted task %s (F2P=%d, P2P=%d)",
-                    task.name,
+                    "emitted %s (F2P=%d, P2P=%d)",
+                    ", ".join(written),
                     len(fail_to_pass),
                     len(pass_to_pass),
                 )
-                self._emit_progress(task.name, "emit")
+                for written_name in written:
+                    self._emit_progress(written_name, "emit")
         finally:
             if sandbox is not None:
                 sandbox.cleanup()

@@ -38,11 +38,14 @@ under Apache-2.0 along with the rest of Repo2RLEnv.
 
 from __future__ import annotations
 
+import json
 import logging
+import fnmatch
 import os
 import re
 import shlex
 import tempfile
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -143,10 +146,12 @@ def _strip_info_leak(body: str) -> str:
     return body.strip()
 
 
-def _build_instruction(pr: PullRequestSummary) -> str:
+def _build_instruction(pr: PullRequestSummary, *, statement: str | None = None) -> str:
     """Strip leakage patterns from the PR body + title; emit issue-style prose."""
     title = _SQUASH_SUFFIX_RE.sub("", (pr.title or "").strip())
     body = _strip_info_leak((pr.body or "").strip())
+    if statement is not None:
+        body = statement
     if not body:
         body = "(no description provided in source PR)"
     return (
@@ -179,7 +184,50 @@ def _verifier_source() -> str:
     return verifier_path.read_text(encoding="utf-8")
 
 
-def build_pr_diff_environment_dockerfile(*, repo_url: str, base_commit: str) -> str:
+CLAIMS_CLEANUP_RULES = {
+    "directories": ("node_modules", ".next", "dist", "dist-run"),
+    "file_patterns": ("*.tsbuildinfo", "*.sqlite*", ".env.*", ".env", ".DS_Store"),
+}
+
+
+def _cleanup_run_line() -> str:
+    directory_args = " -o ".join(
+        f"-name {shlex.quote(name)}" for name in CLAIMS_CLEANUP_RULES["directories"]
+    )
+    file_args = " -o ".join(
+        f"-name {shlex.quote(pattern)}" for pattern in CLAIMS_CLEANUP_RULES["file_patterns"]
+    )
+    return (
+        f"RUN find /workspace -type d \\( {directory_args} \\) -prune -exec rm -rf {{}} + \\\n"
+        f" && find /workspace -type f \\( {file_args} \\) -delete\\n"
+    )
+
+
+def _clean_detection_clone(source: Path, dest: Path) -> None:
+    import shutil
+
+    shutil.copytree(source, dest, symlinks=True)
+    for directory, subdirs, files in os.walk(dest, topdown=True, followlinks=False):
+        root = Path(directory)
+        removed = [name for name in subdirs if name in CLAIMS_CLEANUP_RULES["directories"]]
+        subdirs[:] = [
+            name
+            for name in subdirs
+            if name not in CLAIMS_CLEANUP_RULES["directories"] and not (root / name).is_symlink()
+        ]
+        for name in removed:
+            shutil.rmtree(root / name, ignore_errors=True)
+        for name in files:
+            target = root / name
+            if any(
+                fnmatch.fnmatch(name, pattern) for pattern in CLAIMS_CLEANUP_RULES["file_patterns"]
+            ):
+                target.unlink(missing_ok=True)
+
+
+def build_pr_diff_environment_dockerfile(
+    *, repo_url: str, base_commit: str, claims_mode: bool = False
+) -> str:
     """Build the minimal Harbor environment/Dockerfile for a pr_diff task.
 
     No bootstrap LLM agent — just python:3.12-slim + git + the repo checked
@@ -250,7 +298,21 @@ def build_pr_diff_environment_dockerfile(*, repo_url: str, base_commit: str) -> 
         f"RUN git fetch --depth 1 origin {base_commit} 2>/dev/null \\\n"
         "    || git fetch --unshallow origin 2>/dev/null || true\n"
         f"RUN git reset --hard {base_commit} \\\n"
-        " && git clean -fdx -e .venv -e venv -e __pycache__\n" + git_history_scrub(base_commit)
+        " && git clean -fdx -e .venv -e venv -e __pycache__\n"
+        + git_history_scrub(base_commit)
+        + (
+            _cleanup_run_line()
+            + "RUN mkdir -p /opt/r2e && cp -a /workspace /opt/r2e/pristine "
+            + "&& chmod 700 /opt/r2e && chmod -R a-w /opt/r2e/pristine\n"
+            + "RUN apt-get update && apt-get install -y --no-install-recommends tmux "
+            + "&& rm -rf /var/lib/apt/lists/*\n"
+            + "RUN git config --system --add safe.directory /workspace "
+            + "&& useradd -m -u 10001 -s /bin/bash agent "
+            + "&& chown -R agent:agent /workspace\n"
+            + "USER agent\n"
+            if claims_mode
+            else ""
+        )
         # ANTI-CHEAT: strip .git down to base_commit so an agent cannot
         # `git fetch`/`git show` the merged PR (the oracle) from origin.
         # ANTI-CHEAT: the oracle patch, instruction, and verifier are NOT
@@ -794,6 +856,8 @@ class PRDiffPipeline:
         self.input = input
         self.options = options
         self._progress_cb = None  # set via set_progress_callback for live UI
+        self._run_report: list[dict[str, object]] = []
+        self._ledger_initialized = False
 
     def set_progress_callback(self, cb) -> None:
         """Wire a per-candidate callback so a CLI live view can update.
@@ -811,6 +875,13 @@ class PRDiffPipeline:
 
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
+        if self.options.loc_grading == "claims":
+            self._run_id = (
+                f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:8]}"
+            )
+            self._run_report = []
+        if self.input.repo is None:
+            raise ValueError("pr_diff requires a repository")
 
         token = resolve_repo_token(self.input.repo, self.input.auth)
         if self.input.repo.access == "private" and not token:
@@ -869,11 +940,90 @@ class PRDiffPipeline:
                 continue
 
             task = self._build_task(pr, diff)
-            write_harbor_task(task, out_dir)
-            emitted += 1
-            logger.info("emitted task %s", task.name)
-            self._emit_progress(task.name, "emit")
+            from repo2rlenv.pipelines._localization import emit_missions
+            from repo2rlenv.pipelines.pr_runtime import split_patch_and_test_patch
 
+            source_patch, _ = split_patch_and_test_patch(diff)
+            if self.options.loc_grading == "claims":
+                entry = {
+                    "pr": pr_label,
+                    "outcome": "skipped",
+                    "reason": "detection_generation_failed",
+                    "cost_usd": 0.0,
+                    "attempts": 0,
+                }
+                try:
+                    from repo2rlenv.pipelines._detection_claims import is_security_candidate
+                    from repo2rlenv.pipelines._pr_detection import DetectionSkip
+
+                    if self.options.security_only and not is_security_candidate(pr, source_patch):
+                        raise DetectionSkip("not_security_candidate")
+                    detection, cost, attempts, statement = self._build_claims_pair(
+                        task, pr, source_patch, token=token, out_dir=out_dir
+                    )
+                    task.instruction = _build_instruction(pr, statement=statement)
+
+                    task.aux_files["tests/instruction.md"] = task.instruction
+                    task.repo2env["paired_statement_sha256"] = (
+                        __import__("hashlib").sha256(statement.encode("utf-8")).hexdigest()
+                    )
+                    pair_id = f"{task.name}:claims"
+                    task.repo2env["pair_id"] = pair_id
+                    task.repo2env["mission"] = "remediation"
+                    detection.repo2env["pair_id"] = pair_id
+                    self._emit_claims_pair(task, detection, out_dir)
+                    emitted += 2
+                    entry = {
+                        "pr": pr_label,
+                        "outcome": "emitted",
+                        "tasks": [task.name, detection.name],
+                        "cost_usd": cost,
+                        "attempts": attempts,
+                    }
+                    for name_written in (task.name, detection.name):
+                        self._emit_progress(name_written, "emit")
+                except Exception as exc:
+                    from repo2rlenv.pipelines._pr_detection import (
+                        PROGRAMMING_ERRORS,
+                        skip_reason_for,
+                    )
+
+                    if isinstance(exc, PROGRAMMING_ERRORS):
+                        raise
+                    logger.exception("Claims task generation failed for %s", pr_label)
+                    reason = getattr(exc, "reason", None) or skip_reason_for(exc)
+                    cost = getattr(exc, "cost_usd", 0.0)
+                    attempts = getattr(exc, "attempts", 0)
+                    skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                    entry.update({"reason": reason, "cost_usd": cost, "attempts": attempts})
+                    self._emit_progress(pr_label, "skip", reason)
+                finally:
+                    self._record_run(pr_label, entry)
+                continue
+
+            written, no_loc = emit_missions(
+                task,
+                out_dir,
+                mission=self.options.mission,
+                offline=self.options.loc_offline,
+                patch=source_patch,
+                base_commit=pr.base_sha,
+                stash_tree=True,
+                source_kind=self.input.repo.source_kind,
+            )
+            if not written:
+                reason = no_loc or "not_emitted"
+                skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                self._emit_progress(pr_label, "skip", reason)
+                continue
+            emitted += len(written)
+            logger.info("emitted %s", ", ".join(written))
+            for written_name in written:
+                self._emit_progress(written_name, "emit")
+
+        if self.options.loc_grading == "claims":
+            report_path = out_dir / "run-report.json"
+            report_path.write_text(json.dumps(self._run_report, indent=2) + "\n", encoding="utf-8")
         return PipelineResult(
             candidates=len(prs),
             emitted=emitted,
@@ -881,6 +1031,104 @@ class PRDiffPipeline:
             out_dir=out_dir,
             skip_reasons=skip_reasons,
         )
+
+    def _record_run(self, label: str, entry: dict[str, object]) -> None:
+        self._run_report.append({"pr": label, **entry})
+
+    def _build_claims_pair(self, task, pr, source_patch, *, token, out_dir):
+        from repo2rlenv.campaigns.budget import BudgetLedger
+        from repo2rlenv.pipelines._detection_claims import is_security_candidate
+        from repo2rlenv.pipelines._pr_detection import (
+            DetectionSkip,
+            build_claims_detection_task,
+        )
+        from repo2rlenv.quality.loop.client import RunBudget
+
+        if self.input.llm is None:
+            raise DetectionSkip("detection_llm_required")
+        if self.input.llm.fallback is not None:
+            raise DetectionSkip("metered_fallback_unsupported")
+        if self.input.repo is None:
+            raise DetectionSkip("repository_required")
+        run_id = getattr(self, "_run_id", None)
+        if run_id is None:
+            raise RuntimeError("claims-mode run id was not initialized")
+        work_dir = out_dir / ".detection" / run_id
+        repo_dir = work_dir / "source" / f"{pr.number}-{pr.base_sha[:12]}"
+        repo_dir.parent.mkdir(parents=True, exist_ok=True)
+        from repo2rlenv.bootstrap.runner import _shallow_clone_at_ref
+        import shutil
+
+        cleaned_dir = work_dir / "cleaned-source" / f"{pr.number}-{pr.base_sha[:12]}"
+        cleaned_dir.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if repo_dir.exists():
+                shutil.rmtree(repo_dir)
+            _shallow_clone_at_ref(self.input.repo.url, pr.base_sha, token, repo_dir, depth=1)
+            _clean_detection_clone(repo_dir, cleaned_dir)
+        finally:
+            shutil.rmtree(repo_dir, ignore_errors=True)
+        repo_dir = cleaned_dir
+        ledger_path = work_dir / "budget.sqlite3"
+        run_budget = self.options.detection_run_budget_usd
+        if run_budget is None:
+            run_budget = self.options.detection_cost_cap_usd * max(1, self.options.limit)
+        ledger = BudgetLedger(ledger_path, limit_usd=run_budget)
+        budget = RunBudget(
+            ledger,
+            f"pr-diff-{pr.number}:",
+            str(self.options.detection_cost_cap_usd),
+        )
+        receipt_dir = work_dir / "receipts"
+        receipt_dir.mkdir(parents=True, exist_ok=True)
+        reservation = str(self.options.detection_cost_cap_usd / 2)
+        try:
+            return build_claims_detection_task(
+                task,
+                pr=pr,
+                source_diff=source_patch,
+                repo_description=f"{self.input.repo.owner_name[0]}/{self.input.repo.owner_name[1]}",
+                repo_root=repo_dir,
+                base_commit=pr.base_sha,
+                llm=self.input.llm,
+                budget=budget,
+                receipt_dir=receipt_dir,
+                reservation_usd=reservation,
+                max_attempts=self.options.detection_max_attempts,
+                security_only=self.options.security_only,
+                image_dockerfile=build_pr_diff_environment_dockerfile(
+                    repo_url=self.input.repo.url,
+                    base_commit=pr.base_sha,
+                    claims_mode=True,
+                ),
+            )
+        finally:
+            shutil.rmtree(repo_dir, ignore_errors=True)
+
+    def _emit_claims_pair(self, remediation, detection, out_dir: Path) -> None:
+        import shutil
+        import tempfile
+
+        stage = Path(tempfile.mkdtemp(prefix=".pr-diff-pair-", dir=out_dir))
+        committed: list[Path] = []
+        try:
+            if self.input.repo is None:
+                raise ValueError("pr_diff requires a repository")
+            write_harbor_task(remediation, stage)
+            write_harbor_task(detection, stage)
+            targets = [out_dir / remediation.name, out_dir / detection.name]
+            if any(target.exists() for target in targets):
+                raise FileExistsError("paired task output already exists")
+            for name in (remediation.name, detection.name):
+                target = out_dir / name
+                (stage / name).rename(target)
+                committed.append(target)
+        except BaseException:
+            for target in committed:
+                shutil.rmtree(target, ignore_errors=True)
+            raise
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
 
     def _should_skip(self, pr: PullRequestSummary) -> str | None:
         if pr.is_draft and self.options.skip_drafts:
@@ -894,6 +1142,8 @@ class PRDiffPipeline:
         return None
 
     def _build_task(self, pr: PullRequestSummary, diff: str) -> HarborTask:
+        if self.input.repo is None:
+            raise ValueError("pr_diff requires a repository")
         owner, name = self.input.repo.owner_name
         task_id = f"{owner}__{name}-{pr.number}"
 
