@@ -68,6 +68,7 @@ def _cache_options(spec: BootstrapSpec) -> dict[str, object]:
         "user_dockerfile": str(spec.user_dockerfile) if spec.user_dockerfile else None,
         "image_registry": spec.image_registry,
         "languages_hint": spec.languages_hint,
+        "target_paths": sorted(set(spec.target_paths)) or None,
     }
 
 
@@ -523,6 +524,14 @@ def ensure_bootstrap(
         cache_opts = _cache_options(spec)
         if not force:
             cached = cache_mod.load(owner_name, ref_sha, spec.cache_dir, options=cache_opts)
+            if cached is not None and spec.require_parseable_tests and cached.tests_parsed == 0:
+                logger.warning(
+                    "bootstrap cache for %s ignored: its test_cmds print no parseable "
+                    "per-test results (%s); re-bootstrapping",
+                    owner_name,
+                    "; ".join(cached.test_cmds),
+                )
+                cached = None
             if cached is not None and cached.image_digest:
                 # A filesystem cache hit is stale if the Docker image it points
                 # at was pruned/evicted since (common under disk pressure). Verify
@@ -585,6 +594,8 @@ def ensure_bootstrap(
                 max_seconds=spec.max_seconds,
                 max_spend_usd=spec.max_llm_spend_usd,
                 platform=spec.platform,
+                require_parseable_tests=spec.require_parseable_tests,
+                target_paths=spec.target_paths,
                 on_turn=on_turn,
                 on_thinking=on_thinking,
                 on_executing=on_executing,
@@ -734,6 +745,7 @@ def ensure_bootstrap(
             pushed_to_registry=pushed,
             verify_passed=verify_ok,
             verify_detail=verify_detail,
+            tests_parsed=outcome.tests_parsed,
         )
         cache_mod.save(result, spec.cache_dir, options=cache_opts)
 

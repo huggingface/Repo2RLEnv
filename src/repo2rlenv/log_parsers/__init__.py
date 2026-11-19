@@ -13,6 +13,7 @@ Public API:
   * `parse_cargo_test`— `cargo test`
   * `parse_cargo_nextest` — `cargo nextest run`
   * `parse_jest`      — Jest / Mocha / Vitest
+  * `parse_tap`       — TAP: QUnit, tape, node-tap, `--reporter tap`
   * `parse_unittest`  — `python -m unittest` / Django's runner
 
   * `parse_logs(language, test_cmds, log)` — dispatch by runner. Inspects
@@ -32,6 +33,7 @@ from repo2rlenv.log_parsers.cargo_parser import parse_cargo_nextest, parse_cargo
 from repo2rlenv.log_parsers.go_parser import parse_go_test
 from repo2rlenv.log_parsers.jest_parser import parse_jest
 from repo2rlenv.log_parsers.pytest_parser import TestStatus, parse_pytest
+from repo2rlenv.log_parsers.tap_parser import TAP_HEADER_RE, parse_tap
 from repo2rlenv.log_parsers.unittest_parser import parse_unittest
 
 __all__ = [
@@ -42,6 +44,7 @@ __all__ = [
     "parse_jest",
     "parse_logs",
     "parse_pytest",
+    "parse_tap",
     "parse_unittest",
 ]
 
@@ -49,12 +52,18 @@ __all__ = [
 # such as `run_pytest.sh` still dispatch correctly. Bound the dotted alias so a
 # filename that merely ends in `.test` is not enough to select this parser.
 _PYTEST_RUNNER_RE = re.compile(r"pytest|\bpy[.]test\b")
+# Commands that print TAP: QUnit's CLI (its default reporter), tape, node-tap, or
+# any runner asked for it (`mocha --reporter tap`, `node --test-reporter=tap`).
+_TAP_RUNNER_RE = re.compile(
+    r"\bqunit\b|\btape\b|\bnode-tap\b|(?:--reporter|--test-reporter)(?:=|\s+)tap\b|\s-r\s*tap\b",
+    re.IGNORECASE,
+)
 
 
 def _detect_runner(test_cmds: list[str]) -> str:
     """Inspect the bootstrap-recorded test commands and name the runner.
 
-    Returns one of: "pytest", "unittest", "go", "cargo", "nextest", "jest", "unknown".
+    Returns one of: "pytest", "unittest", "go", "cargo", "nextest", "tap", "jest", "unknown".
 
     Why inspect test_cmds rather than the LanguageHint alone? A single
     language often has multiple runners — Python has pytest + unittest +
@@ -75,6 +84,9 @@ def _detect_runner(test_cmds: list[str]) -> str:
         return "nextest"
     if re.search(r"\bcargo\s+test\b", joined):
         return "cargo"
+    # Before jest: `mocha --reporter tap` names mocha but prints TAP.
+    if _TAP_RUNNER_RE.search(joined):
+        return "tap"
     # Jest is usually invoked via `npm test`, `npx jest`, `yarn test`, or
     # plain `jest`. Mocha + vitest produce jest-compatible output and we
     # parse them with the same parser.
@@ -134,6 +146,13 @@ def parse_logs(
         return parse_cargo_test(log)
     if runner == "nextest":
         return parse_cargo_nextest(log)
+    if runner == "tap":
+        return parse_tap(log)
     if runner == "jest":
-        return parse_jest(log)
+        parsed = parse_jest(log)
+        # `npm test` and wrapper scripts hide which runner they start. A log that
+        # jest/mocha/vitest can't read but that carries a TAP header is TAP.
+        if not parsed and TAP_HEADER_RE.search(log):
+            return parse_tap(log)
+        return parsed
     return {}

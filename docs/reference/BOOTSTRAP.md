@@ -18,7 +18,7 @@ Different repos have wildly different setup needs:
 - Java projects use Maven or Gradle + a specific JDK
 - C/C++ projects use CMake / Make / Bazel / Meson + system deps
 
-Hand-writing a Dockerfile per repo is unworkable when the goal is "any repo." So the **bootstrap phase** does it for you: an LLM agent reads the repo, runs shell commands inside a sandboxed container, iterates until the build + tests succeed, then commits the result as a Docker image. The image is cached locally and reused for every subsequent task generated from that repo.
+Hand-writing a Dockerfile per repo is unworkable when the goal is "any repo." So the **bootstrap phase** does it for you: an LLM agent reads the repo, runs shell commands inside a sandboxed container, iterates until the build + tests succeed, then commits the result as a Docker image. The image is cached locally and reused for tasks using the same repository commit and bootstrap options.
 
 You only need bootstrap for pipelines that actually run code (`pr_runtime`, `commit_runtime`, `cve_patches`, `code_instruct`, `equivalence_tests`). The text-only `pr_diff` pipeline skips it entirely.
 
@@ -183,7 +183,12 @@ The agent loop is skipped; we just build your Dockerfile, commit the result, and
 
 ## How bootstrap works internally
 
-Bootstrap is a separate phase, run **once per `(repo, commit)` and cached**. Inline iteration inside the per-task synthesis loop would be wasteful and slow.
+Bootstrap runs **once per `(repo, commit, bootstrap options)` and is cached**.
+For `pr_runtime`, PR discovery and cheap filters run first; bootstrap uses each
+eligible PR's exact base SHA, not the repository's current HEAD or `--ref`.
+Test synthesis, validation and task emission all use that base's image and test
+commands. PRs sharing a base reuse the environment; different bases can require
+separate paid runs, each bounded by the configured bootstrap budget.
 
 ```mermaid
 flowchart TD
@@ -208,9 +213,18 @@ flowchart TD
     end
 ```
 
-You pay the LLM agent cost **once** per `(repo, commit)`; every later task generated from that repo reuses the cached image for free.
+You pay the LLM agent cost **once** per `(repo, commit, bootstrap options)`;
+later tasks using that same environment reuse the cached image for free.
 
 The agent is implemented as a ReAct-style Thought / Action / Input loop with tools for shell execution, file reading, and a structured `SAVE_SETUP` call that ends the session by recording the rebuild + test commands the rest of the system uses. Per-language hints (Python / Node / Go / Rust / Java / C-C++) get injected into the agent's system prompt so it doesn't have to rediscover ecosystem conventions on every run.
+
+### Parseable test output
+
+Runtime pipelines decide which tests fail before a fix and pass after it from one result line per test. A command that exits 0 but prints only a summary, or uses a custom reporter, can never yield a task. So `SAVE_SETUP` runs the saved `test_cmds` the way the runtime pipelines will (verbosity flags added) and passes the output through the log parsers. If no per-test result is found, the save is rejected and the agent sees the output tail plus the supported formats. A rejection counts against `max_iterations`.
+
+Supported output: pytest, unittest / Django, `go test`, cargo test / nextest, jest, mocha (`spec`), vitest (`verbose`), and TAP. TAP covers QUnit's CLI (its default reporter), tape, node-tap and any runner given `--reporter tap`. A repo whose own script hides the reporter, such as moment's `scripts/test.js`, passes once the agent builds the tests and calls `qunit` on the built files. TAP is detected from the command (`qunit`, `tape`, `--reporter tap`) or from a `TAP version` header, never from `ok` lines alone, so Go's per-package `ok` lines are not misread.
+
+The number of parsed tests is stored as `tests_parsed` in `bootstrap.json`. A cached bootstrap with `tests_parsed == 0` is ignored and rebuilt, and `pr_runtime` rejects such an environment before test synthesis or validation. Caches written before this field existed load as `None` and are used as before. Set `BootstrapSpec.require_parseable_tests = False` to turn the bootstrap gate off.
 
 ## Cache strategy
 

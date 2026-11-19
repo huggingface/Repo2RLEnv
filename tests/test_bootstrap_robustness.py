@@ -189,6 +189,12 @@ def test_temperature_suppressed_for_opus_4_7():
     assert _supports_temperature("claude-sonnet-4-6")
 
 
+def test_temperature_suppressed_for_haiku_5_5():
+    from repo2rlenv.llm import _supports_temperature
+
+    assert not _supports_temperature("claude-haiku-5-5")
+
+
 def test_temperature_suppressed_for_gpt_5_family():
     from repo2rlenv.llm import _supports_temperature
 

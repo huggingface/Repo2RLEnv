@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from repo2rlenv.spec.recipe_options import (
     CodeMidasOptions,
@@ -56,6 +56,9 @@ class PRRuntimeOptions(_BaseOptions):
     min_fail_to_pass: int = 1
     validation_timeout_sec: int = 600  # per-PR cap on the two test runs
     skip_validation: bool = False  # emit candidates without F2P/P2P (debug / fast iteration)
+    synthesize_missing_tests: bool = True
+    max_test_synthesis_spend_usd: float = Field(default=1.5, ge=0)
+    max_test_synthesis_attempts: int = Field(default=5, ge=1)
 
     # --- Quality (SWE-bench Lite-style sampling) ---
     lite_filter: bool = False

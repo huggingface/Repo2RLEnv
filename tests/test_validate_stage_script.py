@@ -12,12 +12,38 @@ from repo2rlenv.log_parsers import parse_logs
 from repo2rlenv.pipelines.pr_runtime_validate import (
     _build_stage_script,
     _slice_test_output,
+    _Stopwatch,
     _test_block,
 )
 
 needs_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 
 _BASE = "a" * 40
+
+
+def test_validation_runner_timeout_leaves_time_to_collect_output():
+    from repo2rlenv.bootstrap.docker import ExecResult
+
+    script = _build_stage_script(
+        _BASE,
+        apply_patch=None,
+        apply_test_patch=None,
+        test_cmds=["npx mocha --reporter spec"],
+        timeout=17,
+    )
+    launch = next(line for line in script.splitlines() if line.startswith('R2E_TEST_EXIT="$('))
+    assert "--purge --timeout 17 --" in launch
+
+    class Sandbox:
+        def exec(self, command, *, timeout):
+            assert command == script
+            assert timeout == 137
+            return ExecResult(0, "R2E_TEST_SECONDS=17.0\n", "", 18.0)
+
+    clock = _Stopwatch()
+    clock.run(Sandbox(), script, 17)
+    assert clock.samples[0][0] == 17.0
+
 
 # Real `npx jest --verbose` output (jest 30.5.2). Every line of it, including
 # the per-test results, is written to stderr.

@@ -25,7 +25,7 @@ _PLACEHOLDER_API_KEY = "EMPTY"
 # Models that reject any `temperature` value (forced default). Add patterns
 # as new releases land. Probed empirically via scripts/probe_llm_routes.py.
 _NO_TEMPERATURE_RE = re.compile(
-    r"(claude-opus-4-7|claude-opus-4-8|gpt-5(\.|-|$)|gpt-6|o1-|o3-|o4-)",
+    r"(claude-opus-4-7|claude-opus-4-8|claude-haiku-5-5|gpt-5(\.|-|$)|gpt-6|o1-|o3-|o4-)",
     re.IGNORECASE,
 )
 _OPENAI_COMPLETION_LIMIT_RE = re.compile(r"^(gpt-[56](?:[.-]|$)|o[134](?:-|$))")

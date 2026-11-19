@@ -104,6 +104,14 @@ PRESETS: dict[LanguageHint, LanguagePreset] = {
             "`npm ci` requires a lockfile; if absent, fall back to `npm install`.",
             "`prepare` scripts run husky/lefthook hooks that may fail in CI; "
             "set `HUSKY=0` or `--ignore-scripts` if hooks block install.",
+            "test_cmds must print ONE LINE PER TEST. A wrapper script that hides the "
+            "reporter (e.g. a `scripts/test.js` that prints only a summary) is rejected. "
+            "Run the framework directly with a per-test reporter: `jest --verbose`, "
+            "`mocha --reporter spec`, `vitest --reporter=verbose`, or TAP "
+            "(`qunit <files>`, `tape <files>`, `mocha --reporter tap`). If the repo builds "
+            "its tests first (rollup/tsc/babel), keep that build step in the command and "
+            "call the runner on the built files, e.g. `node scripts/build-tests.js && "
+            "npx qunit build/qunit/test/**/*.js`.",
         ),
     ),
     LanguageHint.GO: LanguagePreset(

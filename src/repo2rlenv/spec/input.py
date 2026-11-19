@@ -292,6 +292,11 @@ class BootstrapSpec(BaseModel):
     max_llm_spend_usd: float | None = 5.0
     platform: Literal["linux/amd64", "linux/arm64"] = "linux/amd64"
     languages_hint: list[str] | None = None  # override auto-detection
+    # Reject a saved test command whose output has no parseable per-test results.
+    # Runtime pipelines classify fail-to-pass tests from that output, so a command
+    # without it can never yield a task.
+    require_parseable_tests: bool = True
+    target_paths: list[str] = Field(default_factory=list)
 
 
 class PipelineSpec(BaseModel):

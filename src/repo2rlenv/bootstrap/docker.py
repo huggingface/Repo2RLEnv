@@ -182,6 +182,44 @@ def pull_image_streaming(
     )
 
 
+_RATE_LIMIT_MARKERS = ("429", "too many requests", "toomanyrequests", "rate limit")
+_PULL_RETRY_DELAYS_SEC = (5.0, 15.0, 45.0)
+
+
+def is_rate_limited(text: str) -> bool:
+    """True when a `docker pull` failure is a registry rate limit (HTTP 429)."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in _RATE_LIMIT_MARKERS)
+
+
+def pull_with_rate_limit_retry(
+    image: str,
+    *,
+    platform: str | None = None,
+    timeout: int = 600,
+    on_progress: Callable[[str], None] | None = None,
+    delays: tuple[float, ...] = _PULL_RETRY_DELAYS_SEC,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ExecResult:
+    """Pull an image, retrying with backoff only when the registry returns 429.
+
+    Any other failure (missing image, network down, timeout) is returned
+    immediately so genuine errors are not delayed.
+    """
+    result = pull_image_streaming(
+        image, platform=platform, timeout=timeout, on_progress=on_progress
+    )
+    for delay in delays:
+        if result.ok or not is_rate_limited(result.stderr):
+            break
+        logger.warning("registry rate limit pulling %s; retrying in %.0fs", image, delay)
+        sleep(delay)
+        result = pull_image_streaming(
+            image, platform=platform, timeout=timeout, on_progress=on_progress
+        )
+    return result
+
+
 class DockerSandbox:
     """A long-lived Docker container the bootstrap agent runs commands in.
 
@@ -243,14 +281,22 @@ class DockerSandbox:
             timeout=10,
         ).ok
         if not already_local:
-            pull = pull_image_streaming(
+            pull = pull_with_rate_limit_retry(
                 base_image,
                 platform=platform,
                 timeout=timeout,
                 on_progress=_pull_progress if on_phase is not None else None,
             )
             if not pull.ok:
-                raise DockerError(f"failed to pull {base_image!r}: {pull.stderr.strip()[:400]}")
+                detail = pull.stderr.strip()[:400]
+                hint = (
+                    " Docker Hub rate-limits anonymous pulls: run `docker login` "
+                    "(authenticated accounts get a much higher limit), wait and retry, "
+                    "or pre-pull the image / use a mirror."
+                    if is_rate_limited(pull.stderr)
+                    else ""
+                )
+                raise DockerError(f"failed to pull {base_image!r}: {detail}{hint}")
         if on_phase is not None:
             try:
                 on_phase("pull_done", {"detail": base_image})

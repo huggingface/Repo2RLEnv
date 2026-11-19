@@ -324,6 +324,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     # Auto-trigger bootstrap for sandbox-required pipelines (requires_bootstrap=True).
     # Cache hit ⇒ instant; cache miss ⇒ full LLM-agent run with the live UI.
     bootstrap_result = None
+    bootstrap_factory = None
     if getattr(pipeline_cls, "requires_bootstrap", False) and gen_input.llm is None:
         console.error(
             f"pipeline {gen_input.pipeline.name.value!r} requires --llm "
@@ -357,43 +358,57 @@ def cmd_generate(args: argparse.Namespace) -> int:
         # Generic --bootstrap-opt key=value for any other BootstrapSpec field
         # (cache_dir / max_iterations / max_seconds / image_registry / platform / ...)
         bspec = _apply_bootstrap_opts(bspec, getattr(args, "bootstrap_opt", None))
-        with bootstrap_view_or_plain(
-            repo=gen_input.repo.url,
-            ref=gen_input.repo.ref,
-            model=gen_input.llm.qualified_name if gen_input.llm else "none",
-            max_iterations=bspec.max_iterations,
-            language=(bspec.languages_hint[0] if bspec.languages_hint else "unknown"),
-            base_image=bspec.base_image or "(auto-detect)",
-            force_plain=args.no_ui,
-        ) as bs_view:
-            try:
-                bootstrap_result = ensure_bootstrap(
-                    gen_input.repo,
-                    bspec,
-                    gen_input.llm,
-                    gen_input.auth,
-                    force=args.force_bootstrap,
-                    on_turn=bs_view.on_turn if bs_view else None,
-                    on_thinking=bs_view.on_thinking if bs_view else None,
-                    on_executing=bs_view.on_executing if bs_view else None,
-                    on_phase=bs_view.on_phase if bs_view else None,
-                )
-            except BootstrapError as exc:
-                if bs_view is not None:
-                    bs_view.set_outcome(success=False, reason=str(exc))
-                else:
-                    console.error(f"bootstrap error: {exc}")
-                return 1
-            if bs_view is not None:
-                bs_view.set_outcome(
-                    success=True,
-                    image_digest=bootstrap_result.image_digest,
-                    image_tag=bootstrap_result.image_tag,
-                    rebuild_cmds=bootstrap_result.rebuild_cmds,
-                    test_cmds=bootstrap_result.test_cmds,
-                )
+        # Deferred pipelines also need CLI overrides for sandbox platform and metadata.
+        gen_input = gen_input.model_copy(update={"bootstrap": bspec})
 
-    pipeline = pipeline_cls(gen_input, options, bootstrap=bootstrap_result)
+        def bootstrap_repo(repo, *, bootstrap_spec=None):
+            spec = bootstrap_spec if bootstrap_spec is not None else bspec
+            with bootstrap_view_or_plain(
+                repo=repo.url,
+                ref=repo.ref,
+                model=gen_input.llm.qualified_name if gen_input.llm else "none",
+                max_iterations=bspec.max_iterations,
+                language=(bspec.languages_hint[0] if bspec.languages_hint else "unknown"),
+                base_image=bspec.base_image or "(auto-detect)",
+                force_plain=args.no_ui,
+            ) as bs_view:
+                try:
+                    result = ensure_bootstrap(
+                        repo,
+                        spec,
+                        gen_input.llm,
+                        gen_input.auth,
+                        force=args.force_bootstrap,
+                        on_turn=bs_view.on_turn if bs_view else None,
+                        on_thinking=bs_view.on_thinking if bs_view else None,
+                        on_executing=bs_view.on_executing if bs_view else None,
+                        on_phase=bs_view.on_phase if bs_view else None,
+                    )
+                except BootstrapError as exc:
+                    if bs_view is not None:
+                        bs_view.set_outcome(success=False, reason=str(exc))
+                    raise
+                if bs_view is not None:
+                    bs_view.set_outcome(
+                        success=True,
+                        image_digest=result.image_digest,
+                        image_tag=result.image_tag,
+                        rebuild_cmds=result.rebuild_cmds,
+                        test_cmds=result.test_cmds,
+                    )
+                return result
+
+        if getattr(pipeline_cls, "bootstrap_per_candidate", False):
+            bootstrap_factory = bootstrap_repo
+        else:
+            try:
+                bootstrap_result = bootstrap_repo(gen_input.repo)
+            except BootstrapError as exc:
+                console.error(f"bootstrap error: {exc}")
+                return 1
+
+    bootstrap_kwargs = {"bootstrap_factory": bootstrap_factory} if bootstrap_factory else {}
+    pipeline = pipeline_cls(gen_input, options, bootstrap=bootstrap_result, **bootstrap_kwargs)
 
     dest = gen_input.output.destination
     push_to_hub_after = dest.startswith("hf://")

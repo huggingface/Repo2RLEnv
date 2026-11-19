@@ -17,7 +17,7 @@ fail before the fix and pass after it.
 | Input | A GitHub or GitLab repository with merged PRs that add tests |
 | Task | Resolve the issue a merged PR fixed, starting from its base commit |
 | Reward | Graded `f2p_rate × p2p_rate`, plus strict `resolved` and `command_resolved` flags |
-| Needs an LLM | Yes, for the one-time repository [bootstrap](../concepts/glossary.mdx#bootstrap) (cached) |
+| Needs an LLM | Yes, for [bootstrap](../concepts/glossary.mdx#bootstrap) at each distinct PR base commit (cached) |
 | Needs Docker | Yes, for bootstrap, validation and running tasks |
 | Hosts | GitHub (needs `gh` on `PATH`) and GitLab |
 | Languages | Any repository the bootstrap can build whose tests run under pytest, unittest, Django, `go test`, `cargo test`, `cargo nextest run`, Jest, Mocha or Vitest. The reference dataset has 63 Python and 37 Go tasks |
@@ -41,9 +41,12 @@ repo2rlenv generate \
   --out ./tasks/click-pr-runtime
 ```
 
-The first run bootstraps the repository: an LLM agent builds a Docker image in
-which the test suite runs, capped by `--max-spend-usd` (default 5.0). The image is
-cached, so later runs go straight to mining. `limit` counts PRs listed, not tasks
+The pipeline discovers PRs before bootstrapping. For each eligible candidate, an
+LLM agent builds a Docker image at the PR's exact base commit, capped by
+`--max-spend-usd` (default 5.0) per bootstrap run. Images and test commands are
+cached per base commit; PRs sharing a base reuse the same environment. Different
+bases can require separate paid bootstrap runs. `--ref` does not override a PR's
+base commit. `limit` counts PRs listed, not tasks
 emitted; PRs without a test that flips from failing to passing are skipped, so
 expect fewer tasks than `limit`. Each task lands in
 `./tasks/click-pr-runtime/pallets__click-<pr>/`. Run the oracle, which should
@@ -70,20 +73,21 @@ flowchart TD
   F --> G["Harbor task: bootstrap image,<br/>hidden tests, graded verifier"]
 ```
 
-1. **Bootstrap** the repository once. An LLM agent iterates in Docker until the
-   test suite runs, and records the image and test commands. Results are cached.
-   See [Bootstrap](../reference/BOOTSTRAP.md).
-2. **List merged PRs**, newest first, exactly as [`pr_diff`](pr_diff.md) does.
-3. **Filter on metadata.** Skip drafts, unmerged PRs, PRs with no files, and titles
+1. **List merged PRs**, newest first, exactly as [`pr_diff`](pr_diff.md) does.
+2. **Filter on metadata.** Skip drafts, unmerged PRs, PRs with no files, and titles
    that mark chores rather than fixes: backports, cherry-picks, reverts, version
    bumps, releases, changelogs and branch merges or syncs. Optionally require a
    minimum description length (`min_problem_statement_words`).
-4. **Split the diff** into a source patch and a test patch by file path. Skip the
+3. **Split the diff** into a source patch and a test patch by file path. Skip the
    PR if either is empty.
-5. **Filter on structure.** Skip PRs whose source changes are all under `.github/`
+4. **Filter on structure.** Skip PRs whose source changes are all under `.github/`
    (`skip_ci_only`), whose test patch adds no test function or class
    (`require_new_test_funcs`), or that touch more than `max_source_files_per_pr`
-   source files. `lite_filter` adds SWE-bench Lite-style constraints.
+    source files. `lite_filter` adds SWE-bench Lite-style constraints.
+5. **Bootstrap at the PR base commit**, before test synthesis or validation. An
+   LLM agent records a working image and test commands for that exact SHA. Both
+   are reused only for matching bases. An explicitly supplied bootstrap result
+   must match the PR base or generation fails. See [Bootstrap](../reference/BOOTSTRAP.md).
 6. **Validate twice** in one container started from the bootstrap image. Reset to
    the base commit, apply the test patch and run the tests that patch touches; then
    reset, apply the fix and the test patch, and run them again. Keep the PR if at
@@ -118,6 +122,9 @@ Pass each option with `--pipeline-opt key=value`.
 | `min_fail_to_pass` | `1` | Minimum number of F2P tests |
 | `validation_timeout_sec` | `600` | Timeout for each validation test run |
 | `skip_validation` | `false` | Emit candidates without running tests. Tasks then have no F2P/P2P lists, a pass/fail exit-code reward and, with nothing measured, a 300 s per-run limit. For debugging |
+| `synthesize_missing_tests` | `true` | Ask the configured LLM for a regression test when the PR contains no test changes or validation finds too few fail-to-pass tests; emit only after validation verifies the configured F2P minimum |
+| `max_test_synthesis_spend_usd` | `1.5` | Maximum estimated LLM spend for missing-test synthesis during this run; `0` disables the spend cap, while attempts remain bounded |
+| `max_test_synthesis_attempts` | `5` | Maximum generated-test attempts per run, including retries after validation feedback and providers that don't report an estimated cost |
 | `require_new_test_funcs` | `true` | Require the test patch to add at least one test function or class |
 | `skip_ci_only` | `true` | Skip PRs whose source changes are all under `.github/` |
 | `max_source_files_per_pr` | `50` | Skip PRs that touch more source files than this |

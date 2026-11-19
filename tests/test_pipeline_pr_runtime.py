@@ -85,6 +85,90 @@ diff --git a/lib/util.py b/lib/util.py
     assert test_patch == ""
 
 
+def test_generated_test_file_patch_is_safe_and_new():
+    import json
+
+    from repo2rlenv.pipelines._pr_test_synthesis import _test_file_diff
+
+    existing = {"tests/test_existing.js"}
+    diff = _test_file_diff(
+        json.dumps({"path": "test/new-regression.test.js", "content": "it('regresses', () => {})"}),
+        existing_paths=existing,
+    )
+    assert diff is not None
+    assert "+++ b/test/new-regression.test.js" in diff
+    assert (
+        _test_file_diff(
+            json.dumps({"path": "tests/test_existing.js", "content": "it('x', () => {})"}),
+            existing_paths=existing,
+        )
+        is None
+    )
+    assert (
+        _test_file_diff(
+            "```json\n"
+            + json.dumps(
+                {"path": "test/new-regression.test.js", "content": "it('regresses', () => {})"}
+            )
+            + "\n```",
+            existing_paths=existing,
+        )
+        is not None
+    )
+
+
+def test_test_synthesis_requests_structured_json(monkeypatch):
+    from types import SimpleNamespace
+
+    from repo2rlenv.pipelines import _pr_test_synthesis as synthesis
+
+    monkeypatch.setattr(
+        synthesis,
+        "_base_context",
+        lambda *args, **kwargs: ("source", "test examples", set()),
+    )
+    captured = {}
+
+    def complete(*args, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            content='{"path":"tests/test_regression.py","content":"def test_regression(): pass"}',
+            cost_usd=0.01,
+        )
+
+    monkeypatch.setattr("repo2rlenv.llm.complete", complete)
+    generated, cost = synthesis.synthesize_test_patch(
+        SimpleNamespace(),
+        llm=SimpleNamespace(),
+        pr=SimpleNamespace(title="bug", body="", number=1),
+        base_commit="a" * 40,
+        source_patch="diff --git a/src/app.py b/src/app.py\n",
+        test_cmds=["pytest"],
+    )
+
+    assert generated is not None
+    assert cost == 0.01
+    assert captured["response_schema"] == synthesis._TEST_RESPONSE_SCHEMA
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["../tests/test_escape.py", "/tests/test_absolute.py", "src/fix.py", "-tests/test_flag.py"],
+)
+def test_generated_test_file_patch_rejects_unsafe_or_non_test_paths(path):
+    import json
+
+    from repo2rlenv.pipelines._pr_test_synthesis import _test_file_diff
+
+    assert (
+        _test_file_diff(
+            json.dumps({"path": path, "content": "def test_generated():\n    assert True\n"}),
+            existing_paths=set(),
+        )
+        is None
+    )
+
+
 def test_split_patch_renames_to_test_dir_count_as_test():
     """A file moving INTO tests/ should be in test_patch."""
     diff = """\
@@ -693,6 +777,32 @@ def test_targeted_jest_appends_test_files():
     assert "src/bar.test.js" in out[0]
 
 
+@pytest.mark.parametrize("suffix", ["", " && true", "; true"])
+def test_targeted_node_includes_generated_tests_with_external_smoke(suffix):
+    command = "cd /workspace && node --test --test-reporter=tap /opt/bootstrap-tests/smoke.test.mjs"
+    out = targeted_test_cmds_for_pr(
+        [command + suffix],
+        ["tests/regression.test.mjs", "tests/regression.test.cjs", "tests/fixture.json"],
+    )
+    assert out == [command + " tests/regression.test.mjs tests/regression.test.cjs" + suffix]
+
+
+def test_targeted_node_quotes_paths_and_does_not_duplicate_tests():
+    out = targeted_test_cmds_for_pr(
+        ["node --test tests/existing.test.js"],
+        ["tests/existing.test.js", "tests/space name.test.mjs", "tests/$(touch sentinel).test.js"],
+    )
+    assert out == [
+        "node --test tests/existing.test.js 'tests/space name.test.mjs' "
+        "'tests/$(touch sentinel).test.js'"
+    ]
+
+
+def test_targeted_node_without_test_flag_passes_through():
+    command = "node --test-reporter=tap build/index.js"
+    assert targeted_test_cmds_for_pr([command], ["tests/regression.test.mjs"]) == [command]
+
+
 def test_targeted_cargo_no_op():
     """Rust's filter is name-substring not file path; we don't target."""
     out = targeted_test_cmds_for_pr(["cargo test"], ["src/lib.rs", "tests/integration_test.rs"])
@@ -731,8 +841,8 @@ def test_pr_runtime_requires_bootstrap_attr():
     assert PRRuntimePipeline.requires_bootstrap is True
 
 
-def test_pr_runtime_rejects_missing_bootstrap():
-    """Constructing without a BootstrapResult should fail loudly (not silently emit broken tasks)."""
+def test_pr_runtime_defers_bootstrap_with_llm():
+    """PR discovery precedes bootstrap so it can select the candidate's base SHA."""
     from repo2rlenv.spec.input import (
         GenerationInput,
         LLMSpec,
@@ -750,8 +860,10 @@ def test_pr_runtime_rejects_missing_bootstrap():
         output=OutputSpec(destination="./out", org="x", dataset_name="y"),
     )
     options = PRRuntimeOptions()
-    with pytest.raises(RuntimeError, match="requires a BootstrapResult"):
-        PRRuntimePipeline(gen_input, options, bootstrap=None)
+    assert PRRuntimePipeline(gen_input, options).bootstrap is None
+    gen_input.llm = None
+    with pytest.raises(RuntimeError, match="requires an LLM"):
+        PRRuntimePipeline(gen_input, options)
 
 
 # --- _pre_filter: require_linked_issue ---------------------------------------
@@ -828,6 +940,241 @@ def test_pre_filter_require_linked_issue_skips_without_linked_issue():
     assert pipeline._pre_filter(pr) == "no_linked_issue"
 
 
+@pytest.mark.parametrize("missing_tests", [False, True])
+@pytest.mark.parametrize("skip_validation", [False, True])
+def test_pr_runtime_bootstraps_each_base_and_reuses_only_matching_sandbox(
+    tmp_path, monkeypatch, missing_tests, skip_validation
+):
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from repo2rlenv.pipelines import pr_runtime
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    template = _make_pipeline(None)
+    bootstrapped = []
+    events = []
+
+    def bootstrap(repo, *, bootstrap_spec):
+        assert bootstrap_spec.target_paths == ["src/foo.py"]
+        bootstrapped.append(repo.ref)
+        events.append(("bootstrap", repo.ref))
+        return replace(template.bootstrap, ref=repo.ref, image_tag=f"local/{repo.ref}")
+
+    pipeline = PRRuntimePipeline(
+        template.input,
+        PRRuntimeOptions(skip_validation=skip_validation),
+        bootstrap_factory=bootstrap,
+    )
+    bases = ["a" * 40, "a" * 40, "c" * 40, "a" * 40]
+    prs = [_make_pr("Fix empty input.", number=i) for i in range(1, 5)]
+    for pr, base in zip(prs, bases, strict=True):
+        pr.base_sha = base
+    source, tests = split_patch_and_test_patch(_SAMPLE_DIFF)
+
+    class Provider:
+        def list_merged_prs(self, *args, **kwargs):
+            return prs
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return source if missing_tests else _SAMPLE_DIFF
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda *args: None)
+    monkeypatch.setattr(pipeline, "_structural_quality_filter", lambda *args, **kwargs: None)
+
+    def start():
+        base = pipeline.bootstrap.ref
+        events.append(("start", base))
+        return SimpleNamespace(base=base, cleanup=lambda: events.append(("cleanup", base)))
+
+    def synthesize(sandbox, pr, *args, **kwargs):
+        assert sandbox.base == pipeline.bootstrap.ref == pr.base_sha
+        events.append(("synthesize", pr.base_sha))
+        return tests, None
+
+    def validate(**kwargs):
+        assert kwargs["sandbox"].base == pipeline.bootstrap.ref == kwargs["base_commit"]
+        events.append(("validate", kwargs["base_commit"]))
+        return SimpleNamespace(
+            fail_to_pass=["test_add"],
+            pass_to_pass=[],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest -v"],
+            flaky=[],
+            status="verified",
+        )
+
+    emitted_bases = []
+
+    def build(pr, *args, **kwargs):
+        assert pipeline.bootstrap.ref == pr.base_sha
+        emitted_bases.append(pipeline.bootstrap.ref)
+        return SimpleNamespace(name=f"task-{pr.number}")
+
+    monkeypatch.setattr(pipeline, "_start_validation_sandbox", start)
+    monkeypatch.setattr(pipeline, "_synthesize_test_patch", synthesize)
+    monkeypatch.setattr("repo2rlenv.pipelines.pr_runtime_validate.validate_pr", validate)
+    monkeypatch.setattr(pipeline, "_build_task", build)
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines._localization.emit_missions",
+        lambda task, *args, **kwargs: ([task.name], None),
+    )
+    result = pipeline.run(tmp_path)
+    # Without validation, a missing test patch is deliberately skipped.
+    if skip_validation and missing_tests:
+        assert bootstrapped == []
+        assert result.skip_reasons == {"no_test_patch": 4}
+        return
+    assert result.emitted == 4
+    assert bootstrapped == [bases[0], bases[2]]
+    assert emitted_bases == bases
+    assert pipeline.input.repo.ref == "HEAD"
+    if not skip_validation:
+        assert [base for event, base in events if event == "start"] == [
+            bases[0],
+            bases[2],
+            bases[3],
+        ]
+        assert [base for event, base in events if event == "cleanup"] == [
+            bases[0],
+            bases[2],
+            bases[3],
+        ]
+
+
+def test_pr_runtime_rejects_bootstrap_at_wrong_base():
+    pipeline = _make_pipeline(None)
+    pr = _make_pr("Fix empty input.")
+    pr.base_sha = "c" * 40
+    with pytest.raises(RuntimeError, match="requires bootstrap at base"):
+        pipeline._bootstrap_for_pr(pr)
+
+
+@pytest.mark.parametrize("failure", ["bootstrap", "validation"])
+def test_pr_runtime_cleans_active_sandbox_on_failure(tmp_path, monkeypatch, failure):
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from repo2rlenv.bootstrap.runner import BootstrapError
+    from repo2rlenv.pipelines import pr_runtime
+
+    template = _make_pipeline(None)
+    prs = [_make_pr("Fix empty input.", number=i) for i in (1, 2)]
+    prs[1].base_sha = "c" * 40
+    cleaned = []
+
+    def bootstrap(repo, *, bootstrap_spec):
+        if failure == "bootstrap" and repo.ref == prs[1].base_sha:
+            raise BootstrapError("bootstrap failed")
+        return replace(template.bootstrap, ref=repo.ref)
+
+    pipeline = PRRuntimePipeline(template.input, template.options, bootstrap_factory=bootstrap)
+
+    class Provider:
+        def list_merged_prs(self, *args, **kwargs):
+            return prs
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return _SAMPLE_DIFF
+
+    def validate(**kwargs):
+        if failure == "validation":
+            raise RuntimeError("validation failed")
+        return SimpleNamespace(
+            fail_to_pass=[],
+            pass_to_pass=[],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest"],
+            flaky=[],
+            status="failed",
+            unparseable_output=True,
+        )
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda *args: None)
+    monkeypatch.setattr(pipeline, "_structural_quality_filter", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        pipeline,
+        "_start_validation_sandbox",
+        lambda: SimpleNamespace(cleanup=lambda: cleaned.append(True)),
+    )
+    monkeypatch.setattr("repo2rlenv.pipelines.pr_runtime_validate.validate_pr", validate)
+    with pytest.raises(RuntimeError, match=f"{failure} failed"):
+        pipeline.run(tmp_path)
+    assert cleaned == [True]
+
+
+def test_pr_runtime_filters_candidates_before_bootstrap(tmp_path, monkeypatch):
+    from repo2rlenv.pipelines import pr_runtime
+
+    template = _make_pipeline(None)
+
+    def no_bootstrap(repo, *, bootstrap_spec):
+        pytest.fail("Filtered candidates must not incur bootstrap spend")
+
+    pipeline = PRRuntimePipeline(template.input, template.options, bootstrap_factory=no_bootstrap)
+
+    class Provider:
+        def list_merged_prs(self, *args, **kwargs):
+            return [_make_pr("Fix input.")]
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return _SAMPLE_DIFF
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda *args: None)
+    result = pipeline.run(tmp_path)
+    assert result.skip_reasons == {"no_new_test_funcs": 1}
+
+
+def test_pr_runtime_direct_api_bootstraps_base(tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    template = _make_pipeline(None)
+    pipeline = PRRuntimePipeline(template.input, template.options)
+    pr = _make_pr("Fix empty input.")
+    captured = []
+
+    def bootstrap(repo, spec, llm, auth):
+        captured.append(repo.ref)
+        assert spec.target_paths == pr.changed_files
+        return replace(template.bootstrap, ref=repo.ref, tests_parsed=1)
+
+    monkeypatch.setattr("repo2rlenv.bootstrap.ensure_bootstrap", bootstrap)
+    assert pipeline._bootstrap_for_pr(pr).ref == pr.base_sha
+    assert captured == [pr.base_sha]
+    monkeypatch.setattr(
+        "repo2rlenv.bootstrap.ensure_bootstrap",
+        lambda *args: replace(template.bootstrap, tests_parsed=0),
+    )
+    with pytest.raises(RuntimeError, match="no parseable per-test results"):
+        pipeline._bootstrap_for_pr(pr)
+
+
+def test_pr_runtime_emission_records_matching_bootstrap_provenance(monkeypatch):
+    from repo2rlenv.pipelines import pr_runtime
+
+    pipeline = _make_pipeline(None)
+    pr = _make_pr("Fix empty input.")
+    monkeypatch.setattr(pr_runtime, "_build_instruction", lambda *args, **kwargs: "Fix input.")
+    patch, tests = split_patch_and_test_patch(_SAMPLE_DIFF)
+    task = pipeline._build_task(
+        pr,
+        patch,
+        tests,
+        fail_to_pass=["test_add"],
+        pass_to_pass=[],
+        validation_status="verified",
+    )
+    assert task.repo2env["bootstrap"]["bootstrap_commit"] == pr.base_sha
+    assert task.repo2env["bootstrap"]["image_digest"] == pipeline.bootstrap.image_digest
+    assert task.repo2env["bootstrap"]["test_cmds"] == pipeline.bootstrap.test_cmds
+    assert f"FROM {pipeline.bootstrap.image_tag}" in task.environment_dockerfile
+
+
 def test_pre_filter_require_linked_issue_keeps_with_linked_issue():
     pipeline = _make_pipeline(require_linked_issue=True)
     pr = _make_pr("Fix the parser crash.\n\nCloses #123")
@@ -892,6 +1239,203 @@ def test_pr_option_defaults_to_none():
     assert PRRuntimeOptions().pr is None
 
 
+def test_missing_test_synthesis_options_are_bounded_and_default_on():
+    from pydantic import ValidationError
+
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    options = PRRuntimeOptions()
+    assert options.synthesize_missing_tests is True
+    assert options.max_test_synthesis_spend_usd == 1.5
+    assert options.max_test_synthesis_attempts == 5
+    assert PRRuntimeOptions(max_test_synthesis_spend_usd=0).max_test_synthesis_spend_usd == 0
+    with pytest.raises(ValidationError):
+        PRRuntimeOptions(max_test_synthesis_spend_usd=-1)
+    with pytest.raises(ValidationError):
+        PRRuntimeOptions(max_test_synthesis_attempts=0)
+
+
+def test_pr_runtime_synthesizes_and_validates_missing_test_patch(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from repo2rlenv.pipelines import pr_runtime
+    from repo2rlenv.pipelines.code_instruct import new_file_hunk
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = _make_pipeline(None)
+    pipeline.options = PRRuntimeOptions(pr=42)
+    pr = _make_pr("The parser mishandles empty input.", number=42)
+    source_patch = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1,2 @@
+-return None
++if value == "":
++    return []
+"""
+    generated_test = new_file_hunk(
+        'def test_empty_input():\n    assert parse("") == []\n',
+        "tests/test_empty_input.py",
+    )
+
+    class Provider:
+        def fetch_pr(self, *args, **kwargs):
+            return pr
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return source_patch
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda repo, auth: None)
+    fake_sandbox = SimpleNamespace(cleanup=lambda: None)
+    monkeypatch.setattr(pipeline, "_start_validation_sandbox", lambda: fake_sandbox)
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines._pr_test_synthesis.synthesize_test_patch",
+        lambda *args, **kwargs: (generated_test, 0.02),
+    )
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines.pr_runtime_validate.validate_pr",
+        lambda **kwargs: SimpleNamespace(
+            fail_to_pass=["tests/test_empty_input.py::test_empty_input"],
+            pass_to_pass=[],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest -v tests/test_empty_input.py"],
+            flaky=[],
+            status="verified",
+            reason="",
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "_build_task",
+        lambda *args, **kwargs: SimpleNamespace(name="owner__repo-42"),
+    )
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines._localization.emit_missions",
+        lambda task, *args, **kwargs: ([task.name], None),
+    )
+
+    result = pipeline.run(tmp_path / "tasks")
+
+    assert result.emitted == 1
+    assert result.skip_reasons == {}
+    assert pipeline._test_synthesis_attempts == 1
+    assert pipeline._test_synthesis_cost_usd == pytest.approx(0.02)
+
+
+def test_pr_runtime_retries_validation_with_synthesized_test_when_no_f2p(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from repo2rlenv.pipelines import pr_runtime
+    from repo2rlenv.pipelines.code_instruct import new_file_hunk
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = _make_pipeline(None)
+    pipeline.options = PRRuntimeOptions(pr=42)
+    pr = _make_pr("The parser mishandles empty input.", number=42)
+    diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1,2 @@
+-return None
++if value == "":
++    return []
+diff --git a/tests/test_existing.py b/tests/test_existing.py
+--- a/tests/test_existing.py
++++ b/tests/test_existing.py
+@@ -1 +1,2 @@
++def test_existing():
++    assert parse("valid") == ["valid"]
+"""
+    generated_test = new_file_hunk(
+        "def test_empty_input():\n    assert parse('') == []\n",
+        "tests/test_synthesized.py",
+    )
+    outcomes = [
+        SimpleNamespace(
+            fail_to_pass=[],
+            pass_to_pass=["tests/test_existing.py::test_existing"],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest -v"],
+            flaky=[],
+            status="failed",
+            reason="no fail-to-pass tests after validation",
+        ),
+        SimpleNamespace(
+            fail_to_pass=[],
+            pass_to_pass=["tests/test_existing.py::test_existing"],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest -v"],
+            flaky=[],
+            status="failed",
+            reason="no fail-to-pass tests after validation",
+            test_diagnostics=[
+                "tests/test_synthesized_1.py::test_empty_input: base=PASSED, fixed=PASSED"
+            ],
+        ),
+        SimpleNamespace(
+            fail_to_pass=["tests/test_synthesized.py::test_empty_input"],
+            pass_to_pass=["tests/test_existing.py::test_existing"],
+            timing=None,
+            mutants=None,
+            test_cmds=["pytest -v"],
+            flaky=[],
+            status="verified",
+            reason="",
+        ),
+    ]
+    validation_calls = []
+
+    class Provider:
+        def fetch_pr(self, *args, **kwargs):
+            return pr
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return diff
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda repo, auth: None)
+    fake_sandbox = SimpleNamespace(cleanup=lambda: None)
+    monkeypatch.setattr(pipeline, "_start_validation_sandbox", lambda: fake_sandbox)
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines.pr_runtime_validate.validate_pr",
+        lambda **kwargs: validation_calls.append(kwargs) or outcomes.pop(0),
+    )
+    synthesis_calls = []
+
+    def synthesize(sandbox, candidate_pr, source_patch, existing_test_patch, *, feedback=""):
+        synthesis_calls.append((existing_test_patch, feedback))
+        path = f"tests/test_synthesized_{len(synthesis_calls)}.py"
+        return generated_test.replace("tests/test_synthesized.py", path), None
+
+    monkeypatch.setattr(pipeline, "_synthesize_test_patch", synthesize)
+    monkeypatch.setattr(
+        pipeline,
+        "_build_task",
+        lambda *args, **kwargs: SimpleNamespace(name="owner__repo-42"),
+    )
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines._localization.emit_missions",
+        lambda task, *args, **kwargs: ([task.name], None),
+    )
+
+    result = pipeline.run(tmp_path / "tasks")
+
+    assert result.emitted == 1
+    assert result.skip_reasons == {}
+    assert len(validation_calls) == 3
+    assert "tests/test_synthesized_1.py" in validation_calls[1]["test_patch"]
+    assert "tests/test_synthesized_2.py" in validation_calls[2]["test_patch"]
+    assert len(synthesis_calls) == 2
+    assert "did not produce a fail-to-pass result" in synthesis_calls[1][1]
+    assert "base=PASSED, fixed=PASSED" in synthesis_calls[1][1]
+
+
 def test_pr_option_accepts_a_specific_number():
     from repo2rlenv.spec.options import PRRuntimeOptions
 
@@ -940,3 +1484,114 @@ def test_pre_filter_targeted_pr_still_applies_quality_filters():
     pr = _make_pr("Fix the parser crash.")
     pr.changed_files = []
     assert pipeline._pre_filter(pr) == "no_files"
+
+
+def test_pr_runtime_skips_synthesis_when_runner_output_is_unparseable(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from repo2rlenv.pipelines import pr_runtime
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = _make_pipeline(None)
+    pipeline.options = PRRuntimeOptions(pr=42)
+    pr = _make_pr("The parser mishandles empty input.", number=42)
+    diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1,2 @@
+-return None
+++if value == "":
+++    return []
+diff --git a/tests/test_existing.py b/tests/test_existing.py
+--- a/tests/test_existing.py
++++ b/tests/test_existing.py
+@@ -1 +1,2 @@
++def test_existing():
++    assert parse("valid") == ["valid"]
+"""
+
+    class Provider:
+        def fetch_pr(self, *args, **kwargs):
+            return pr
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return diff
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda repo, auth: None)
+    monkeypatch.setattr(
+        pipeline, "_start_validation_sandbox", lambda: SimpleNamespace(cleanup=lambda: None)
+    )
+    monkeypatch.setattr(
+        "repo2rlenv.pipelines.pr_runtime_validate.validate_pr",
+        lambda **kwargs: SimpleNamespace(
+            fail_to_pass=[],
+            pass_to_pass=[],
+            timing=None,
+            mutants=None,
+            test_cmds=["node scripts/test.js"],
+            flaky=[],
+            status="failed",
+            reason="no fail-to-pass tests after validation",
+            test_diagnostics=[],
+            unparseable_output=True,
+        ),
+    )
+    synthesis_calls = []
+    monkeypatch.setattr(
+        pipeline,
+        "_synthesize_test_patch",
+        lambda *args, **kwargs: synthesis_calls.append(1) or (None, "test_synthesis_failed"),
+    )
+
+    result = pipeline.run(tmp_path / "tasks")
+
+    assert result.emitted == 0
+    assert result.skip_reasons == {"test_output_unparseable": 1}
+    assert synthesis_calls == []
+
+
+@pytest.mark.parametrize(
+    "added",
+    [
+        "+test('add short', function (assert) {",
+        "+    test('indented', function (assert) {",
+        "+QUnit.test('namespaced', function (assert) {",
+        "+QUnit.todo('expected failure', function (assert) {",
+        "+test.each([1, 2])('table', () => {})",
+        "+it.only('focused', () => {})",
+        "+describe('suite', () => {",
+    ],
+)
+def test_js_test_declarations_count_as_new_test_funcs(added):
+    from repo2rlenv.pipelines.pr_runtime import _count_new_test_funcs
+
+    assert _count_new_test_funcs(added + "\n") == 1
+
+
+def test_changed_assertions_and_calls_are_not_new_test_funcs():
+    from repo2rlenv.pipelines.pr_runtime import _count_new_test_funcs
+
+    patch = (
+        "+    assert.equal(a.add(1, 'd').format(), '2020');\n"
+        "-    assert.equal(a.add(1, 'd').format(), '2019');\n"
+        "+    contest('x');\n"
+        "+    latest(1);\n"
+    )
+    assert _count_new_test_funcs(patch) == 0
+
+
+def test_generated_test_is_not_judged_by_the_new_test_func_heuristic():
+    from repo2rlenv.pipelines.pr_runtime import PRRuntimePipeline
+    from repo2rlenv.spec.options import PRRuntimeOptions
+
+    pipeline = PRRuntimePipeline.__new__(PRRuntimePipeline)
+    pipeline.options = PRRuntimeOptions()
+    source = (
+        "diff --git a/src/a.js b/src/a.js\n--- a/src/a.js\n+++ b/src/a.js\n@@ -1 +1 @@\n-x\n+y\n"
+    )
+    no_funcs = "+++ b/test/a.js\n+assert.ok(true);\n"
+
+    assert pipeline._structural_quality_filter(source, no_funcs) == "no_new_test_funcs"
+    assert pipeline._structural_quality_filter(source, no_funcs, check_new_test_funcs=False) is None

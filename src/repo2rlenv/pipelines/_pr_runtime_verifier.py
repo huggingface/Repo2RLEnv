@@ -481,6 +481,15 @@ _MOCHA_TEST_RE = re.compile(
 )
 _VITEST_STATUS = {"✓": PASSED, "×": FAILED, "↓": SKIPPED, "□": SKIPPED}
 
+# Keep these patterns in sync with log_parsers/tap_parser.py and __init__.py.
+_TAP_POINT_RE = re.compile(r"^(?P<not>not )?ok(?:\s+(?P<num>\d+))?(?:\s+-)?(?:\s+(?P<name>.*))?$")
+_TAP_DIRECTIVE_RE = re.compile(r"\s+#\s*(?P<word>skip|todo)\b", re.IGNORECASE)
+_TAP_HEADER_RE = re.compile(r"^TAP version \d+", re.MULTILINE)
+_TAP_RUNNER_RE = re.compile(
+    r"\bqunit\b|\btape\b|\bnode-tap\b|(?:--reporter|--test-reporter)(?:=|\s+)tap\b|\s-r\s*tap\b",
+    re.IGNORECASE,
+)
+
 
 def _parse_mocha(log: str) -> dict[str, str]:
     """{test_name -> status} from mocha's spec reporter (no file header)."""
@@ -579,6 +588,41 @@ def parse_jest(log: str) -> dict[str, str]:
     return out
 
 
+def parse_tap(log: str) -> dict[str, str]:
+    """{test_name -> status} from TAP output (QUnit, tape, node-tap, `--reporter tap`).
+
+    Keep in sync with log_parsers/tap_parser.py. Only a test point at column 0
+    counts; `# TODO` is an expected failure (PASSED), `# SKIP` is SKIPPED.
+    """
+    out: dict[str, str] = {}
+    if not log:
+        return out
+    for raw in _ANSI_RE.sub("", log).split("\n"):
+        line = raw.rstrip()
+        if not line.startswith(("ok", "not ok")):
+            continue
+        m = _TAP_POINT_RE.match(line)
+        if not m:
+            continue
+        name = (m.group("name") or "").strip()
+        directive = _TAP_DIRECTIVE_RE.search(name)
+        word = directive.group("word").lower() if directive else ""
+        if directive:
+            name = name[: directive.start()].rstrip()
+        if not name:
+            name = f"test {m.group('num')}" if m.group("num") else ""
+        if not name:
+            continue
+        if word == "skip":
+            status = SKIPPED
+        elif m.group("not") and word != "todo":
+            status = FAILED
+        else:
+            status = PASSED
+        _record_worst(out, name, status)
+    return out
+
+
 def _detect_runner(test_cmds: str) -> str:
     joined = test_cmds.lower()
     if _PYTEST_RUNNER_RE.search(joined):
@@ -591,6 +635,9 @@ def _detect_runner(test_cmds: str) -> str:
         return "nextest"
     if re.search(r"\bcargo\s+test\b", joined):
         return "cargo"
+    # Before jest: `mocha --reporter tap` names mocha but prints TAP.
+    if _TAP_RUNNER_RE.search(joined):
+        return "tap"
     if any(k in joined for k in ("jest", "mocha", "vitest", "npm test", "yarn test", "pnpm test")):
         return "jest"
     return "unknown"
@@ -619,8 +666,15 @@ def parse_logs(runner: str, log: str) -> dict[str, str]:
         return parse_cargo_test(log)
     if runner == "nextest":
         return parse_cargo_nextest(log)
+    if runner == "tap":
+        return parse_tap(log)
     if runner == "jest":
-        return parse_jest(log)
+        parsed = parse_jest(log)
+        # Keep in sync with log_parsers/__init__.py: a wrapper command that hides
+        # its runner, whose log carries a TAP header, is TAP.
+        if not parsed and _TAP_HEADER_RE.search(log):
+            return parse_tap(log)
+        return parsed
     return {}
 
 
@@ -1051,7 +1105,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--f2p", default="", help="JSON file: FAIL_TO_PASS test names")
     p.add_argument("--p2p", default="", help="JSON file: PASS_TO_PASS test names")
     p.add_argument(
-        "--runner", default="", help="pytest|unittest|go|cargo|nextest|jest (else auto-detect)"
+        "--runner",
+        default="",
+        help="pytest|unittest|go|cargo|nextest|tap|jest (else auto-detect)",
     )
     p.add_argument("--test-cmds", default="", help="test command string (runner auto-detect)")
     p.add_argument("--exit-code", type=int, default=1, help="test suite exit code (fallback)")

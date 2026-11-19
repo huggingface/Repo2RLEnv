@@ -43,4 +43,7 @@ class BootstrapResult:
     pushed_to_registry: bool = False
     verify_passed: bool = False  # did test_cmds work in a FRESH container from the committed image
     verify_detail: str = ""  # short note (last 200 chars of verify output, or skip reason)
+    # Per-test results parsed from test_cmds as the runtime pipelines run them.
+    # 0 = the output has no parseable per-test results; None = not measured (older cache).
+    tests_parsed: int | None = None
     extra: dict = field(default_factory=dict)

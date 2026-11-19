@@ -40,6 +40,26 @@ def test_schema_reaches_provider_without_changing_unstructured_calls(monkeypatch
     assert "response_format" not in calls[1]
 
 
+def test_temperature_is_omitted_for_claude_haiku_5_5(monkeypatch):
+    calls = []
+
+    def completion(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=None,
+        )
+
+    monkeypatch.setattr(litellm, "completion", completion)
+    monkeypatch.setattr(litellm, "completion_cost", lambda **kwargs: 0.01)
+    monkeypatch.setattr("repo2rlenv.llm.resolve_llm_api_key", lambda *args: "test-key")
+    model = LLMSpec(provider="anthropic", model="claude-haiku-5-5")
+
+    complete(model, user="test", temperature=0.2)
+
+    assert "temperature" not in calls[0]
+
+
 @pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])
 def test_current_openai_models_use_completion_limit(monkeypatch, model):
     calls = []

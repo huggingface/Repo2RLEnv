@@ -73,6 +73,10 @@ class ValidationOutcome:
     # The test commands as validated (Node script indirection resolved); grade with these.
     test_cmds: list[str] = field(default_factory=list)
     mutants: Mutants | None = None  # validated mutant tests, if any
+    test_diagnostics: list[str] = field(default_factory=list)
+    # No per-test status was parsed before or after the fix: the runner's output has
+    # no format the parsers read, so no test can ever be classified as F2P.
+    unparseable_output: bool = False
 
 
 _HEREDOC = "EOF_R2E_VALIDATE"
@@ -101,7 +105,8 @@ class _Stopwatch:
 
     def run(self, sandbox: DockerSandbox, script: str, timeout: int):
         started = time.monotonic()
-        result = sandbox.exec(script, timeout=timeout)
+        # Let the launcher stop tests and publish its log before docker exec expires.
+        result = sandbox.exec(script, timeout=timeout + 120)
         stage = time.monotonic() - started
         found = _SECONDS_RE.search(result.stdout or "")
         if found:
@@ -165,6 +170,7 @@ def _build_stage_script(
     language: str | None = None,
     staged: dict[str, str] | None = None,
     keep_collecting: bool = False,
+    timeout: int = 600,
 ) -> str:
     """Build the shell script for one validation stage (pre-fix or post-fix).
 
@@ -268,7 +274,7 @@ def _build_stage_script(
         f'R2E_TEST_EXIT="$("$R2E_PY" -B -I -S {_LOG_DIR}/launcher.py --log {log} --cwd /workspace '
         f'--path "$R2E_CHILD_PATH" {writable} --seconds-out {_LOG_DIR}/seconds '
         # Later stages run in this container: delete what the tests left.
-        f'--purge -- {shlex.quote(test_block)})"'
+        f'--purge --timeout {timeout} -- {shlex.quote(test_block)})"'
     )
     parts.append("echo R2E_START_TEST_OUTPUT")
     parts.append(f"cat {log}")
@@ -460,6 +466,7 @@ def validate_pr(
         language=language,
         staged=_stage(sandbox, test_patch=test_patch),
         keep_collecting=True,
+        timeout=timeout,
     )
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = clock.run(sandbox, pre_script, timeout)
@@ -501,11 +508,20 @@ def validate_pr(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch),
+        timeout=timeout,
     )
     logger.info("validate_pr: running post-fix stage")
     post = clock.run(sandbox, post_script, timeout)
     post_log = post.truncated(max_chars=5_000_000)
     post_status = parse_logs(test_cmds, _slice_test_output(post_log), language=language)
+    if post.exit_code == 124 or "R2E_TEST_EXIT_CODE=timeout" in post_log:
+        return ValidationOutcome(
+            test_cmds=test_cmds,
+            status="failed",
+            reason="post-fix test run timed out",
+            pre_log=pre_log,
+            post_log=post_log,
+        )
 
     rebuilt = _REBUILD_RE.search(post_log)
     if rebuilt and rebuilt.group(1) != "ok":
@@ -531,7 +547,16 @@ def validate_pr(
     reruns = []
     for attempt in range(2, POST_FIX_RUNS + 1):
         logger.info("validate_pr: post-fix rerun %d/%d", attempt, POST_FIX_RUNS)
-        rerun = clock.run(sandbox, post_script, timeout).truncated(max_chars=5_000_000)
+        result = clock.run(sandbox, post_script, timeout)
+        rerun = result.truncated(max_chars=5_000_000)
+        if result.exit_code == 124 or "R2E_TEST_EXIT_CODE=timeout" in rerun:
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason="post-fix test rerun timed out",
+                pre_log=pre_log,
+                post_log=rerun,
+            )
         reruns.append(parse_logs(test_cmds, _slice_test_output(rerun), language=language))
     flaky = flaky_tests([post_status, *reruns])
     if flaky:
@@ -588,6 +613,11 @@ def validate_pr(
     )
 
     if not fail_to_pass:
+        test_diagnostics = [
+            f"{name[:240]}: base={pre_status.get(name, 'NOT_COLLECTED')}, "
+            f"fixed={post_status.get(name, 'NOT_COLLECTED')}"
+            for name in sorted(set(pre_status) | set(post_status))[:20]
+        ]
         return ValidationOutcome(
             test_cmds=test_cmds,
             status="failed",
@@ -597,6 +627,8 @@ def validate_pr(
             pre_log=pre_log,
             post_log=post_log,
             flaky=sorted(flaky),
+            test_diagnostics=test_diagnostics,
+            unparseable_output=not pre_status and not post_status,
         )
 
     mutants = _validate_mutants(
@@ -709,6 +741,7 @@ def _validate_mutants(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch, mutants=mutants),
+        timeout=timeout,
     )
     logger.info("validate_pr: running the mutant stage (%d tests)", len(mutants.ids))
     output = clock.run(sandbox, script, timeout).truncated(max_chars=5_000_000)

@@ -51,13 +51,18 @@ class AgentOutcome:
     iterations: int = 0
     transcript: list[AgentTurn] = field(default_factory=list)
     total_cost_estimate_usd: float = 0.0
+    # Per-test results parsed from the saved test_cmds; None when the gate was off.
+    tests_parsed: int | None = None
 
 
 # Loose regex parser. Stops capturing Input at the next Action:/Thought:/
 # Observation: header so a runaway LLM that hallucinates its own observation
 # inline doesn't get that fake text fed into bash as part of the command.
+# The `Thought:` header is optional: some models open with a plain sentence and
+# go straight to `Action:`. Rejecting those cost a real run 5 of its 20 turns,
+# including its final SAVE_SETUP.
 _ACTION_RE = re.compile(
-    r"Thought:\s*(?P<thought>.*?)\n+Action:\s*(?P<action>\w+)\s*\n+Input:\s*"
+    r"(?:Thought:\s*(?P<thought>.*?)\n+)?Action:\s*(?P<action>\w+)\s*\n+Input:\s*"
     r"(?P<input>.*?)(?=\n+Action:|\n+Thought:|\n+Observation:|\Z)",
     re.DOTALL | re.IGNORECASE,
 )
@@ -100,7 +105,8 @@ def parse_action(text: str) -> tuple[str, AgentAction]:
     m = _ACTION_RE.search(text)
     if not m:
         return ("", AgentAction(name="INVALID", input=text.strip()[:500], raw=text))
-    thought = m.group("thought").strip()
+    # Without a `Thought:` header, the prose before `Action:` is the thought.
+    thought = (m.group("thought") or text[: m.start()]).strip()
     name = m.group("action").strip().upper()
     inp = _sanitize_input(m.group("input"))
     if name not in ("BASH", "READ_FILE", "LIST_DIR", "SAVE_SETUP", "GIVE_UP"):
@@ -163,6 +169,8 @@ def run_agent_loop(
     max_seconds: int = 1800,
     max_spend_usd: float | None = None,
     platform: str = "linux/amd64",
+    require_parseable_tests: bool = False,
+    target_paths: list[str] | None = None,
     on_turn: Callable[[AgentTurn, float], None] | None = None,
     on_thinking: Callable[[int], None] | None = None,
     on_executing: Callable[[int, AgentAction], None] | None = None,
@@ -170,6 +178,15 @@ def run_agent_loop(
     """Drive the bootstrap agent until it succeeds, gives up, or hits a budget."""
     system = system_prompt(language=language, base_image=base_image, platform=platform)
     history: list[str] = [initial_user_prompt(repo=repo, ref=ref)]
+    if target_paths:
+        history.append(
+            "Prepare the build and test environment for these changed repository paths:\n"
+            + json.dumps(target_paths)
+            + "\nIn a monorepo, install and run the affected package's own tests. "
+            "A passing suite in an unrelated package is not sufficient. "
+            "Use its existing test framework, including a headless browser when required. "
+            "Do not replace behavioral tests with build-artifact smoke checks."
+        )
     transcript: list[AgentTurn] = []
     total_cost = 0.0
     start = time.monotonic()
@@ -243,6 +260,21 @@ def run_agent_loop(
                 )
                 transcript.append(AgentTurn(step, thought, action, f"save-rejected: {exc}"))
                 continue
+            tests_parsed: int | None = None
+            if require_parseable_tests and payload["test_cmds"]:
+                from repo2rlenv.bootstrap.parseability import probe_parseable, rejection_message
+
+                tests_parsed, exit_code, tail = probe_parseable(
+                    sandbox, payload["test_cmds"], language=language.value
+                )
+                if tests_parsed == 0:
+                    message = rejection_message(exit_code, tail)
+                    logger.info("step=%d SAVE_SETUP rejected: no parseable per-test output", step)
+                    history.append(message)
+                    transcript.append(
+                        AgentTurn(step, thought, action, "save-rejected: no parseable test output")
+                    )
+                    continue
             return AgentOutcome(
                 success=True,
                 reason="agent declared success",
@@ -252,6 +284,7 @@ def run_agent_loop(
                 iterations=step + 1,
                 transcript=transcript,
                 total_cost_estimate_usd=total_cost,
+                tests_parsed=tests_parsed,
             )
 
         # BASH / READ_FILE / LIST_DIR

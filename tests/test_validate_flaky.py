@@ -94,6 +94,19 @@ def test_a_task_whose_only_fix_test_is_flaky_has_no_fail_to_pass():
     assert outcome.flaky == ["tests/test_m.py::test_fix"]
 
 
+@pytest.mark.parametrize("attempt", [0, 1, 2])
+def test_timed_out_fixed_runs_cannot_verify_from_partial_results(attempt):
+    post = _log(test_fix="PASSED")
+    posts = [post] * attempt + [post.replace("R2E_TEST_EXIT_CODE=1", "R2E_TEST_EXIT_CODE=timeout")]
+    sandbox = _Sandbox(_log(test_fix="FAILED"), posts)
+    outcome = _run(sandbox)
+    assert outcome.status == "failed"
+    assert "timed out" in outcome.reason
+    assert not outcome.fail_to_pass
+    assert not outcome.unparseable_output
+    assert sandbox.post_runs == attempt + 1
+
+
 def test_a_gold_patch_over_the_argv_cap_is_uploaded_not_inlined():
     # 4,000 changed lines: the patch alone is ~180 KiB, over Linux's 128 KiB
     # per-argument cap (MAX_ARG_STRLEN) that `docker exec bash -lc` hits.

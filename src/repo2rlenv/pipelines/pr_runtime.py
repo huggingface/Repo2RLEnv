@@ -10,9 +10,8 @@ For each merged PR within scope:
   4. Emit a Harbor task with environment/Dockerfile (FROM <bootstrap_image>),
      tests/test.sh (the eval script), and solution/patch.diff (gold patch)
 
-Unlike `pr_diff`, this pipeline requires a working Docker image from the
-bootstrap phase. `cmd_generate` triggers `ensure_bootstrap()` automatically
-when `requires_bootstrap=True`.
+Unlike `pr_diff`, this pipeline bootstraps each candidate's base commit before
+test synthesis or validation. Results are reused only for the same base SHA.
 
 ----------------------------------------------------------------------------
 Acknowledgment
@@ -43,6 +42,7 @@ import logging
 import posixpath
 import re
 import shlex
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -998,10 +998,12 @@ def _files_in_patch(unified_diff: str) -> list[str]:
 
 # Lines in a test_patch that introduce a new test function/class.
 # Python: `+def test_foo(...)`, `+    def test_bar(...)`, `+class TestX`
-# JS/TS:  `+it(`, `+test(`, `+describe(` (not currently filtered)
+# JS/TS:  `+it(`, `+test(`, `+describe(`, QUnit's `+QUnit.test(` / `+QUnit.todo(`,
+#         and the `.only` / `.each` variants (`+test.each([...])(`, `+it.only(`)
 # Go:     `+func TestFoo(`
 _NEW_TEST_FUNC_RE = re.compile(
-    r"^\+\s*(?:def\s+test_\w+|class\s+\w*[Tt]est\w*|func\s+Test\w+|it\s*\(|test\s*\(|describe\s*\()",
+    r"^\+\s*(?:def\s+test_\w+|class\s+\w*[Tt]est\w*|func\s+Test\w+"
+    r"|(?:QUnit\.)?(?:it|test|todo)(?:\.(?:only|each|concurrent))?\s*\(|describe\s*\()",
 )
 
 
@@ -1205,13 +1207,14 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
 
     Per-runner rules:
       pytest / py.test: append the changed .py test files as positional args
-      jest:    append the changed .js/.ts test files as positional args
+       jest:    append the changed .js/.ts test files as positional args
+       node --test: include changed JavaScript tests alongside explicit smoke files
       go test: replace `./...` (or trailing nothing) with the package
                directories containing changed `*_test.go` files
       cargo:   no targeting — Rust's filter is name-substring, not file
                (we'd need to introspect test names; whole-suite is fine)
 
-    Skips if the cmd already has a positional path arg.
+    Skips if the cmd already has a positional path arg, except for node --test.
     """
     if not test_files:
         return test_cmds
@@ -1250,6 +1253,20 @@ def targeted_test_cmds_for_pr(test_cmds: list[str], test_files: list[str]) -> li
             elif not re.search(r"\b\./\S+\b", cmd):
                 cmd = cmd.rstrip() + " " + " ".join(go_pkgs)
 
+        # --- node's built-in runner (bootstrap may name only an external smoke file) ---
+        elif (node_test := re.search(r"\bnode\s+--test(?=\s|$)[^\n;&|]*", cmd)) and js_files:
+            invocation = node_test.group().rstrip()
+            try:
+                tokens = shlex.split(invocation)
+            except ValueError:
+                out.append(cmd)
+                continue
+            added = [f for f in js_files if f not in tokens and f"./{f}" not in tokens]
+            if added:
+                paths = " ".join(shlex.quote(f"./{f}" if f.startswith("-") else f) for f in added)
+                end = node_test.start() + len(invocation)
+                cmd = cmd[:end] + " " + paths + cmd[end:]
+
         # --- jest / npx jest / mocha / vitest ---
         elif re.search(r"\b(?:jest|mocha|vitest)\b", cmd) and js_files:
             tokens = cmd.split()
@@ -1271,6 +1288,7 @@ class PRRuntimePipeline:
     name: ClassVar[PipelineName] = PipelineName.PR_RUNTIME
     required_capabilities: ClassVar[frozenset[Capability]] = frozenset({Capability.PULL_REQUESTS})
     requires_bootstrap: ClassVar[bool] = True
+    bootstrap_per_candidate: ClassVar[bool] = True
     experimental: ClassVar[bool] = False  # stable
 
     def __init__(
@@ -1278,16 +1296,22 @@ class PRRuntimePipeline:
         input: GenerationInput,
         options: PRRuntimeOptions,
         bootstrap: BootstrapResult | None = None,
+        *,
+        bootstrap_factory: Callable[..., BootstrapResult] | None = None,
     ):
-        if bootstrap is None:
+        if bootstrap is None and bootstrap_factory is None and input.llm is None:
             raise RuntimeError(
-                "pr_runtime requires a BootstrapResult (set requires_bootstrap=True "
-                "and let cmd_generate trigger it, or pass one explicitly)"
+                "pr_runtime requires an LLM to bootstrap PR base commits, "
+                "or an explicit BootstrapResult matching the PR base"
             )
         self.input = input
         self.options = options
         self.bootstrap = bootstrap
+        self._supplied_bootstrap = bootstrap
+        self._bootstrap_factory = bootstrap_factory
         self._progress_cb = None
+        self._test_synthesis_cost_usd = 0.0
+        self._test_synthesis_attempts = 0
 
     def set_progress_callback(self, cb) -> None:
         self._progress_cb = cb
@@ -1299,7 +1323,92 @@ class PRRuntimePipeline:
             except Exception as exc:
                 logger.debug("progress callback failed: %s", exc)
 
+    def _missing_test_skip_reason(self) -> str | None:
+        if (
+            not self.options.synthesize_missing_tests
+            or self.options.skip_validation
+            or self.input.llm is None
+        ):
+            return "no_test_patch"
+        if self._test_synthesis_attempts >= self.options.max_test_synthesis_attempts:
+            return "test_synthesis_budget_exhausted"
+        if (
+            self.options.max_test_synthesis_spend_usd > 0
+            and self._test_synthesis_cost_usd >= self.options.max_test_synthesis_spend_usd
+        ):
+            return "test_synthesis_budget_exhausted"
+        return None
+
+    def _synthesize_test_patch(
+        self,
+        sandbox,
+        pr: PullRequestSummary,
+        patch: str,
+        test_patch: str,
+        *,
+        feedback: str = "",
+    ):
+        reason = self._missing_test_skip_reason()
+        if reason:
+            return None, reason
+        from repo2rlenv.pipelines._pr_test_synthesis import synthesize_test_patch
+
+        self._test_synthesis_attempts += 1
+        logger.info(
+            "synthesizing regression test for %s/%s#%d (attempt %d/%d)",
+            *self.input.repo.owner_name,
+            pr.number,
+            self._test_synthesis_attempts,
+            self.options.max_test_synthesis_attempts,
+        )
+        generated, cost = synthesize_test_patch(
+            sandbox,
+            llm=self.input.llm,
+            pr=pr,
+            base_commit=pr.base_sha,
+            source_patch=patch,
+            test_cmds=self.bootstrap.test_cmds,
+            existing_test_patch=test_patch,
+            feedback=feedback,
+        )
+        self._test_synthesis_cost_usd += cost
+        if (
+            self.options.max_test_synthesis_spend_usd > 0
+            and self._test_synthesis_cost_usd > self.options.max_test_synthesis_spend_usd
+        ):
+            return None, "test_synthesis_budget_exhausted"
+        if not generated:
+            return None, "test_synthesis_failed"
+        return generated, None
+
     # ----- run loop -----------------------------------------------------------
+
+    def _bootstrap_for_pr(self, pr: PullRequestSummary) -> BootstrapResult:
+        if self._supplied_bootstrap is not None:
+            bootstrap = self._supplied_bootstrap
+        else:
+            repo = self.input.repo.model_copy(update={"ref": pr.base_sha})
+            spec = self.input.bootstrap.model_copy(
+                update={"target_paths": sorted(set(pr.changed_files))}
+            )
+            if self._bootstrap_factory is not None:
+                bootstrap = self._bootstrap_factory(repo, bootstrap_spec=spec)
+            else:
+                from repo2rlenv.bootstrap import ensure_bootstrap
+
+                bootstrap = ensure_bootstrap(repo, spec, self.input.llm, self.input.auth)
+        if bootstrap.ref != pr.base_sha:
+            raise RuntimeError(
+                f"PR #{pr.number} requires bootstrap at base {pr.base_sha}, "
+                f"but the supplied environment was built at {bootstrap.ref}"
+            )
+        if bootstrap.tests_parsed == 0:
+            raise RuntimeError(
+                "the bootstrap's test commands print no parseable per-test results "
+                f"({'; '.join(bootstrap.test_cmds)}). Re-run with --force-bootstrap so "
+                "the agent saves a command with one result line per test."
+            )
+        return bootstrap
 
     def run(self, out_dir: Path) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -1340,6 +1449,8 @@ class PRRuntimePipeline:
         skip_reasons: dict[str, int] = {}
         emitted = 0
         sandbox = None  # lazy-init for the validation loop
+        bootstraps: dict[tuple[str, tuple[str, ...]], BootstrapResult] = {}
+        sandbox_base: tuple[str, tuple[str, ...]] | None = None
 
         try:
             for pr in prs:
@@ -1362,6 +1473,8 @@ class PRRuntimePipeline:
                     continue
 
                 patch, test_patch = split_patch_and_test_patch(diff)
+                candidate_attempts_before = self._test_synthesis_attempts
+                candidate_generated_tests = 0
                 if not patch.strip():
                     skip_reasons["empty_source_patch"] = (
                         skip_reasons.get("empty_source_patch", 0) + 1
@@ -1369,25 +1482,44 @@ class PRRuntimePipeline:
                     self._emit_progress(pr_label, "skip", "empty_source_patch")
                     continue
                 if not test_patch.strip():
-                    skip_reasons["no_test_patch"] = skip_reasons.get("no_test_patch", 0) + 1
-                    self._emit_progress(pr_label, "skip", "no_test_patch")
-                    continue
+                    reason = self._missing_test_skip_reason()
+                    if reason:
+                        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                        self._emit_progress(pr_label, "skip", reason)
+                        continue
 
-                # Structural quality filters (cheap, run before validation):
-                # - CI-only PRs: source patch is 100% under .github/
-                # - No new test functions: test_patch only edits comments/docstrings
-                structural_reason = self._structural_quality_filter(patch, test_patch)
+                structural_reason = self._structural_quality_filter(
+                    patch, test_patch, check_new_test_funcs=bool(test_patch.strip())
+                )
                 if structural_reason:
                     skip_reasons[structural_reason] = skip_reasons.get(structural_reason, 0) + 1
                     self._emit_progress(pr_label, "skip", structural_reason)
                     continue
-
-                # Lite-style structural filters
                 lite_reason = self._lite_filter(pr, patch)
                 if lite_reason:
                     skip_reasons[lite_reason] = skip_reasons.get(lite_reason, 0) + 1
                     self._emit_progress(pr_label, "skip", lite_reason)
                     continue
+
+                bootstrap_key = (pr.base_sha, tuple(sorted(set(pr.changed_files))))
+                if sandbox is not None and sandbox_base != bootstrap_key:
+                    previous = sandbox
+                    sandbox = None
+                    previous.cleanup()
+                if bootstrap_key not in bootstraps:
+                    bootstraps[bootstrap_key] = self._bootstrap_for_pr(pr)
+                self.bootstrap = bootstraps[bootstrap_key]
+                sandbox_base = bootstrap_key
+
+                if not test_patch.strip():
+                    if sandbox is None:
+                        sandbox = self._start_validation_sandbox()
+                    test_patch, reason = self._synthesize_test_patch(sandbox, pr, patch, test_patch)
+                    if reason:
+                        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                        self._emit_progress(pr_label, "skip", reason)
+                        continue
+                    candidate_generated_tests += 1
 
                 # Validation (optional via skip_validation)
                 fail_to_pass: list[str] = []
@@ -1415,6 +1547,87 @@ class PRRuntimePipeline:
                         language=self.bootstrap.language.value,
                         timeout=self.options.validation_timeout_sec,
                     )
+
+                    synthesis_feedback = ""
+                    while (
+                        self.options.require_fail_to_pass
+                        and len(outcome.fail_to_pass) < self.options.min_fail_to_pass
+                    ):
+                        if getattr(outcome, "unparseable_output", False):
+                            # The runner printed nothing the parsers can read, so no
+                            # generated test can ever be classified. Don't spend on it.
+                            logger.warning(
+                                "%s: test runner output has no parseable per-test results; "
+                                "skipping test synthesis (commands: %s)",
+                                pr_label,
+                                "; ".join(self.bootstrap.test_cmds),
+                            )
+                            break
+                        attempts_before = self._test_synthesis_attempts
+                        generated_test, synthesis_reason = self._synthesize_test_patch(
+                            sandbox,
+                            pr,
+                            patch,
+                            test_patch,
+                            feedback=synthesis_feedback,
+                        )
+                        if synthesis_reason:
+                            if synthesis_reason == "test_synthesis_budget_exhausted":
+                                synthesis_feedback = synthesis_reason
+                                break
+                            if (
+                                self._test_synthesis_attempts == attempts_before
+                                or self._test_synthesis_attempts
+                                >= self.options.max_test_synthesis_attempts
+                            ):
+                                break
+                            synthesis_feedback = (
+                                "The previous response was not a valid new test file. "
+                                "Return a different safe test path and valid JSON."
+                            )
+                            continue
+
+                        test_patch += generated_test
+                        candidate_generated_tests += 1
+                        targeted_cmds = targeted_test_cmds_for_pr(
+                            normalize_test_cmds_for_runtime(self.bootstrap.test_cmds),
+                            _files_in_patch(test_patch),
+                        )
+                        outcome = validate_pr(
+                            sandbox=sandbox,
+                            base_commit=pr.base_sha,
+                            patch=patch,
+                            test_patch=test_patch,
+                            test_cmds=targeted_cmds,
+                            language=self.bootstrap.language.value,
+                            timeout=self.options.validation_timeout_sec,
+                        )
+                        if len(outcome.fail_to_pass) < self.options.min_fail_to_pass:
+                            test_diagnostics = getattr(outcome, "test_diagnostics", [])
+                            logger.info(
+                                "%s: synthesized test did not verify (F2P=%d, P2P=%d; %s; tests=%s)",
+                                pr_label,
+                                len(outcome.fail_to_pass),
+                                len(outcome.pass_to_pass),
+                                outcome.reason or "validation completed",
+                                "; ".join(test_diagnostics) or "no test statuses parsed",
+                            )
+                            synthesis_feedback = (
+                                "The previous generated test did not produce a fail-to-pass "
+                                "result. Validation statuses (base is before the source fix; "
+                                "fixed is after it): "
+                                + ("; ".join(test_diagnostics) or "no test statuses were parsed")
+                                + ". Write another distinct test that is collected by the "
+                                "repository's test runner, fails at base, and passes with the "
+                                "source fix. Do not repeat an existing test."
+                            )
+
+                    f2p_synthesis_failed = (
+                        self.options.require_fail_to_pass
+                        and len(outcome.fail_to_pass) < self.options.min_fail_to_pass
+                        and self._test_synthesis_attempts > candidate_attempts_before
+                    )
+
                     fail_to_pass = outcome.fail_to_pass
                     pass_to_pass = outcome.pass_to_pass
                     timing = outcome.timing
@@ -1425,14 +1638,22 @@ class PRRuntimePipeline:
                     if timing is not None and timing.over_cap:
                         reason = "verifier_timeout_over_cap"
                         skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
-                        self._emit_progress(pr_label, "skip", outcome.reason or reason)
+                        self._emit_progress(pr_label, "skip", reason)
                         continue
                     if (
                         self.options.require_fail_to_pass
                         and len(fail_to_pass) < self.options.min_fail_to_pass
                     ):
-                        skip_reasons["no_fail_to_pass"] = skip_reasons.get("no_fail_to_pass", 0) + 1
-                        self._emit_progress(pr_label, "skip", outcome.reason or "no_fail_to_pass")
+                        if getattr(outcome, "unparseable_output", False):
+                            reason = "test_output_unparseable"
+                        elif candidate_generated_tests:
+                            reason = "test_synthesis_no_f2p"
+                        elif f2p_synthesis_failed:
+                            reason = "test_synthesis_exhausted"
+                        else:
+                            reason = "no_fail_to_pass"
+                        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+                        self._emit_progress(pr_label, "skip", reason)
                         continue
 
                 # Emit the Harbor task
@@ -1477,6 +1698,12 @@ class PRRuntimePipeline:
             if sandbox is not None:
                 sandbox.cleanup()
 
+        if self._test_synthesis_cost_usd:
+            logger.info(
+                "PR test synthesis estimated spend: $%.4f",
+                self._test_synthesis_cost_usd,
+            )
+
         return PipelineResult(
             candidates=len(prs),
             emitted=emitted,
@@ -1512,7 +1739,9 @@ class PRRuntimePipeline:
             return "problem_statement_too_short"
         return None
 
-    def _structural_quality_filter(self, source_patch: str, test_patch: str) -> str | None:
+    def _structural_quality_filter(
+        self, source_patch: str, test_patch: str, *, check_new_test_funcs: bool = True
+    ) -> str | None:
         """Cheap diff-level filters that catch over-emitted task types.
 
         Returns a skip reason string, or None to keep.
@@ -1534,7 +1763,7 @@ class PRRuntimePipeline:
         ):
             return "ci_only_patch"
         # Filter 2: test_patch must add ≥1 new test function
-        if self.options.require_new_test_funcs:
+        if self.options.require_new_test_funcs and check_new_test_funcs:
             n_new = _count_new_test_funcs(test_patch)
             if n_new < 1:
                 return "no_new_test_funcs"
@@ -1563,8 +1792,8 @@ class PRRuntimePipeline:
     # ----- sandbox -----------------------------------------------------------
 
     def _start_validation_sandbox(self):
-        """Spin up a DockerSandbox from the bootstrap image (shared across PRs)."""
-        # The bootstrap image already contains the repo at the bootstrap-time HEAD.
+        """Spin up a DockerSandbox shared only across PRs with the same base SHA."""
+        # The bootstrap image already contains the repo at this PR's base commit.
         # We pass repo_dir=None? No — DockerSandbox.start requires a repo_dir to copy in.
         # The repo is already in the image; we'll just `git checkout` to each PR's base_commit
         # from inside the container, so the path here is a no-op marker.
@@ -1640,6 +1869,12 @@ class PRRuntimePipeline:
             "built_at": datetime.now(UTC).isoformat(),
             **({"synthesis_llm": self.input.llm.qualified_name} if self.input.llm else {}),
             "reward_kinds": ["test_execution", "diff_similarity"],
+            "bootstrap": {
+                "image_digest": self.bootstrap.image_digest,
+                "bootstrap_commit": self.bootstrap.ref,
+                "rebuild_cmds": self.bootstrap.rebuild_cmds,
+                "test_cmds": self.bootstrap.test_cmds,
+            },
             "pr_runtime": {
                 "pr_url": pr.url,
                 "pr_merged_at": pr.merged_at,
