@@ -400,6 +400,100 @@ def test_go_generated_grader(task_go, tmp_path, edits, reward):
     assert details["reward_txt"] == reward, details
 
 
+RUST_LIB = "pub fn old() -> i32 {\n    1\n}\n"
+RUST_FIXED = RUST_LIB + "pub fn new() -> i32 {\n    2\n}\n"
+
+
+@pytest.fixture(scope="module")
+def task_rust(tmp_path_factory):
+    root = tmp_path_factory.mktemp("task_rust")
+    repo = root / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "tests").mkdir()
+    (repo / "Cargo.toml").write_text(
+        '[package]\nname = "mycrate"\nversion = "0.1.0"\nedition = "2021"\n'
+    )
+    (repo / ".gitignore").write_text("/target\n")
+    (repo / "src/lib.rs").write_text(RUST_LIB)
+    # Same test names in another target: results must stay apart.
+    (repo / "tests/working.rs").write_text(
+        "#[test]\nfn parse() {\n    assert_eq!(mycrate::old(), 1);\n}\n"
+        "#[test]\nfn other() {\n    assert_eq!(mycrate::old() + 1, 2);\n}\n"
+    )
+    _git(repo, "init", "-q")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    hidden = (
+        "#[test]\nfn parse() {\n    assert_eq!(mycrate::new(), 2);\n}\n"
+        "#[test]\nfn other() {\n    assert_eq!(mycrate::new() + 1, 3);\n}\n"
+    )
+    (repo / "tests/broken.rs").write_text(hidden)
+    _git(repo, "add", "-N", "tests/broken.rs")
+    test_patch = _git(repo, "diff", "--", "tests/broken.rs")
+
+    f2p = [f"mycrate/test/broken::{test}" for test in ("other", "parse")]
+    p2p = [name.replace("/broken::", "/working::") for name in f2p]
+    mutants = make_tree_sitter_mutants(
+        f2p,
+        lambda path: (repo / path).read_text() if (repo / path).is_file() else None,
+        allowed_files={"tests/broken.rs"},
+        seed="rust-container-test",
+        decoys=f2p,
+    )
+    assert mutants is not None and mutants.ids
+    mutants.exit_nonzero = True
+    (repo / "tests/broken.rs").unlink()
+    (root / "tests").mkdir()
+    files = {
+        "tests/test.sh": build_eval_script(
+            base,
+            test_patch,
+            normalize_test_cmds_for_runtime(["cargo test -q"]),
+            language="rust",
+            fail_to_pass=f2p,
+            pass_to_pass=p2p,
+            run_timeout=300,
+            mutants=mutants,
+        ),
+        **_runtime_aux_files(f2p, p2p),
+        **separate_verifier_files(mutants),
+    }
+    for relative, content in files.items():
+        (root / relative).write_text(content)
+    # A stdlib-only crate: grading needs no registry or network.
+    (root / "Dockerfile").write_text(
+        "FROM rust:1.83-slim-bookworm AS toolchain\nFROM python:3.12\n"
+        "COPY --from=toolchain /usr/local/cargo /usr/local/cargo\n"
+        "COPY --from=toolchain /usr/local/rustup /usr/local/rustup\n"
+        "ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo "
+        'CARGO_NET_OFFLINE=true PATH="/usr/local/cargo/bin:${PATH}"\n'
+        "COPY repo /workspace\nWORKDIR /workspace\n" + stash_pristine()
+    )
+    image = "r2e-separate-verifier-test-rust:latest"
+    subprocess.run(["docker", "build", "-q", "-t", image, str(root)], check=True, timeout=900)
+    (root / "image").write_text(image)
+    return root
+
+
+@pytest.mark.parametrize(
+    ("edits", "reward"),
+    [
+        pytest.param({}, 0, id="build-failure"),
+        pytest.param({"src/lib.rs": RUST_FIXED}, 1, id="oracle"),
+        pytest.param(
+            {"src/lib.rs": RUST_FIXED.replace("    1\n", "    0\n")},
+            0,
+            id="other-target-regression",
+        ),
+    ],
+)
+def test_rust_generated_grader(task_rust, tmp_path, edits, reward):
+    details = _grade(task_rust, tmp_path, edits, docker_args=("--network=none",))
+    assert details["evaluation_status"] == "graded", details
+    assert details["reward_txt"] == reward, details
+
+
 def _grade(
     task: Path,
     tmp_path: Path,

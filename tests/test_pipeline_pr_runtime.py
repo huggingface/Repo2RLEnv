@@ -559,10 +559,10 @@ def test_normalize_go_test_gets_json_and_count_flags():
 
 def test_normalize_cargo_strips_quiet():
     """`cargo test -q` swallows per-test lines; strip it to recover parseable output."""
-    assert normalize_test_cmds_for_runtime(["cargo test -q"]) == ["cargo test"]
-    assert normalize_test_cmds_for_runtime(["cargo test --quiet"]) == ["cargo test"]
-    # Default `cargo test` is already parseable
-    assert normalize_test_cmds_for_runtime(["cargo test"]) == ["cargo test"]
+    expected = ["cargo test --no-fail-fast --message-format=json"]
+    assert normalize_test_cmds_for_runtime(["cargo test -q"]) == expected
+    assert normalize_test_cmds_for_runtime(["cargo test --quiet"]) == expected
+    assert normalize_test_cmds_for_runtime(["cargo test"]) == expected
 
 
 def test_normalize_jest_adds_verbose_and_strips_silent():
