@@ -87,7 +87,7 @@ mutation = [
 ]
 harbor = [
     # Offline/native adapters require this tested contract; upgrade them together.
-    "harbor==0.25.0",
+    "harbor==0.26.0",
 ]
 mutants = [
     "tree-sitter==0.26.1",
