@@ -14,7 +14,7 @@
     "cn": "0.5.2",
     "fumadocs-core": "16.19.3",
     "fumadocs-mdx": "15.6.2",
-    "fumadocs-ui": "npm:@fumadocs/base-ui@16.18.4",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.19.3",
     "lucide-react": "1.73.0",
     "mermaid": "12.3.0",
     "next": "16.4.6",
