@@ -79,7 +79,7 @@ modal = [
     "dockerfile-parse==2.0.1",
 ]
 daytona = [
-    "daytona==0.231.0",
+    "daytona==2.0.0",
 ]
 mutation = [
     "libcst==1.9.0",
