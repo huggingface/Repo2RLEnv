@@ -97,7 +97,12 @@ flowchart TD
    commands use `-json`: tests are keyed as `package::test`, and an explicit build
    failure at base allows the same inference only within that package. Missing
    tests in other packages are not inferred. Legacy Go text logs remain readable
-   without build-failure inference; Rust compilation failures remain unsupported.
+   without build-failure inference. `cargo test` runs with `--message-format=json`:
+   tests are keyed as `<package>/<kind>/<target>::test` (doctests under
+   `<package>/doc/<lib>`), and a target that a compiler error names in a failed
+   build at base allows the same inference only within that target. Cargo runs no
+   tests at all when any target fails to compile, so tests in other targets have
+   no base status and are not inferred. Legacy Cargo logs keep unqualified names.
 7. **Write the instruction** from the linked issue (`Fixes #123`, including the
    `[#123](url)` form) when there is one, otherwise from the PR title and
    description. Solution pointers and template sections are stripped.
@@ -462,7 +467,7 @@ adapts them so they emit per-test lines, then targets them at the PR's test file
 |---|---|---|
 | pytest | Drop `--collect-only`, `--co`, `-q`; add `-v` | Append the changed `.py` test files |
 | `go test` | Add `-json` and `-count=1` | Replace `./...` with the changed test packages |
-| `cargo test` | Drop `-q` | Whole suite (Rust filters by name, not file) |
+| `cargo test` | Drop `-q`; add `--no-fail-fast` and `--message-format=json` | Whole suite (Rust filters by name, not file) |
 | Jest, Mocha | Drop `--silent`; add `--verbose` | Append the changed JS/TS test files |
 | Vitest | Use `--reporter=verbose` | Append the changed JS/TS test files |
 

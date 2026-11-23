@@ -201,6 +201,15 @@ def test_rust_changes_the_literal_argument_and_skips_should_panic():
     assert "tests::p2p" in mutants.decoy_ids and not set(mutants.decoy_ids) & set(mutants.ids)
 
 
+def test_rust_target_qualified_ids_select_their_test_function():
+    # Cargo results are keyed `<package>/<kind>/<target>::<test path>`.
+    unit = "mycrate/lib/mycrate::"
+    targets = [f"{unit}tests::adds", f"{unit}tests::compares"]
+    mutants = _make("src/lib.rs", RUST, targets, decoys=[*targets, f"{unit}tests::p2p"])
+    assert set(mutants.ids) == set(targets)
+    assert f"{unit}tests::p2p" in mutants.decoy_ids
+
+
 def test_js_changes_matcher_literals_skipping_not_and_snapshots():
     targets = [
         "src/math.test.js > math > adds",

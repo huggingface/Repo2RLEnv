@@ -1069,7 +1069,9 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
         - Add `-json` for package-qualified test and build-failure events
         - Add `-count=1` if missing (no cached results)
       cargo test:
-        - Default output is already parseable; no transform needed
+        - Drop `-q`; add `--no-fail-fast` so every target runs, and
+          `--message-format=json` for target-qualified results and build-failure
+          evidence
       cargo nextest run:
         - Add `--status-level pass` (or raise a lower one) and `--color never`
       jest / npm test:
@@ -1151,10 +1153,23 @@ def normalize_test_cmds_for_runtime(test_cmds: list[str]) -> list[str]:
 
         # --- cargo test ---
         elif re.search(r"\bcargo\s+test\b", cleaned):
-            # `cargo test` already prints `test NAME ... ok/FAILED/ignored`
-            # by default — no transformation needed. If a user passed
-            # `-q`, the per-test lines disappear; strip it.
+            # `cargo test` already prints `test NAME ... ok/FAILED/ignored`.
+            # If a user passed `-q`, the per-test lines disappear; strip it.
             cleaned = re.sub(r"\s+(?:-q|--quiet)\b", "", cleaned)
+            # Cargo's JSON messages tie each test binary to its package and
+            # target, and name the target a compile error belongs to. Cargo
+            # stops at the first failing test binary unless told otherwise, which
+            # would hide every later target's results. Anything after `--`
+            # belongs to the test binaries and must stay unchanged.
+            parts = re.split(r"(\s+--(?:\s|$))", cleaned, maxsplit=1)
+            driver = re.sub(r"\s+--message-format(?:=|\s+)\S+|\s+--no-fail-fast\b", "", parts[0])
+            parts[0] = re.sub(
+                r"\bcargo\s+test\b",
+                "cargo test --no-fail-fast --message-format=json",
+                driver,
+                count=1,
+            )
+            cleaned = "".join(parts)
 
         # --- jest / npm test / yarn test / pnpm test ---
         elif re.search(r"\b(?:jest|mocha|vitest|npm\s+test|yarn\s+test|pnpm\s+test)\b", cleaned):
