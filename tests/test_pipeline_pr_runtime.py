@@ -559,10 +559,10 @@ def test_normalize_go_test_gets_json_and_count_flags():
 
 def test_normalize_cargo_strips_quiet():
     """`cargo test -q` swallows per-test lines; strip it to recover parseable output."""
-    assert normalize_test_cmds_for_runtime(["cargo test -q"]) == ["cargo test"]
-    assert normalize_test_cmds_for_runtime(["cargo test --quiet"]) == ["cargo test"]
-    # Default `cargo test` is already parseable
-    assert normalize_test_cmds_for_runtime(["cargo test"]) == ["cargo test"]
+    expected = ["cargo test --no-fail-fast --message-format=json"]
+    assert normalize_test_cmds_for_runtime(["cargo test -q"]) == expected
+    assert normalize_test_cmds_for_runtime(["cargo test --quiet"]) == expected
+    assert normalize_test_cmds_for_runtime(["cargo test"]) == expected
 
 
 def test_normalize_jest_adds_verbose_and_strips_silent():
@@ -881,3 +881,71 @@ def test_pr_split_uses_the_grading_rule():
     source, tests = split_patch_and_test_patch(diff)
     assert "pkg/testdata/golden.json" in tests and "Tests/x.py" in tests
     assert "pkg/a.go" in source and "docs/tests/e.py" in source
+
+
+_DIFF = """diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/tests/test_foo.py b/tests/test_foo.py
+--- a/tests/test_foo.py
++++ b/tests/test_foo.py
+@@ -1 +1,3 @@
+ import foo
++def test_x():
++    assert foo.x == 2
+"""
+
+
+def test_a_failing_candidate_is_counted_and_the_run_continues(monkeypatch, tmp_path):
+    from repo2rlenv.bootstrap.docker import DockerError
+    from repo2rlenv.pipelines import pr_runtime, pr_runtime_validate
+
+    pipeline = _make_pipeline(require_linked_issue=False)
+    prs = [_make_pr("Fix it.", number=n) for n in (1, 2, 3)]
+
+    class Provider:
+        def list_merged_prs(self, *args, **kwargs):
+            return prs
+
+        def fetch_pr_diff(self, *args, **kwargs):
+            return _DIFF
+
+    sandboxes = []
+
+    class Sandbox:
+        cleaned = False
+
+        def cleanup(self):
+            self.cleaned = True
+
+    def start():
+        sandboxes.append(Sandbox())
+        return sandboxes[-1]
+
+    errors = iter([DockerError("daemon went away"), ValueError("bad patch"), None])
+
+    def validate(**kwargs):
+        error = next(errors)
+        if error is not None:
+            raise error
+        return pr_runtime_validate.ValidationOutcome(test_cmds=["pytest"], status="ok")
+
+    monkeypatch.setattr(pr_runtime, "provider_for", lambda repo: Provider())
+    monkeypatch.setattr(pr_runtime, "resolve_repo_token", lambda *a: None)
+    monkeypatch.setattr(pipeline, "_start_validation_sandbox", start)
+    monkeypatch.setattr(pr_runtime_validate, "validate_pr", validate)
+
+    result = pipeline.run(tmp_path)
+
+    assert result.candidates == 3
+    assert result.skip_reasons == {
+        "infra_error": 1,
+        "candidate_error": 1,
+        "no_fail_to_pass": 1,
+    }
+    # The infrastructure failure replaced the sandbox; the candidate failure didn't.
+    assert len(sandboxes) == 2
+    assert all(sandbox.cleaned for sandbox in sandboxes)

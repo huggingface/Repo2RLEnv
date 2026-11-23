@@ -89,6 +89,34 @@ _COPY_RE = re.compile(r"^R2E_COPY_SECONDS=([0-9.]+)$", re.MULTILINE)
 # later imports or executes from. No submission can be graded safely there.
 _UNSAFE_IMAGE = "R2E_TEST_EXIT_CODE=unsafe_image"
 _EXIT_RE = re.compile(r"^R2E_TEST_EXIT_CODE=(\d+)$", re.MULTILINE)
+# Kept out of the tests' share of a stage: reset and rebuild before them, the
+# launcher's purge (120 s deadline) after them.
+_STAGE_MARGIN_SEC = 180
+# What a stage killed only on the client side leaves behind: its script and
+# every process of the test user (the launcher's UID). No pkill in slim images.
+_KILL_SCRIPT = f"""
+import os, signal
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    if int(pid) == os.getpid():
+        continue
+    try:
+        info = os.stat(f"/proc/{{pid}}")
+        with open(f"/proc/{{pid}}/cmdline", "rb") as handle:
+            command = handle.read()
+        if info.st_uid == 20001 or b"{_LOG_DIR}/" in command:
+            os.kill(int(pid), signal.SIGKILL)
+    except OSError:
+        pass
+"""
+_KILL_STAGE = (
+    f'for p in {" ".join(_PYTHONS)}; do [ -x "$p" ] && exec "$p" -I -S -c '
+    f"{shlex.quote(_KILL_SCRIPT)}; done; true"
+)
+
+
+def _test_timeout(stage_timeout: int) -> int:
+    """The launcher's limit for the tests, so it stops and purges them in the stage."""
+    return max(stage_timeout - _STAGE_MARGIN_SEC, stage_timeout // 2)
 
 
 class _Stopwatch:
@@ -103,6 +131,9 @@ class _Stopwatch:
         started = time.monotonic()
         result = sandbox.exec(script, timeout=timeout)
         stage = time.monotonic() - started
+        if result.exit_code == 124 and "[timeout after" in (result.stderr or ""):
+            # Only `docker exec` was killed: stop the stage so the next one starts clean.
+            sandbox.exec(_KILL_STAGE, timeout=60)
         found = _SECONDS_RE.search(result.stdout or "")
         if found:
             self.samples.append((float(found.group(1)), stage))
@@ -165,6 +196,7 @@ def _build_stage_script(
     language: str | None = None,
     staged: dict[str, str] | None = None,
     keep_collecting: bool = False,
+    test_timeout: int | None = None,
 ) -> str:
     """Build the shell script for one validation stage (pre-fix or post-fix).
 
@@ -264,9 +296,11 @@ def _build_stage_script(
         )
     parts.append(_child_path(language).rstrip("\n"))
     parts.append("set +x")
+    # Stop the tests inside the stage's budget, so the launcher kills and purges them itself.
+    limit = f"--timeout {test_timeout} " if test_timeout else ""
     parts.append(
         f'R2E_TEST_EXIT="$("$R2E_PY" -B -I -S {_LOG_DIR}/launcher.py --log {log} --cwd /workspace '
-        f'--path "$R2E_CHILD_PATH" {writable} --seconds-out {_LOG_DIR}/seconds '
+        f'--path "$R2E_CHILD_PATH" {writable} --seconds-out {_LOG_DIR}/seconds {limit}'
         # Later stages run in this container: delete what the tests left.
         f'--purge -- {shlex.quote(test_block)})"'
     )
@@ -460,6 +494,7 @@ def validate_pr(
         language=language,
         staged=_stage(sandbox, test_patch=test_patch),
         keep_collecting=True,
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = clock.run(sandbox, pre_script, timeout)
@@ -501,6 +536,7 @@ def validate_pr(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch),
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running post-fix stage")
     post = clock.run(sandbox, post_script, timeout)
@@ -709,6 +745,7 @@ def _validate_mutants(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch, mutants=mutants),
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running the mutant stage (%d tests)", len(mutants.ids))
     output = clock.run(sandbox, script, timeout).truncated(max_chars=5_000_000)

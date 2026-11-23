@@ -57,6 +57,8 @@ def _run(args: list[str], *, timeout: int = 600, input_text: str | None = None) 
             capture_output=True,
             text=True,
             encoding="utf-8",
+            # Test output may hold any bytes; one invalid byte must not abort a run.
+            errors="replace",
             timeout=timeout,
             input=input_text,
             check=False,
@@ -131,6 +133,7 @@ def pull_image_streaming(
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
+        errors="replace",
         bufsize=1,
     )
 
