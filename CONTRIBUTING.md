@@ -130,12 +130,12 @@ Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.
 
-The tested stable combination is LiteLLM 1.108.3, OpenAI 3.42.1 and Hugging Face
-Hub 1.33.0. LiteLLM 1.108.3 is the minimum; its
-[released dependency metadata](https://pypi.org/pypi/litellm/1.108.3/json)
-supports OpenAI <4 but still requires Hub <2. Upgrade the clients together after
-checking provider calls, tool arguments, usage accounting and Hub transfers. Do
-not silently downgrade LiteLLM or select a development release to satisfy a major
+The tested stable combination is LiteLLM 1.110.2, OpenAI 3.51.0 and Hugging Face
+Hub 2.4.0. LiteLLM 1.110.2 is the minimum; its
+[released dependency metadata](https://pypi.org/pypi/litellm/1.110.2/json)
+supports both OpenAI <4 and Hub <3. Upgrade the clients together after checking
+provider calls, tool arguments, usage accounting and Hub transfers. Do not
+silently downgrade LiteLLM or select a development release to satisfy a major
 SDK update. Broader bounds on upstream `main` do not establish compatibility for
 a released wheel. `tests/test_sdk_contracts.py`
 exercises the installed SDKs against loopback HTTP: provider requests, usage,
