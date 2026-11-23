@@ -223,12 +223,30 @@ jobs:
           tests/test_separate_verifier_container.py
           tests/test_separate_verifier_harbor.py
 
+  trajectory-controls:
+    name: Trajectory lifecycle and Harbor controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.12"
+      - run: uv sync --group dev --all-extras --frozen
+      - name: Calibrate and grade all four trajectory families
+        env:
+          R2E_DOCKER_TESTS: "1"
+          R2E_HARBOR_TESTS: "1"
+        run: uv run --all-extras --frozen pytest -q tests/test_trajectory_execution.py
+
   build:
     permissions:
       contents: read
     name: Build sdist + wheel
     runs-on: ubuntu-latest
-    needs: [lint, test, owned-contracts, tasksmith-runtimes, windows, separate-verifier]
+    needs: [lint, test, owned-contracts, tasksmith-runtimes, windows, separate-verifier, trajectory-controls]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -39,13 +39,14 @@ problem families. Each one becomes a standard
 any agent, and share on the Hugging Face Hub.
 
 <p align="center">
-  <b>23 generators</b> · <b>21 published datasets</b> · <b>1,930 tasks on the Hub</b> · runs with any Harbor agent
+  <b>24 generators</b> · <b>21 published datasets</b> · <b>1,930 tasks on the Hub</b> · runs with any Harbor agent
 </p>
 
 ## What's new
 
 | When | What |
 |---|---|
+| **Nov 11, 2026** · v0.9.6 | **Trajectory generation and isolated grading**: turn recorded agent sessions into Harbor tasks, grade in fresh verifiers, detect supported reward forgeries, and fix bootstrap, collection and dependency issues. [Release notes →](https://github.com/huggingface/Repo2RLEnv/releases/tag/v0.9.6) |
 | **Nov 4, 2026** · v0.9.5 | **Verifier hardening and stable dependency updates**: stricter test grading, ungraded PR-diff evaluations when the judge is unavailable, Harbor 0.25 support and tested inference SDK updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Oct 23, 2026** · v0.9.4 | **Task quality review and runtime fixes**, with evidence-backed reviews, Harbor 0.24 compatibility, Windows process cleanup and dependency security updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
 | **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
@@ -57,7 +58,8 @@ Older releases are in the [version history](https://huggingface.github.io/Repo2R
 
 ## Quickstart
 
-For version 0.9.5's original LiteLLM/filelock dependency combination, use the
+Version 0.9.6 includes compatible stable LiteLLM and patched filelock dependencies.
+For version 0.9.5's original dependency combination, use the
 [documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
 or install from the current locked checkout, which uses compatible stable versions.
 
@@ -116,17 +118,17 @@ holds 50 verified tasks from Accelerate, Diffusers, PEFT, Transformers and TRL.
 ## What you can build
 
 Every generator produces a Harbor task. They differ in what they start from and how the
-agent's work is scored. **[Browse all 23 →](https://huggingface.github.io/Repo2RLEnv/pipelines/)**
+agent's work is scored. **[Browse all 24 →](https://huggingface.github.io/Repo2RLEnv/pipelines/)**
 
 | Kind of task | Generators | How it's scored |
 |---|---|---|
-| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
+| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), [`trajectory_to_env`](https://huggingface.github.io/Repo2RLEnv/pipelines/trajectory_to_env/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
 | **Implementation and reconstruction:** write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
 | **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Diff similarity plus a required correctness judge; unavailable judgments are ungraded. No test suite needed |
 | **Terminal tasks:** reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
 | **Reasoning and optimization:** no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
 
-The six native pipelines run on your machine. Tasksmith and the research recipes run
+The seven native pipelines run on your machine. Tasksmith and the research recipes run
 their target code on Modal or Daytona workers, inside a budget you set.
 
 ### Watch how they work

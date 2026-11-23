@@ -3,11 +3,11 @@ title: "Choose a pipeline"
 description: "Match your source material, reward and infrastructure to the right generator."
 ---
 
-Repo2RLEnv has six native pipelines, Tasksmith, and 16 research recipes. Which one fits depends on what you start from, what kind of reward you need, and where you can run containers.
+Repo2RLEnv has seven native pipelines, Tasksmith, and 16 research recipes. Which one fits depends on what you start from, what kind of reward you need, and where you can run containers.
 
 ## Four questions
 
-1. **What's your source material?** A merged PR, a repository's commit history, a repository's own functions and APIs, a security advisory, or seeds such as question/answer pairs, existing Harbor tasks, terminal recordings or problem families.
+1. **What's your source material?** A merged PR, a repository's commit history, a repository's own functions and APIs, a security advisory, recorded agent trajectories, or seeds such as question/answer pairs, existing Harbor tasks, terminal recordings or problem families.
 2. **Do you need a test-based reward?** Diff similarity scores an agent's patch against the real one without running any code. Test-based rewards run the repository's tests, so generation has to build an environment where they pass.
 3. **Where can you run containers?** Native pipelines build and check environments with Docker on your machine. Tasksmith and research recipes run on remote Modal or Daytona workers.
 4. **How much churn can you absorb?** `pr_diff`, `pr_runtime` and `commit_runtime` are stable. Everything else is experimental: its interface and output can change between releases.
@@ -22,6 +22,7 @@ flowchart TD
   S -->|"Commit history"| CR["commit_runtime"]
   S -->|"Functions or APIs"| FN["code_instruct or equivalence_tests"]
   S -->|"Security advisories"| CV["cve_patches"]
+  S -->|"Agent trajectories"| TR["trajectory_to_env"]
   S -->|"Seeds, tasks or recordings"| RR["Research recipe"]
 ```
 
@@ -35,6 +36,7 @@ flowchart TD
 | [`code_instruct`](pipelines/code_instruct.md) | A Python repository's source | Solve an LLM-authored problem grounded in the repository's APIs | Tests pass, 0/1 | Yes: problem, test and solution | Local Docker | Experimental |
 | [`equivalence_tests`](pipelines/equivalence_tests.md) | Python functions in a repository | Reimplement a function so it matches a hidden reference | Tests pass, 0/1 | Yes: the equivalence tests | Local Docker | Experimental |
 | [`cve_patches`](pipelines/cve_patches.md) | OSV advisories and their fix commits (GitHub, Python ecosystem) | Repair the vulnerability | Graded F2P × P2P | Yes: bootstrap, plus a proof-of-concept test when the fix ships none | Local Docker | Experimental |
+| [`trajectory_to_env`](pipelines/trajectory_to_env.md) | Recorded agent trajectories (ATIF, Claude Code, Codex or pi logs) | Repair a check the agent fixed, build or extend its project, or answer a data question | Check passes, 0/1; hidden tests, fraction passed; exact answer, 0/1 | Only for `build`, `extend` and `qa`: tests or questions | Local Docker | Experimental |
 | [Tasksmith](pipelines/tasksmith.md) | A merged PR that changes testable Python source | Implement the PR's behavior from a human-style request | Private behavioral tests, 0/1 | Yes: a Pi or OpenCode agent, plus review and repair | Modal or Daytona | Experimental |
 | [Research recipes](pipelines/owned_recipes.md) | Repositories, PR or commit history, question/answer seeds, Harbor tasks, terminal recordings, problem families | Repair, reconstruction, terminal, reasoning and optimization tasks | Tests pass, 0/1; SCALER scores −1/+1; FrontierSmith scores 0–1 continuously | Most recipes; SCALER is fully programmatic | Modal or Daytona | Experimental |
 

@@ -73,6 +73,11 @@ def git_history_scrub(base_commit: str) -> str:
     the future commits are pruned, while keeping `base_commit` itself reachable
     (the verifier resets test files via `git checkout <base_commit> -- ...`).
 
+    A partial clone (`--filter=blob:none`, as `pr_diff` uses) keeps every
+    fetched object in promisor packs, which `gc` repacks whether or not anything
+    still reaches them. So when promisor packs are present, the last line
+    rewrites the object store to what the remaining refs reach.
+
     Append these lines AFTER the `git reset --hard <base_commit>` line.
     """
     return (
@@ -85,6 +90,15 @@ def git_history_scrub(base_commit: str) -> str:
         f"| xargs -r -n1 git update-ref -d 2>/dev/null || true \\\n"
         f"    && git reflog expire --expire=now --all 2>/dev/null || true \\\n"
         f"    && git gc --prune=now 2>/dev/null || true\n"
+        # Each step must succeed before the old packs go: a partial object
+        # list would leave the base commit unreadable.
+        'RUN P="$(git rev-parse --git-dir)/objects/pack"; '
+        'if ls "$P"/*.promisor >/dev/null 2>&1; then \\\n'
+        '        git rev-list --objects --all --missing=allow-promisor > "$P/../scrub.list" \\\n'
+        '        && K=$(git pack-objects -q --missing=allow-promisor "$P/scrub" < "$P/../scrub.list") \\\n'
+        '        && rm -f "$P/../scrub.list" "$P"/pack-* "$P"/multi-pack-index* \\\n'
+        '        && touch "$P/scrub-$K.promisor" && git prune --expire=now; \\\n'
+        "    fi\n"
     )
 
 

@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from repo2rlenv.execution.read_retry import retry_read
-from repo2rlenv.github import _run_gh
+from repo2rlenv.github import GitHubError, _run_gh
 
 
 def test_observation_retries_timeout_but_not_validation(monkeypatch):
@@ -58,3 +58,35 @@ def test_github_only_retries_read_timeouts(monkeypatch, args, retries):
     with pytest.raises(subprocess.TimeoutExpired):
         _run_gh(args)
     assert run.call_count == retries
+
+
+@pytest.mark.parametrize(
+    "args,stderr,calls",
+    [
+        (
+            ["pr", "list", "--repo", "a/b"],
+            "HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)",
+            3,
+        ),
+        (["pr", "list", "--repo", "a/b"], "HTTP 404: Not Found", 1),
+        (["api", "repos/a/b", "--method", "POST"], "HTTP 502: 502 Bad Gateway", 1),
+    ],
+)
+def test_github_retries_server_errors_on_reads_only(monkeypatch, args, stderr, calls):
+    monkeypatch.setattr("repo2rlenv.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr("repo2rlenv.github.time.sleep", lambda _: None)
+    run = Mock(return_value=subprocess.CompletedProcess(args, 1, "", stderr))
+    monkeypatch.setattr("repo2rlenv.github.subprocess.run", run)
+    with pytest.raises(GitHubError):
+        _run_gh(args)
+    assert run.call_count == calls
+
+
+def test_github_read_recovers_after_server_error(monkeypatch):
+    monkeypatch.setattr("repo2rlenv.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr("repo2rlenv.github.time.sleep", lambda _: None)
+    failed = subprocess.CompletedProcess([], 1, "", "HTTP 503: Service Unavailable")
+    run = Mock(side_effect=[failed, subprocess.CompletedProcess([], 0, "[]", "")])
+    monkeypatch.setattr("repo2rlenv.github.subprocess.run", run)
+    assert _run_gh(["pr", "list", "--repo", "a/b"]) == "[]"
+    assert run.call_count == 2

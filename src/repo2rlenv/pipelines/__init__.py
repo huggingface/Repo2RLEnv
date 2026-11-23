@@ -14,6 +14,7 @@ from repo2rlenv.pipelines.repo_mutate import RepoMutatePipeline
 from repo2rlenv.pipelines.repo_reconstruct import RepoReconstructPipeline
 from repo2rlenv.pipelines.task_evolve import TaskEvolutionPipeline
 from repo2rlenv.pipelines.terminal_synth import TerminalSynthesisPipeline
+from repo2rlenv.pipelines.trajectory.pipeline import TrajectoryPipeline
 
 PIPELINES: dict[str, type[Pipeline]] = {
     "pr_diff": PRDiffPipeline,
@@ -27,6 +28,7 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "pr_to_env": PRToEnvPipeline,
     "terminal_synth": TerminalSynthesisPipeline,
     "task_evolve": TaskEvolutionPipeline,
+    "trajectory_to_env": TrajectoryPipeline,
 }
 
 __all__ = [
@@ -44,4 +46,5 @@ __all__ = [
     "RepoReconstructPipeline",
     "TaskEvolutionPipeline",
     "TerminalSynthesisPipeline",
+    "TrajectoryPipeline",
 ]

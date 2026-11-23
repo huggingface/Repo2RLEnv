@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from repo2rlenv.spec.recipe_options import (
     CodeMidasOptions,
@@ -272,6 +273,40 @@ class EquivalenceTestsOptions(_BaseOptions):
     skip_validation: bool = False
 
 
+class TrajectoryOptions(_BaseOptions):
+    """Agent trajectories -> verified tasks, one task family at a time.
+
+    Families: repair (a failing check the agent fixed; no LLM), build and extend (LLM-written
+    hidden tests, calibrated with mutants), qa (questions answered from HF dataset files).
+
+    See docs/pipelines/trajectory_to_env.md.
+    """
+
+    families: list[Literal["repair", "build", "extend", "qa"]] = ["repair"]
+    limit: int | None = None  # only the first N trajectories
+    jobs: int = 4  # trajectories processed in parallel
+    scan: bool = True  # atif-scan gate (passes everything through when atif-scan isn't installed)
+    propose_only: bool = False  # only make the LLM calls (filling the cache), no Docker
+    platform: str = "linux/amd64"  # image platform; "native" builds for the host (faster locally)
+    # Reasoning models count their thinking against this: too small a budget ends in an empty answer.
+    max_llm_tokens: int = 32000
+    reasoning_effort: Literal["low", "medium", "high"] | None = None  # sent only when set
+    llm_cache_dir: Path = Path("workspace/cache/trajectory_to_env/llm")  # reruns replay from here
+    container_memory: str = "4g"  # memory cap for every trial container
+    # LLM spend cap for the run, in USD; 0 or None is unlimited. `generate --max-spend-usd` sets it.
+    max_llm_spend_usd: float | None = 5.0
+
+    @field_validator("families", mode="before")
+    @classmethod
+    def split_families(cls, value):
+        return value.split(",") if isinstance(value, str) else value
+
+    @field_validator("max_llm_spend_usd")
+    @classmethod
+    def zero_is_unlimited(cls, value):
+        return value if value else None
+
+
 OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "pr_runtime": PRRuntimeOptions,
     "pr_diff": PRDiffOptions,
@@ -286,6 +321,7 @@ OPTIONS_REGISTRY: dict[str, type[BaseModel]] = {
     "terminal_reconstruct": RecordingReconstructionOptions,
     "env_repair": EnvironmentRepairOptions,
     "task_evolve": TaskEvolutionOptions,
+    "trajectory_to_env": TrajectoryOptions,
 }
 
 

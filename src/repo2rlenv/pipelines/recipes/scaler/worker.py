@@ -214,7 +214,12 @@ def generate(config: dict, destination: Path) -> dict:
                 raise ValueError("Duplicate concrete problem instance")
             answer = solution["stdout"].strip()
             if family.get("output_type") == "string":
-                answer = answer.split()[0]
+                # Upstream SCALER rejects string output that isn't one token.
+                # Keeping only the first would grade the complete output wrong.
+                tokens = answer.split()
+                if len(tokens) != 1:
+                    raise ValueError("String reference output must be a single token")
+                answer = tokens[0]
             elif family.get("output_type") == "array":
                 # Keep large integer/decimal answers exact rather than passing through float.
                 values = answer.split()

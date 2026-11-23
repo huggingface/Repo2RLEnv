@@ -32,6 +32,7 @@ separate licensing boundaries.
 | `cve_patches` | PatchSeeker + CVE-Bench + OSV | *PatchSeeker* (Le et al.); *CVE-Bench* (Zhu et al., NAACL '25) | [hungkien05/PatchSeeker](https://github.com/hungkien05/PatchSeeker) (MIT) · [OSV API](https://osv.dev) |
 | `mutation_bugs` | SWE-smith | *SWE-smith* (Yang et al., NeurIPS '25 Spotlight), [arXiv:2504.21798](https://arxiv.org/abs/2504.21798) | [SWE-bench/SWE-smith](https://github.com/SWE-bench/SWE-smith) (MIT) |
 | `code_instruct` | Magicoder / OSS-Instruct | *Magicoder* (Wei et al., ICML '24), [arXiv:2312.02120](https://arxiv.org/abs/2312.02120) | [ise-uiuc/magicoder](https://github.com/ise-uiuc/magicoder) (MIT) |
+| `trajectory_to_env` | SmolDataEnvs grader for `qa` | None | [SmolDataEnvs](https://huggingface.co/datasets/FineEnvs/SmolDataEnvs-harbor-train) (MIT) |
 | `equivalence_tests` | R2E | *R2E* (Jain et al., ICML '24) | [r2e-project/r2e](https://github.com/r2e-project/r2e) (MIT) |
 | `refactor_synthesis` | RefactoringMiner (originally planned, dropped in v0.8) | None (the recipe is original) | [tsantalis/RefactoringMiner](https://github.com/tsantalis/RefactoringMiner) (MIT) |
 

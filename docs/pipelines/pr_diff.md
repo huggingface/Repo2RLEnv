@@ -232,6 +232,16 @@ on a copy to inspect required repairs; review changed assets and revalidate
 before publishing a new dataset revision. Old scores do not become trustworthy
 just because the installed package was upgraded.
 
+The migration checks the instruction/solution content hash and compares generated
+grading assets with the installed version's builders. `--apply` replaces missing
+or stale grading assets, including files left by an earlier migration. The root
+instruction, solution patch and task metadata are preserved byte for byte.
+An `already_safe` result means those checks passed; it does not certify a task's
+image, network policy or resistance to reward forging. Dockerfiles without the
+old baked-oracle marker are preserved, so review them for later history-scrubbing
+fixes and rebuild before running oracle/no-op and isolation controls. Migration
+does not add a separate verifier or republish the Hub dataset.
+
 ### LLM judge
 
 | Setting (via `--ve`) | Effect |
@@ -356,7 +366,10 @@ brackets are left behind:
 - The Dockerfile clones over HTTPS (SSH and `http://` inputs are rewritten), fetches
   the base commit, runs `git reset --hard` and `git clean`, then scrubs history:
   it removes `origin`, deletes every other branch and tag, expires the reflog and
-  garbage-collects, keeping only the base commit reachable.
+  garbage-collects, keeping only the base commit reachable. The clone is partial
+  (`--filter=blob:none`), and `gc` keeps unreachable objects from partial-clone
+  packs, so the scrub then repacks just what the base reaches and drops the old
+  packs.
 - No agent tooling is installed. Harbor's agent adapter installs what it needs when
   the container starts, so the same task works with any harness.
 - `test.sh` stages new files before diffing (`git add -A`). Without that, files the

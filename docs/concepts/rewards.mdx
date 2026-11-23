@@ -11,7 +11,7 @@ Every task's [verifier](glossary.mdx#verifier) writes one number to `/logs/verif
 |---|---|---|---|---|
 | [Diff similarity](#diff-similarity) | `diff_similarity` | `pr_diff` | 0 to 1 | `reward-details.json` |
 | [Graded test execution](#graded-test-execution) | `test_execution` | `pr_runtime`, `commit_runtime`, `cve_patches` | 0 to 1 | `reward-details.json` |
-| [Binary test execution](#binary-test-execution) | `test_execution` | `code_instruct`, `equivalence_tests`, repository and terminal recipes, CLI-Gym, Tasksmith | 0 or 1 | `result.json` for most recipe graders |
+| [Binary test execution](#binary-test-execution) | `test_execution` | `code_instruct`, `equivalence_tests`, `trajectory_to_env` (`repair`, `qa`), repository and terminal recipes, CLI-Gym, Tasksmith | 0 or 1 | `result.json` for most recipe graders |
 | [Answer equivalence](#answer-equivalence) | `answer_equivalence` | SCALER | −1 or +1 | `result.json` |
 | [Optimization score](#optimization-score) | `optimization_score` | FrontierSmith | 0 to 1, continuous | `scores.json` |
 

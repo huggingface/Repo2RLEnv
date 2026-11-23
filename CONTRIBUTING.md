@@ -123,6 +123,9 @@ LiteLLM 1.108.3 supports filelock 4.x. The direct `filelock>=4.2.1,<5`
 dependency keeps the patched locking library in both the repository lock and
 published wheel metadata; the earlier uv-only override is no longer needed.
 Remove an override when the parent supports a patched version.
+OpenCode's plugin pins Effect 4.0.0-beta.83; its scoped override selects
+4.0.0-beta.103 to fix cookie attribute injection
+([GHSA-chp3-j5qr-2vfr](https://github.com/advisories/GHSA-chp3-j5qr-2vfr)).
 Run the site build/link checks and real Pi/OpenCode mock-server
 tests after updating these locks. Pi 1.4 replaces the old runtime's nested
 shrinkwrap, allowing the repository lock to select patched dependencies.

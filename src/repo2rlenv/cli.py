@@ -16,10 +16,13 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from repo2rlenv import __version__
 from repo2rlenv.ui import console, ensure_utf8_output, install_logging
+
+if TYPE_CHECKING:
+    from repo2rlenv.spec.input import BootstrapSpec
 
 logger = logging.getLogger("repo2rlenv")
 
@@ -47,14 +50,16 @@ def _load_dotenv_if_present() -> None:
         logger.warning("could not load %s: %s", path, exc, extra={"markup": False})
 
 
-def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
-    """Parse repeated --pipeline-opt key=value into a dict (with type coercion)."""
+def _parse_pipeline_opts(
+    items: list[str] | None, *, flag: str = "--pipeline-opt"
+) -> dict[str, Any]:
+    """Parse repeated key=value options into a dict (with type coercion)."""
     out: dict[str, Any] = {}
     if not items:
         return out
     for item in items:
         if "=" not in item:
-            raise SystemExit(f"--pipeline-opt expects key=value, got {item!r}")
+            raise SystemExit(f"{flag} expects key=value, got {item!r}")
         k, v = item.split("=", 1)
         if v.lower() in {"true", "false"}:
             out[k] = v.lower() == "true"
@@ -66,6 +71,26 @@ def _parse_pipeline_opts(items: list[str] | None) -> dict[str, Any]:
             pass
         out[k] = v
     return out
+
+
+def _apply_bootstrap_opts(bspec: BootstrapSpec, items: list[str] | None) -> BootstrapSpec:
+    """Apply repeated --bootstrap-opt key=value overrides to a BootstrapSpec.
+
+    Each update is re-validated so values are converted to the field's type
+    (str -> Path for cache_dir, etc.); `model_copy(update=...)` would skip that.
+    """
+    from pydantic import ValidationError
+
+    from repo2rlenv.spec.input import BootstrapSpec
+
+    for k, v in _parse_pipeline_opts(items, flag="--bootstrap-opt").items():
+        if k not in BootstrapSpec.model_fields:
+            raise SystemExit(f"--bootstrap-opt: unknown BootstrapSpec field {k!r}")
+        try:
+            bspec = BootstrapSpec.model_validate({**bspec.model_dump(), k: v})
+        except ValidationError as exc:
+            raise SystemExit(f"--bootstrap-opt {k}={v!r}: {exc}") from exc
+    return bspec
 
 
 def _split_provider_model(value: str, flag: str) -> tuple[str, str]:
@@ -209,6 +234,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
     # Keep the native CLI's historical default while distinguishing an explicit
     # spending flag from omission on the owned-recipe route.
+    explicit_spend_usd = args.max_spend_usd
     if args.max_spend_usd is None:
         args.max_spend_usd = 5.0
 
@@ -234,6 +260,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
         )
 
     options = parse_options(gen_input.pipeline.name.value, gen_input.pipeline.options)
+    # Pipelines that make their own LLM calls take the budget as an option; an explicit
+    # --max-spend-usd wins over the config file (0 = unlimited, as for bootstrap).
+    if explicit_spend_usd is not None and "max_llm_spend_usd" in type(options).model_fields:
+        options = options.model_copy(
+            update={"max_llm_spend_usd": explicit_spend_usd if explicit_spend_usd > 0 else None}
+        )
 
     # Pre-flight: can this input source serve what the pipeline needs?
     # PR-based pipelines (pr_diff, pr_runtime) and cve_patches require platform
@@ -241,8 +273,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
     # provide — block here with a clear message instead of failing mid-run.
     from repo2rlenv.sources import SourceKind, capabilities_for
 
-    src_kind = gen_input.repo.source_kind
-    available_caps = capabilities_for(src_kind)
+    # A non-repository source (trajectories) has no platform capabilities.
+    src_kind = gen_input.repo.source_kind if gen_input.repo is not None else None
+    available_caps = capabilities_for(src_kind) if src_kind is not None else frozenset()
     required_caps = getattr(pipeline_cls, "required_capabilities", frozenset())
     missing_caps = required_caps - available_caps
     if missing_caps:
@@ -321,14 +354,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
             bspec.max_llm_spend_usd = args.max_spend_usd if args.max_spend_usd > 0 else None
         # Generic --bootstrap-opt key=value for any other BootstrapSpec field
         # (cache_dir / max_iterations / max_seconds / image_registry / platform / ...)
-        for k, v in _parse_pipeline_opts(getattr(args, "bootstrap_opt", None)).items():
-            if not hasattr(bspec, k):
-                raise SystemExit(f"--bootstrap-opt: unknown BootstrapSpec field {k!r}")
-            # Pydantic will coerce types as needed (str→Path, str→int, etc.)
-            try:
-                bspec = bspec.model_copy(update={k: v})
-            except Exception as exc:
-                raise SystemExit(f"--bootstrap-opt {k}={v!r}: {exc}") from exc
+        bspec = _apply_bootstrap_opts(bspec, getattr(args, "bootstrap_opt", None))
         with bootstrap_view_or_plain(
             repo=gen_input.repo.url,
             ref=gen_input.repo.ref,
@@ -384,7 +410,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     limit_hint = int(gen_input.pipeline.options.get("limit", 50)) or 50
 
     with generation_view_or_plain(
-        repo=gen_input.repo.url,
+        repo=gen_input.source_label,
         pipeline=gen_input.pipeline.name.value,
         model=gen_input.llm.qualified_name if gen_input.llm else "none",
         limit=limit_hint,
@@ -397,7 +423,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
             pipeline.set_progress_callback(on_candidate)
         elif on_candidate is None:
             console.info(f"generating with pipeline={gen_input.pipeline.name.value}")
-            console.dim(f"  repo: {gen_input.repo.url} (access={gen_input.repo.access})")
+            if gen_input.repo is not None:
+                console.dim(f"  repo: {gen_input.repo.url} (access={gen_input.repo.access})")
+            else:
+                console.dim(f"  source: {gen_input.source_label}")
             console.dim(f"  out:  {out_dir}")
 
         result = pipeline.run(out_dir)
@@ -430,7 +459,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
                 auth=gen_input.auth,
                 private=(gen_input.output.visibility == "private"),
                 pipeline=gen_input.pipeline.name.value,
-                repo_source=f"{gen_input.repo.owner_name[0]}/{gen_input.repo.owner_name[1]}",
+                repo_source="/".join(gen_input.repo.owner_name) if gen_input.repo else None,
             )
             console.kv(
                 {
@@ -442,7 +471,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
                 title="HF Hub push",
             )
 
-    return 0 if result.emitted > 0 else 1
+    proposed = getattr(options, "propose_only", False) and result.skip_reasons.get("proposed", 0)
+    return 0 if result.emitted > 0 or proposed else 1
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -1114,7 +1144,8 @@ def _dispatch(argv: list[str]) -> int:
         metavar="KEY=VALUE",
         help=(
             "override any BootstrapSpec field (e.g. cache_dir=./envs-matrix/sonnet-4-6, "
-            "max_iterations=30, max_seconds=2400). Repeatable."
+            "max_iterations=30, max_seconds=2400). Repeatable. "
+            "Use JSON for lists, e.g. languages_hint='[\"python\"]'."
         ),
     )
     g.add_argument(
