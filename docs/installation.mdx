@@ -1,20 +1,24 @@
 ---
 title: "Installation"
-description: "Install Repo2RLEnv, add the extras your route needs, and set up the credentials each command uses."
+description: "Install the release or current source, then add only the extras your workflow needs."
 ---
 
-Repo2RLEnv is a Python package with one CLI, `repo2rlenv`. The base install covers native generation, validation and publishing; optional extras add remote workers, Tasksmith and in-process Harbor execution.
+**Use Python 3.12 or later.** `pip` and `uv tool` install the published package.
+These docs follow `main`; use a checkout for changes listed as
+[unreleased](release_notes/HISTORY.md#unreleased).
 
 ## Requirements
 
 | Requirement | Needed for |
 |---|---|
-| Python 3.12 or later | Everything. |
-| Git | Cloning source repositories. |
-| [GitHub CLI](https://cli.github.com) (`gh`) | Every GitHub API call during generation (listing PRs, fetching diffs, issues and commits), even when you authenticate with `GITHUB_TOKEN`. |
-| Docker | Native runtime pipelines (`pr_runtime`, `commit_runtime`, `code_instruct`, `equivalence_tests`, `cve_patches`, `trajectory_to_env`), which build and check environments locally, and running any task locally with `harbor run --env docker`. Generating `pr_diff` tasks doesn't need it. |
-| A [Modal](https://modal.com) or [Daytona](https://www.daytona.io) account | Research recipes, Tasksmith and the quality loop. They build and execute on remote workers; there's no local Docker fallback. |
-| Node.js 22.19 or later | Tasksmith's Pi and OpenCode adapters. |
+| Git and [GitHub CLI](https://cli.github.com) (`gh`) | GitHub repository access, including when using `GITHUB_TOKEN` |
+| Docker | Native pipelines that execute target code; local Harbor trials |
+| Modal or Daytona credentials | Remote recipes, Tasksmith and quality-loop execution |
+| Node.js 22.19+ and npm | Tasksmith's Pi/OpenCode author runtime |
+| Model credentials | Bootstrap, authoring, review and solver stages that call a model |
+
+PR-diff generation needs neither Docker nor a model key. Its **grading** does need
+a correctness judge. Review-only quality runs call a model but do not need a worker.
 
 ## Install
 
@@ -26,120 +30,125 @@ pip install repo2rlenv
 uv tool install repo2rlenv
 ```
 
-Add extras in brackets. For example, Tasksmith on Daytona:
+For Harbor in the same environment:
 
 ```bash tab="pip"
-pip install 'repo2rlenv[tasksmith,daytona,harbor]'
+pip install 'repo2rlenv[harbor]'
 ```
 
 ```bash tab="uv"
-uv tool install 'repo2rlenv[tasksmith,daytona,harbor]'
+uv tool install --upgrade 'repo2rlenv[harbor]'
 ```
 
-To run tasks, install the Harbor CLI as well: `uv tool install harbor`. The `harbor` extra also puts a `harbor` command in the same environment.
-
-### Filelock security override
-
-The current source requires LiteLLM 1.108.3 or later and `filelock>=4.2.1,<5`.
-These versions are compatible without overrides. The filelock minimum addresses
-[its local filesystem vulnerabilities](https://github.com/tox-dev/filelock/security/advisories)
-and is included in the package dependency metadata.
-
-For the older **0.9.5 release**, whose lock uses LiteLLM 1.106.6 with a
-`filelock<4` bound, the tested installation workaround remains:
-
-```bash
-echo 'filelock>=4.2.1,<5' > repo2rlenv-overrides.txt
-uv tool install --upgrade --overrides repo2rlenv-overrides.txt 'repo2rlenv==0.9.5'
-```
-
-Add extras inside the package specification as needed. For an existing virtual
-environment, use `uv pip install --upgrade --overrides repo2rlenv-overrides.txt
-'repo2rlenv==0.9.5'`. Keep the override on subsequent installations and upgrades.
-For that older dependency combination, it intentionally overrides LiteLLM's
-metadata, so `pip check` reports that
-specific constraint conflict. The all-extras suite and SDK contracts pass with
-filelock 4.x; the tested overridden base installation has no known vulnerabilities
-reported by `pip-audit` as of November 4, 2026. This does not establish the absence
-of unknown vulnerabilities or past credential exposure.
+This exposes both `repo2rlenv` and `harbor`. The extra selects the Harbor version
+supported by that Repo2RLEnv release; avoid upgrading the in-process runner independently.
 
 ### From a checkout
 
-Research recipes, Tasksmith and the quality loop upload the Repo2RLEnv runtime wheel to the remote worker, and the controller checks that the wheel matches its own package. Build it from a checkout:
+Use a checkout for Tasksmith and remote recipes so the controller and uploaded
+runtime wheel come from the same source:
 
 ```bash
 git clone https://github.com/huggingface/Repo2RLEnv
 cd Repo2RLEnv
-uv sync --frozen --extra modal --extra harbor
+uv sync --frozen --extra tasksmith --extra daytona --extra harbor
 uv build --wheel
 uv run repo2rlenv --version
 ```
 
-`uv build --wheel` writes `dist/repo2rlenv-<version>-py3-none-any.whl`; recipe configs and `tasksmith run --runtime-wheel` point at that file. Pass one `--extra` per extra you need.
+Choose the extras below; replace `daytona` with `modal` when needed. Run checkout
+commands as `uv run repo2rlenv …`. The wheel is written under `dist/`; pass its
+actual path to `--runtime-wheel` or `execution.runtime_wheel`.
+
+**Rebuild after changing or updating the source.** Remote workflows compare the
+wheel's package contents with the installed controller and reject a stale wheel.
+[Remote execution](guides/remote-execution.mdx) walks through a complete run.
 
 ### Tasksmith runtime
 
-Tasksmith drives Pi or OpenCode through a Node.js runtime (Node.js 22.19 or later). Install it once, after the `tasksmith` extra:
+After installing the `tasksmith` extra, install the pinned coding-agent runtime:
 
 ```bash
-repo2rlenv tasksmith install-runtime
+uv run repo2rlenv tasksmith install-runtime
 ```
+
+Repeat this after an update changes the runtime lockfile.
 
 ## Extras
 
-| Extra | Adds | Enables | You need it when |
-|---|---|---|---|
-| `harbor` | `harbor` 0.25.0 | Harbor's task models and trial runner, used in-process | You run research recipes, Tasksmith, the quality loop or `release` |
-| `modal` | `modal`, `dockerfile-parse` | Modal workers, including Tasksmith's L4 GPU route | Your remote provider is Modal |
-| `daytona` | `daytona` | Daytona workers | Your remote provider is Daytona |
-| `tasksmith` | `langgraph`, `langgraph-checkpoint-sqlite` | Tasksmith's stage graph and its SQLite checkpoints | You run Tasksmith |
-| `mutation` | `libcst`, `pyflakes` | Source mutation and checks | You run the `swe_smith` recipe |
+| Extra | Enables |
+|---|---|
+| `harbor` | Harbor models and trial execution for recipes, review and release workflows |
+| `modal` | Modal workers and supported native GPU trials |
+| `daytona` | Daytona workers |
+| `tasksmith` | LangGraph orchestration and checkpoint storage |
+| `mutation` | SWE-smith's Python source-mutation support |
+| `mutants` | Go, Rust and JavaScript/TypeScript assertion controls through tree-sitter; Python controls use the standard library |
 
-The base install already includes LiteLLM for model calls and the Hugging Face Hub client for `push` and `pull`.
+The base package includes model calls through LiteLLM and Hub transfers through
+`huggingface-hub`. See [pyproject.toml](https://github.com/huggingface/Repo2RLEnv/blob/main/pyproject.toml)
+for dependency bounds and `uv.lock` for the exact checkout environment.
+
+### Tested source compatibility
+
+As of **November 24, 2026**, `main` pins Harbor **0.26.0**, Daytona **0.231.0** and
+Modal **1.6.4**. Its lock selects LiteLLM **1.110.2**, OpenAI **3.51.0** and Hub
+**2.4.0**. These are the current source contracts, not the original 0.9.6 release's
+lock. The [unreleased notes](release_notes/HISTORY.md#unreleased) describe the changes.
+
+Use the repository lock for remote adapters. A provider SDK's next major version
+is not automatically compatible with the controller or Harbor integration.
+
+### Filelock security override
+
+Current source and the 0.9.6 release require patched `filelock>=4.2.1,<5` with a
+compatible stable LiteLLM release. **No filelock override is needed.** The workaround
+for older 0.9.5 installations is historical; see the
+[0.9.5 release notes](release_notes/HISTORY.md#v095-verifier-hardening-and-stable-dependency-updates).
+Prefer a fresh, supported installation when upgrading.
 
 ## Credentials
 
-Set only what your route needs. Repo2RLEnv reads secrets from the environment and never writes token values into task directories or logs.
-
-| Service | How to authenticate | Used by |
+| Service | Set up | Used by |
 |---|---|---|
-| GitHub | `gh auth login`, or `GITHUB_TOKEN`. For per-repository tokens, name the variable in `repo.auth_token_env` in a config file. GitLab uses `GITLAB_TOKEN`. | `generate` (cloning, PR and commit mining), Tasksmith intake |
-| LLM providers | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `HF_TOKEN`, `TOGETHER_API_KEY`, `GROQ_API_KEY` (resolved through LiteLLM). `--llm-key-env VAR` picks a different variable; `--llm-endpoint URL` targets a self-hosted OpenAI-compatible server. | `generate --llm` for the runtime pipelines, `bootstrap`, research recipes with model stages, Tasksmith, `quality run` |
-| Hugging Face Hub | `hf auth login`, or `HF_TOKEN` with write access to push | `push`, `pull` of private datasets, `release publish` |
-| Modal | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` | `workers start --provider modal`, `quality run` (Modal is its default provider), `tasksmith run --provider modal` |
-| Daytona | `DAYTONA_API_KEY` | `workers start --provider daytona`, `quality run --provider daytona`, `tasksmith run --provider daytona` |
-| Container registry | `GHCR_TOKEN` or `GITHUB_TOKEN` for GHCR; `DOCKER_USERNAME` and `DOCKER_TOKEN` for Docker Hub | `push` of runtime datasets whose bootstrap images you distribute; without one, `push` falls back to inline Dockerfiles |
+| GitHub | `gh auth login` or `GITHUB_TOKEN` | PR mining and Tasksmith intake |
+| GitLab | `GITLAB_TOKEN` | Supported native GitLab sources |
+| Model provider | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or the configured provider's variable | Authoring, review and model-backed bootstrap |
+| Hugging Face | `hf auth login` or `HF_TOKEN` | Hub downloads and publication; writes need permission |
+| Modal | `uv run modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` | Modal workers and trials |
+| Daytona | `DAYTONA_API_KEY` | Daytona workers and trials |
+| Container registry | GHCR or Docker Hub credentials | Distribution of native bootstrap images |
 
-Agents and verifiers that run under Harbor get their keys from `harbor run --ae` and `--ve` instead. The [Quickstart](quickstart.mdx#run-the-tasks-with-harbor) shows how. [Authentication](reference/AUTH.md) covers the GitHub resolution order and private repositories; [Registry authentication](reference/REGISTRY_AUTH.md) covers image distribution.
+Model selection is explicit through `--llm provider/model` or workflow options.
+`--llm-key-env` selects a credential variable and `--llm-endpoint` supports a
+compatible endpoint where that command accepts it. Tasksmith authoring currently
+uses Anthropic models; its quality stages can use OpenAI or Anthropic.
+
+Harbor's agent and verifier receive credentials separately through `--ae` and
+`--ve`. See [run with Harbor](guides/run-with-harbor.mdx#pass-api-keys),
+[authentication](reference/AUTH.md) and [registry setup](reference/REGISTRY_AUTH.md).
 
 ### Using a `.env` file
 
-The CLI loads a `.env` file automatically, without overriding variables already set in your shell. It searches the directory you run the command from and its parents, so this works for a checkout, a project virtual environment and `uv tool install` alike. See [`.env` files](reference/ENV.md#env-files) for the details.
-
-The repository's `.env.example` lists every variable.
+Repo2RLEnv searches the current directory and its parents for `.env`, without
+overriding existing shell variables. See [environment configuration](reference/ENV.md#env-files)
+and `.env.example`. Harbor is a separate CLI: pass its needed variables explicitly.
 
 ## Platform support
 
-Repo2RLEnv runs on Linux and macOS. On Windows, CI covers CLI startup, recipe discovery, native task emission and static validation. Run Tasksmith, research-recipe generation and the quality loop on Linux, macOS or WSL: their controllers depend on POSIX file permissions and process cleanup, and choosing a cloud provider doesn't remove that host requirement.
+Use Linux or macOS; WSL is the Windows route for full controller workflows.
+Native Windows CI covers CLI startup, discovery, emission and static checks.
+It does not establish full remote-controller portability. Choosing a cloud worker
+does not remove the controller's host requirements.
 
 ## Verify your install
 
 ```bash
 repo2rlenv --version
 repo2rlenv pipelines list
+repo2rlenv pipelines describe repo_mutate --recipe swe_smith
 ```
 
-The first command prints the version (`repo2rlenv 0.9.5`). The second lists every native pipeline and research recipe with its status and source type:
-
-```text
-┃ Pipeline             ┃ Recipe            ┃ Status       ┃ Source     ┃
-│ pr_diff              │ native            │ stable       │ repository │
-│ pr_runtime           │ native            │ stable       │ repository │
-│ commit_runtime       │ native            │ stable       │ repository │
-│ code_instruct        │ native            │ experimental │ repository │
-│ …                    │                   │              │            │
-│ reasoning_synth      │ scaler            │ experimental │ family     │
-│ optimization_synth   │ frontiersmith     │ experimental │ seeds      │
-```
-
-Then check the tools your route uses: `gh auth status` for GitHub and `docker info` for local runtime pipelines. When everything reports cleanly, continue with the [Quickstart](quickstart.mdx).
+These commands do not launch workers or model calls. Continue with the
+[quickstart](quickstart.mdx), [Tasksmith](pipelines/tasksmith.md#run-one-pr) or
+[remote recipe setup](guides/remote-execution.mdx).

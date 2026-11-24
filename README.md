@@ -1,7 +1,7 @@
 <h1 align="center">Repo2RLEnv</h1>
 
 <p align="center">
-  <b>Turn any repository into verifiable RL environments for coding agents.</b>
+  <b>Build verifiable RL environments for coding agents.</b>
 </p>
 
 <p align="center">
@@ -9,7 +9,7 @@
   <a href="https://pypi.org/project/repo2rlenv/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/repo2rlenv"></a>
   <a href="https://github.com/huggingface/Repo2RLEnv/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/huggingface/Repo2RLEnv/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://huggingface.github.io/Repo2RLEnv/"><img alt="Docs" src="https://img.shields.io/badge/docs-huggingface.github.io-047857"></a>
-  <a href="https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d"><img alt="Datasets on the Hub" src="https://img.shields.io/badge/%F0%9F%A4%97%20datasets-21-FFD21F"></a>
+  <a href="https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d"><img alt="Datasets on the Hub" src="https://img.shields.io/badge/%F0%9F%A4%97%20datasets-Hub-FFD21F"></a>
   <a href="https://harborframework.com/"><img alt="Harbor task format" src="https://img.shields.io/badge/spec-Harbor-111111"></a>
   <a href="https://github.com/huggingface/Repo2RLEnv/blob/main/THIRD_PARTY_NOTICES.md"><img alt="License: Apache-2.0 and MIT" src="https://img.shields.io/badge/license-Apache--2.0%20AND%20MIT-green"></a>
 </p>
@@ -17,224 +17,155 @@
 <p align="center">
   <a href="https://huggingface.github.io/Repo2RLEnv/">Documentation</a> ·
   <a href="#quickstart">Quickstart</a> ·
-  <a href="#tasksmith-an-agent-that-builds-environments">Tasksmith</a> ·
   <a href="#what-you-can-build">Pipelines</a> ·
   <a href="#datasets">Datasets</a> ·
-  <a href="#whats-new">What's new</a>
+  <a href="https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/">Changelog</a>
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/huggingface/Repo2RLEnv/main/assets/banner.png" alt="Repo2RLEnv turns any repository into verifiable RL environments" width="100%">
+  <img src="https://raw.githubusercontent.com/huggingface/Repo2RLEnv/main/assets/banner.png" alt="Repo2RLEnv: source material to Harbor tasks" width="100%">
 </p>
 
-Coding agents get better by doing: attempting a real task, and being told by a program,
-not a person, whether they succeeded. Reinforcement learning needs thousands of those
-tasks, each with a working environment, an instruction that doesn't give the answer away,
-and a verifier you can trust. Building them by hand takes hours apiece.
-
-**Repo2RLEnv builds them from material that already exists:** merged pull requests,
-commit history, security advisories, a library's own functions, terminal recordings and
-problem families. Each one becomes a standard
-[Harbor](https://github.com/harbor-framework/harbor) task you can train on, evaluate with
-any agent, and share on the Hugging Face Hub.
-
-<p align="center">
-  <b>24 generators</b> · <b>21 published datasets</b> · <b>1,930 tasks on the Hub</b> · runs with any Harbor agent
-</p>
-
-## What's new
-
-| When | What |
-|---|---|
-| **Nov 11, 2026** · v0.9.6 | **Trajectory generation and isolated grading**: turn recorded agent sessions into Harbor tasks, grade in fresh verifiers, detect supported reward forgeries, and fix bootstrap, collection and dependency issues. [Release notes →](https://github.com/huggingface/Repo2RLEnv/releases/tag/v0.9.6) |
-| **Nov 4, 2026** · v0.9.5 | **Verifier hardening and stable dependency updates**: stricter test grading, ungraded PR-diff evaluations when the judge is unavailable, Harbor 0.25 support and tested inference SDK updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
-| **Oct 23, 2026** · v0.9.4 | **Task quality review and runtime fixes**, with evidence-backed reviews, Harbor 0.24 compatibility, Windows process cleanup and dependency security updates. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
-| **Sep 29, 2026** | 📚 **A new documentation site**, with guides for every pipeline, a full CLI reference, and live explainer films that follow your light or dark theme. [Read the docs →](https://huggingface.github.io/Repo2RLEnv/) |
-| **Sep 29, 2026** · v0.9.3 | 🧮 **FrontierSmith** turns closed-ended programming problems into optimization tasks with continuous, deterministic rewards. There's no known optimum, so a better solution earns more. [Release notes →](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/) |
-| **Sep 25, 2026** · v0.9.2 | 🧱 **CodeMidas** rebuilds removed features from their behavioral contract, with execution-grounded tests and independent rollout review. |
-| **Sep 15, 2026** · v0.9.0 | 🤖 **Tasksmith** and **15 research recipes** (SWE-smith, R2E-Gym, SWE-gen, SETA, SCALER and more) on one shared execution and review layer. |
-
-Older releases are in the [version history](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/).
-
-## Quickstart
-
-Version 0.9.6 includes compatible stable LiteLLM and patched filelock dependencies.
-For version 0.9.5's original dependency combination, use the
-[documented security override](https://huggingface.github.io/Repo2RLEnv/installation/#filelock-security-override)
-or install from the current locked checkout, which uses compatible stable versions.
-
-Generate your first environments in about five minutes. This first pipeline needs no
-Docker and no LLM key, just Python 3.12+ and the [GitHub CLI](https://cli.github.com).
-
-```bash
-pip install 'repo2rlenv[harbor]'
-gh auth login
-
-# Turn three recent merged PRs from pallets/click into Harbor tasks
-repo2rlenv generate --repo pallets/click --pipeline pr_diff \
-  --pipeline-opt limit=3 --out ./tasks
-
-# Check the task structure and oracle assets
-repo2rlenv validate ./tasks --oracle
-```
-
-Running tasks needs Docker. PR-diff grading also needs a correctness judge: set
-`ANTHROPIC_API_KEY` and pass it to the verifier. Start with the reference solution,
-then point a real agent at the tasks:
-
-```bash
-harbor run -p ./tasks -a oracle --env docker \
-  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
-harbor run -p ./tasks -a claude-code -m anthropic/claude-sonnet-4-6 \
-  --ae ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" --env docker
-```
-
-Without an available judge, PR-diff results are **ungraded**: the verifier
-writes no reward file, Harbor reports the trial as `VERIFIER_FAILED`, and RL
-consumers drop it. A completed judge answer with no valid score is a graded 0; a reported output limit stays ungraded.
-
-The [quickstart guide](https://huggingface.github.io/Repo2RLEnv/quickstart/) walks through
-every step and what each file in a task is for.
-
-## Tasksmith: an agent that builds environments
-
-Mining pipelines keep only the pull requests that pass their filters.
-**[Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/)** adapts to
-each one instead. Point it at a merged pull request and an agent:
-
-1. investigates the change and the repository around it,
-2. bootstraps the repository's environment on a remote worker,
-3. designs the instruction and a private verifier,
-4. constructs the Harbor task, with the merged code as the reference solution,
-5. reviews and repairs its own work until the controls pass.
-
-Tasksmith orchestrates Pi or OpenCode agents with LangGraph, runs on Daytona or Modal
-(with Modal L4 GPUs for GPU tasks), and records the evidence and cost of every stage. Its
-reference cohort, [HF_ML_Tasksmith](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith),
-holds 50 verified tasks from Accelerate, Diffusers, PEFT, Transformers and TRL.
-[Run one PR →](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/#run-one-pr)
-
-## What you can build
-
-Every generator produces a Harbor task. They differ in what they start from and how the
-agent's work is scored. **[Browse all 24 →](https://huggingface.github.io/Repo2RLEnv/pipelines/)**
-
-| Kind of task | Generators | How it's scored |
-|---|---|---|
-| **Repository repair:** fix real code in a real repository | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/), [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/), [`trajectory_to_env`](https://huggingface.github.io/Repo2RLEnv/pipelines/trajectory_to_env/), `swe_smith`, `swe_next`, `r2e_gym` | The repository's own tests: failing ones must pass, passing ones must stay green |
-| **Implementation and reconstruction:** write or restore functionality | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/), `r2e`, `swe_flow`, `swe_gen`, `codemidas` | Hidden or differential tests |
-| **Patch similarity:** reproduce a real change | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Diff similarity plus a required correctness judge; unavailable judgments are ungraded. No test suite needed |
-| **Terminal tasks:** reach a state in a shell | `seta_seed2synth`, `seta_evol`, `dataarc`, `tmax`, `endless_terminals`, `terminalworld`, `cli_gym` | State checks in the container |
-| **Reasoning and optimization:** no repository at all | `scaler`, `frontiersmith` | Exact answers (−1/+1), or a continuous score in [0, 1] |
-
-The seven native pipelines run on your machine. Tasksmith and the research recipes run
-their target code on Modal or Daytona workers, inside a budget you set.
-
-### Watch how they work
-
-Each native pipeline has a one-minute explainer film in the docs.
-
-<table>
-  <tr>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-runtime-light.jpg" alt="pr_runtime explainer"></a><br><code>pr_runtime</code>: the two runs</td>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/commit-runtime-light.jpg" alt="commit_runtime explainer"></a><br><code>commit_runtime</code>: the history walk</td>
-    <td align="center" width="33%"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/cve-patches-light.jpg" alt="cve_patches explainer"></a><br><code>cve_patches</code>: the advisory</td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/code-instruct-light.jpg" alt="code_instruct explainer"></a><br><code>code_instruct</code>: the gauntlet</td>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/equivalence-tests-light.jpg" alt="equivalence_tests explainer"></a><br><code>equivalence_tests</code>: the mirror</td>
-    <td align="center"><a href="https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/"><img src="https://huggingface.github.io/Repo2RLEnv/films/posters/pr-diff-light.jpg" alt="pr_diff explainer"></a><br><code>pr_diff</code>: the split</td>
-  </tr>
-</table>
-
-## How it works
+Repo2RLEnv turns repositories, pull requests, agent trajectories and task seeds into
+[Harbor](https://github.com/harbor-framework/harbor) tasks. Each task includes an
+instruction, a starting environment, a verifier and a reference solution.
+Repo2RLEnv generates and reviews the tasks; Harbor runs agents against them.
 
 ```mermaid
 flowchart LR
-    S["Repository, PR, commit,<br/>advisory or seed"] --> G["Generator"]
-    G --> T["Harbor task"]
-    T --> C{"Controls:<br/>oracle scores 1,<br/>no-op scores 0"}
-    C -->|fails| R["Review and repair"]
-    R --> T
-    C -->|passes| L["Labeled task"]
-    L --> H["Hugging Face Hub"]
-    H --> A["Train or evaluate<br/>any Harbor agent"]
+    S["Repo, PR, trajectory or seed"] --> G["Generate a Harbor task"]
+    G --> V["Check controls and review"]
+    V -->|"Repairable defect"| R["Repair a new revision"]
+    R --> V
+    V --> E["Keep task and evidence label"]
+    E --> U["Evaluate, train or publish"]
 ```
 
-A task is a directory. The agent sees the instruction and the starting environment; the
-verifier and reference solution stay private until grading.
+## Quickstart
 
-```text
-org__service-412/
-├── instruction.md     what the agent is asked to do
-├── task.toml          resources, provenance and evaluation label
-├── environment/       the starting container
-├── tests/             the private verifier, which writes the reward
-└── solution/          the reference solution (the oracle)
+**Python 3.12+ and the [GitHub CLI](https://cli.github.com) are required.** This
+example generates patch-similarity tasks without Docker or model calls:
+
+```bash
+pip install repo2rlenv
+gh auth login
+
+repo2rlenv generate --repo pallets/click --pipeline pr_diff \
+  --pipeline-opt limit=3 --out ./tasks
+repo2rlenv validate ./tasks --oracle
 ```
 
-A generated task is a starting point, not a guarantee. Controls, the
-[review and repair loop](https://huggingface.github.io/Repo2RLEnv/pipelines/quality_loop/)
-and [evaluation labels](https://huggingface.github.io/Repo2RLEnv/pipelines/task_evaluation_labels/)
-record how far each one has been checked. [How it works →](https://huggingface.github.io/Repo2RLEnv/concepts/how-it-works/)
+`limit` caps candidates, so this may export fewer than three tasks. `validate` is a
+file check; it does not run the environment.
+
+To execute these tasks, install the tested Harbor integration and start Docker.
+Set `ANTHROPIC_API_KEY` in your shell: **PR-diff grading requires a model judge**,
+including when checking the reference solution.
+
+```bash
+pip install 'repo2rlenv[harbor]'
+harbor run -p ./tasks -a oracle --env docker \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+harbor run -p ./tasks -a nop --env docker \
+  --ve ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+```
+
+An unavailable judge leaves the trial **ungraded**, not a zero reward. For
+test-based rewards, choose `pr_runtime` or Tasksmith instead.
+[Continue the quickstart →](https://huggingface.github.io/Repo2RLEnv/quickstart/)
+
+## What you can build
+
+| Start with | Use | What the agent does |
+|---|---|---|
+| Merged PRs; no test execution during generation | [`pr_diff`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_diff/) | Reproduce a change, scored by patch similarity and a correctness judge |
+| PRs or commits with runnable tests | [`pr_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/pr_runtime/), [`commit_runtime`](https://huggingface.github.io/Repo2RLEnv/pipelines/commit_runtime/), [`cve_patches`](https://huggingface.github.io/Repo2RLEnv/pipelines/cve_patches/) | Fix failing tests while preserving passing tests |
+| A merged Python PR needing custom task design | [Tasksmith](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/) | Implement the requested behavior, checked by private tests |
+| Repository functions or APIs | [`code_instruct`](https://huggingface.github.io/Repo2RLEnv/pipelines/code_instruct/), [`equivalence_tests`](https://huggingface.github.io/Repo2RLEnv/pipelines/equivalence_tests/) | Implement functionality against generated or differential tests |
+| Recorded coding-agent sessions | [`trajectory_to_env`](https://huggingface.github.io/Repo2RLEnv/pipelines/trajectory_to_env/) | Repair, build, extend or answer a data question derived from the session |
+| Repositories, seeds, terminal recordings or existing tasks | [Research recipes](https://huggingface.github.io/Repo2RLEnv/pipelines/owned_recipes/) | Repository repair, reconstruction, terminal work, reasoning or optimization |
+
+The recipes include **SWE-smith, SWE-gen, SWE-Next, R2E, R2E-Gym, SWE-Flow,
+CodeMidas, SETA Seed2Synth, SETA Evol, TMax, Endless Terminals, TerminalWorld,
+CLI-Gym, DataArc, SCALER and FrontierSmith**. Their implementation lives in this
+repository, with [upstream credits and retained licenses](THIRD_PARTY_NOTICES.md).
+
+```bash
+repo2rlenv pipelines list
+repo2rlenv pipelines describe repo_mutate --recipe swe_smith
+```
+
+Native generation uses local Docker when it executes code. Tasksmith and research
+recipes execute target code on **Modal or Daytona** workers; supported GPU trials
+use Modal. [Choose a pipeline](https://huggingface.github.io/Repo2RLEnv/choose-a-pipeline/)
+compares inputs, rewards and requirements.
+
+## Tasksmith: an agent that builds environments
+
+Tasksmith uses **LangGraph with Pi or OpenCode** to investigate a merged PR,
+build its dependencies, design a human-readable task and verifier, and check the
+reference against the starting code. Review, verifier probes and a blind rollout
+then guide bounded repairs. Failed or incomplete attempts retain their diagnoses.
+
+Start with the [one-PR walkthrough](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith/#run-one-pr),
+then use [batch campaigns](https://huggingface.github.io/Repo2RLEnv/pipelines/tasksmith_parallel_campaigns/)
+to share bootstrap work and control spending.
+
+## Check task quality
+
+A generated task is not automatically suitable for training. Check that the
+reference works, the baseline fails as expected, and the verifier measures the
+instruction. The shared [quality loop](https://huggingface.github.io/Repo2RLEnv/pipelines/quality_loop/)
+can review files and rollouts, probe the verifier and repair supported offline tasks.
+The optional [evidence reviewer](https://huggingface.github.io/Repo2RLEnv/pipelines/evidence_review/)
+records findings with source excerpts and proposed repairs.
+
+Tasks carry uniform labels: `unverified`, `verified`, `needs_repair` or `blocked`.
+Labels describe retained evidence for that task revision; solver success is a
+separate measurement. [Quality and verification →](https://huggingface.github.io/Repo2RLEnv/concepts/quality/)
 
 ## Datasets
 
-Start from ours: **21 datasets and 1,930 tasks** in the
-[Repo2RLEnv collection](https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d),
-each with its generation evidence and per-task evaluation labels. Browse them in the
-[Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser), or pull one
-and run it:
+Browse the [FineEnvs collection](https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d)
+or [Harbor Visualizer](https://huggingface.co/spaces/HuggingFaceH4/harbor-visualiser).
+The [release inventory](https://huggingface.github.io/Repo2RLEnv/pipelines/releases/)
+records dataset revisions, counts and validation scope. The
+[yield and cost report](https://huggingface.github.io/Repo2RLEnv/pipelines/economics/)
+separates generation, quality review and solver costs.
+
+**[HF_ML_Tasksmith](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith)** contains
+50 tasks from Accelerate, Diffusers, PEFT, Transformers and TRL, labeled verified
+under the campaign's recorded checks. Other collections include unverified tasks.
+Older published artifacts do not automatically receive new generator or verifier fixes.
 
 ```bash
-repo2rlenv pull FineEnvs/repo2rlenv-pr-runtime ./pr-runtime
-harbor run -p ./pr-runtime -a oracle --env docker
+hf download FineEnvs/HF_ML_Tasksmith tasks.tar.gz --repo-type dataset --local-dir ./hf-ml-tasksmith
+tar -xzf ./hf-ml-tasksmith/tasks.tar.gz -C ./hf-ml-tasksmith
+repo2rlenv tasks list ./hf-ml-tasksmith/tasks
 ```
-
-Publishing your own is one command: `repo2rlenv push ./tasks <your-org>/<dataset>`. The
-[release inventory](https://huggingface.github.io/Repo2RLEnv/pipelines/releases/) and
-[yield and cost](https://huggingface.github.io/Repo2RLEnv/pipelines/economics/) pages report
-what each dataset contains and what it cost to generate.
-
-## Install
-
-```bash
-pip install repo2rlenv                               # native pipelines and the CLI
-pip install 'repo2rlenv[harbor]'                     # + Harbor, to run and review tasks
-pip install 'repo2rlenv[tasksmith,daytona,harbor]'   # + Tasksmith on Daytona (or modal)
-```
-
-`mutation` adds what `swe_smith` needs. Native runtime pipelines use local Docker;
-Tasksmith, the research recipes and the review loop need a Modal or Daytona account and
-run their controller on Linux, macOS or WSL. See
-[installation](https://huggingface.github.io/Repo2RLEnv/installation/) for every extra and
-credential.
 
 ## Documentation
 
-- **[Get started](https://huggingface.github.io/Repo2RLEnv/introduction/)**: introduction, quickstart, installation, choosing a pipeline
-- **[Concepts](https://huggingface.github.io/Repo2RLEnv/concepts/how-it-works/)**: how it works, anatomy of a task, rewards, quality and verification
-- **[Pipelines](https://huggingface.github.io/Repo2RLEnv/pipelines/)**: every generator, with stage diagrams and the exact prompts
-- **[Guides](https://huggingface.github.io/Repo2RLEnv/guides/run-with-harbor/)**: running with Harbor, remote workers, publishing, troubleshooting
-- **[CLI reference](https://huggingface.github.io/Repo2RLEnv/reference/cli/)** · **[Design RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/)** · **[Release notes](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/)**
+- [Install](https://huggingface.github.io/Repo2RLEnv/installation/) and [choose a pipeline](https://huggingface.github.io/Repo2RLEnv/choose-a-pipeline/).
+- [How it works](https://huggingface.github.io/Repo2RLEnv/concepts/how-it-works/): stages, execution and evidence.
+- [Pipeline catalog](https://huggingface.github.io/Repo2RLEnv/pipelines/) and [exact prompts](https://huggingface.github.io/Repo2RLEnv/pipelines/prompt_reference/).
+- [Run with Harbor](https://huggingface.github.io/Repo2RLEnv/guides/run-with-harbor/), [remote workers](https://huggingface.github.io/Repo2RLEnv/guides/remote-execution/) and [publishing](https://huggingface.github.io/Repo2RLEnv/guides/publishing/).
+- [CLI reference](https://huggingface.github.io/Repo2RLEnv/reference/cli/), [design RFCs](https://huggingface.github.io/Repo2RLEnv/rfcs/) and [release history](https://huggingface.github.io/Repo2RLEnv/release_notes/HISTORY/).
 
-The docs are also available as [`llms.txt`](https://huggingface.github.io/Repo2RLEnv/llms.txt)
-for coding agents.
+Docs describe current `main`; PyPI installs the latest published release. Use the
+[checkout installation](https://huggingface.github.io/Repo2RLEnv/installation/#from-a-checkout)
+for unreleased changes. A text index is available at
+[`llms.txt`](https://huggingface.github.io/Repo2RLEnv/llms.txt).
 
 ## Contributing
 
-New pipelines, recipes, log parsers and docs are all welcome. Read
-[CONTRIBUTING.md](https://github.com/huggingface/Repo2RLEnv/blob/main/CONTRIBUTING.md) and,
-for a new generator, start with an [RFC](https://huggingface.github.io/Repo2RLEnv/rfcs/) and
-the [guide to adding a pipeline](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/).
+Read [CONTRIBUTING.md](CONTRIBUTING.md). For a new generator, open an issue and
+start with an [RFC](https://huggingface.github.io/Repo2RLEnv/rfcs/) and the
+[pipeline contribution guide](https://huggingface.github.io/Repo2RLEnv/contributing/ADDING_A_PIPELINE/).
 
 ## License and credits
 
-Repo2RLEnv's own code is [Apache-2.0](https://github.com/huggingface/Repo2RLEnv/blob/main/LICENSE).
-The research recipes are credited, independent adaptations of published methods; bundled
-adaptations keep their MIT and Apache-2.0 licenses, so the distribution is
-`Apache-2.0 AND MIT`. [Third-party notices](https://github.com/huggingface/Repo2RLEnv/blob/main/THIRD_PARTY_NOTICES.md)
-link each recipe's source revision, retained material and attribution. Source
-repositories and generated tasks keep their own terms; check each dataset's license and
-provenance before redistributing it.
+Repo2RLEnv's own code is [Apache-2.0](LICENSE). Bundled adaptations retain MIT
+and Apache-2.0 terms, so the distribution is `Apache-2.0 AND MIT`.
+[Third-party notices](THIRD_PARTY_NOTICES.md) document each source and attribution.
+Generated tasks and source repositories retain their own license terms.

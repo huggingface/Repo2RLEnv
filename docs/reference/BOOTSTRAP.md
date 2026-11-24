@@ -5,6 +5,10 @@ navTitle: "Bootstrap"
 
 ## What is bootstrapping?
 
+This page covers the shared native repository bootstrap. Tasksmith has its own
+[profile-driven remote bootstrap](../pipelines/tasksmith.md#how-it-works);
+[trajectory generation](../pipelines/trajectory_to_env.md) builds images directly.
+
 Everything here is **local-first**. Bootstrap runs against your machine's Docker daemon, and the tasks it emits also run locally by default (`harbor run -a oracle -p ./task`). The same task directory also runs on cloud sandboxes (E2B / Modal / Daytona / Runloop) if you opt in with `harbor run --env <name>`, but you never have to leave your laptop to use any of this.
 
 To turn a GitHub repo into a verifiable RL task, you need a **Docker image where that repo builds cleanly and its test suite runs**. That image is what the synthesized tasks check out into, apply patches against, and verify with `pytest` / `go test` / `cargo test` / etc.
@@ -52,13 +56,10 @@ The CLI runs a pre-flight check: if you point a Python-only pipeline at a non-Py
 
 ## Choosing an LLM
 
-The bootstrap agent works with any LLM that LiteLLM supports. In practice:
-
-- A strong **code-focused** model (e.g. a recent Qwen-Coder via Hugging Face Inference Providers) handles clean libraries and CLI tools at the lowest cost.
-- A strong **general-purpose** model (e.g. a recent Claude Sonnet) handles moderately complex repos: compiled extensions, monorepos, non-trivial build systems.
-- A **flagship reasoning** model (e.g. Claude Opus or a frontier GPT) helps with full-stack apps or repos with unusual toolchain choices where the agent needs to debug across multiple layers.
-
-You don't have to pick perfectly. A weaker model will iterate more turns; a stronger model will finish faster but cost more per turn. The cost cap (below) bounds the worst case either way.
+Choose a model route supported by LiteLLM that can follow the bootstrap's action
+format and diagnose build logs. Start with one repository and inspect its commands,
+failures and recorded usage before scaling. A larger model is not guaranteed to
+finish faster or cost less; the repository's dependency requirements matter too.
 
 The `--llm` flag accepts a LiteLLM-format string. Some examples:
 
@@ -69,7 +70,8 @@ The `--llm` flag accepts a LiteLLM-format string. Some examples:
 | Hugging Face Inference Providers | `huggingface/<repo>:<provider>` (e.g. `huggingface/<org>/<model>:together`) |
 | Self-hosted vLLM / Ollama / any OpenAI-compatible server | `hosted_vllm/<model>` or `openai/<model>` with `--llm-endpoint http://host:8000/v1` (no API key needed) |
 
-Anything LiteLLM supports works, including Bedrock, Vertex, Mistral, and others.
+Other LiteLLM providers may work when their authentication and response contract
+fit this agent. Verify a small bootstrap before relying on a new route.
 
 ### API keys
 

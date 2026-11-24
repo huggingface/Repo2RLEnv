@@ -13,7 +13,8 @@ A pipeline turns source material, such as a repository, its pull requests or an 
 
 | Kind | Command | Where it runs |
 |---|---|---|
-| Native pipeline | `repo2rlenv generate --repo <repo> --pipeline <name>` | Your machine. `pr_diff` needs neither Docker nor an LLM; the others need Docker and `--llm` to [bootstrap](../reference/BOOTSTRAP.md) the repository once. |
+| Native pipeline | `repo2rlenv generate --repo <repo> --pipeline <name>` | Your machine. Repository runtime routes use [bootstrap](../reference/BOOTSTRAP.md); trajectory generation uses its own Docker lifecycle. PR-diff generation needs no Docker or model. |
+| Trajectory pipeline | `repo2rlenv generate --config examples/trajectory-to-env.yaml` | Local Docker; repair needs no authoring model. |
 | Tasksmith | `repo2rlenv tasksmith run <panel> --campaign … --output … --runtime-wheel …` | A Modal or Daytona worker. See [Tasksmith](tasksmith.md). |
 | Research recipe | `repo2rlenv generate --config <file>` with `pipeline.name` and `pipeline.recipe` set | A Modal or Daytona worker; there's no local fallback. See [Run research recipes](owned_recipes.md). |
 

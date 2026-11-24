@@ -284,6 +284,25 @@ def render(data: dict, frontiersmith: dict, audit: dict) -> dict[str, str]:
         "Publication checks for those 15 datasets compared 214,097 file identities and parsed every selected task with Harbor. This establishes artifact integrity and format, not semantic quality of every task. See [evaluation labels](task_evaluation_labels.md), [yield and cost](economics.md), and [how to publish](dataset_release.md).",
         "",
     ]
+    releases += [
+        "## Using older datasets",
+        "",
+        "The tables above describe the linked dataset revisions and their historical",
+        "checks. Updating Repo2RLEnv does not change those artifacts.",
+        "",
+        "- Older PR-diff tasks need the oracle-isolation migration and fresh controls",
+        "  before republishing; tracked in [#155](https://github.com/huggingface/Repo2RLEnv/issues/155).",
+        "- Older native runtime datasets need regeneration or verifier repair and fresh",
+        "  validation for reward-forgery fixes; tracked in [#211](https://github.com/huggingface/Repo2RLEnv/issues/211).",
+        "- Go and Rust registry leakage remains tracked in",
+        "  [#160](https://github.com/huggingface/Repo2RLEnv/issues/160). A scrubbed Git",
+        "  history alone does not close that source of solution leakage.",
+        "",
+        "For a new evaluation, retain the dataset revision, task hashes, runtime version",
+        "and fresh control results. Publish solver outcomes separately from quality labels.",
+        "The [publishing guide](../guides/publishing.mdx) explains how to preserve bundle identity.",
+        "",
+    ]
     return {
         "economics.md": accounting.overview(
             data, audit, frontiersmith, local_economics, native_economics
