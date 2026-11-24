@@ -293,7 +293,7 @@ repo2rlenv tasksmith run examples/tasksmith-pr.json \
   --options examples/tasksmith-options.json \
   --campaign workspace/tasksmith \
   --output workspace/tasksmith/run \
-  --runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith batch
@@ -317,7 +317,7 @@ Exits `0` when the plan's verified target was reached.
 
 ```bash
 repo2rlenv tasksmith batch plan.json --campaign workspace/campaign \
-  --output workspace/tasksmith-batch --runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl
+  --output workspace/tasksmith-batch --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith bootstrap
@@ -341,7 +341,7 @@ repo2rlenv tasksmith bootstrap MATRIX --campaign DIR --output DIR --runtime-whee
 
 ```bash
 repo2rlenv tasksmith bootstrap matrix.json --resource cpu --campaign workspace/campaign \
-  --output workspace/bootstrap-matrix --runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl
+  --output workspace/bootstrap-matrix --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith install-runtime
@@ -611,7 +611,7 @@ repo2rlenv quality run ./tasks/example \
   --campaign workspace/my-campaign \
   --out workspace/reviews/example \
   --run-rollout --provider modal \
-  --runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### quality show
@@ -759,6 +759,6 @@ repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
   --controls workspace/codemidas/runs/RUN/tasks/CANDIDATE \
   --campaign workspace/codemidas \
   --worker-receipt workspace/codemidas/workers/worker.json \
-  --runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl \
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl \
   --out workspace/codemidas/audits/TASK
 ```

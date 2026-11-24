@@ -7,7 +7,11 @@ install from a [checkout](../installation.mdx#from-a-checkout) to use unreleased
 
 ## Unreleased
 
-Changes on `main` since 0.9.6, checked November 24, 2026:
+No unreleased changes.
+
+## v0.9.7: Runtime reliability and clearer documentation
+
+Released November 24, 2026.
 
 - **More reliable runtime mining.** Go package build failures and Rust target
   compilation failures can supply scoped fail-to-pass evidence. Nested Jest
@@ -36,12 +40,20 @@ Changes on `main` since 0.9.6, checked November 24, 2026:
   caches, and grading accepts unchanged base symlinks while checking their targets
   ([#254](https://github.com/huggingface/Repo2RLEnv/pull/254),
   [#258](https://github.com/huggingface/Repo2RLEnv/pull/258)).
+- **Refreshed documentation.** Shorter onboarding, workflow-based navigation,
+  updated pipeline diagrams and source-generated native and trajectory prompt
+  references explain generation, verification and publishing
+  ([#275](https://github.com/huggingface/Repo2RLEnv/pull/275)).
 - Dependency and documentation-site updates include the external MDX runtime
   resolution fix ([#270](https://github.com/huggingface/Repo2RLEnv/pull/270)).
 
 These changes do not update previously published task files or establish new
 quality results. See [dataset maintenance](../pipelines/releases.md#using-older-datasets)
 before reusing historical artifacts.
+
+Upgrade with `pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.7`,
+adding the extras you use. For checkouts, run `uv sync --frozen` with your extras,
+rebuild remote worker wheels and rerun `repo2rlenv tasksmith install-runtime`.
 
 ## v0.9.6: Trajectory generation and isolated grading
 
