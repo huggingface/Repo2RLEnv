@@ -91,17 +91,18 @@ for dependency bounds and `uv.lock` for the exact checkout environment.
 
 ### Tested source compatibility
 
-As of **November 24, 2026**, `main` pins Harbor **0.26.0**, Daytona **0.231.0** and
-Modal **1.6.4**. Its lock selects LiteLLM **1.110.2**, OpenAI **3.51.0** and Hub
-**2.4.0**. These are the current source contracts, not the original 0.9.6 release's
-lock. The [unreleased notes](release_notes/HISTORY.md#unreleased) describe the changes.
+**Version 0.9.7** pins Harbor **0.26.0**, Daytona **0.231.0** and Modal **1.6.4**.
+Its repository lock selects LiteLLM **1.110.2**, OpenAI **3.51.0** and Hub **2.4.0**.
+Ordinary package installations resolve dependencies within the declared bounds;
+use the checkout lock to reproduce this exact combination. See the
+[0.9.7 release notes](release_notes/HISTORY.md#v097-runtime-reliability-and-clearer-documentation).
 
 Use the repository lock for remote adapters. A provider SDK's next major version
 is not automatically compatible with the controller or Harbor integration.
 
 ### Filelock security override
 
-Current source and the 0.9.6 release require patched `filelock>=4.2.1,<5` with a
+Version 0.9.6 and later require patched `filelock>=4.2.1,<5` with a
 compatible stable LiteLLM release. **No filelock override is needed.** The workaround
 for older 0.9.5 installations is historical; see the
 [0.9.5 release notes](release_notes/HISTORY.md#v095-verifier-hardening-and-stable-dependency-updates).
