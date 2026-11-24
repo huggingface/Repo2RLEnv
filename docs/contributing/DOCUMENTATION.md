@@ -47,7 +47,8 @@ node tools/check-tutorials.mjs # article metadata, discovery and feed coverage
 `npm run dev` and `npm run build` first regenerate `docs/pipelines/prompts/` from
 canonical templates and request-assembly code. That directory is ignored; edit the
 canonical prompt or `docs/_tools/generate_prompt_reference.py`, never the generated
-pages.
+pages. Native, trajectory, Tasksmith, quality and recipe references all use this
+generator. When adding a source group, register its page in `prompts/meta.json`.
 
 ## Write a page
 
@@ -70,6 +71,11 @@ film: pr-runtime   # optional: a live explainer film above the body
   trees, ```` ```mermaid ```` diagrams and `tab="…"` code tabs all render on the site.
 - In `.mdx` files you can also use `<Steps>`, `<Cards>`, `<Tabs>`, `<Callout>` and
   `<Film id="…" />`. Escape `<` and `{` in prose.
+
+Keep onboarding pages short: describe the outcome, prerequisites, one working path
+and the next useful link. Detailed flags belong in the CLI reference; measured
+counts and costs belong in the generated results pages. Distinguish current `main`
+from released packages, and generation checks from independent quality evidence.
 
 Each pipeline guide should explain its inputs, show one stage diagram, map model
 calls to their inputs and outputs, and describe verification and bounded repair.

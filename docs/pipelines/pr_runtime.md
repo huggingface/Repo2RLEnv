@@ -84,30 +84,45 @@ flowchart TD
    (`skip_ci_only`), whose test patch adds no test function or class
    (`require_new_test_funcs`), or that touch more than `max_source_files_per_pr`
    source files. `lite_filter` adds SWE-bench Lite-style constraints.
-6. **Validate twice** in one container started from the bootstrap image. Reset to
-   the base commit, apply the test patch and run the tests that patch touches; then
-   reset, apply the fix and the test patch, and run them again. Keep the PR if at
-   least `min_fail_to_pass` tests move from failed or errored to passed. A pytest
-   module that can't be imported at the base commit, because it imports something
-   the fix adds, counts as errored for every test in it, and the other files still
-   run unless the repository explicitly requests early stopping (such as `-x` or
-   `--maxfail=1`). The validation log records which modules contributed inferred
-   fail-to-pass tests. This includes pre-existing tests in those modules: collection
-   failed with the test patch applied, even if their bodies were unchanged. Go
-   commands use `-json`: tests are keyed as `package::test`, and an explicit build
-   failure at base allows the same inference only within that package. Missing
-   tests in other packages are not inferred. Legacy Go text logs remain readable
-   without build-failure inference. `cargo test` runs with `--message-format=json`:
-   tests are keyed as `<package>/<kind>/<target>::test` (doctests under
-   `<package>/doc/<lib>`), and a target that a compiler error names in a failed
-   build at base allows the same inference only within that target. Cargo runs no
-   tests at all when any target fails to compile, so tests in other targets have
-   no base status and are not inferred. Legacy Cargo logs keep unqualified names.
+6. **Validate the contrast.** Reset the validation container to the base commit,
+   apply the test patch and run the targeted tests. Reset again, apply the fix and
+   tests, and rerun. Keep stable fail-to-pass and pass-to-pass evidence. Repeated
+   runs remove flaky results; compilation/collection failures are attributed only
+   to the affected module, package or target (see below).
 7. **Write the instruction** from the linked issue (`Fixes #123`, including the
    `[#123](url)` form) when there is one, otherwise from the PR title and
    description. Solution pointers and template sections are stripped.
 8. **Emit the task** with the fix as the oracle and the test patch hidden inside
    `tests/test.sh`.
+
+### Collection and compilation failures
+
+A missing test is not automatically a failed test. The validator can infer a base
+failure only when explicit evidence identifies its scope and the test passes after
+the fix:
+
+| Runner | Scope and test identity |
+|---|---|
+| pytest | A module with a collection/import error; tests in other files continue unless explicit early-stop options are present |
+| Go JSON | A package with an explicit build failure; IDs are `package::test` |
+| Cargo JSON | A compiler-error target in a failed build; IDs are `<package>/<kind>/<target>::test`, with library-qualified doctests |
+
+Go uses `-json`; Cargo uses `--no-fail-fast --message-format=json`. Cargo may run no
+tests when one target fails to compile, but that does not mark unrelated targets
+as failed. Legacy text logs remain readable without this build-failure inference.
+Nested Jest suite names are preserved so similarly named tests remain distinct.
+
+### Timeouts and candidate failures
+
+`validation_timeout_sec` bounds a whole validation stage. The test launcher gets a
+shorter deadline so setup and cleanup fit: a 600-second stage allows 420 seconds
+for tests. A host-side timeout also stops leftover grading processes.
+
+One candidate's exception is logged with its identity and counted as
+`candidate_error` or `infra_error`; later PRs continue. Infrastructure failures
+replace the validation container. This does **not** provide a new dependency image
+or container for every PR. Revision-aware dependencies and stronger per-candidate
+isolation remain tracked in [#253](https://github.com/huggingface/Repo2RLEnv/issues/253).
 
 ## Options
 
@@ -120,7 +135,7 @@ Pass each option with `--pipeline-opt key=value`.
 | `skip_drafts` | `true` | Skip draft PRs |
 | `require_fail_to_pass` | `true` | Skip PRs with fewer than `min_fail_to_pass` F2P tests after validation |
 | `min_fail_to_pass` | `1` | Minimum number of F2P tests |
-| `validation_timeout_sec` | `600` | Timeout for each validation test run |
+| `validation_timeout_sec` | `600` | Whole-stage deadline; the test launcher reserves part of it for setup and cleanup |
 | `skip_validation` | `false` | Emit candidates without running tests. Tasks then have no F2P/P2P lists, a pass/fail exit-code reward and, with nothing measured, a 300 s per-run limit. For debugging |
 | `require_new_test_funcs` | `true` | Require the test patch to add at least one test function or class |
 | `skip_ci_only` | `true` | Skip PRs whose source changes are all under `.github/` |

@@ -1,79 +1,90 @@
 ---
 title: "Choose a pipeline"
-description: "Match your source material, reward and infrastructure to the right generator."
+description: "Choose a generator by its input, reward and execution requirements."
 ---
 
-Repo2RLEnv has seven native pipelines, Tasksmith, and 16 research recipes. Which one fits depends on what you start from, what kind of reward you need, and where you can run containers.
+Start with the **input you have** and the **behavior you want to reward**.
+`repo2rlenv pipelines list` shows the available native pipelines and recipes;
+Tasksmith has its own command group.
 
 ## Four questions
 
-1. **What's your source material?** A merged PR, a repository's commit history, a repository's own functions and APIs, a security advisory, recorded agent trajectories, or seeds such as question/answer pairs, existing Harbor tasks, terminal recordings or problem families.
-2. **Do you need a test-based reward?** Diff similarity scores an agent's patch against the real one without running any code. Test-based rewards run the repository's tests, so generation has to build an environment where they pass.
-3. **Where can you run containers?** Native pipelines build and check environments with Docker on your machine. Tasksmith and research recipes run on remote Modal or Daytona workers.
-4. **How much churn can you absorb?** `pr_diff`, `pr_runtime` and `commit_runtime` are stable. Everything else is experimental: its interface and output can change between releases.
+1. **What is the input?** PRs, commits, functions, advisories, agent sessions or task seeds?
+2. **What proves success?** Passing tests, reaching a shell state, matching an answer or improving an objective?
+3. **Where can target code run?** Local Docker for native execution; Modal or Daytona for recipes and Tasksmith.
+4. **What evidence do you need?** A generated example, a task with passing controls or a reviewed evaluation set?
+
+For merged PRs, use this decision path:
 
 ```mermaid
 flowchart TD
-  S{"What is your source?"}
-  S -->|"Merged PRs"| R{"Test-based reward?"}
-  R -->|"No"| PD["pr_diff"]
-  R -->|"Yes, local Docker"| PR["pr_runtime"]
-  R -->|"Yes, remote workers"| TS["Tasksmith"]
-  S -->|"Commit history"| CR["commit_runtime"]
-  S -->|"Functions or APIs"| FN["code_instruct or equivalence_tests"]
-  S -->|"Security advisories"| CV["cve_patches"]
-  S -->|"Agent trajectories"| TR["trajectory_to_env"]
-  S -->|"Seeds, tasks or recordings"| RR["Research recipe"]
+  P["Merged PR"] --> C{"Tests fail before<br/>and pass after?"}
+  C -->|"Yes"| R["pr_runtime<br/>Mine test-based tasks"]
+  C -->|"No"| D{"Need behavioral verification?"}
+  D -->|"Yes"| T["Tasksmith<br/>Design private tests"]
+  D -->|"No"| F["pr_diff<br/>Similarity and a judge"]
 ```
 
 ## Compare the routes
 
-| Route | Input | The agent's task | Reward | LLM at generation | Runs on | Status |
-|---|---|---|---|---|---|---|
-| [`pr_diff`](pipelines/pr_diff.md) | Merged PRs (GitHub, GitLab) | Reproduce the change a PR made | Diff similarity, 0–1, with a required LLM judge at verify time | No | Your machine; no Docker to generate | Stable |
-| [`pr_runtime`](pipelines/pr_runtime.md) | Merged PRs that add tests (GitHub, GitLab) | Make failing tests pass without breaking passing ones | Graded F2P × P2P, plus a strict `resolved` flag | Yes: bootstrap, cached per repository | Local Docker | Stable |
-| [`commit_runtime`](pipelines/commit_runtime.md) | Commit history (GitHub, GitLab, local path) | The same, mined from commits, with the instruction rewritten as a symptom | Graded F2P × P2P | Yes: bootstrap, plus one call per task for the instruction | Local Docker | Stable |
-| [`code_instruct`](pipelines/code_instruct.md) | A Python repository's source | Solve an LLM-authored problem grounded in the repository's APIs | Tests pass, 0/1 | Yes: problem, test and solution | Local Docker | Experimental |
-| [`equivalence_tests`](pipelines/equivalence_tests.md) | Python functions in a repository | Reimplement a function so it matches a hidden reference | Tests pass, 0/1 | Yes: the equivalence tests | Local Docker | Experimental |
-| [`cve_patches`](pipelines/cve_patches.md) | OSV advisories and their fix commits (GitHub, Python ecosystem) | Repair the vulnerability | Graded F2P × P2P | Yes: bootstrap, plus a proof-of-concept test when the fix ships none | Local Docker | Experimental |
-| [`trajectory_to_env`](pipelines/trajectory_to_env.md) | Recorded agent trajectories (ATIF, Claude Code, Codex or pi logs) | Repair a check the agent fixed, build or extend its project, or answer a data question | Check passes, 0/1; hidden tests, fraction passed; exact answer, 0/1 | Only for `build`, `extend` and `qa`: tests or questions | Local Docker | Experimental |
-| [Tasksmith](pipelines/tasksmith.md) | A merged PR that changes testable Python source | Implement the PR's behavior from a human-style request | Private behavioral tests, 0/1 | Yes: a Pi or OpenCode agent, plus review and repair | Modal or Daytona | Experimental |
-| [Research recipes](pipelines/owned_recipes.md) | Repositories, PR or commit history, question/answer seeds, Harbor tasks, terminal recordings, problem families | Repair, reconstruction, terminal, reasoning and optimization tasks | Tests pass, 0/1; SCALER scores −1/+1; FrontierSmith scores 0–1 continuously | Most recipes; SCALER is fully programmatic | Modal or Daytona | Experimental |
+| Route | Input → task | Reward | Generation requirements |
+|---|---|---|---|
+| [PR diff](pipelines/pr_diff.md) | Merged PR → reproduce its change | Similarity plus required correctness judge | GitHub/GitLab access; no Docker or LLM during generation |
+| [PR runtime](pipelines/pr_runtime.md) | PR with tests → repair source | Fail-to-pass × pass-to-pass rate | Local Docker; bootstrap model unless reusing a build |
+| [Commit runtime](pipelines/commit_runtime.md) | Commit with tests → repair source | Same test contrast | Local Docker; bootstrap and instruction model |
+| [CVE patches](pipelines/cve_patches.md) | OSV advisory and fix → vulnerability repair | Same test contrast | GitHub, Python, Docker; bootstrap and optional test authoring |
+| [Code instruct](pipelines/code_instruct.md) | Python API → implement a generated request | Hidden tests | Docker and model-authored problem, tests and solution |
+| [Equivalence tests](pipelines/equivalence_tests.md) | Python function → reimplement its behavior | Differential tests | Docker and generated tests |
+| [Trajectory to environment](pipelines/trajectory_to_env.md) | Agent session → repair, build, extend or QA | Check, test fraction or exact answer | Local Docker; model calls for build, extend and QA |
+| [Tasksmith](pipelines/tasksmith.md) | Merged Python PR → custom behavioral task | Private tests | Remote worker, Pi/OpenCode author and review models |
+| [Research recipes](pipelines/owned_recipes.md) | Recipe-specific source → repair, terminal or reasoning task | Recipe-specific deterministic verifier | Remote worker; most recipes also need a model |
 
-Graded F2P × P2P is the fraction of fail-to-pass tests the agent fixes times the fraction of pass-to-pass tests it keeps green. [Rewards](concepts/rewards.mdx) defines every reward kind. The [bootstrap](reference/BOOTSTRAP.md) is a one-time LLM agent loop that builds a working container for a repository; `--max-spend-usd` caps it (default $5).
+`pr_diff`, `pr_runtime` and `commit_runtime` are marked stable. The other routes
+are experimental. These are implementation statuses, not quality ratings for
+individual tasks. [Rewards](concepts/rewards.mdx) defines each score.
 
 ## If you want…
 
-- For a first dataset in minutes, without Docker or an LLM key, use `pr_diff`. The [Quickstart](quickstart.mdx) walks through it.
-- For SWE-bench-style tasks graded by the repository's own tests, use `pr_runtime`.
-- For a repository with few PRs, or one where fixes are committed straight to the main branch, use `commit_runtime`.
-- For tasks about using a library rather than its history, use `code_instruct`.
-- For function-level reimplementation tasks, use `equivalence_tests` locally, or the [`r2e`](pipelines/r2e.md) recipe on remote workers.
-- For security repair tasks, use `cve_patches`.
-- For one carefully built task per PR, even when the PR's own tests don't cover the change, use Tasksmith. It can write private behavioral tests, and it reviews and repairs each task before export.
-- For many repair tasks from one healthy repository, use [`swe_smith`](pipelines/repo_mutate.md), which introduces source defects for the agent to fix.
-- For terminal and shell tasks, use [`seta_seed2synth`](pipelines/terminal_synth.md), [`tmax`](pipelines/tmax.md), [`endless_terminals`](pipelines/endless_terminals.md) or [`terminalworld`](pipelines/terminalworld.md). For broken development environments, use [`cli_gym`](pipelines/env_repair.md).
-- For harder variants of Harbor tasks you already have, use [`seta_evol`](pipelines/task_evolve.md) or [`dataarc`](pipelines/dataarc.md).
-- For reasoning tasks with no repository at all, use [`scaler`](pipelines/scaler.md).
-- For open-ended optimization with a graded objective and no known optimum, use [`frontiersmith`](pipelines/frontiersmith.md).
-- To reproduce a specific published method, use its recipe. [Research recipes](pipelines/owned_recipes.md) maps each method to its pipeline name.
+| Goal | Good starting point |
+|---|---|
+| Learn the task format without building an image | [PR-diff quickstart](quickstart.mdx) |
+| Mine existing regression tests | [PR runtime](pipelines/pr_runtime.md) or [commit runtime](pipelines/commit_runtime.md) |
+| Design a task when a PR's own tests are insufficient | [Tasksmith](pipelines/tasksmith.md) |
+| Create repair tasks from a healthy repository | [SWE-smith](pipelines/repo_mutate.md) |
+| Reconstruct removed functions or features | [R2E](pipelines/r2e.md), [SWE-Flow](pipelines/repo_reconstruct.md), [CodeMidas](pipelines/codemidas.md) |
+| Create terminal tasks | [SETA Seed2Synth](pipelines/terminal_synth.md), [TMax](pipelines/tmax.md), [Endless Terminals](pipelines/endless_terminals.md) |
+| Reuse recordings or existing tasks | [TerminalWorld](pipelines/terminalworld.md), [SETA Evol](pipelines/task_evolve.md), [DataArc](pipelines/dataarc.md) |
+| Repair broken development environments | [CLI-Gym](pipelines/env_repair.md) |
+| Generate reasoning or optimization tasks | [SCALER](pipelines/scaler.md) or [FrontierSmith](pipelines/frontiersmith.md) |
+
+The [recipe guide](pipelines/owned_recipes.md) maps every method to its pipeline
+family, input format and example configuration. Recipes are owned implementations
+with documented differences from the cited research.
 
 ## Run your choice
 
-Each family starts differently:
-
-| Family | Start with |
+| Route | Entry point |
 |---|---|
-| Native pipeline | `repo2rlenv generate --repo org/service --pipeline <name> --out ./tasks`, adding `--llm provider/model` for every pipeline except `pr_diff` |
-| Research recipe | `repo2rlenv generate --config <recipe>.yaml`, with an `execution:` block that names a running worker, a runtime wheel and a campaign directory. The repository's `examples/owned-*.yaml` files are starting points. See [Remote execution](guides/remote-execution.mdx). |
-| Tasksmith | `repo2rlenv tasksmith run <panel>.json --campaign <dir> --output <dir> --runtime-wheel <wheel>`, following the [one-PR walkthrough](pipelines/tasksmith.md) |
+| Native repository pipeline | `repo2rlenv generate --repo org/service --pipeline NAME --out ./tasks` |
+| Trajectory pipeline | `repo2rlenv generate --config examples/trajectory-to-env.yaml` |
+| Research recipe | `repo2rlenv generate --config examples/owned-swe-smith.yaml` after [worker setup](guides/remote-execution.mdx) |
+| Tasksmith | Follow [Run one PR](pipelines/tasksmith.md#run-one-pr) to supply a panel, campaign and runtime wheel |
 
-`repo2rlenv pipelines list` shows every route with its status, and `repo2rlenv pipelines describe <pipeline> --recipe <recipe>` shows a recipe's input, scope and provenance.
+Native pipelines that bootstrap or author with a model also need `--llm
+provider/model` or an `llm` block. Trajectory repair has no authoring model call.
+Use `repo2rlenv pipelines describe repo_mutate --recipe swe_smith` to inspect a
+recipe's input and provenance without starting a paid run.
 
 ## Known limits
 
-- **Status is about the code, not the tasks.** A stable pipeline can still emit a weak task. Every exported task starts with the evaluation label `unverified`; its [controls](concepts/quality.mdx) and the [review and repair loop](pipelines/quality_loop.md) decide whether you should train on it.
-- **`limit` caps candidates, not output.** Each pipeline discards candidates that fail its filters, and test-based routes also drop candidates whose tests don't flip from failing to passing. A repository whose test suite doesn't run cleanly in a container yields almost nothing on any test-based route. [Pipelines](pipelines/index.mdx) lists typical yield per pipeline.
-- **Language and host coverage varies.** `pr_diff` works on any language. The bootstrap for `pr_runtime` and `commit_runtime` detects Python, Node, Go, Rust, Java and C/C++. `code_instruct`, `equivalence_tests`, `cve_patches` and Tasksmith target Python. `cve_patches` needs GitHub; `generate` rejects an unsupported source before doing any work.
-- **Remote routes have no local fallback.** Research recipes, Tasksmith and the quality loop need a Modal or Daytona worker.
-- **SEC-bench is deferred.** It appears in `pipelines list` as `planned` and isn't implemented.
+- **Candidate limits are not output targets.** Unsupported changes, failed builds
+  and missing test contrast reduce yield. Tasksmith also has bounded attempts;
+  it cannot guarantee one accepted task per PR.
+- **Language coverage varies.** Diff tasks are language-independent. Native
+  bootstrap supports several toolchains; synthesis pipelines and Tasksmith have
+  narrower source requirements. Check the route's guide.
+- **Recipe and Tasksmith execution is remote.** Their controllers need Linux,
+  macOS or WSL. Supported GPU trials require Modal.
+- **Generated and verified are different.** Check each task's
+  [evaluation label](pipelines/task_evaluation_labels.md) and retained evidence.
+- **SEC-bench is deferred.** It is listed as planned and is not implemented.

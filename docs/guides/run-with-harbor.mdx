@@ -14,10 +14,10 @@ Repo2RLEnv writes [Harbor tasks](../concepts/glossary.mdx#harbor-task); [Harbor]
 ## Install Harbor
 
 ```bash
-uv tool install harbor
+uv tool install 'harbor==0.26.0'
 ```
 
-Research-recipe and Tasksmith tasks use Harbor's schema 1.3 and were checked with Harbor 0.25.0, the version the `repo2rlenv[harbor]` extra pins. To run exactly that version, install `harbor==0.25.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]==0.25.0'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
+Current source pins Harbor 0.26.0 for its in-process adapters. Research recipes and Tasksmith emit schema 1.3 tasks. Historical datasets were checked with the runtime recorded in their evidence; changing the runner does not revalidate them. To run exactly that version, install `harbor==0.26.0`. For a cloud sandbox, add Harbor's extra for that provider, such as `uv tool install 'harbor[modal]==0.26.0' --with 'modal==1.6.4'` (see [Run in a cloud sandbox](#run-in-a-cloud-sandbox)).
 
 Repo2RLEnv's offline Docker and metered Modal adapters reject Harbor's SSH streaming mode. The native Modal adapter also rejects the removed `modal_sandbox_v2` option; use the pinned default backend. Historical execution reports retain the Harbor version that produced them.
 
@@ -55,7 +55,7 @@ The tasks land in `./swe-smith/tasks/`. Those cards run them on Daytona; see [Ru
 
 ## Check the tasks with the controls
 
-Before you score an agent, run the two controls. The [oracle](../concepts/glossary.mdx#oracle) agent applies the reference solution, so every task should score 1.0. The [nop](../concepts/glossary.mdx#nop) agent changes nothing, so every task should score 0.0.
+Before you score an agent, run the two controls. For the binary runtime tasks in this example, the [oracle](../concepts/glossary.mdx#oracle) should score 1 and the untouched [nop](../concepts/glossary.mdx#nop) task should score 0. Other reward kinds have different expected controls: SCALER uses −1/+1, FrontierSmith scores optimization, and PR-diff includes a model judge.
 
 ```bash
 harbor run -p ./pr-runtime -a oracle --env docker
@@ -145,10 +145,10 @@ Replace `--env docker` with a hosted sandbox provider to run many trials in para
 
 | `--env` | Install | Credentials |
 |---|---|---|
-| `modal` | `uv tool install 'harbor[modal]==0.25.0'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
-| `daytona` | `uv tool install 'harbor[daytona]'` | `DAYTONA_API_KEY` |
-| `e2b` | `uv tool install 'harbor[e2b]'` | `E2B_API_KEY` |
-| `runloop` | `uv tool install 'harbor[runloop]'` | `RUNLOOP_API_KEY` |
+| `modal` | `uv tool install 'harbor[modal]==0.26.0' --with 'modal==1.6.4'` | `modal setup`, or `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` |
+| `daytona` | `uv tool install 'harbor[daytona]==0.26.0' --with 'daytona==0.231.0'` | `DAYTONA_API_KEY` |
+| `e2b` | `uv tool install 'harbor[e2b]==0.26.0'` | `E2B_API_KEY` |
+| `runloop` | `uv tool install 'harbor[runloop]==0.26.0'` | `RUNLOOP_API_KEY` |
 
 ```bash
 harbor run -p ./swe-smith/tasks -a oracle --env daytona -n 16
@@ -180,7 +180,7 @@ The job's `result.json` groups statistics by agent, model and dataset. Its `metr
 jq -r '[.task_name, (.verifier_result.rewards.reward // "error")] | @tsv' jobs/my-run/*/result.json
 ```
 
-A trial with no reward failed before verification. Its `exception_info` says why. To browse trajectories in a web UI, run `harbor view jobs`.
+A trial with no reward failed before or during grading, or was deliberately left ungraded. Its `exception_info` says why. To browse trajectories in a web UI, run `harbor view jobs`.
 
 What a reward means depends on the pipeline:
 
@@ -189,11 +189,13 @@ What a reward means depends on the pipeline:
 | `pr_diff` | Weighted diff similarity in [0, 1] | `reward-details.json`: each component's score, the weights and the judge status |
 | `pr_runtime`, `commit_runtime`, `cve_patches` | `f2p_rate × p2p_rate` in [0, 1] | `reward-details.json`: strict `resolved` (every fail-to-pass test passes and no pass-to-pass test regresses), pass counts, regressions |
 | `code_instruct`, `equivalence_tests` | 1 or 0 (the test command's exit status) | None |
-| Research recipes (except SCALER) and Tasksmith | 1 or 0 | `result.json`: whether the required tests passed, with per-test statuses. CLI-Gym writes `reason.txt` when protected source was changed. |
+| Binary research recipes and Tasksmith | 1 or 0 | `result.json`: whether the required tests passed, with per-test statuses. CLI-Gym writes `reason.txt` when protected source was changed. |
+| FrontierSmith recipe | Continuous score in [0, 1] | Recipe-specific objective and feasibility evidence |
+| Trajectory tasks | Binary check, fraction of tests or exact answer | Depends on repair/build/extend/QA family |
 | SCALER recipe | −1 or +1 | `result.json`: the score and answer accuracy |
 
 [Rewards](../concepts/rewards.mdx) explains each design, and the [reward schema](../reference/REWARD_SCHEMA.md) documents every field.
 
 ## Limits
 
-An agent's score means something only if the task is sound, and a freshly exported task has passed nothing beyond its generator's own checks. Run the controls on every dataset you evaluate (the oracle should score 1 and nop 0), and prefer tasks labeled `verified` when you report a result. [Quality](../concepts/quality.mdx) explains how a task gets that label.
+An agent's score means something only if the task is sound, and a freshly exported task has passed nothing beyond its generator's own checks. Run the expected controls on every dataset you evaluate, and prefer tasks labeled `verified` when you report a result. [Quality](../concepts/quality.mdx) explains how a task gets that label.

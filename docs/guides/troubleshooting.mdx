@@ -57,7 +57,7 @@ Each entry starts from what you see, usually the exact message, then gives the c
 
 ## Bootstrap
 
-Test-based native pipelines first bootstrap a Docker image for the repository with an LLM agent, then cache it. [Bootstrap](../reference/BOOTSTRAP.md) explains the loop.
+The native repository runtime pipelines bootstrap a Docker image and cache it. Trajectory generation has a separate Docker build lifecycle. [Bootstrap](../reference/BOOTSTRAP.md) explains the loop.
 
 ### `Docker daemon is not running`
 
@@ -67,7 +67,7 @@ Test-based native pipelines first bootstrap a Docker image for the repository wi
 
 ### `pipeline '…' requires --llm (bootstrap needs an LLM to build the sandbox image)`
 
-**Cause.** Every native pipeline except `pr_diff` bootstraps, and bootstrapping needs a model.
+**Cause.** This repository pipeline needs a bootstrap model and no reusable build was supplied.
 
 **Fix.** Add `--llm provider/model`, such as `--llm anthropic/claude-sonnet-4-6`, and set that provider's key.
 
@@ -94,9 +94,9 @@ Self-hosted models aren't in LiteLLM's price table, so their calls count as $0 a
 
 ### `validate` rejects recipe or Tasksmith tasks with `missing top-level ['version']`
 
-**Cause.** A known bug. `validate` still requires the Harbor 1.0 `version` key, but research-recipe and Tasksmith output uses schema 1.3, which spells it `schema_version`. A fix is in progress.
+**Cause.** The CLI validator requires legacy `version` and `[task]` fields. Trajectory, recipe and Tasksmith tasks use newer `schema_version` layouts.
 
-**Fix.** Use `validate` on native output only for now. For schema 1.3 bundles, the end-to-end check is an oracle run with Harbor ([Run tasks with Harbor](run-with-harbor.mdx#check-the-tasks-with-the-controls)); `release stage` also checks each bundle's hash and parses it with Harbor.
+**Fix.** Use `validate` for the legacy native layout. For newer bundles, the end-to-end check is an oracle run with Harbor ([Run tasks with Harbor](run-with-harbor.mdx#check-the-tasks-with-the-controls)); `release stage` also checks each bundle's hash and parses it with Harbor.
 
 ### `no task.toml files found under …`
 
@@ -200,7 +200,7 @@ These apply to research recipes, Tasksmith and the quality loop. [Remote executi
 
 **Cause.** `quality run` needs a remote worker to execute trials for CPU tasks, and the worker runs the runtime wheel.
 
-**Fix.** Build it with `uv build --wheel` and pass `--runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl`.
+**Fix.** Build it with `uv build --wheel` and pass `--runtime-wheel dist/repo2rlenv-0.9.6-py3-none-any.whl`.
 
 ## Environment and platform
 

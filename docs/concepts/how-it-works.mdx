@@ -1,110 +1,109 @@
 ---
 title: "How it works"
-description: "The path from a source repository to a scored, published Harbor environment, and which machine runs each step."
+description: "Follow a task from source material through generation, evidence, execution and publication."
 ---
 
-Repo2RLEnv turns a source (a repository, a merged PR, a commit, a security advisory or a set of task seeds) into [Harbor tasks](glossary.mdx#harbor-task). Each task is a self-contained directory with an instruction, a container environment, a private verifier and a reference solution. This page walks through the lifecycle end to end and shows where each step runs.
+Every route produces the same kind of artifact: a [Harbor task](tasks.mdx).
+The generation method determines its starting state, instruction, verifier and
+reference solution. Later checks determine what you can claim about its quality.
 
 ```mermaid
 flowchart TD
-  S["Source: repo, PR, commit, CVE or seeds"] --> G["Generator: native pipeline, Tasksmith or research recipe"]
-  G --> T["Harbor task bundle"]
-  T --> C["Controls: static validate, Harbor nop = 0, oracle = 1"]
-  C --> R["Review and repair"]
-  R -. "repair: new revision" .-> T
-  R --> L["Evaluation label"]
-  L --> P["Publish: push or release"]
-  P --> U["Consume: Harbor agents for eval, RL training"]
+  S["Source: repository, PR, trajectory or seed"] --> G["Generate: native, Tasksmith or recipe"]
+  G --> T["Task bundle and generation evidence"]
+  T --> C["Check format and run reference/baseline controls"]
+  C --> R["Review instruction, verifier and solver trace"]
+  R -->|"Repairable defect and budget remains"| N["New task revision"]
+  N --> C
+  R --> L["Keep task with evidence label"]
+  L --> P["Run locally or publish a selected release"]
 ```
+
+A failed or incomplete review can leave a task available for diagnosis. Export,
+control success, quality acceptance and solver success are separate outcomes.
 
 ## Generation
 
-Three kinds of generator write the same output format. Pick one by the input you have and how much you want to run remotely.
+| Route | What happens | Entry point |
+|---|---|---|
+| Native pipelines | Mine existing changes or author tasks against source code; trajectory generation replays recorded sessions | `repo2rlenv generate` |
+| Tasksmith | Investigate a merged PR, bootstrap its dependencies, design private behavioral tests, construct and review the task | `repo2rlenv tasksmith run` |
+| Research recipes | Apply a specific published method through an in-repo implementation | `repo2rlenv generate --config FILE` with a recipe |
 
-| Generator | Input | Entry point | Runs on | Status |
-|---|---|---|---|---|
-| [Native pipelines](glossary.mdx#native-pipeline) | A repository and its PRs, commits, CVE advisories or functions, or recorded agent trajectories | `repo2rlenv generate --repo <repo> --pipeline <name>`, or `--config <file>` for trajectories | Your machine | `pr_diff`, `pr_runtime`, `commit_runtime` stable; `code_instruct`, `equivalence_tests`, `cve_patches`, `trajectory_to_env` experimental |
-| [Tasksmith](../pipelines/tasksmith.md) | Merged PRs | `repo2rlenv tasksmith run` | Controller plus remote worker | Experimental |
-| [Research recipes](../pipelines/owned_recipes.md) | Repositories, PR history, question/answer seeds, Harbor seed tasks, terminal recordings or reasoning families | `repo2rlenv generate --config <file>`, with `pipeline.name` and `pipeline.recipe` set in the file | Controller plus remote worker | 16 recipes, all experimental |
+Repository-based runtime pipelines use the shared [bootstrap](../reference/BOOTSTRAP.md)
+to prepare a reusable image. Trajectory generation has its own image-building
+lifecycle. Tasksmith can reuse dependency layers while checking each PR's pinned
+revision. [Choose a pipeline](../choose-a-pipeline.mdx) explains which route fits
+which input.
 
-Native pipelines that execute code (all except `pr_diff`) first [bootstrap](glossary.mdx#bootstrap) the repository: an LLM agent builds a Docker image in which the project installs and its test suite runs. The image is cached per repository and becomes the base of every task's `environment/Dockerfile`. `--max-spend-usd` caps that loop (default `5.0`).
+### Where prompts enter
 
-A research recipe implements a published generation method inside a [pipeline family](glossary.mdx#pipeline-family). For example, the `swe_smith` recipe of the `repo_mutate` family introduces a defect into healthy source. Tasksmith explores a merged PR with a coding agent and designs the request and verifier itself. Both produce offline schema 1.3 bundles, and most of them grade in a separate verifier container. See [Anatomy of a task](tasks.mdx) for both layouts.
+Model calls author instructions, tests or task designs, interpret evidence and
+propose repairs. Builds, test execution, schema checks and budget accounting are
+code. A stage named “reviewer” does not necessarily use a different model.
+
+Each pipeline guide maps its model calls to inputs, outputs and retry limits.
+[Prompt stages](../pipelines/prompt_reference.md) links to the exact templates and
+request assembly. Saved request receipts show the concrete source and failure
+feedback sent during a particular run; keep those private from the learner.
 
 ## Where code runs
 
-There are two execution models, and the difference matters for cost, credentials and isolation.
-
 ### Native pipelines run locally
 
-Everything happens on your machine. Model calls go to the provider you pass with `--llm`. Docker is needed only for bootstrap and for generation-time validation. For example, `pr_runtime` runs the test suite before and after the fix to find the tests the fix flips. `pr_diff` needs no Docker at all.
+Native generation runs on the controller. When it executes target code, it uses
+Docker. `pr_diff` only mines and packages during generation; its judge is called
+later during grading. Trajectory tasks use Docker directly rather than the
+shared repository bootstrap.
 
 ### Recipes, Tasksmith and the quality loop use a controller and a worker
 
-The [controller](glossary.mdx#controller) is the `repo2rlenv` process on your machine. The [worker](glossary.mdx#worker) is a Modal or Daytona sandbox that runs the `repo2rlenv` wheel you built, plus Docker.
+| Controller | Remote worker |
+|---|---|
+| Validate configuration and track budgets | Clone targets and build images |
+| Dispatch model requests and retain receipts | Execute target code and generated tests |
+| Assemble artifacts and bind evidence to hashes | Run controls, verifier probes and solver trials |
 
-| Step | Controller (your machine) | Worker (Modal or Daytona) |
-|---|---|---|
-| Preflight, metadata and parsing | Yes | |
-| Model calls, request logging, accounting | Yes | |
-| Cloning targets, building images | | Yes |
-| Running target tests, reference solutions, probes and solver trials | | Yes |
-| Assembling and hashing the exported bundle | Yes | |
+CPU execution uses Modal or Daytona. Supported GPU trials use native Modal L4
+sandboxes. These routes have no local execution fallback.
 
-Target code and generated code never execute on the controller, and there is no local fallback: a recipe run needs a running worker. You name that worker in the `execution:` block of the `--config` file, along with the campaign directory, a run ID and the runtime wheel. GPU tasks in Tasksmith and the quality loop use native Modal with one or two L4 GPUs instead of a Docker worker.
-
-A [campaign](glossary.mdx#campaign) is the directory that holds the budget ledger and worker receipts for a run. You set its spending limit once, explicitly. Every paid operation reserves its cost before dispatch. Completed model calls are settled from recorded usage. An operation with an unknown outcome keeps its reservation until you reconcile it with `campaign settle`, and it is never retried automatically. The ledger is an accounting limit, not a bill cap enforced by the provider.
-
-```bash
-repo2rlenv campaign init workspace/my-campaign --budget-usd 25
-repo2rlenv workers start --campaign workspace/my-campaign --provider modal \
-  --name my-worker --reserve-usd 3
-repo2rlenv workers probe workspace/my-campaign/workers/my-worker.json \
-  --out workspace/my-campaign/probes/first
-repo2rlenv campaign status workspace/my-campaign
-repo2rlenv workers stop workspace/my-campaign/workers/my-worker.json
-```
-
-Always stop workers you start. See [Remote execution](../guides/remote-execution.mdx) for setup and credentials.
+A [campaign](glossary.mdx#campaign) holds the ledger and receipts. Operations
+reserve budget before dispatch; uncertain outcomes retain their reservations
+until reconciled. The limit controls dispatch, not the provider's invoice.
+[Remote execution](../guides/remote-execution.mdx) covers setup, reuse and cleanup.
 
 ## Verification
 
-A task leaves the generator having passed that generator's own checks, such as a validated fail-to-pass contrast for `pr_runtime`. That makes it a generation result, not a verified task. Quality is established in three further layers:
+| Check | What it establishes | What it does not establish |
+|---|---|---|
+| Static format check | Required files and metadata exist | The image builds or the task is solvable |
+| Reference and baseline controls | The expected contrast in this environment | Complete coverage or resistance to reward hacks |
+| Review and verifier probes | Evidence for instruction quality, coverage, alternatives and leakage | An exhaustive proof of verifier correctness |
+| Blind solver rollout | How one model attempted this exact task | General difficulty or task quality by itself |
 
-1. **Static checks.** `repo2rlenv validate PATH --deep --oracle` reads each task's files and metadata without running anything. Use it on native output.
-2. **Controls.** In Harbor, the [nop](glossary.mdx#nop) agent (does nothing) must score 0 and the [oracle](glossary.mdx#oracle) agent (runs the reference solution) must score 1.
-3. **Review and repair.** `repo2rlenv quality run` reviews the instruction, verifier and leakage. It probes the verifier with a wrong solution and a valid alternative, runs a blind solver, and can repair defects as new revisions.
-
-The outcome is written to the task's [evaluation label](glossary.mdx#evaluation-label), bound to its [bundle hash](glossary.mdx#bundle-hash). See [Quality and verification](quality.mdx).
+`repo2rlenv validate --deep --oracle` checks the legacy native task layout. Schema
+1.2/1.3 bundles need Harbor's parser and execution controls; do not treat the
+legacy validator's schema error as a failed task. See [quality](quality.mdx) for
+commands and the remote review loop's supported task shapes.
 
 ## Publishing
 
-| Command | Use it for | What it does |
-|---|---|---|
-| `repo2rlenv push DIR org/name` | Native output | Creates or updates a Hugging Face dataset repo, writes a Harbor `registry.json` pinned to the commit, and pushes each task's bootstrap image to a container registry or inlines its Dockerfile |
-| `repo2rlenv release stage PLAN --out DIR`, then `release verify DIR` and `release publish DIR --receipt FILE` | Recipe and Tasksmith bundles | Publishes an explicit selection as an immutable release. Every task must match the bundle hash recorded in the release plan |
-| `repo2rlenv pull org/name[@rev]` | Consuming | Downloads a dataset from the Hub, a Harbor registry or GitHub |
+| Command | Use |
+|---|---|
+| `repo2rlenv push DIR org/name` | Publish native output, including distribution of bootstrap images |
+| `repo2rlenv release stage`, `verify`, `publish` | Publish an explicit, hash-bound selection of recipe or Tasksmith bundles |
+| `repo2rlenv pull org/name[@rev]` | Download a dataset using the Hub bridge |
 
-See [Publishing](../guides/publishing.mdx) for registry authentication, image modes and release plans, and the [CLI reference](../reference/cli.mdx#release) for every flag.
+For an exact copy of a recipe or Tasksmith release, use its `tasks.tar.gz`
+archive as shown on the dataset card. Keep evidence and labels bound to the same
+revision. [Publishing](../guides/publishing.mdx) explains the two publication paths.
 
 ## Consumption
 
-Harbor runs the tasks. Any Harbor agent can attempt them, locally in Docker or on a remote sandbox with `--env modal|daytona|e2b|runloop`:
+Harbor runs the reference, a no-op agent or a learner against the task. Its trial
+results contain rewards, errors and trajectories. For RL, consume scored results
+and distinguish ungraded failures from zero rewards. For evaluation, report the
+controls, task revision, model and runtime with the score.
 
-```bash
-uv tool install harbor
-harbor run -p ./tasks -a oracle --env docker
-harbor run -p ./tasks -a claude-code -m anthropic/claude-sonnet-4-6 \
-  --ak max_budget_usd=2.00 \
-  --ae ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --ve ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  --env docker
-```
-
-`--ae` passes variables to the agent. `--ve` passes them to the verifier, which the `pr_diff` LLM judge needs. For evaluation, read each trial's reward and details. For RL training, use the per-trial scalar as the reward. [Rewards](rewards.mdx) explains what the number means for each family. [Run tasks with Harbor](../guides/run-with-harbor.mdx) covers agents, parallelism and remote environments.
-
-<Cards>
-  <Card title="Anatomy of a task" href="tasks.mdx" description="Every file in a Harbor task, and who can see it." />
-  <Card title="Rewards" href="rewards.mdx" description="How each family is scored and where the score is written." />
-  <Card title="Quality and verification" href="quality.mdx" description="From generated to verified: controls, review and labels." />
-</Cards>
+Continue with [Run with Harbor](../guides/run-with-harbor.mdx), [Rewards](rewards.mdx)
+and [Quality and verification](quality.mdx).

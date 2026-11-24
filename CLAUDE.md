@@ -9,9 +9,9 @@ It is not a changelog and not a contributor guide. Those live elsewhere:
 | You want | Read |
 |---|---|
 | Dev setup, PR/commit conventions, code style, releases | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
-| Install → first dataset → push | [`docs/quickstart.md`](./docs/quickstart.md) |
-| What each pipeline does, its yield and options | [`docs/pipelines/README.md`](./docs/pipelines/README.md) |
-| Why a pipeline exists in its shape | [`docs/rfcs/`](./docs/rfcs/README.md) |
+| Install → first dataset → push | [`docs/quickstart.mdx`](./docs/quickstart.mdx) |
+| What each pipeline does, its yield and options | [`docs/pipelines/index.mdx`](./docs/pipelines/index.mdx) |
+| Why a pipeline exists in its shape | [`docs/rfcs/`](./docs/rfcs/index.md) |
 | Version history | [`docs/release_notes/HISTORY.md`](./docs/release_notes/HISTORY.md) |
 
 If anything here conflicts with the code, **trust the code** and fix this file.
@@ -23,7 +23,7 @@ training/eval dataset. End-to-end: **synthesis → standardize → train + eval*
 focused on training. Datasets are emitted in the
 [Harbor](https://github.com/harbor-framework/harbor) task format so they drop
 straight into Harbor's runtime ecosystem (Local Docker / Modal / Daytona / E2B /
-Runloop + 22 agent harnesses).
+Runloop and supported agent harnesses).
 
 GitHub: https://github.com/huggingface/Repo2RLEnv · PyPI: `repo2rlenv` · Apache-2.0.
 
@@ -66,7 +66,7 @@ Break these and the build, the CI, or the science breaks:
 
 Registry: `pipelines/__init__.py:PIPELINES`. Names: `spec/input.py:PipelineName`.
 Per-pipeline detail (yield, sources, options, reference datasets):
-[`docs/pipelines/README.md`](./docs/pipelines/README.md).
+[`docs/pipelines/index.mdx`](./docs/pipelines/index.mdx).
 
 | Pipeline | Shape | Status | RFC |
 |---|---|---|---|

@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { InstallCommand } from '@/components/home/install-command';
-import { Film } from '@/components/film';
 import { githubUrl } from '@/lib/shared';
 import { groups, inGroup, pipelines } from '@/lib/catalog';
 import { TasksmithFeature } from '@/components/pipeline-catalog';
@@ -23,13 +22,13 @@ const steps = [
     n: '01',
     title: 'Generate',
     body: 'Point a pipeline at a repository, a merged PR or a task seed.',
-    cmd: 'repo2rlenv generate --repo org/service --pipeline pr_runtime',
+    cmd: 'repo2rlenv generate --repo pallets/click --pipeline pr_diff --out ./tasks',
   },
   {
     n: '02',
-    title: 'Verify',
-    body: 'Check every task statically, then prove it: the oracle scores 1, a no-op scores 0.',
-    cmd: 'harbor run -p ./tasks -a oracle',
+    title: 'Check and review',
+    body: 'Check the reference and baseline, then review the instruction, verifier and solver trace.',
+    cmd: 'repo2rlenv validate ./tasks --oracle',
   },
   {
     n: '03',
@@ -63,16 +62,16 @@ export default function HomePage() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border bg-fd-background px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
           >
             <span className="size-1.5 rounded-full bg-brand" />
-            v{version}: FrontierSmith optimization synthesis
+            v{version} · Release history and unreleased changes
             <ArrowRight className="size-3" aria-hidden />
           </Link>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.035em] text-balance sm:text-6xl">
-            Turn any repository into <span className="text-brand">verifiable RL environments.</span>
+            Build <span className="text-brand">verifiable RL environments</span> for coding agents.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
             Repo2RLEnv generates coding, terminal and reasoning tasks in the Harbor format. Each one has an
-            instruction, a starting environment, a private verifier and a reference solution, ready
-            to train and evaluate agents.
+            instruction, a starting environment, a private verifier and a reference solution.
+            Review the evidence, then select tasks for training and evaluation.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -92,9 +91,6 @@ export default function HomePage() {
             <InstallCommand command="pip install repo2rlenv" />
           </div>
         </div>
-        <div className="relative mx-auto max-w-5xl px-6 pb-16">
-          <Film id="launch" />
-        </div>
       </section>
 
       {/* ---------- tasksmith, the flagship ---------- */}
@@ -105,9 +101,9 @@ export default function HomePage() {
             An agent that turns pull requests into environments.
           </h2>
           <p className="mt-3 max-w-2xl text-fd-muted-foreground">
-            Mining pipelines keep only the pull requests that pass their filters. Tasksmith adapts
-            to each one instead: it reads the change, builds the repository, writes the task and its
-            private verifier, and repairs its own work until the controls pass.
+            Tasksmith reads the change, builds the repository, and designs the instruction and
+            private verifier. Controls, probes and a blind rollout guide bounded repairs.
+            Each attempt keeps its result and diagnosis.
           </p>
           <div className="mt-10">
             <TasksmithFeature />
@@ -168,7 +164,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl px-6 py-20">
           <p className="eyebrow">how it works</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-            From source to a scored environment in three commands.
+            Generate, check, then put the tasks to use.
           </h2>
           <div className="mt-10 grid gap-px overflow-hidden rounded-xl border bg-fd-border sm:grid-cols-3">
             {steps.map((s) => (
@@ -223,11 +219,11 @@ export default function HomePage() {
       <section>
         <div className="mx-auto flex max-w-5xl flex-col items-center px-6 py-20 text-center">
           <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Generate your first environment in minutes.
+            Start with a task you can inspect.
           </h2>
           <p className="mt-3 max-w-xl text-fd-muted-foreground">
-            Or start from ours: 21 published datasets on the Hugging Face Hub, each with its
-            generation evidence and evaluation labels.
+            Or browse the published datasets. The release inventory records their task counts,
+            validation evidence and known limitations.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
@@ -248,7 +244,7 @@ export default function HomePage() {
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-xs text-fd-muted-foreground">
-          <span>© 2026 Hugging Face · Apache-2.0</span>
+          <span>© 2026 Hugging Face · Apache-2.0 AND MIT</span>
           <div className="flex gap-5">
             <a href={githubUrl} className="hover:text-fd-foreground">GitHub</a>
             <a href="https://pypi.org/project/repo2rlenv/" className="hover:text-fd-foreground">PyPI</a>

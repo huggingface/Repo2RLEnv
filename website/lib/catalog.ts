@@ -28,7 +28,7 @@ export const groups: { id: GroupId; title: string; summary: string }[] = [
   {
     id: 'repair',
     title: 'Repository repair',
-    summary: 'Fix real code in a real repository. The repository’s own tests decide the reward.',
+    summary: 'Repair repository behavior using upstream or authored tests.',
   },
   {
     id: 'implementation',
@@ -61,7 +61,7 @@ export const pipelines: Pipeline[] = [
     page: 'tasksmith',
     group: 'repair',
     kind: 'agentic',
-    shape: 'An agent turns one merged PR into a verified environment, then reviews and repairs it',
+    shape: 'Investigate a merged PR, build a task and review it with bounded repairs',
     reward: 'Private tests pass (0/1)',
     runs: 'remote',
     status: 'experimental',
@@ -235,7 +235,7 @@ export const pipelines: Pipeline[] = [
     group: 'similarity',
     kind: 'native',
     shape: 'Reproduce a merged PR’s fix from its description',
-    reward: 'Diff similarity in [0, 1]',
+    reward: 'Similarity + required judge (0–1)',
     runs: 'local',
     status: 'stable',
     dataset: { label: '181 tasks', href: hub('FineEnvs/repo2rlenv-pr-diff') },

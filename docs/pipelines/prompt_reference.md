@@ -3,11 +3,47 @@ title: "Follow a task through its prompts"
 navTitle: "Prompt stages"
 ---
 
-Each recipe guide numbers its real model calls `P1`, `P2` and so on. A role such
-as “test author” is a stage in the controller. It isn't necessarily a different
-model, or an autonomous coding agent. The current recipes send structured
-requests through the configured `llm` and run the generated scripts on the remote
-worker. They don't install an upstream research harness to do this.
+Start with the stage diagram in a pipeline guide, then inspect its prompts here.
+The exact references are generated from source at docs build time, so templates,
+request assembly and response schemas stay together.
+
+A stage called “test author” or “reviewer” is a role. It may use the same model as
+other stages. Only the learner's `instruction.md` is public; authoring context,
+reference code, private tests and review evidence stay outside the learner bundle.
+
+## Native pipelines
+
+| Route | Model calls | Exact source reference |
+|---|---|---|
+| Shared repository bootstrap | Inspect source and build/test feedback → next shell action → reusable image | [Bootstrap prompts and agent](prompts/native.md) |
+| `pr_diff` | None during generation; correctness judge during grading | [Reward and judge implementation](prompts/native.md#rewardpy) |
+| `pr_runtime` | Shared bootstrap only; PR mining and test contrast are code | [Bootstrap](prompts/native.md) and [pipeline stages](pr_runtime.md#how-it-works) |
+| `commit_runtime` | Bootstrap, then symptom report from the fix | [Instruction assembly](prompts/native.md#pipelinescommit_runtimepy) |
+| `code_instruct` | Source/API evidence → problem, test and reference solution | [Templates and assembly](prompts/native.md#pipelines_oss_instructpy) |
+| `equivalence_tests` | Reference function → differential tests | [Templates and assembly](prompts/native.md#pipelinesequivalence_testspy) |
+| `cve_patches` | Bootstrap; optional proof-of-concept authoring when tests are absent | [Templates and assembly](prompts/native.md#pipelinescve_patchespy) |
+| `trajectory_to_env` | No authoring call for repair; build/extend generate contracts and tests, QA generates a grounded question | [Family prompts and shared model budget](prompts/trajectory.md) |
+
+## Tasksmith and quality
+
+| Stage | Model input → output | Full reference |
+|---|---|---|
+| Tasksmith investigation | Pinned PR, checkout and failures → resource/dependency/test profile | [Investigation prompt](prompts/tasksmith.md#investigatemd) |
+| Tasksmith design | Accepted profile and PR intent → instruction, requirements and verifier plan | [Design prompt](prompts/tasksmith.md#designmd) |
+| Quality review | Exact task and bound evidence → assessments, findings and probe proposals | [Review prompts and schemas](prompts/quality_loop.md) |
+| Repair | Grounded defects and failed checks → bounded edits to a new revision | [Repair prompt](prompts/quality_loop.md#repairmd) |
+| Blind rollout | Learner-visible instruction and environment → candidate solution and trace | Selected Harbor agent; [execution guide](../guides/run-with-harbor.mdx) |
+
+Tasksmith's profile/design requests are separate from the quality models. Its
+[stage contracts](tasksmith.md#stage-contracts) describe the deterministic checks
+between calls. The [evidence reviewer](evidence_review.md) is opt-in; it does not
+replace deterministic task rewards.
+
+## Research recipes
+
+Recipe walkthroughs number calls `P1`, `P2` and so on. Most use the configured
+`llm` at each stage; CodeMidas and FrontierSmith expose additional model roles in
+their options. The detailed references include those choices.
 
 ## What is sent to the model
 
