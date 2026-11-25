@@ -74,10 +74,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
 
 
-@pytest.mark.skipif(shutil.which("git") is None or os.name == "nt", reason="needs git and sh")
-@pytest.mark.parametrize("clone_args", [["--filter=blob:none"], []], ids=["partial", "full"])
-def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_args):
-    """Run the scrub's RUN lines on a clone of base -> fix; only base may survive."""
+def _history_repo(tmp_path, monkeypatch, clone_args):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     for var in ("AUTHOR", "COMMITTER"):
@@ -87,6 +84,9 @@ def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_
     upstream.mkdir()
     _git(upstream, "init", "-q", "-b", "main")
     _git(upstream, "config", "uploadpack.allowFilter", "true")
+    (upstream / "README").write_text("An ancestor of the task base.\n")
+    _git(upstream, "add", ".")
+    _git(upstream, "commit", "-qm", "ancestor")
     (upstream / "lib.py").write_text("def f():\n    return 1\n")
     _git(upstream, "add", ".")
     _git(upstream, "commit", "-qm", "base")
@@ -99,11 +99,24 @@ def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_
     cloned = _git(tmp_path, "clone", "-q", *clone_args, f"file://{upstream}", str(workspace))
     assert cloned.returncode == 0, cloned.stderr
     assert _git(workspace, "reset", "-q", "--hard", base).returncode == 0
+    return workspace, base, fix
+
+
+def _scrub(workspace, base):
     for run in re.split(r"^RUN ", git_history_scrub(base), flags=re.MULTILINE):
         step = run.replace("\\\n", " ").strip()
         if step:
-            done = subprocess.run(["sh", "-c", step], cwd=workspace, capture_output=True, text=True)
-            assert done.returncode == 0, (step, done.stderr)
+            subprocess.run(
+                ["sh", "-c", step], cwd=workspace, capture_output=True, text=True, check=True
+            )
+
+
+@pytest.mark.skipif(shutil.which("git") is None or os.name == "nt", reason="needs git and sh")
+@pytest.mark.parametrize("clone_args", [["--filter=blob:none"], []], ids=["partial", "full"])
+def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_args):
+    """Run the emitted RUN lines; the base remains usable and the fix is absent."""
+    workspace, base, fix = _history_repo(tmp_path, monkeypatch, clone_args)
+    _scrub(workspace, base)
 
     assert _git(workspace, "cat-file", "-e", fix).returncode != 0
     objects = subprocess.run(
@@ -111,11 +124,33 @@ def test_git_history_scrub_leaves_no_later_objects(tmp_path, monkeypatch, clone_
     )
     assert b"the fix" not in objects.stdout
     commits = _git(workspace, "cat-file", "--batch-all-objects", "--batch-check")
-    assert [line.split()[0] for line in commits.stdout.splitlines() if " commit " in line] == [base]
+    stored_commits = {line.split()[0] for line in commits.stdout.splitlines() if " commit " in line}
+    assert stored_commits == set(_git(workspace, "rev-list", base).stdout.splitlines())
     # The verifier still resets files against base and diffs against it.
     assert _git(workspace, "checkout", base, "--", "lib.py").returncode == 0
     assert _git(workspace, "diff", "--quiet", base).returncode == 0
     assert _git(workspace, "fsck", "--no-progress").returncode == 0
+
+
+@pytest.mark.skipif(shutil.which("git") is None or os.name == "nt", reason="needs git and sh")
+@pytest.mark.parametrize("leftover", ["ref", "remote", "kept-pack"])
+def test_git_history_scrub_rejects_incomplete_cleanup(tmp_path, monkeypatch, leftover):
+    workspace, base, fix = _history_repo(tmp_path, monkeypatch, [])
+    if leftover == "ref":
+        assert _git(workspace, "update-ref", "refs/pull/1/head", fix).returncode == 0
+    elif leftover == "remote":
+        assert (
+            _git(workspace, "remote", "add", "backup", str(tmp_path / "upstream")).returncode == 0
+        )
+    else:
+        # A kept pack survives a successful gc even when all future refs vanish.
+        packs = list((workspace / ".git/objects/pack").glob("*.pack"))
+        assert packs
+        for pack in packs:
+            pack.with_suffix(".keep").touch()
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        _scrub(workspace, base)
+    assert "Git history scrub verification failed" in failure.value.stderr
 
 
 @pytest.mark.parametrize(

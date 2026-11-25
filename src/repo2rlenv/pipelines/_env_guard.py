@@ -153,8 +153,13 @@ def git_history_scrub(base_commit: str) -> str:
 
     A partial clone (`--filter=blob:none`, as `pr_diff` uses) keeps every
     fetched object in promisor packs, which `gc` repacks whether or not anything
-    still reaches them. So when promisor packs are present, the last line
+    still reaches them. So when promisor packs are present, the cleanup
     rewrites the object store to what the remaining refs reach.
+
+    The final step verifies the result rather than trusting best-effort cleanup:
+    only the base branch, its ancestors and their objects may remain. A retained
+    ref, remote or unreachable pack aborts the image build. This checks Git's
+    object store, not other build caches or lower image layers.
 
     Append these lines AFTER the `git reset --hard <base_commit>` line.
     """
@@ -177,6 +182,22 @@ def git_history_scrub(base_commit: str) -> str:
         '        && rm -f "$P/../scrub.list" "$P"/pack-* "$P"/multi-pack-index* \\\n'
         '        && touch "$P/scrub-$K.promisor" && git prune --expire=now; \\\n'
         "    fi\n"
+        # Audit actual stored objects too: checking refs alone misses a kept
+        # pack or a failed gc. Partial clones may omit promised base objects,
+        # but every object that is present must belong to the base's history.
+        "RUN export LC_ALL=C; "
+        f'test "$(git rev-parse --verify HEAD)" = "$(git rev-parse --verify {base_commit})" \\\n'
+        "    && test \"$(git for-each-ref --format='%(refname)')\" = refs/heads/base \\\n"
+        '    && test -z "$(git remote)" && test -z "$(git reflog show --all --format=%H)" \\\n'
+        '    && AUDIT="$(mktemp -d)" \\\n'
+        f'    && git rev-list --objects --missing=allow-promisor {base_commit} > "$AUDIT/reachable" \\\n'
+        '    && cut -d " " -f 1 "$AUDIT/reachable" > "$AUDIT/oids" \\\n'
+        '    && sort -u "$AUDIT/oids" > "$AUDIT/allowed" \\\n'
+        "    && git cat-file --batch-all-objects --batch-check='%(objectname)' > \"$AUDIT/stored\" \\\n"
+        '    && sort -u "$AUDIT/stored" > "$AUDIT/actual" \\\n'
+        '    && comm -23 "$AUDIT/actual" "$AUDIT/allowed" > "$AUDIT/unexpected" \\\n'
+        '    && test ! -s "$AUDIT/unexpected" && rm -rf "$AUDIT" \\\n'
+        '    || { echo "Git history scrub verification failed: retained refs, remotes or objects" >&2; exit 1; }\n'
     )
 
 
