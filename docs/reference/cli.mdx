@@ -38,8 +38,13 @@ repo2rlenv generate [--config FILE] [--repo REPO] [--pipeline NAME] [--recipe NA
 
 `generate` routes on `--recipe`:
 
-- **Native** (no `--recipe`, or `--recipe native`) runs on your machine. `pr_diff` needs neither Docker nor an LLM. Every other native pipeline needs `--llm` and Docker, because it first [bootstraps](../concepts/glossary.mdx#bootstrap) a container image for the repository.
-- **Research recipes** (`--recipe swe_smith`, …) and non-repository sources need a `--config` file with an `execution:` block and a running remote worker. There is no local fallback. See [Remote execution](../guides/remote-execution.mdx).
+- **Native repository pipelines** run on your machine. `pr_diff` only mines and
+  packages; runtime pipelines need Docker and a bootstrap model unless reusing a build.
+- **Trajectory generation** uses `--config examples/trajectory-to-env.yaml` and
+  Docker. Repair replays a recorded fix without a model; build, extend and QA
+  require one. This path does not use the shared repository bootstrap.
+- **Research recipes** need a config with an `execution:` block and a running
+  remote worker. See [remote execution](../guides/remote-execution.mdx).
 
 | Flag | Default | Description |
 |---|---|---|
@@ -97,16 +102,35 @@ repo2rlenv validate [--deep] [--oracle] PATH
 |---|---|---|
 | `PATH` | required | Dataset or single task directory. Every `task.toml` below it is checked. |
 | `--deep` | off | Also check each task's assets and metadata: instruction, environment definition, `tests/test.sh`, graded verifier files and the reproducibility table. |
-| `--oracle` | off | Implies `--deep`. Also require `solution/solve.sh` and, for native pipelines, a non-empty `solution/patch.diff`. |
+| `--oracle` | off | Implies `--deep`. Also require `solution/solve.sh`; native patch tasks additionally require a non-empty `solution/patch.diff`. |
 
 Without flags, `validate` confirms each `task.toml` parses and has a `[task]` name. It exits `1` if any task fails or if no `task.toml` is found. [Deep validation](SPEC.md#deep-validation) lists every check.
 
 > [!WARNING]
-> `validate` currently rejects research-recipe and Tasksmith output (schema 1.3 bundles) with `missing top-level ['version']`, because it still requires the Harbor 1.0 `version` key. A fix is in progress. Until then, use it on native pipeline output.
+> `validate` requires the legacy `version` and `[task]` fields. It rejects newer `schema_version` bundles, including trajectory, recipe and Tasksmith output. Use Harbor parsing and execution controls for those tasks; [release staging](../pipelines/dataset_release.md) also parses selected bundles.
 
 ```bash
 repo2rlenv validate ./tasks --oracle
 ```
+
+## migrate
+
+Inspect older emitted PR-diff tasks for stale grading assets and the old
+oracle-isolation layout:
+
+```bash
+repo2rlenv migrate pr-diff ./tasks
+```
+
+The default is a dry-run report. Add `--apply` to write supported repairs:
+
+```bash
+repo2rlenv migrate pr-diff ./tasks --apply
+```
+
+Keep a copy first, inspect the report and rerun the controls. Migration is a local
+artifact repair, not dataset publication or a quality acceptance check. See
+[older datasets](../pipelines/releases.md#using-older-datasets).
 
 ## push
 
@@ -269,7 +293,7 @@ repo2rlenv tasksmith run examples/tasksmith-pr.json \
   --options examples/tasksmith-options.json \
   --campaign workspace/tasksmith \
   --output workspace/tasksmith/run \
-  --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith batch
@@ -293,7 +317,7 @@ Exits `0` when the plan's verified target was reached.
 
 ```bash
 repo2rlenv tasksmith batch plan.json --campaign workspace/campaign \
-  --output workspace/tasksmith-batch --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl
+  --output workspace/tasksmith-batch --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith bootstrap
@@ -317,7 +341,7 @@ repo2rlenv tasksmith bootstrap MATRIX --campaign DIR --output DIR --runtime-whee
 
 ```bash
 repo2rlenv tasksmith bootstrap matrix.json --resource cpu --campaign workspace/campaign \
-  --output workspace/bootstrap-matrix --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl
+  --output workspace/bootstrap-matrix --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### tasksmith install-runtime
@@ -541,7 +565,7 @@ Review a Harbor task against evidence, and optionally run controls, probes and a
 repo2rlenv quality run TASK --campaign DIR --out DIR [--repair] [--run-rollout] [options]
 ```
 
-A run without `--repair` or `--run-rollout` makes model calls but creates no worker. Those two flags need a remote worker: `--runtime-wheel` for CPU tasks, or native Modal for tasks that request GPUs. They also accept only single-container tasks with `network_mode = "no-network"`, such as research-recipe and Tasksmith bundles. Native pipeline output stops with `Remote validation currently requires a single-container no-network Dockerfile task`.
+A run without `--repair` or `--run-rollout` makes model calls but creates no worker. Those two flags need a remote worker: `--runtime-wheel` for CPU tasks, or native Modal for tasks that request GPUs. They also accept only single-container tasks with `network_mode = "no-network"`, such as research-recipe and Tasksmith bundles. Unsupported native repository output stops with `Remote validation currently requires a single-container no-network Dockerfile task`.
 
 | Flag | Default | Description |
 |---|---|---|
@@ -553,6 +577,8 @@ A run without `--repair` or `--run-rollout` makes model calls but creates no wor
 | `--oracle PATH` | none | Same, for the reference solution. |
 | `--rollout PATH` | none | Same, for a solver rollout. |
 | `--probes FILE` | none | Task-bound JSON manifest of known counterexamples and valid alternatives. |
+| `--profile PROFILE` | `practical-generation-v1` | Default review or experimental `evidence-review-v2` with cited findings. |
+| `--review-guidance FILE` | none | Versioned guidance for `evidence-review-v2`; see reviewer evaluation. |
 | `--review-model PROVIDER/MODEL` | `anthropic/claude-sonnet-4-6` | Reviewer. Only `openai/` and `anthropic/` routes are accepted, for this and the other model flags. |
 | `--repair-model PROVIDER/MODEL` | the reviewer | Repair author. |
 | `--escalation-model PROVIDER/MODEL` | none | One stronger attempt when a review stays unresolved. |
@@ -585,7 +611,7 @@ repo2rlenv quality run ./tasks/example \
   --campaign workspace/my-campaign \
   --out workspace/reviews/example \
   --run-rollout --provider modal \
-  --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
 ```
 
 ### quality show
@@ -604,6 +630,21 @@ repo2rlenv quality show [--json] PATH
 ```bash
 repo2rlenv quality show workspace/reviews/example
 ```
+
+### Reviewer evaluation and feedback
+
+The opt-in evidence reviewer adds commands for testing the reviewer itself:
+
+| Command group | Purpose |
+|---|---|
+| `quality benchmark` | Run and inspect bounded comparisons on private, labeled task variants |
+| `quality feedback` | Record and adjudicate evidence about a specific finding |
+| `quality benchmark optimize` | Search for review guidance within an explicit budget |
+
+Use `repo2rlenv quality --help` and each group's `--help` for flags. The
+[reviewer evaluation guide](../pipelines/evidence_review.md) contains the manifest,
+examples, evidence boundaries and promotion criteria. These commands evaluate the
+reviewer; they do not change the task's deterministic reward.
 
 ## tasks
 
@@ -718,6 +759,6 @@ repo2rlenv codemidas audit workspace/codemidas/tasks/TASK \
   --controls workspace/codemidas/runs/RUN/tasks/CANDIDATE \
   --campaign workspace/codemidas \
   --worker-receipt workspace/codemidas/workers/worker.json \
-  --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl \
+  --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl \
   --out workspace/codemidas/audits/TASK
 ```

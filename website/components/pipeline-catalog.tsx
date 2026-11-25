@@ -12,7 +12,7 @@ export const tasksmithStages = [
   { title: 'Bootstrap', body: 'Builds the repository’s environment on a remote worker.' },
   { title: 'Design', body: 'Writes the instruction and a private verifier.' },
   { title: 'Construct', body: 'Assembles the Harbor task; the merged code is the oracle.' },
-  { title: 'Review and repair', body: 'Runs the controls and a blind solver, then fixes what fails.' },
+  { title: 'Review and repair', body: 'Uses controls, probes and a blind solver to guide bounded repairs.' },
 ];
 
 /** The flagship: Tasksmith, shown above the catalogue and on the landing page. */
@@ -27,9 +27,9 @@ export function TasksmithFeature() {
         </div>
         <h3 className="mt-3 text-2xl font-semibold tracking-tight">Tasksmith</h3>
         <p className="mt-2 max-w-2xl text-fd-muted-foreground">
-          Point an agent at a merged pull request and get a verified Harbor environment back.
-          Tasksmith investigates the repository, builds its environment, designs the task, then
-          reviews and repairs its own work until the controls pass.
+          Investigate a merged pull request, build its Harbor task and retain the review evidence.
+          Controls, verifier probes and a blind solver guide bounded repairs.
+          The final label records what was established and what still needs work.
         </p>
         <ol className="mt-6 grid gap-px overflow-hidden rounded-xl border bg-fd-border sm:grid-cols-5">
           {tasksmithStages.map((s, i) => (

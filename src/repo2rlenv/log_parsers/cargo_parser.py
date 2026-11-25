@@ -38,11 +38,19 @@ are keyed by file and item (`src/lib.rs - add`) and the worst status among
 an item's doctests wins. Otherwise a patch that shifts lines would lose the
 doctest from FAIL_TO_PASS / PASS_TO_PASS at grading time.
 
+New tasks run `cargo test --message-format=json`: Cargo's JSON messages
+(https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages)
+tie each test binary's `Running` header to its package and target, so results
+are keyed `<package>/<kind>/<target>::<test>` (doctests `<package>/doc/<lib>`),
+and a target named by a compiler error in a failed build gets a unit-level
+ERROR. Logs without those messages keep the legacy, unqualified keys.
+
 Released under Apache-2.0.
 """
 
 from __future__ import annotations
 
+import json
 import re
 
 from repo2rlenv.log_parsers.pytest_parser import TestStatus, _record_worst
@@ -65,20 +73,100 @@ _STATUS_MAP: dict[str, TestStatus] = {
     "ignored": "SKIPPED",
 }
 
-_DOCTEST_RANK: dict[TestStatus, int] = {"SKIPPED": 0, "PASSED": 1, "FAILED": 2}
+
+# `     Running unittests src/lib.rs (target/debug/deps/mycrate-9311986e2699f121)`
+_RUNNING_RE = re.compile(r"^\s*Running\s+\S.*\((?P<executable>[^()]+)\)\s*$")
+# `   Doc-tests mycrate`
+_DOCTESTS_RE = re.compile(r"^\s*Doc-tests\s+(?P<lib>\S+)\s*$")
+_LIB_KINDS = frozenset({"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"})
+
+
+def _file_name(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _cargo_package(package_id: str) -> str:
+    """The package name in a Cargo package ID.
+
+    Cargo 1.77+ writes `path+file:///w/crates/foo#foo@0.1.0`, or `...#0.1.0` when
+    the name matches the URL's last path segment; older Cargo `foo 0.1.0 (path+...)`.
+    """
+    if " " in package_id:
+        return package_id.split(" ", 1)[0]
+    url, _, fragment = package_id.partition("#")
+    name, at, _version = fragment.rpartition("@")
+    if at:
+        return name
+    return url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+
+
+def _cargo_unit(message: dict) -> str | None:
+    """`<package>/<kind>/<target>` for a Cargo JSON message, or None if malformed."""
+    package, target = message.get("package_id"), message.get("target")
+    if not isinstance(package, str) or not isinstance(target, dict):
+        return None
+    name, kinds = target.get("name"), target.get("kind")
+    if not isinstance(name, str) or not name or not isinstance(kinds, list) or not kinds:
+        return None
+    kind = "lib" if _LIB_KINDS.intersection(map(str, kinds)) else str(kinds[0])
+    unit = f"{_cargo_package(package)}/{kind}/{name}"
+    return None if "::" in unit or any(c.isspace() for c in unit) else unit
 
 
 def parse_cargo_test(log: str) -> dict[str, TestStatus]:
     """Return {test_name -> status} parsed from `cargo test` output.
 
-    Lines that don't match the `test NAME ... STATUS` shape are ignored —
-    they're either build output (`Compiling ...`), failure detail blocks,
-    or the final summary (`test result: ok. 5 passed; 0 failed; ...`).
+    With Cargo's JSON messages, tests are keyed `<unit>::<test>` and a target
+    with explicit build-failure evidence gets a unit-level ERROR (see the
+    module docstring). Lines that don't match the `test NAME ... STATUS` shape
+    are ignored: build output, failure detail blocks and the final summary.
+    Keep this implementation in sync with the standalone task verifier.
     """
     out: dict[str, TestStatus] = {}
     if not log:
         return out
+    legacy: dict[str, TestStatus] = {}
+    structured = False
+    executables: dict[str, str] = {}
+    libraries: dict[str, str] = {}
+    build_errors: set[str] = set()
+    build_failed = False
+    unit: str | None = None
     for raw in log.split("\n"):
+        if raw.startswith("{"):
+            try:
+                message = json.loads(raw)
+            except (ValueError, RecursionError):
+                message = None
+            reason = message.get("reason") if isinstance(message, dict) else None
+            if reason in ("compiler-artifact", "compiler-message", "build-finished"):
+                structured = True
+                found = _cargo_unit(message)
+                if reason == "compiler-artifact" and found:
+                    executable = message.get("executable")
+                    # Cargo reports every artifact before any test runs; the
+                    # first mapping wins, so JSON printed by a test can't move
+                    # a later binary's results to another target.
+                    if isinstance(executable, str) and executable:
+                        executables.setdefault(_file_name(executable), found)
+                    if found.split("/")[1] == "lib":
+                        libraries.setdefault(message["target"]["name"], found.split("/")[0])
+                elif reason == "compiler-message" and found:
+                    detail = message.get("message")
+                    if isinstance(detail, dict) and detail.get("level") == "error":
+                        build_errors.add(found)
+                elif reason == "build-finished" and message.get("success") is False:
+                    build_failed = True
+                continue
+        m = _RUNNING_RE.match(raw)
+        if m:
+            unit = executables.get(_file_name(m.group("executable").strip()))
+            continue
+        m = _DOCTESTS_RE.match(raw)
+        if m:
+            lib = m.group("lib")
+            unit = f"{libraries[lib]}/doc/{lib}" if lib in libraries else None
+            continue
         m = _CARGO_TEST_RE.match(raw)
         if not m:
             continue
@@ -88,9 +176,19 @@ def parse_cargo_test(log: str) -> dict[str, TestStatus]:
         if doctest:
             item = doctest.group("item")
             name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
-            if name in out and _DOCTEST_RANK[out[name]] > _DOCTEST_RANK[status]:
-                continue
-        _record_worst(out, name, status)
+        _record_worst(legacy, name, status)
+        if unit is not None:
+            _record_worst(out, f"{unit}::{name}", status)
+    if not structured:
+        return legacy
+    if build_failed:
+        for failed in build_errors:
+            out[failed] = "ERROR"
+            # A repeated command that passed once then failed to build must not
+            # retain a passing result from the earlier run.
+            for name in out:
+                if name.startswith(failed + "::"):
+                    _record_worst(out, name, "ERROR")
     return out
 
 

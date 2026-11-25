@@ -1,53 +1,62 @@
 ---
 title: "Introduction"
-description: "What Repo2RLEnv builds, why it exists, and where it fits next to Harbor."
+description: "Build Harbor tasks from repositories, pull requests, agent sessions and task seeds."
 ---
 
-Repo2RLEnv turns repositories, pull requests and task seeds into verifiable RL environments for coding agents. Each environment is a Harbor task (an instruction, a container, a hidden verifier and a reference solution) that you can run with any Harbor agent or feed to a trainer.
+Repo2RLEnv builds **RL training and evaluation tasks for coding agents**. It turns
+existing code and task material into a [Harbor task](concepts/tasks.mdx): an
+instruction, a starting environment, a verifier and a reference solution.
 
-<Film id="launch" />
+Repo2RLEnv generates and reviews the tasks. **Harbor runs agents against them.**
+You can keep tasks locally or publish them on the Hugging Face Hub.
 
-## Why it exists
+## Pick your starting point
 
-Reinforcement learning for coding agents needs tasks an agent can attempt and a reward a program can compute. Every task needs a reproducible environment, an instruction that doesn't give the answer away, a verifier that tells a correct change from an incorrect one, and a reference solution that proves the task is solvable.
+| You have | Start here |
+|---|---|
+| A repository and want a first export | [Quickstart](quickstart.mdx): mine PRs with `pr_diff`, without executing target code |
+| Merged PRs that need individual investigation | [Tasksmith](pipelines/tasksmith.md): author, build and review on a remote worker |
+| A research method you want to reproduce | [Research recipes](pipelines/owned_recipes.md): SWE-smith, R2E, SETA and other in-repo implementations |
+| Recorded agent sessions | [Trajectory to environment](pipelines/trajectory_to_env.md): repair, build, extend and question-answering tasks |
+| Existing Harbor tasks | [Run with Harbor](guides/run-with-harbor.mdx) or [review their quality](concepts/quality.mdx) |
 
-Building these by hand takes hours per task, and a useful training run needs thousands. Repo2RLEnv generates them from material that already exists, such as merged PRs, commit history, a library's own functions, security advisories and task seeds. It also gives you the checks to decide which ones to keep.
+[Choose a pipeline](choose-a-pipeline.mdx) compares all routes. Native generators
+use local Docker when they execute code; Tasksmith and research recipes use Modal
+or Daytona workers. Supported GPU trials use Modal.
 
-## What a Harbor task is
+## What you get
 
-[Harbor](https://github.com/harbor-framework/harbor) defines a task as a directory: `instruction.md` for the agent, `task.toml` for configuration and metadata, `environment/` for the starting container, `solution/` for the reference solution (the [oracle](concepts/glossary.mdx#oracle)), and `tests/` for the verifier. Harbor runs the agent inside the environment, then runs the verifier, which writes a reward to `/logs/verifier/reward.txt`. [Tasks](concepts/tasks.mdx) walks through the layout file by file.
+```files
+task/
+├── instruction.md     # the learner's request
+├── task.toml          # resources, provenance and evaluation label
+├── environment/       # the starting image and build context
+├── tests/             # private verifier and reward writer
+└── solution/          # reference solution, also called the oracle
+```
 
-## Three ways to generate tasks
+Most rewards come from deterministic tests or state checks. `pr_diff` combines
+patch similarity with a required correctness judge; SCALER and FrontierSmith use
+reasoning and optimization scores. [Rewards](concepts/rewards.mdx) explains the differences.
 
-- **[Native pipelines](concepts/glossary.mdx#native-pipeline):** seven built-in generators that mine a repository's PRs, commits, functions or CVEs, or recorded agent trajectories. They run on your machine, with Docker for test-based tasks.
-- **[Tasksmith](pipelines/tasksmith.md):** an agent investigates one merged PR, builds its environment, designs the task, then reviews and repairs it. It runs on Modal or Daytona workers.
-- **[Research recipes](pipelines/owned_recipes.md):** 16 in-repo implementations of published methods (SWE-smith, SWE-gen, R2E-Gym, SETA, SCALER, FrontierSmith and more) for repair, terminal and reasoning tasks. These also run on Modal or Daytona workers.
+## What counts as ready
 
-[Pipelines](pipelines/index.mdx) compares every route; [Choose a pipeline](choose-a-pipeline.mdx) helps you pick one.
+An export records what its generator checked. It is not a general quality guarantee.
+Check the reference solution, the untouched baseline, the instruction and the
+verifier. The [quality loop](pipelines/quality_loop.md) can add verifier probes,
+blind rollouts and bounded repairs for supported tasks.
 
-## Repo2RLEnv and Harbor
-
-Repo2RLEnv writes Harbor's task format directly. Its own provenance and quality labels live under `[metadata.repo2env]` in `task.toml`, so any Harbor-compatible runtime or trainer can consume the output unchanged.
-
-| | Repo2RLEnv | Harbor |
-|---|---|---|
-| Role | Authors, checks and publishes tasks | Defines the runtime contract and runs tasks |
-| Does | Mines sources; writes instructions, environments, verifiers and reference solutions; validates them; reviews and repairs them; records evaluation labels; pushes datasets to the Hugging Face Hub | Specifies the task format; builds sandboxes (Docker, Modal, Daytona, E2B, Runloop and others); runs agent harnesses (Claude Code, Codex, Gemini CLI, OpenHands and others); collects rewards |
-| You run | `repo2rlenv generate`, `validate`, `quality run`, `push` | `harbor run` |
-
-## Generated is not the same as verified
-
-An exported task is a generation result, not a guarantee. You establish its quality in two steps. First, the controls: the reference solution should score 1, and an agent that does nothing ([nop](concepts/glossary.mdx#nop)) should score 0. Then the [review and repair loop](pipelines/quality_loop.md) checks the instruction, the verifier and leakage against real learner rollouts. The outcome is stored in the task as an [evaluation label](pipelines/task_evaluation_labels.md), and every new task starts as `unverified`. [Quality](concepts/quality.mdx) explains the model.
-
-## Published datasets
-
-The [Repo2RLEnv collection](https://huggingface.co/collections/FineEnvs/repo2rlenv-verifiable-rl-environments-6aa82300d7494c050f50508d) on the Hugging Face Hub holds six native datasets and 15 Tasksmith and recipe datasets. The 15 hold 1,330 tasks, each carrying its evaluation label; the [release inventory](pipelines/releases.md) records their counts, revisions and validation scope. Download any dataset with `repo2rlenv pull` and run it with `harbor run`.
+[Evaluation labels](pipelines/task_evaluation_labels.md) preserve the outcome for
+the exact task revision. A task can be sound even when a solver fails it.
+Published dataset counts and validation evidence live in the
+[release inventory](pipelines/releases.md); measured costs live in
+[yield and cost](pipelines/economics.md).
 
 ## Next steps
 
 <Cards>
-  <Card title="Quickstart" href="quickstart.mdx" description="Generate, validate and run your first environment in about five minutes." />
-  <Card title="Installation" href="installation.mdx" description="Requirements, optional extras and the credentials each command needs." />
-  <Card title="Choose a pipeline" href="choose-a-pipeline.mdx" description="Match your source material and infrastructure to a generator." />
-  <Card title="How it works" href="concepts/how-it-works.mdx" description="From source material to a labeled Harbor task, stage by stage." />
+  <Card title="Quickstart" href="quickstart.mdx" description="Generate a first task, check its files and run its controls." />
+  <Card title="Installation" href="installation.mdx" description="Choose a package or checkout install and the extras you need." />
+  <Card title="Choose a pipeline" href="choose-a-pipeline.mdx" description="Match your input and desired reward to a generator." />
+  <Card title="How it works" href="concepts/how-it-works.mdx" description="Follow generation, review, execution and publication." />
 </Cards>

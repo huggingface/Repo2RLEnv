@@ -16,7 +16,11 @@ const config = {
   reactStrictMode: true,
   images: { unoptimized: true },
   outputFileTracingRoot: repoRoot,
-  turbopack: { root: repoRoot },
+  turbopack: {
+    root: repoRoot,
+    // Compiled MDX under ../docs must resolve the site's Fumadocs runtime.
+    resolveAlias: { 'fumadocs-core/server': './node_modules/fumadocs-core/dist/server.js' },
+  },
 };
 
 export default withMDX(config);

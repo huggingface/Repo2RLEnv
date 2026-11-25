@@ -126,7 +126,10 @@ produce a clean label; its input is retained as a skipped record. Explicit
 The prompts live next to each family in
 [`pipelines/trajectory/families/`](https://github.com/huggingface/Repo2RLEnv/blob/main/src/repo2rlenv/pipelines/trajectory/families/).
 Calls go through the shared LiteLLM client with a strict JSON schema. Responses are
-cached under `llm_cache_dir`, so reruns are free and stable.
+cached under `llm_cache_dir`. A matching cache hit avoids another model call;
+Docker builds and execution checks still consume compute.
+
+Read the [exact family prompts and request assembly](prompts/trajectory.md).
 
 ## Options
 
@@ -245,8 +248,9 @@ The checks and the skip reasons they record:
 | Trials | Any trial's reward differs from the expected one | `trials_failed` |
 | Budget | The run's LLM spend reached `max_llm_spend_usd` | `budget_exhausted` |
 
-- `solution/solve.sh` restores reference files, so `[metadata.repo2env].recipe` is
-  set and `validate --oracle` doesn't require a `patch.diff`.
+- `solution/solve.sh` restores reference files, so the oracle does not need a
+  `patch.diff`. These schema 1.2 bundles use Harbor parsing and execution controls;
+  the legacy `repo2rlenv validate` CLI does not accept their layout.
 - Generated bundles retain the uniform `unverified` evaluation label. Passing
   construction controls does not substitute for the review and blind rollout
   evidence required by the quality loop.

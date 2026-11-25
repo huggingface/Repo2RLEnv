@@ -2,11 +2,58 @@
 title: "Version history"
 ---
 
-Current release highlights followed by historical notes. `CLAUDE.md` carries
-only the compressed summary; the detail lives here.
+Released versions are listed below. The documentation follows current `main`;
+install from a [checkout](../installation.mdx#from-a-checkout) to use unreleased changes.
 
-For per-release deep dives see the sibling pages (`v0.8.2.post3.md`,
-`v0.8.3/`).
+## Unreleased
+
+No unreleased changes.
+
+## v0.9.7: Runtime reliability and clearer documentation
+
+Released November 24, 2026.
+
+- **More reliable runtime mining.** Go package build failures and Rust target
+  compilation failures can supply scoped fail-to-pass evidence. Nested Jest
+  suite names remain distinct. GitHub PR listing respects merge-date windows
+  ([#251](https://github.com/huggingface/Repo2RLEnv/pull/251),
+  [#269](https://github.com/huggingface/Repo2RLEnv/pull/269),
+  [#264](https://github.com/huggingface/Repo2RLEnv/pull/264),
+  [#259](https://github.com/huggingface/Repo2RLEnv/pull/259)).
+- **Bounded validation and clearer failures.** Test launchers leave cleanup time
+  inside the stage deadline; timed-out processes are stopped. Candidate failures
+  are recorded without losing the rest of a PR batch, and invalid UTF-8 in Docker
+  output no longer aborts decoding
+  ([#265](https://github.com/huggingface/Repo2RLEnv/pull/265),
+  [#266](https://github.com/huggingface/Repo2RLEnv/pull/266),
+  [#267](https://github.com/huggingface/Repo2RLEnv/pull/267)).
+- **Current runtime contracts.** Harbor 0.26.0 is tested with the offline and
+  native adapters. The stable client lock uses LiteLLM 1.110.2, OpenAI 3.51.0
+  and Hugging Face Hub 2.4.0. Daytona remains pinned to 0.231.0
+  ([#244](https://github.com/huggingface/Repo2RLEnv/pull/244),
+  [#272](https://github.com/huggingface/Repo2RLEnv/pull/272)).
+- **PR-diff artifact repair.** The migration command refreshes stale grading
+  assets as well as repairing the old oracle layout; image rebuilds, controls and
+  republishing datasets remain separate work
+  ([#252](https://github.com/huggingface/Repo2RLEnv/pull/252)).
+- **Task-image and configuration fixes.** Runtime tasks drop bootstrap bytecode
+  caches, and grading accepts unchanged base symlinks while checking their targets
+  ([#254](https://github.com/huggingface/Repo2RLEnv/pull/254),
+  [#258](https://github.com/huggingface/Repo2RLEnv/pull/258)).
+- **Refreshed documentation.** Shorter onboarding, workflow-based navigation,
+  updated pipeline diagrams and source-generated native and trajectory prompt
+  references explain generation, verification and publishing
+  ([#275](https://github.com/huggingface/Repo2RLEnv/pull/275)).
+- Dependency and documentation-site updates include the external MDX runtime
+  resolution fix ([#270](https://github.com/huggingface/Repo2RLEnv/pull/270)).
+
+These changes do not update previously published task files or establish new
+quality results. See [dataset maintenance](../pipelines/releases.md#using-older-datasets)
+before reusing historical artifacts.
+
+Upgrade with `pip install --upgrade --upgrade-strategy eager repo2rlenv==0.9.7`,
+adding the extras you use. For checkouts, run `uv sync --frozen` with your extras,
+rebuild remote worker wheels and rerun `repo2rlenv tasksmith install-runtime`.
 
 ## v0.9.6: Trajectory generation and isolated grading
 

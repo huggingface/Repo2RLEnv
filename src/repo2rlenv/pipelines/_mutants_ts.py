@@ -33,6 +33,7 @@ import logging
 import random
 import re
 from collections.abc import Callable, Iterator
+from functools import cache
 
 from repo2rlenv.pipelines._mutants import (
     MAX_DECOYS,
@@ -342,8 +343,9 @@ def _go_table_targets(statement, source: bytes, test: str, ids: list[str]) -> li
             continue
         kind = _literal_kind(want, "go")
         subtest = f"{test}/{_text(name, source)[1:-1].replace(' ', '_')}"
-        if kind is not None and subtest in ids:
-            out.append((want.start_byte, want.end_byte, kind, [subtest]))
+        covered = [name for name in ids if name.split("::", 1)[-1] == subtest]
+        if kind is not None and covered:
+            out.append((want.start_byte, want.end_byte, kind, covered))
     return out
 
 
@@ -453,7 +455,7 @@ _FINDERS = {"go": _go_tests, "rust": _rust_tests, "js": _js_tests}
 def _key_for(test_id: str, path: str, language: str) -> tuple[str, ...] | None:
     """The function key a runner-reported test ID belongs to in `path`, if any."""
     if language == "go":
-        return (test_id.split("/", 1)[0],)
+        return (test_id.split("::", 1)[-1].split("/", 1)[0],)
     if language == "rust":
         name = test_id.split(" - ", 1)[0].rsplit("::", 1)[-1].strip()
         return (name,) if name.isidentifier() else None
@@ -467,6 +469,23 @@ def _key_for(test_id: str, path: str, language: str) -> tuple[str, ...] | None:
 
 def _has_error(parser, text: str) -> bool:
     return parser.parse(text.encode("utf-8")).root_node.has_error
+
+
+def _go_package(path: str, read: Callable[[str], str | None]) -> str | None:
+    """Resolve a test's import path from its nearest go.mod, without running Go."""
+    directory = path.rpartition("/")[0]
+    root = directory
+    while True:
+        module = read(f"{root}/go.mod" if root else "go.mod")
+        if module is not None:
+            match = re.search(r'^\s*module\s+(?:"([^"\s]+)"|([^\s"`]+))', module, re.M)
+            if match is None:
+                return None
+            suffix = directory[len(root) :].strip("/") if root else directory
+            return (match[1] or match[2]).rstrip("/") + ("/" + suffix if suffix else "")
+        if not root:
+            return None
+        root = root.rpartition("/")[0]
 
 
 def make_tree_sitter_mutants(
@@ -489,9 +508,13 @@ def make_tree_sitter_mutants(
         return None
     sources: dict[str, str] = {}
     tests: dict[str, dict[tuple[str, ...], object]] = {}
+    go_packages: dict[str, str | None] = {}
+    read_module = cache(read)
     parsers = {}
     for path in files:
         language = language_of(path)
+        if language == "go":
+            go_packages[path] = _go_package(path, read_module)
         parser = _parser(language)
         if parser is None:
             logger.info(
@@ -511,6 +534,12 @@ def make_tree_sitter_mutants(
         for test in tests_ids:
             owners = []
             for path, found in tests.items():
+                if (
+                    path in go_packages
+                    and "::" in test
+                    and test.split("::", 1)[0] != go_packages[path]
+                ):
+                    continue
                 key = _key_for(test, path, language_of(path))
                 if key is not None and key in found:
                     owners.append((path, key))
@@ -570,7 +599,7 @@ def make_tree_sitter_mutants(
             if text is None or text == token:
                 continue
             if covered is None:  # a parent-level check: not its subtests
-                covered = [test for test in ids if "/" not in test] or ids
+                covered = [test for test in ids if "/" not in test.split("::", 1)[-1]] or ids
             name = function if covered == ids else f"{function} > {covered[0]}"
             if add(path, name, start, end, text, covered, "mutant"):
                 edited.add((path, key))

@@ -1,6 +1,8 @@
 {
   "title": "Full prompts (generated)",
   "pages": [
+    "native",
+    "trajectory",
     "shared_terminal",
     "quality_loop",
     "tasksmith",

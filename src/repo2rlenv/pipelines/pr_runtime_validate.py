@@ -46,6 +46,7 @@ from repo2rlenv.pipelines._mutants import Mutants, make_mutants, validated
 from repo2rlenv.pipelines._mutants_ts import language_of, make_tree_sitter_mutants
 from repo2rlenv.pipelines._node_runner import freeze_node_commands
 from repo2rlenv.pipelines.pr_runtime import (
+    _GIT_CLEAN_EXCLUDES,
     _PYTEST_COMMAND_RE,
     _PYTHONS,
     _access_flags,
@@ -88,6 +89,34 @@ _COPY_RE = re.compile(r"^R2E_COPY_SECONDS=([0-9.]+)$", re.MULTILINE)
 # later imports or executes from. No submission can be graded safely there.
 _UNSAFE_IMAGE = "R2E_TEST_EXIT_CODE=unsafe_image"
 _EXIT_RE = re.compile(r"^R2E_TEST_EXIT_CODE=(\d+)$", re.MULTILINE)
+# Kept out of the tests' share of a stage: reset and rebuild before them, the
+# launcher's purge (120 s deadline) after them.
+_STAGE_MARGIN_SEC = 180
+# What a stage killed only on the client side leaves behind: its script and
+# every process of the test user (the launcher's UID). No pkill in slim images.
+_KILL_SCRIPT = f"""
+import os, signal
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    if int(pid) == os.getpid():
+        continue
+    try:
+        info = os.stat(f"/proc/{{pid}}")
+        with open(f"/proc/{{pid}}/cmdline", "rb") as handle:
+            command = handle.read()
+        if info.st_uid == 20001 or b"{_LOG_DIR}/" in command:
+            os.kill(int(pid), signal.SIGKILL)
+    except OSError:
+        pass
+"""
+_KILL_STAGE = (
+    f'for p in {" ".join(_PYTHONS)}; do [ -x "$p" ] && exec "$p" -I -S -c '
+    f"{shlex.quote(_KILL_SCRIPT)}; done; true"
+)
+
+
+def _test_timeout(stage_timeout: int) -> int:
+    """The launcher's limit for the tests, so it stops and purges them in the stage."""
+    return max(stage_timeout - _STAGE_MARGIN_SEC, stage_timeout // 2)
 
 
 class _Stopwatch:
@@ -102,6 +131,9 @@ class _Stopwatch:
         started = time.monotonic()
         result = sandbox.exec(script, timeout=timeout)
         stage = time.monotonic() - started
+        if result.exit_code == 124 and "[timeout after" in (result.stderr or ""):
+            # Only `docker exec` was killed: stop the stage so the next one starts clean.
+            sandbox.exec(_KILL_STAGE, timeout=60)
         found = _SECONDS_RE.search(result.stdout or "")
         if found:
             self.samples.append((float(found.group(1)), stage))
@@ -164,6 +196,7 @@ def _build_stage_script(
     language: str | None = None,
     staged: dict[str, str] | None = None,
     keep_collecting: bool = False,
+    test_timeout: int | None = None,
 ) -> str:
     """Build the shell script for one validation stage (pre-fix or post-fix).
 
@@ -184,10 +217,9 @@ def _build_stage_script(
         "cd /workspace",
         "git config --global --add safe.directory /workspace",
         f"git reset --hard {base_commit}",
-        # Keep language dep/build dirs (node_modules, target, vendor, ...) so
-        # the clean doesn't wipe deps the suite needs. See _GIT_CLEAN_EXCLUDES.
-        "git clean -fdx -e .venv -e venv -e __pycache__ -e .tox "
-        "-e node_modules -e target -e vendor -e .gradle -e .next -e .pytest_cache || true",
+        # Same clean as the task image, so validation sees the tree the agent
+        # and the verifier see. See _GIT_CLEAN_EXCLUDES.
+        f"git clean -fdx {_GIT_CLEAN_EXCLUDES} || true",
     ]
     candidates = " ".join(_PYTHONS)
     parts.append(
@@ -264,9 +296,11 @@ def _build_stage_script(
         )
     parts.append(_child_path(language).rstrip("\n"))
     parts.append("set +x")
+    # Stop the tests inside the stage's budget, so the launcher kills and purges them itself.
+    limit = f"--timeout {test_timeout} " if test_timeout else ""
     parts.append(
         f'R2E_TEST_EXIT="$("$R2E_PY" -B -I -S {_LOG_DIR}/launcher.py --log {log} --cwd /workspace '
-        f'--path "$R2E_CHILD_PATH" {writable} --seconds-out {_LOG_DIR}/seconds '
+        f'--path "$R2E_CHILD_PATH" {writable} --seconds-out {_LOG_DIR}/seconds {limit}'
         # Later stages run in this container: delete what the tests left.
         f'--purge -- {shlex.quote(test_block)})"'
     )
@@ -460,6 +494,7 @@ def validate_pr(
         language=language,
         staged=_stage(sandbox, test_patch=test_patch),
         keep_collecting=True,
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
     pre = clock.run(sandbox, pre_script, timeout)
@@ -501,6 +536,7 @@ def validate_pr(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch),
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running post-fix stage")
     post = clock.run(sandbox, post_script, timeout)
@@ -557,7 +593,9 @@ def validate_pr(
             pass_to_pass.append(tname)
     # A test module that can't be imported at base, typically because it
     # imports what the fix adds, has no test IDs there: pytest reports one
-    # file-level ERROR. Its tests failed at base all the same.
+    # file-level ERROR. Go JSON likewise reports a package-level ERROR only
+    # with explicit build-failure evidence; its tests use package::test IDs.
+    # In either case, only tests from that exact unit can be inferred.
     uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
     promoted: dict[str, int] = {}
     for tname, post_st in post_status.items():
@@ -569,7 +607,8 @@ def validate_pr(
             promoted[module] = promoted.get(module, 0) + 1
     if promoted:
         logger.info(
-            "validate_pr: fail-to-pass tests inferred from base collection errors: %s", promoted
+            "validate_pr: fail-to-pass tests inferred from base collection/build errors: %s",
+            promoted,
         )
 
     # Diagnostics: when yield is poor, this tells us whether the suite even
@@ -706,6 +745,7 @@ def _validate_mutants(
         test_cmds=test_cmds,
         language=language,
         staged=_stage(sandbox, patch=patch, test_patch=test_patch, mutants=mutants),
+        test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running the mutant stage (%d tests)", len(mutants.ids))
     output = clock.run(sandbox, script, timeout).truncated(max_chars=5_000_000)

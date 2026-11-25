@@ -1,10 +1,10 @@
 ---
 title: "Tasksmith"
-navTitle: "Overview"
-description: "Repo2RLEnv's flagship generator: an agent turns a merged pull request into a Harbor environment with a private verifier, then checks and repairs its own work."
+navTitle: "Tasksmith"
+description: "Investigate a merged PR, build a Harbor task and review it with bounded repairs on remote workers."
 ---
 
-Tasksmith turns one merged pull request into a verified [Harbor task](../concepts/glossary.mdx#harbor-task). A coding agent investigates the repository, and a remote worker builds and tests its environment. The agent then designs the instruction and a private verifier, and a review loop checks the result against execution evidence and repairs what it can.
+Tasksmith investigates a merged pull request and attempts to build a reviewed [Harbor task](../concepts/glossary.mdx#harbor-task). A coding agent investigates the repository, and a remote worker builds and tests its environment. The agent then designs the instruction and a private verifier, and a review loop checks the result against execution evidence and repairs what it can.
 
 Deterministic mining keeps a PR only when it already fits one shape. [`pr_runtime`](pr_runtime.md), for example, needs the PR's own tests to flip from failing to passing in one repository-wide image. Tasksmith adapts to each PR instead. It picks the dependencies, tests and GPU count that PR needs, and writes behavioral tests where the PR's own tests fall short.
 
@@ -66,6 +66,9 @@ Read the exact author prompts for [investigation](prompts/tasksmith.md#investiga
 
 ## Run one PR
 
+These commands use current source. For package versus checkout compatibility, see
+[installation](../installation.mdx#tested-source-compatibility).
+
 You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent runtime), and `gh` on `PATH` and signed in, since intake reads PRs through it. You also need Modal or Daytona credentials and `ANTHROPIC_API_KEY`. Put the keys in `.env` in the directory you run the CLI from; the CLI loads it automatically. See [Remote execution](../guides/remote-execution.mdx#connect-a-provider) and [Authentication](../reference/AUTH.md).
 
 1. Install from a checkout with the Tasksmith, provider and Harbor extras. Use `--extra modal` instead of `--extra daytona` for Modal, which GPU tasks require.
@@ -82,7 +85,7 @@ You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent ru
    uv run repo2rlenv tasksmith install-runtime
    ```
 
-3. Build the runtime wheel that the worker installs. This writes `dist/repo2rlenv-0.9.5-py3-none-any.whl`. Rebuild it whenever the checkout changes; a stale wheel is refused.
+3. Build the runtime wheel that the worker installs. This writes `dist/repo2rlenv-0.9.7-py3-none-any.whl`. Rebuild it whenever the checkout changes; a stale wheel is refused.
 
    ```bash
    uv build --wheel
@@ -110,7 +113,7 @@ You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent ru
      --options examples/tasksmith-options.json \
      --campaign workspace/tasksmith \
      --output workspace/tasksmith/run \
-     --runtime-wheel dist/repo2rlenv-0.9.5-py3-none-any.whl
+     --runtime-wheel dist/repo2rlenv-0.9.7-py3-none-any.whl
    ```
 
    Progress prints stage by stage. The command exits `0` only when every PR in the panel produced a usable task. If the run is interrupted, run the same command again: completed stages are reused.
@@ -184,7 +187,7 @@ Both containers run offline. Required datasets and models must be pinned and ava
 
 ### Acceptance
 
-A task is **generated** once construction proves the fail-to-pass contrast and writes a bundle. It becomes **usable**, labeled `verified`, only when the quality loop, under the `practical-generation-v1` profile, finds the instruction and verifier sound, and its evidence shows all of the following:
+A task is **generated** once construction proves the fail-to-pass contrast and writes a bundle. It becomes **usable**, labeled `verified`, only when the quality loop, under its recorded profile (default `practical-generation-v1`), finds the instruction and verifier sound, and its evidence shows all of the following:
 
 - the untouched baseline fails and the reference passes;
 - a wrong solution is rejected and a valid alternative is accepted;
@@ -211,7 +214,7 @@ Dependency layers are cached on the provider worker, keyed by base image, depend
 
 ### Spend
 
-Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it's never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.25.0.
+Every worker, model call and trial reserves spend in the campaign ledger before dispatch. An interrupted or ambiguous request keeps its receipt and reservation until you reconcile it; it's never blindly replayed. GPU builds and trials run remotely on native Modal, and a CPU fallback is refused when GPUs were requested. Tasksmith uses Harbor 0.26.0.
 
 ## Results
 

@@ -323,14 +323,56 @@ _GO_STATUS = {"PASS": PASSED, "FAIL": FAILED, "SKIP": SKIPPED}
 
 
 def parse_go_test(log: str) -> dict[str, str]:
-    """{test_name -> status} from `go test -v` output."""
+    """Parse Go JSON events as ``package::test``, or legacy verbose text.
+
+    A package with explicit build-failure evidence gets a package-level ERROR.
+    Validation can attribute post-fix tests to that package without promoting
+    unrelated tests. Output events are never parsed as test results. Keep this
+    implementation in sync with the standalone task verifier.
+    """
     out: dict[str, str] = {}
-    if not log:
-        return out
+    legacy: dict[str, str] = {}
+    structured = False
+    build_errors: set[str] = set()
+    package_failures: set[str] = set()
     for raw in log.split("\n"):
-        m = _GO_TEST_RE.match(raw)
-        if m:
-            _record_worst(out, m.group("name"), _GO_STATUS[m.group("status")])
+        try:
+            event = json.loads(raw) if raw.startswith("{") else None
+        except (ValueError, RecursionError):
+            event = None
+        if not isinstance(event, dict):
+            m = _GO_TEST_RE.match(raw)
+            if m:
+                _record_worst(legacy, m.group("name"), _GO_STATUS[m.group("status")])
+            continue
+        package, action, test = event.get("Package"), event.get("Action"), event.get("Test")
+        if not isinstance(package, str) or not package or "::" in package:
+            continue
+        if not isinstance(action, str):
+            continue
+        structured = True
+        if isinstance(test, str) and test:
+            status = _GO_STATUS.get(action.upper())
+            if status:
+                _record_worst(out, f"{package}::{test}", status)
+        elif not test:
+            if action == "fail":
+                package_failures.add(package)
+                if isinstance(event.get("FailedBuild"), str) and event["FailedBuild"]:
+                    build_errors.add(package)
+            # Go before FailedBuild was introduced reports this exact package
+            # summary in an output event, followed by the package's fail event.
+            elif action == "output" and event.get("Output") == f"FAIL\t{package} [build failed]\n":
+                build_errors.add(package)
+    if not structured:
+        return legacy
+    for package in build_errors & package_failures:
+        out[package] = "ERROR"
+        # A repeated command that passed once then failed to build must not
+        # retain a passing result from the earlier run.
+        for name in out:
+            if name.startswith(package + "::"):
+                _record_worst(out, name, "ERROR")
     return out
 
 
@@ -339,7 +381,37 @@ _CARGO_TEST_RE = re.compile(r"^test\s+(?P<name>\S.*?) \.\.\. (?P<status>ok|FAILE
 _CARGO_MODE_RE = re.compile(r" - (?:should panic|compile fail|compile)$")
 _CARGO_DOCTEST_RE = re.compile(r"^(?P<file>\S+) - (?:(?P<item>.+?) )?\(line \d+\)$")
 _CARGO_STATUS = {"ok": PASSED, "FAILED": FAILED, "ignored": SKIPPED}
-_CARGO_DOCTEST_RANK = {SKIPPED: 0, PASSED: 1, FAILED: 2}
+_CARGO_RUNNING_RE = re.compile(r"^\s*Running\s+\S.*\((?P<executable>[^()]+)\)\s*$")
+_CARGO_DOCTESTS_RE = re.compile(r"^\s*Doc-tests\s+(?P<lib>\S+)\s*$")
+_CARGO_LIB_KINDS = frozenset({"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"})
+
+
+def _file_name(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _cargo_package(package_id: str) -> str:
+    """The package name in a Cargo package ID (new `...#name@ver` / `...#ver`, or `name ver (...)`)."""
+    if " " in package_id:
+        return package_id.split(" ", 1)[0]
+    url, _, fragment = package_id.partition("#")
+    name, at, _version = fragment.rpartition("@")
+    if at:
+        return name
+    return url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+
+
+def _cargo_unit(message: dict) -> str | None:
+    """`<package>/<kind>/<target>` for a Cargo JSON message, or None if malformed."""
+    package, target = message.get("package_id"), message.get("target")
+    if not isinstance(package, str) or not isinstance(target, dict):
+        return None
+    name, kinds = target.get("name"), target.get("kind")
+    if not isinstance(name, str) or not name or not isinstance(kinds, list) or not kinds:
+        return None
+    kind = "lib" if _CARGO_LIB_KINDS.intersection(map(str, kinds)) else str(kinds[0])
+    unit = f"{_cargo_package(package)}/{kind}/{name}"
+    return None if "::" in unit or any(c.isspace() for c in unit) else unit
 
 
 def parse_cargo_test(log: str) -> dict[str, str]:
@@ -347,12 +419,54 @@ def parse_cargo_test(log: str) -> dict[str, str]:
 
     Test modes (` - should panic`) are dropped from names, and doctests are
     keyed without their `(line N)` so line shifts don't change identity; the
-    worst status among an item's doctests wins.
+    worst status among an item's doctests wins. With Cargo's JSON messages,
+    tests are keyed by target and a failed target's build gets a unit-level
+    ERROR. Keep this implementation in sync with log_parsers/cargo_parser.py.
     """
     out: dict[str, str] = {}
     if not log:
         return out
+    legacy: dict[str, str] = {}
+    structured = False
+    executables: dict[str, str] = {}
+    libraries: dict[str, str] = {}
+    build_errors: set[str] = set()
+    build_failed = False
+    unit: str | None = None
     for raw in log.split("\n"):
+        if raw.startswith("{"):
+            try:
+                message = json.loads(raw)
+            except (ValueError, RecursionError):
+                message = None
+            reason = message.get("reason") if isinstance(message, dict) else None
+            if reason in ("compiler-artifact", "compiler-message", "build-finished"):
+                structured = True
+                found = _cargo_unit(message)
+                if reason == "compiler-artifact" and found:
+                    executable = message.get("executable")
+                    # First mapping wins: JSON printed by a test can't move a
+                    # later binary's results to another target.
+                    if isinstance(executable, str) and executable:
+                        executables.setdefault(_file_name(executable), found)
+                    if found.split("/")[1] == "lib":
+                        libraries.setdefault(message["target"]["name"], found.split("/")[0])
+                elif reason == "compiler-message" and found:
+                    detail = message.get("message")
+                    if isinstance(detail, dict) and detail.get("level") == "error":
+                        build_errors.add(found)
+                elif reason == "build-finished" and message.get("success") is False:
+                    build_failed = True
+                continue
+        m = _CARGO_RUNNING_RE.match(raw)
+        if m:
+            unit = executables.get(_file_name(m.group("executable").strip()))
+            continue
+        m = _CARGO_DOCTESTS_RE.match(raw)
+        if m:
+            lib = m.group("lib")
+            unit = f"{libraries[lib]}/doc/{lib}" if lib in libraries else None
+            continue
         m = _CARGO_TEST_RE.match(raw)
         if not m:
             continue
@@ -362,9 +476,19 @@ def parse_cargo_test(log: str) -> dict[str, str]:
         if doctest:
             item = doctest.group("item")
             name = f"{doctest.group('file')} - {item}" if item else doctest.group("file")
-            if name in out and _CARGO_DOCTEST_RANK[out[name]] > _CARGO_DOCTEST_RANK[status]:
-                continue
-        _record_worst(out, name, status)
+        _record_worst(legacy, name, status)
+        if unit is not None:
+            _record_worst(out, f"{unit}::{name}", status)
+    if not structured:
+        return legacy
+    if build_failed:
+        for failed in build_errors:
+            out[failed] = ERROR
+            # A repeated command that passed once then failed to build must not
+            # retain a passing result from the earlier run.
+            for name in out:
+                if name.startswith(failed + "::"):
+                    _record_worst(out, name, ERROR)
     return out
 
 
@@ -530,9 +654,10 @@ def parse_jest(log: str) -> dict[str, str]:
         ):
             continue
         indent_here = len(line) - len(stripped)
-        if current_file and (last_test_indent is None or indent_here < last_test_indent):
+        if current_file and (last_test_indent is None or indent_here <= last_test_indent):
             describe_stack = [(i, d) for i, d in describe_stack if i < indent_here]
             describe_stack.append((indent_here, stripped))
+            last_test_indent = None
     return out
 
 
@@ -586,10 +711,12 @@ def parse_logs(runner: str, log: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 def _has_go_parent(name: str, status_map: dict[str, str]) -> bool:
     """Return True if a Go test has an ancestor represented in the status map."""
-    parts = name.split("/")
+    package, separator, test = name.partition("::")
+    prefix = package + separator if separator else ""
+    parts = (test if separator else name).split("/")
 
     for i in range(1, len(parts)):
-        parent = "/".join(parts[:i])
+        parent = prefix + "/".join(parts[:i])
         if status_map.get(parent) == FAILED:
             return True
 

@@ -337,3 +337,76 @@ def test_custom_cargo_build_script_path_is_checked(repository):
     (root / "tools" / "gen.rs").write_text("fn main() { rewrite_tests() }\n")
     with pytest.raises(AgentChange, match="build script"):
         protect(root, sha)
+
+
+def _base_with_symlink(repository, link, target, files):
+    root, _, git = repository
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    (root / link).parent.mkdir(parents=True, exist_ok=True)
+    (root / link).symlink_to(target)
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    return root, git("rev-parse", "HEAD")
+
+
+ROOT_PYPROJECT = '[project]\nversion = "1.0"\n[tool.pytest.ini_options]\naddopts = "-q"\n'
+
+
+def test_unchanged_base_symlink_is_accepted(repository):
+    # networkx commits benchmarks/pyproject.toml -> ../pyproject.toml.
+    root, sha = _base_with_symlink(
+        repository,
+        "benchmarks/pyproject.toml",
+        "../pyproject.toml",
+        {"pyproject.toml": ROOT_PYPROJECT},
+    )
+    protect(root, sha)
+    (root / "pyproject.toml").write_text(ROOT_PYPROJECT.replace("1.0", "1.1"))
+    protect(root, sha)
+    assert (root / "benchmarks/pyproject.toml").is_symlink()
+
+
+def test_changed_base_symlink_is_rejected(repository):
+    root, sha = _base_with_symlink(
+        repository,
+        "benchmarks/pyproject.toml",
+        "../pyproject.toml",
+        {"pyproject.toml": ROOT_PYPROJECT, "other.toml": ROOT_PYPROJECT},
+    )
+    link = root / "benchmarks/pyproject.toml"
+    link.unlink()
+    link.symlink_to("../other.toml")
+    with pytest.raises(AgentChange, match="Symlinked runner configuration changed"):
+        protect(root, sha)
+    link.unlink()
+    link.write_text(ROOT_PYPROJECT)
+    with pytest.raises(AgentChange, match="Symlinked runner configuration changed"):
+        protect(root, sha)
+
+
+def test_settings_read_through_a_base_symlink_are_checked(repository):
+    # pytest reads pytest.ini through the link; its target is not itself a config name.
+    root, sha = _base_with_symlink(
+        repository,
+        "pytest.ini",
+        "settings/pytest.cfg",
+        {"settings/pytest.cfg": "[pytest]\naddopts = -q\n"},
+    )
+    protect(root, sha)
+    (root / "settings/pytest.cfg").write_text("[pytest]\naddopts = -p fake\n")
+    with pytest.raises(AgentChange, match="Symlinked runner configuration changed"):
+        protect(root, sha)
+
+
+def test_base_symlink_chain_is_rejected(repository):
+    root, sha = _base_with_symlink(
+        repository,
+        "pytest.ini",
+        "settings/link.ini",
+        {"settings/pytest.cfg": "[pytest]\naddopts = -q\n"},
+    )
+    (root / "settings/link.ini").symlink_to("pytest.cfg")
+    with pytest.raises(AgentChange, match="must point to a regular file"):
+        protect(root, sha)

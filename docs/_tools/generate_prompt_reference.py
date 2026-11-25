@@ -229,6 +229,14 @@ def tasksmith() -> str:
     return result.rstrip() + "\n"
 
 
+def source_reference(title: str, introduction: str, paths: tuple[str, ...]) -> str:
+    """Document inline prompts and their call sites without executing source."""
+    result = f"# {title}\n\n{introduction}\n\n"
+    for relative in paths:
+        result += block(ROOT / "src/repo2rlenv" / relative, label=relative)
+    return result.rstrip() + "\n"
+
+
 def pages() -> dict[str, str]:
     """Return deterministic pages without importing or executing pipeline code."""
     catalog = {r["id"]: r for r in json.loads((RECIPES / "catalog.json").read_text())}
@@ -236,6 +244,37 @@ def pages() -> dict[str, str]:
     expected["shared_terminal.md"] = shared()
     expected["quality_loop.md"] = quality_loop()
     expected["tasksmith.md"] = tasksmith()
+    expected["native.md"] = source_reference(
+        "Native generation and PR-diff judging: prompt reference",
+        "Read the [prompt stage map](../prompt_reference.md#native-pipelines) first. "
+        "These files contain the bootstrap instructions, authoring prompts and request "
+        "assembly. PR-diff's judge runs during grading, not generation. "
+        "Source is shown for inspection; this documentation executes none of it.",
+        (
+            "bootstrap/prompts.py",
+            "bootstrap/presets.py",
+            "bootstrap/agent.py",
+            "pipelines/_oss_instruct.py",
+            "pipelines/code_instruct.py",
+            "pipelines/equivalence_tests.py",
+            "pipelines/commit_runtime.py",
+            "pipelines/cve_patches.py",
+            "reward.py",
+        ),
+    )
+    expected["trajectory.md"] = source_reference(
+        "Trajectory generation: prompt reference",
+        "Read the [trajectory walkthrough](../trajectory_to_env.md#model-calls) first. "
+        "Repair replays an observed fix without authoring calls; build, extend and QA "
+        "assemble model requests from the session and reference artifacts. These "
+        "excerpts include the prompts, response handling and shared model budget.",
+        (
+            "pipelines/trajectory/families/build.py",
+            "pipelines/trajectory/families/extend.py",
+            "pipelines/trajectory/families/qa.py",
+            "pipelines/trajectory/llm.py",
+        ),
+    )
     return {name: with_title(text) for name, text in expected.items()}
 
 
