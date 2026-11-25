@@ -155,7 +155,7 @@ Replace `--env docker` with a hosted sandbox provider to run many trials in para
 harbor run -p ./swe-smith/tasks -a oracle --env daytona -n 16
 ```
 
-Harbor creates each `boxd` trial on an isolated [boxd](https://boxd.sh/?ref=Repo2RLEnv) machine, without the `boxd` and `run` CLIs. The machine keeps outbound internet. Isolation doesn't cover what you pass in: `--ae` and `--ve` values still reach the agent and verifier commands.
+Harbor creates each `boxd` trial on an isolated [boxd](https://boxd.sh/) machine, without the `boxd` and `run` CLIs. The host machine has outbound internet access; Harbor's task-level network policy still controls the task containers. Isolation doesn't cover what you pass in: `--ae` and `--ve` values still reach the agent and verifier commands.
 
 These sandboxes run Linux containers. Harbor's own [environment docs](https://www.harborframework.com/docs) list further providers.
 
