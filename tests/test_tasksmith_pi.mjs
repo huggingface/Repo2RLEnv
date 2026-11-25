@@ -1,6 +1,6 @@
 // Integration checks against the real pinned Pi SDK and a local Anthropic SSE
 // bridge. No model credentials, paid API requests, or cloud operations are used.
-// Run: node --test tests/test_pi_runtime.mjs
+// Run with TASKSMITH_TEST_RUNTIME set to the installed runtime directory.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -66,7 +66,7 @@ async function scenario(options = {}) {
           return;
         }
         replySSE(response, body.model, options.badResponse ? { ...options.badResponse } : requests.length === 1 || options.repeatTools
-          ? { name: options.requestTool ?? options.tools?.[0]?.function.name ?? tool.function.name, opaqueThinking: options.opaqueThinking, ...(options.toolArgs ? { args: options.toolArgs } : {}) }
+          ? { name: options.requestTool ?? options.tools?.[0]?.function.name ?? tool.function.name, opaqueThinking: options.opaqueThinking, ...(Object.hasOwn(options, "toolArgs") ? { args: options.toolArgs } : {}) }
           : {});
       } else if (request.url === "/tool") {
         effects.push(body);
@@ -188,9 +188,12 @@ test("Pi preserves nested JSON schema definitions and constraints at the Anthrop
   for (const request of run.requests) assert.deepEqual(request.tools[0].input_schema, parameters);
   assert.deepEqual(run.effects, [{ name: "submit_artifact", arguments: toolArgs }]);
   for (const [behavior, error] of [
-    [{ ...toolArgs.behaviors[0], description: "extra field" }, /additional properties/],
+    [{ ...toolArgs.behaviors[0], description: "extra field" }, /additionalProperties/],
     [{ id: "dynamic_batches", outcome: "Distribute variable batches" }, /source_evidence/],
-    [{ ...toolArgs.behaviors[0], source_evidence: "src/data_loader.py" }, /must be array/],
+    [{ ...toolArgs.behaviors[0], source_evidence: "src/data_loader.py" }, /expected array/],
+    [{ ...toolArgs.behaviors[0], source_evidence: [42] }, /expected string/],
+    [{ ...toolArgs.behaviors[0], source_evidence: [] }, /minItems/],
+    [{ ...toolArgs.behaviors[0], id: "INVALID" }, /pattern/],
   ]) {
     const invalid = await scenario({
       tools: [{ type: "function", function: { name: "submit_artifact", description: "Commit discovery", parameters } }],
@@ -199,6 +202,41 @@ test("Pi preserves nested JSON schema definitions and constraints at the Anthrop
     assert.equal(invalid.exitCode, 0, JSON.stringify(invalid.result));
     assert.deepEqual(invalid.effects, [], "Invalid nested arguments reached the bridge");
     assert.match(invalid.result.messages.find((message) => message.role === "tool").content, error);
+  }
+});
+
+test("Pi rejects coercible values before bridge effects and preserves valid values", { timeout: 30000 }, async () => {
+  const parameters = {
+    type: "object", additionalProperties: false,
+    properties: {
+      count: { type: "integer", minimum: 1 },
+      enabled: { type: "boolean" },
+      note: { type: "string", default: "do not insert this" },
+      nullable: { anyOf: [{ type: "string" }, { type: "null" }] },
+      labels: { type: "object", additionalProperties: { type: "string" } },
+    },
+    required: ["count", "enabled", "labels"],
+  };
+  const tools = [{ type: "function", function: { name: "submit_artifact", parameters } }];
+  const valid = { count: 2, enabled: false, nullable: null, labels: { source: "unit" } };
+  const accepted = await scenario({ tools, toolArgs: valid });
+  assert.equal(accepted.exitCode, 0, JSON.stringify(accepted.result));
+  assert.deepEqual(accepted.effects, [{ name: "submit_artifact", arguments: valid }]);
+  for (const args of [
+    { ...valid, count: "2" },
+    { ...valid, count: 2.5 },
+    { ...valid, count: 0 },
+    { ...valid, enabled: "false" },
+    { ...valid, note: null },
+    { ...valid, labels: { source: 42 } },
+    { ...valid, extra: true },
+    [valid],
+    null,
+  ]) {
+    const rejected = await scenario({ tools, toolArgs: args });
+    assert.equal(rejected.exitCode, 0, JSON.stringify(rejected.result));
+    assert.deepEqual(rejected.effects, [], `Invalid input reached the bridge: ${JSON.stringify(args)}`);
+    assert.match(rejected.result.messages.find((message) => message.role === "tool").content, /Invalid arguments/);
   }
 });
 
