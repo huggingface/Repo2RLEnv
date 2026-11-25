@@ -204,7 +204,7 @@ jobs:
   separate-verifier:
     name: Separate verifier attacks and Harbor
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -214,6 +214,12 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: uv sync --group dev --all-extras --frozen
+      # The Go and Rust fixtures add two more images; reclaim the preinstalled
+      # toolchains the runner does not need so everything fits on the disk.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - name: Replay submissions and verify the Harbor transfer boundary
         env:
           R2E_DOCKER_TESTS: "1"
@@ -222,6 +228,15 @@ jobs:
           uv run --all-extras --frozen pytest -q
           tests/test_separate_verifier_container.py
           tests/test_separate_verifier_harbor.py
+      # The solve-time overlay controls: oracle/no-op/regression on the merged
+      # Go and Rust fixtures with the emitted overlay in place, plus the cache
+      # miss, the vendored Go build and the model transport check.
+      - name: Go/Rust controls under the emitted egress overlay
+        env:
+          R2E_DOCKER_TESTS: "1"
+        run: >-
+          uv run --all-extras --frozen pytest -q
+          tests/test_egress_guard_overlay.py
 
   trajectory-controls:
     name: Trajectory lifecycle and Harbor controls
