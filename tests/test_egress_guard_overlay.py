@@ -16,11 +16,13 @@ to come from the pinned fixtures under ``tests/fixtures/egress_guard/``.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -39,12 +41,18 @@ GO_IMAGE = "r2e-egress-overlay-go:fixture"
 RUST_IMAGE = "r2e-egress-overlay-rust:fixture"
 
 GO_DOCKERFILE = (
+    "FROM node:24-bookworm-slim AS agent\n"
+    "RUN npm install --prefix /opt/agent --no-audit --no-fund "
+    "@anthropic-ai/claude-code@2.1.332 && /opt/agent/node_modules/.bin/claude --version\n"
     "FROM golang:1.23-bookworm\n"
+    "COPY --from=agent /opt/agent /opt/agent\n"
+    "COPY --from=agent /usr/local/bin/node /usr/local/bin/node\n"
+    'ENV PATH="/opt/agent/node_modules/.bin:${PATH}"\n'
     "COPY repo /workspace\n"
     "WORKDIR /workspace\n"
     # Dependencies installed at build time, as bootstrap's rebuild_cmds does, and
     # vendored so the vendored-build control has a tree to build from.
-    "RUN go mod download && go mod vendor\n"
+    "RUN go mod tidy && go mod vendor\n"
 )
 RUST_DOCKERFILE = (
     "FROM rust:1.83-slim-bookworm\n"
@@ -58,7 +66,7 @@ RUST_DOCKERFILE = (
 def _build(image: str, root: Path, language: str, dockerfile: str, timeout: int) -> str:
     """Build the pinned fixture image with its dependencies installed."""
     shutil.copytree(FIXTURES / language, root / "repo")
-    (root / "Dockerfile").write_text(dockerfile)
+    (root / "Dockerfile").write_text(dockerfile, encoding="utf-8")
     subprocess.run(["docker", "build", "-q", "-t", image, str(root)], check=True, timeout=timeout)
     return image
 
@@ -76,12 +84,22 @@ def rust_overlay_image(tmp_path_factory) -> str:
 
 
 def _run(image: str, args: tuple[str, ...], script: str, timeout: int = 300):
-    return subprocess.run(
-        ["docker", "run", "--rm", *args, image, "bash", "-lc", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    name = f"r2e-egress-{uuid.uuid4().hex}"
+    try:
+        return subprocess.run(
+            ["docker", "run", "--rm", "--name", name, *args, image, "bash", "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    finally:
+        # A host-side timeout kills the client, not the container it started.
+        subprocess.run(
+            ["docker", "rm", "-f", name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+        )
 
 
 def test_go_vendored_build_succeeds_offline(go_overlay_image: str):
@@ -133,17 +151,77 @@ def test_rust_cache_miss_fails_promptly(rust_overlay_image: str):
     assert elapsed < 120, f"cache miss took {elapsed:.1f}s; it should fail immediately"
 
 
+def test_rust_cached_build_succeeds_offline(rust_overlay_image: str):
+    done = _run(
+        rust_overlay_image,
+        _overlay_docker_args(LanguageHint.RUST),
+        "cargo test --locked && echo OFFLINE_OK",
+    )
+    assert done.returncode == 0, done.stderr
+    assert "OFFLINE_OK" in done.stdout, done.stdout
+
+
 def test_agent_reaches_its_allowed_model_endpoint(go_overlay_image: str):
-    """The overlay must not blackhole the model transport the agent needs."""
-    seen: list[str] = []
+    """Start the real preinstalled agent against a fake Anthropic endpoint."""
+    seen: list[dict] = []
+    answer = "OVERLAY_MODEL_OK"
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             length = int(self.headers.get("content-length") or 0)
-            seen.append(self.rfile.read(length).decode("utf-8", "replace"))
-            body = b'{"id":"msg_1","type":"message","role":"assistant","content":[]}'
+            request = json.loads(self.rfile.read(length))
+            path = self.path.split("?", 1)[0]
+            if path == "/v1/messages/count_tokens":
+                body = b'{"input_tokens": 10}'
+                content_type = "application/json"
+            elif path == "/v1/messages":
+                seen.append(request)
+                message = {
+                    "id": "msg_overlay",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": request["model"],
+                    "content": [{"type": "text", "text": answer}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                }
+                content_type = "application/json"
+                body = json.dumps(message).encode()
+                if request.get("stream"):
+                    content_type = "text/event-stream"
+                    events = [
+                        (
+                            "message_start",
+                            {"message": {**message, "content": [], "stop_reason": None}},
+                        ),
+                        (
+                            "content_block_start",
+                            {"index": 0, "content_block": {"type": "text", "text": ""}},
+                        ),
+                        (
+                            "content_block_delta",
+                            {"index": 0, "delta": {"type": "text_delta", "text": answer}},
+                        ),
+                        ("content_block_stop", {"index": 0}),
+                        (
+                            "message_delta",
+                            {
+                                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                                "usage": {"output_tokens": 5},
+                            },
+                        ),
+                        ("message_stop", {}),
+                    ]
+                    body = "".join(
+                        f"event: {kind}\ndata: {json.dumps({'type': kind, **data})}\n\n"
+                        for kind, data in events
+                    ).encode()
+            else:
+                self.send_error(404)
+                return
             self.send_response(200)
-            self.send_header("content-type", "application/json")
+            self.send_header("content-type", content_type)
             self.send_header("content-length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -151,7 +229,9 @@ def test_agent_reaches_its_allowed_model_endpoint(go_overlay_image: str):
         def log_message(self, *args):
             pass
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    # Linux containers reach the host's bridge interface, not its loopback.
+    # This opt-in fixture receives only a fixed fake credential.
+    server = ThreadingHTTPServer(("0.0.0.0", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -161,18 +241,23 @@ def test_agent_reaches_its_allowed_model_endpoint(go_overlay_image: str):
             (
                 *_overlay_docker_args(LanguageHint.GO),
                 "--add-host=host.docker.internal:host-gateway",
+                f"--env=ANTHROPIC_BASE_URL=http://host.docker.internal:{port}",
+                "--env=ANTHROPIC_API_KEY=fixture-not-a-real-key",
+                "--env=CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
+                "--env=DISABLE_AUTOUPDATER=1",
+                "--env=NO_PROXY=*",
             ),
-            "python3 - <<'PY'\n"
-            "import json, urllib.request\n"
-            f"req = urllib.request.Request('http://host.docker.internal:{port}/v1/messages',\n"
-            "    data=json.dumps({'model': 'mock', 'messages': []}).encode(),\n"
-            "    headers={'content-type': 'application/json'})\n"
-            "print(urllib.request.urlopen(req, timeout=10).status)\n"
-            "PY",
+            "claude --version && "
+            "claude --print --model claude-sonnet-4-6 --output-format json "
+            "--max-turns 1 --tools '' --no-session-persistence --setting-sources '' "
+            f"'Reply with {answer}'",
             timeout=120,
         )
     finally:
         server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
     assert done.returncode == 0, done.stderr
-    assert "200" in done.stdout, done.stdout
-    assert seen, "the mock endpoint never received a request"
+    assert "2.1.332" in done.stdout, done.stdout
+    assert answer in done.stdout, done.stdout
+    assert any(answer in json.dumps(request.get("messages")) for request in seen), seen
