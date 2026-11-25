@@ -1,0 +1,8 @@
+[package]
+name = "egressfixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Pinned exactly: the image's registry cache is built from this version.
+itoa = "=1.0.11"

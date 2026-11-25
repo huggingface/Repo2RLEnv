@@ -14,11 +14,19 @@ Harbor merges into its compose chain. It blackholes the fix-bearing hosts
 those hosts all fail, while general internet (the model API, the agent's own
 installer, apt) stays reachable.
 
+The same hole exists in every ecosystem whose registry serves source: Go's
+module proxy mirrors the repository, and crates.io serves the crate tarball.
+For those languages the overlay therefore also blackholes the registry hosts
+and sets the toolchain's offline switches, so a cache miss fails fast and
+legibly ("not in cache") instead of timing out inside the tool.
+
 This is a *denylist*, which is the realistic control at the docker-compose
 layer (`extra_hosts` can add host->ip pins but cannot default-deny). It closes
 the obvious, observed leak paths and, crucially, keeps a hosted agent like
 claude-code runnable (a full `allow_internet=false` block breaks the agent's
-own install + API access). The stricter, more robust form is a default-deny
+own install + API access). Hosts entries and offline variables are defence in
+depth, not isolation: a client that dials an IP literal, or a mirror that is
+not on the list, still gets through. The stricter, more robust form is a default-deny
 egress allowlist proxy (allow only the package manager + model API), or a
 PyPI mirror frozen to the task's base date so even the index lacks the fix.
 See docs/concepts/tasks.mdx (contamination defenses).
@@ -26,6 +34,7 @@ See docs/concepts/tasks.mdx (contamination defenses).
 
 from __future__ import annotations
 
+from repo2rlenv.bootstrap.spec import LanguageHint
 from repo2rlenv.sources import SourceKind
 
 # Hosts that serve the published fix / hidden tests for an open-source repo.
@@ -48,17 +57,86 @@ GITLAB_FIX_SOURCE_HOSTS: tuple[str, ...] = (
     "www.gitlab.com",
 )
 
+# proxy.golang.org is the sharpest case in any ecosystem: it is a full mirror of
+# the module source, so `go mod download <repo>@<version after the fix>` returns
+# the answer even when github.com is blackholed. sum.golang.org is on the list
+# because the checksum database is how the toolchain validates what it fetches.
+GO_FIX_SOURCE_HOSTS: tuple[str, ...] = (
+    "proxy.golang.org",
+    "sum.golang.org",
+)
 
-def fix_source_hosts(source_kind: SourceKind | None = None) -> tuple[str, ...]:
+# static.crates.io serves the published `.crate` tarball (crate source);
+# index.crates.io is the sparse registry index cargo resolves versions from.
+RUST_FIX_SOURCE_HOSTS: tuple[str, ...] = (
+    "crates.io",
+    "static.crates.io",
+    "index.crates.io",
+)
+
+# Offline switches for the same overlay. With the registry hosts blackholed, a
+# cache miss otherwise surfaces as a connection error from deep inside the
+# tool; these make it say "not in cache" instead. Dependencies are already in
+# the bootstrap image (installed via `rebuild_cmds`), and `_GIT_CLEAN_EXCLUDES`
+# in pr_runtime keeps `vendor/` and `target/` across the verifier's reset, so a
+# correct task never needs the network here.
+#
+# GOFLAGS is deliberately NOT set. `-mod=mod` would discard a repo's vendor/
+# tree and force a proxy fetch, which is the opposite of what we want; leaving
+# it alone keeps Go's default (vendor/ wins when vendor/modules.txt exists).
+# GOTOOLCHAIN is deliberately not pinned either: a bootstrap image may hold a
+# toolchain the go.mod asks for, and `local` would reject it.
+GO_OFFLINE_ENV: dict[str, str] = {"GOPROXY": "off", "GOSUMDB": "off"}
+RUST_OFFLINE_ENV: dict[str, str] = {"CARGO_NET_OFFLINE": "true"}
+
+
+def _language(value: LanguageHint | str | None) -> str:
+    """Normalise a language given as the enum, its value, or nothing."""
+    if value is None:
+        return ""
+    return str(getattr(value, "value", value)).strip().lower()
+
+
+def fix_source_hosts(
+    source_kind: SourceKind | None = None,
+    language: LanguageHint | str | None = None,
+) -> tuple[str, ...]:
     """Return the hosts to blackhole for a task mined from `source_kind`.
 
     The base list covers PyPI and GitHub. A GitLab-sourced repo's fix lives on
     gitlab.com, so a task built from one has to blackhole that too, or the
     agent can simply clone the repo and read the answer.
+
+    `language` adds the ecosystems that serve source under a different host.
+    Only Go and Rust are covered: npm is left alone on purpose, because several
+    installed agents fetch themselves from registry.npmjs.org at run time, and
+    denying one package there while allowing the rest needs an egress proxy
+    rather than `extra_hosts`.
     """
+    hosts = list(FIX_SOURCE_HOSTS)
     if source_kind is SourceKind.GITLAB:
-        return FIX_SOURCE_HOSTS + GITLAB_FIX_SOURCE_HOSTS
-    return FIX_SOURCE_HOSTS
+        hosts += GITLAB_FIX_SOURCE_HOSTS
+    language_name = _language(language)
+    if language_name == LanguageHint.GO.value:
+        hosts += GO_FIX_SOURCE_HOSTS
+    elif language_name == LanguageHint.RUST.value:
+        hosts += RUST_FIX_SOURCE_HOSTS
+    # dict.fromkeys keeps first-seen order while dropping any duplicate.
+    return tuple(dict.fromkeys(hosts))
+
+
+def offline_env(language: LanguageHint | str | None = None) -> dict[str, str]:
+    """Environment for the overlay that makes a cache miss fail fast.
+
+    Empty for languages whose registry we do not block, so their emitted task
+    is unchanged.
+    """
+    language_name = _language(language)
+    if language_name == LanguageHint.GO.value:
+        return dict(GO_OFFLINE_ENV)
+    if language_name == LanguageHint.RUST.value:
+        return dict(RUST_OFFLINE_ENV)
+    return {}
 
 
 def git_history_scrub(base_commit: str) -> str:
@@ -102,11 +180,19 @@ def git_history_scrub(base_commit: str) -> str:
     )
 
 
-def egress_guard_compose(hosts: tuple[str, ...] = FIX_SOURCE_HOSTS) -> str:
+def egress_guard_compose(
+    hosts: tuple[str, ...] = FIX_SOURCE_HOSTS,
+    language: LanguageHint | str | None = None,
+) -> str:
     """Return `environment/docker-compose.yaml` content blackholing `hosts`.
 
     Harbor includes a task's `environment/docker-compose.yaml` in its compose
     `-f` chain, so the `extra_hosts` entries land on the agent's `main` service.
+
+    `language` adds that ecosystem's offline switches (see `offline_env`) to the
+    same service, so a dependency that is not already in the image fails with
+    "not in cache" rather than a connection error from inside the tool. For
+    languages with no switches the overlay is exactly what it was before.
     """
     lines = [
         "# Auto-generated by Repo2RLEnv: anti-contamination egress guard.",
@@ -114,9 +200,14 @@ def egress_guard_compose(hosts: tuple[str, ...] = FIX_SOURCE_HOSTS) -> str:
         "# tests, so an agent cannot fetch the answer (pip download / git fetch /",
         "# WebFetch against these fail). General internet stays up so the agent",
         "# can install itself and reach its model API. See pipelines/_env_guard.py.",
+        "# Denylist plus offline switches: defence in depth, not isolation.",
         "services:",
         "  main:",
         "    extra_hosts:",
     ]
     lines += [f'      - "{h}:0.0.0.0"' for h in hosts]
+    env = offline_env(language)
+    if env:
+        lines.append("    environment:")
+        lines += [f'      {key}: "{value}"' for key, value in env.items()]
     return "\n".join(lines) + "\n"
