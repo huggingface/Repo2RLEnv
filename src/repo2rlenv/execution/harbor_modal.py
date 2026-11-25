@@ -91,8 +91,8 @@ class MeteredModalEnvironment(ModalEnvironment):
         await upload_directory(self, source_dir, target_dir)
 
     def __init__(self, *args, **kwargs):
-        if version("harbor") != "0.25.0":
-            raise RuntimeError("Native GPU execution requires the tested Harbor 0.25.0 contract")
+        if version("harbor") != "0.26.0":
+            raise RuntimeError("Native GPU execution requires the tested Harbor 0.26.0 contract")
         if "modal_sandbox_v2" in kwargs:
             raise ValueError("Harbor 0.24 removed the modal_sandbox_v2 option")
         self.accounting = ACCOUNTING.get()

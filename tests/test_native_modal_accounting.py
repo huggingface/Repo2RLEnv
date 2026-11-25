@@ -85,6 +85,44 @@ def test_native_constructor_refuses_escape_from_metered_profile(native_environme
     assert not ledger.status()["operations"]
 
 
+def test_native_constructor_rejects_misspelled_options_before_dispatch(native_environment):
+    construct, ledger = native_environment
+    with pytest.raises(ValueError, match="Unknown option 'sandbox_timeout_sec'"):
+        construct(sandbox_timeout_sec=30)
+    assert not ledger.status()["operations"]
+
+
+@pytest.mark.asyncio
+async def test_native_exec_drains_both_streams_and_replaces_invalid_utf8(native_environment):
+    construct, _ledger = native_environment
+    environment = construct()
+    stderr_read = asyncio.Event()
+
+    async def stdout():
+        # A full stderr pipe must not block the stdout reader indefinitely.
+        await stderr_read.wait()
+        return b"ok\xff\n"
+
+    async def stderr():
+        stderr_read.set()
+        return b"error\xfe\n"
+
+    async def wait():
+        return 1
+
+    async def execute(*args, **kwargs):
+        assert kwargs["text"] is False
+        return SimpleNamespace(
+            stdout=SimpleNamespace(read=SimpleNamespace(aio=stdout)),
+            stderr=SimpleNamespace(read=SimpleNamespace(aio=stderr)),
+            wait=SimpleNamespace(aio=wait),
+        )
+
+    environment._sandbox = SimpleNamespace(exec=SimpleNamespace(aio=execute))
+    result = await asyncio.wait_for(environment._sdk_exec("command"), timeout=5)
+    assert (result.stdout, result.stderr, result.return_code) == ("ok\ufffd\n", "error\ufffd\n", 1)
+
+
 @pytest.mark.parametrize("phase", [False, True])
 def test_native_constructor_refuses_public_network_in_any_phase(native_environment, phase):
     from harbor.models.task.config import NetworkPolicy

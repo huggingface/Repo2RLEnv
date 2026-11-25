@@ -3,7 +3,8 @@ title: "RFC 0033: Evidence-based quality review"
 navTitle: "0033 · Evidence-based quality review"
 ---
 
-**Status:** experimental implementation on `codex/quality-reviewer-rfc`; not released
+**Status:** implemented; experimental, opt-in (`evidence-review-v2`). See the
+[current guide](../pipelines/evidence_review.md) and the measured pilot below.
 
 **Author:** Repo2RLEnv maintainers, with Codex assistance
 

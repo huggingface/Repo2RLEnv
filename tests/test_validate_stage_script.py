@@ -8,11 +8,15 @@ import subprocess
 
 import pytest
 
+from repo2rlenv.bootstrap.docker import ExecResult
 from repo2rlenv.log_parsers import parse_logs
 from repo2rlenv.pipelines.pr_runtime_validate import (
+    _KILL_STAGE,
     _build_stage_script,
     _slice_test_output,
+    _Stopwatch,
     _test_block,
+    _test_timeout,
 )
 
 needs_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
@@ -238,3 +242,46 @@ def test_stage_exports_the_guard_settings():
         _BASE, apply_patch=None, apply_test_patch=None, test_cmds=["cargo test"], language="rust"
     )
     assert 'R2E_GUARD_ENV="$(mktemp)"' in script and '. "$R2E_GUARD_ENV"' in script
+
+
+def test_launcher_gets_a_test_timeout_inside_the_stage_budget():
+    script = _build_stage_script(
+        _BASE, apply_patch=None, apply_test_patch=None, test_cmds=["pytest"], test_timeout=420
+    )
+    launch = next(line for line in script.splitlines() if line.startswith('R2E_TEST_EXIT="$('))
+    assert " --timeout 420 --purge -- " in launch
+    plain = _build_stage_script(
+        _BASE, apply_patch=None, apply_test_patch=None, test_cmds=["pytest"]
+    )
+    plain_launch = next(line for line in plain.splitlines() if line.startswith('R2E_TEST_EXIT="$('))
+    assert "--timeout" not in plain_launch
+    assert _test_timeout(600) == 420
+    assert _test_timeout(120) == 60
+
+
+class _Sandbox:
+    def __init__(self, first):
+        self.first, self.commands = first, []
+
+    def exec(self, command, *, timeout):
+        self.commands.append(command)
+        if len(self.commands) == 1:
+            return self.first
+        return ExecResult(exit_code=0, stdout="", stderr="", duration_sec=0.0)
+
+
+@pytest.mark.parametrize(
+    "result,killed",
+    [
+        (
+            ExecResult(exit_code=124, stdout="", stderr="[timeout after 600s]", duration_sec=600),
+            True,
+        ),
+        (ExecResult(exit_code=124, stdout="", stderr="", duration_sec=1.0), False),
+        (ExecResult(exit_code=0, stdout="", stderr="", duration_sec=1.0), False),
+    ],
+)
+def test_client_side_stage_timeout_kills_what_the_stage_left(result, killed):
+    sandbox = _Sandbox(result)
+    _Stopwatch().run(sandbox, "stage", 600)
+    assert (sandbox.commands[1:] == [_KILL_STAGE]) is killed

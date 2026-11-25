@@ -57,7 +57,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0008 | `env_setup` | draft | [0008-env-setup.md](./0008-env-setup.md) | None |
 | 0009 | `test_synthesis` | draft | [0009-test-synthesis.md](./0009-test-synthesis.md) | None |
 | 0010 | `issue_runtime` | draft | [0010-issue-runtime.md](./0010-issue-runtime.md) | None |
-| 0011 | owned recipe contract | implementation in PR #109 | [0011-owned-recipes.md](0011-owned-recipes.md) | [Release inventory](../pipelines/releases.md) |
+| 0011 | owned recipe contract | implemented; experimental | [0011-owned-recipes.md](0011-owned-recipes.md) | [Release inventory](../pipelines/releases.md) |
 | 0012 | `repo_mutate` / `swe_smith` | experimental; PR #109 | [0012-swe-smith-recipe.md](0012-swe-smith-recipe.md) | [100 tasks](https://huggingface.co/datasets/FineEnvs/repo2rlenv-swe-smith) |
 | 0013 | `terminal_synth` / `seta_seed2synth` | experimental; PR #109 | [0013-seta-seed2synth-recipe.md](0013-seta-seed2synth-recipe.md) | [100 tasks](https://huggingface.co/datasets/FineEnvs/repo2rlenv-seta-seed2synth) |
 | 0014 | `task_evolve` / `seta_evol` | experimental; PR #109 | [0014-seta-evol-recipe.md](0014-seta-evol-recipe.md) | [100 tasks](https://huggingface.co/datasets/FineEnvs/repo2rlenv-seta-evol) |
@@ -73,13 +73,13 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0024 | `commit_runtime` / `r2e_gym` | experimental; PR #109 | [0024-r2e-gym-recipe.md](0024-r2e-gym-recipe.md) | [100 tasks](https://huggingface.co/datasets/FineEnvs/repo2rlenv-r2e-gym) |
 | 0025 | `cve_patches` / `sec_bench` | deferred | [0025-sec-bench-recipe.md](0025-sec-bench-recipe.md) | Excluded |
 | 0026 | `reasoning_synth` / `scaler` | experimental; PR #109 | [0026-scaler-recipe.md](0026-scaler-recipe.md) | [100 tasks](https://huggingface.co/datasets/FineEnvs/repo2rlenv-scaler) |
-| 0027 | Harbor review and repair | implementation in PR #109 | [0027-harbor-quality-loop.md](0027-harbor-quality-loop.md) | n/a |
+| 0027 | Harbor review and repair | implemented; experimental | [0027-harbor-quality-loop.md](0027-harbor-quality-loop.md) | n/a |
 | 0028 | Tasksmith PR pilot | completed pilot; PR #109 | [0028-tasksmith-pr-pilot.md](0028-tasksmith-pr-pilot.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith) |
 | 0029 | HF bootstrap and Tasksmith scale | recorded campaign; PR #109 | [0029-tasksmith-hf-scale.md](0029-tasksmith-hf-scale.md) | [HF ML Tasksmith: 50 tasks](https://huggingface.co/datasets/FineEnvs/HF_ML_Tasksmith) |
-| 0030 | Campaign expansion and Harbor releases | implementation in PR #109 | [0030-campaign-expansion-and-release.md](0030-campaign-expansion-and-release.md) | [Release inventory](../pipelines/releases.md) |
+| 0030 | Campaign expansion and Harbor releases | implemented; experimental | [0030-campaign-expansion-and-release.md](0030-campaign-expansion-and-release.md) | [Release inventory](../pipelines/releases.md) |
 | 0031 | `repo_reconstruct` / `codemidas` | implemented in 0.9.2; 100 local tasks | [0031-codemidas-recipe.md](0031-codemidas-recipe.md) | Local campaign; dataset unpublished |
 | 0032 | `optimization_synth` / `frontiersmith` | implemented in 0.9.3; experimental | [0032-frontiersmith-recipe.md](0032-frontiersmith-recipe.md) | Local campaign; dataset unpublished |
-| 0033 | Evidence-based quality review | draft | [0033-evidence-based-quality-review.md](0033-evidence-based-quality-review.md) | Proposed reviewer benchmark; not run |
+| 0033 | Evidence-based quality review | implemented; experimental, opt-in | [0033-evidence-based-quality-review.md](0033-evidence-based-quality-review.md) | Bounded pilot; see RFC measurements |
 | 0034 | `trajectory_to_env` | experimental implementation | [0034-trajectory-to-env.md](0034-trajectory-to-env.md) | Local smoke run; dataset unpublished |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
