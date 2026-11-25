@@ -16,7 +16,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
+from repo2rlenv.bootstrap.spec import LanguageHint
+from repo2rlenv.pipelines._env_guard import egress_guard_compose, fix_source_hosts
 from repo2rlenv.pipelines._eval_script import (
     build_single_file_eval_script,
     single_file_verifier_files,
@@ -30,6 +33,7 @@ from repo2rlenv.pipelines.pr_runtime import (
     separate_verifier_files,
     stash_pristine,
 )
+from repo2rlenv.sources import SourceKind
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("R2E_DOCKER_TESTS") != "1" or shutil.which("docker") is None,
@@ -490,6 +494,66 @@ def task_rust(tmp_path_factory):
 )
 def test_rust_generated_grader(task_rust, tmp_path, edits, reward):
     details = _grade(task_rust, tmp_path, edits, docker_args=("--network=none",))
+    assert details["evaluation_status"] == "graded", details
+    assert details["reward_txt"] == reward, details
+
+
+def _overlay_docker_args(language: LanguageHint) -> tuple[str, ...]:
+    """The emitted egress overlay for `language`, as `docker run` arguments.
+
+    Parsed from `egress_guard_compose(fix_source_hosts(...))` instead of being
+    written out here, so a regression in the emit code fails these controls.
+    """
+    compose = egress_guard_compose(fix_source_hosts(SourceKind.GITHUB, language), language)
+    service = yaml.safe_load(compose)["services"]["main"]
+    hosts = [f"--add-host={entry}" for entry in service.get("extra_hosts", [])]
+    env = [f"--env={key}={value}" for key, value in (service.get("environment") or {}).items()]
+    return tuple(hosts + env)
+
+
+@pytest.mark.parametrize(
+    ("edits", "reward"),
+    [
+        pytest.param({}, 0, id="no-op"),
+        pytest.param({"broken/value.go": GO_FIXED}, 1, id="oracle"),
+        pytest.param(
+            {
+                "broken/value.go": GO_FIXED,
+                "working/value.go": "package working\nfunc New() int { return 0 }\n",
+            },
+            0,
+            id="other-package-regression",
+        ),
+    ],
+)
+def test_go_grading_controls_under_the_egress_overlay(task_go, tmp_path, edits, reward):
+    """The Go controls with the forge and the module proxy blackholed.
+
+    `--network=none` cannot show a dependency the image lacks: nothing can be
+    fetched, so nothing looks wrong. The emitted overlay leaves general egress
+    up, which is the condition the task actually runs under.
+    """
+    details = _grade(task_go, tmp_path, edits, docker_args=_overlay_docker_args(LanguageHint.GO))
+    assert details["evaluation_status"] == "graded", details
+    assert details["reward_txt"] == reward, details
+
+
+@pytest.mark.parametrize(
+    ("edits", "reward"),
+    [
+        pytest.param({}, 0, id="no-op"),
+        pytest.param({"src/lib.rs": RUST_FIXED}, 1, id="oracle"),
+        pytest.param(
+            {"src/lib.rs": RUST_FIXED.replace("    1\n", "    0\n")},
+            0,
+            id="other-target-regression",
+        ),
+    ],
+)
+def test_rust_grading_controls_under_the_egress_overlay(task_rust, tmp_path, edits, reward):
+    details = _grade(
+        task_rust, tmp_path, edits, docker_args=_overlay_docker_args(LanguageHint.RUST)
+    )
     assert details["evaluation_status"] == "graded", details
     assert details["reward_txt"] == reward, details
 
