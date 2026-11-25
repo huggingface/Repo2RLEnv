@@ -137,9 +137,13 @@ export async function runPi(config) {
   try {
     let sdk;
     let ai;
+    let schema;
+    let schemaFormats;
     try {
       sdk = await import("@earendil-works/pi-coding-agent");
       ai = await import("@earendil-works/pi-ai");
+      schema = await import("@earendil-works/pi-schema");
+      schemaFormats = await import("@earendil-works/pi-schema/formats");
     } catch (error) {
       throw new Error(
         `Pi SDK import failed; run repo2rlenv tasksmith install-runtime to install the pinned SDKs: ${error.message}`,
@@ -161,23 +165,37 @@ export async function runPi(config) {
       enableSkillCommands: false,
       transport: "sse",
     });
-    const customTools = config.tools.map(({ function: fn }) => ({
-      name: fn.name,
-      label: fn.name,
-      description: fn.description ?? "",
-      parameters: fn.parameters,
-      execute: async (_id, args, signal) => {
-        const result = await requestJSON(new URL("/tool", bridge), {
-          headers: { Authorization: `Bearer ${config.bridge_token}`, "Content-Type": "application/json" },
-          body: { name: fn.name, arguments: args },
-          signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-          timeoutMs: RUNTIME_REQUEST_TIMEOUT_MS,
-          label: `Pi tool bridge ${fn.name}`,
-        });
-        if (typeof result.output !== "string") throw new Error(`Pi tool bridge ${fn.name} returned no string output`);
-        return { content: [{ type: "text", text: result.output }], details: {} };
-      },
-    }));
+    const customTools = config.tools.map(({ function: fn }) => {
+      // Pi 1.5 coerces arguments before execute(). Validate the model's original
+      // JSON here so malformed inputs cannot acquire tool effects via coercion.
+      const validator = schema.compile(fn.parameters, { formats: schemaFormats.formats, coerce: false });
+      return {
+        name: fn.name,
+        label: fn.name,
+        description: fn.description ?? "",
+        parameters: fn.parameters,
+        prepareArguments: (args) => {
+          const result = validator.validate(args);
+          if (!result.ok) {
+            const errors = result.errors.map(({ path, keyword, message }) =>
+              `${path || "/"} (${keyword}): ${message}`).join("; ");
+            throw new Error(`Invalid arguments for tool "${fn.name}": ${errors}`);
+          }
+          return args;
+        },
+        execute: async (_id, args, signal) => {
+          const result = await requestJSON(new URL("/tool", bridge), {
+            headers: { Authorization: `Bearer ${config.bridge_token}`, "Content-Type": "application/json" },
+            body: { name: fn.name, arguments: args },
+            signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+            timeoutMs: RUNTIME_REQUEST_TIMEOUT_MS,
+            label: `Pi tool bridge ${fn.name}`,
+          });
+          if (typeof result.output !== "string") throw new Error(`Pi tool bridge ${fn.name} returned no string output`);
+          return { content: [{ type: "text", text: result.output }], details: {} };
+        },
+      };
+    });
     const model = {
       id: config.model,
       name: config.model,

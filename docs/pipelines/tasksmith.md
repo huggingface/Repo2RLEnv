@@ -85,6 +85,8 @@ You need Python 3.12 or later, Node.js 22.19 or later with npm (for the agent ru
    uv run repo2rlenv tasksmith install-runtime
    ```
 
+   Pi validates tool arguments against the supplied schema before the SDK can convert their types. Invalid calls return an error to the author without executing a remote tool. After upgrading Repo2RLEnv, rerun this command to install the matching runtime.
+
 3. Build the runtime wheel that the worker installs. This writes `dist/repo2rlenv-0.9.7-py3-none-any.whl`. Rebuild it whenever the checkout changes; a stale wheel is refused.
 
    ```bash
