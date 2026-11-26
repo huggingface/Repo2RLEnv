@@ -55,6 +55,9 @@ class PRRuntimeOptions(_BaseOptions):
     min_fail_to_pass: int = 1
     validation_timeout_sec: int = 600  # per-PR cap on the two test runs
     skip_validation: bool = False  # emit candidates without F2P/P2P (debug / fast iteration)
+    # Run each validation stage in a new container from a snapshot of the prepared
+    # sandbox, so nothing one stage leaves behind reaches the next.
+    fresh_validation_stages: bool = False
 
     # --- Quality (SWE-bench Lite-style sampling) ---
     lite_filter: bool = False
