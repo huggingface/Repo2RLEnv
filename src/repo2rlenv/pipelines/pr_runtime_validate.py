@@ -34,7 +34,11 @@ import hashlib
 import logging
 import re
 import shlex
+import shutil
+import subprocess
+import tempfile
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -141,6 +145,66 @@ class _Stopwatch:
         if copied:
             self.copies.append(float(copied.group(1)))
         return result
+
+
+class _StageHost:
+    """Where validation stages run.
+
+    Shared mode runs every stage in the candidate's sandbox, as before. Fresh mode
+    snapshots the sandbox once it is prepared (git, Python, base commit fetched)
+    and runs each stage in a new container from that snapshot, so nothing a stage
+    leaves behind (processes, files, caches) reaches the next one.
+    """
+
+    def __init__(self, sandbox: DockerSandbox, *, fresh: bool) -> None:
+        self.sandbox = sandbox
+        self.fresh = fresh
+        self.image: str | None = None
+        self.current: DockerSandbox | None = None
+
+    def stage(self) -> DockerSandbox:
+        """The sandbox the next stage runs in."""
+        if not self.fresh:
+            return self.sandbox
+        if self.image is None:
+            self.image = f"r2e-validate/{uuid.uuid4().hex[:12]}:stage"
+            self.sandbox.commit(self.image, message="repo2rlenv validation snapshot")
+        self._release()
+        marker = Path(tempfile.mkdtemp(prefix="r2e-stage-"))
+        (marker / ".keep").write_text("")
+        try:
+            self.current = DockerSandbox.start(self.image, marker, platform=self.sandbox.platform)
+        finally:
+            shutil.rmtree(marker, ignore_errors=True)
+        return self.current
+
+    def reader(self) -> DockerSandbox:
+        """The latest stage's sandbox, whose /workspace holds that stage's tree."""
+        return self.current or self.sandbox
+
+    def _release(self) -> None:
+        if self.current is not None:
+            # SIGKILL first: `sleep infinity` as PID 1 ignores SIGTERM, and removal
+            # would otherwise wait out Docker's stop grace period on every stage.
+            subprocess.run(
+                ["docker", "kill", self.current.container_id],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            )
+            self.current.cleanup()
+            self.current = None
+
+    def close(self) -> None:
+        self._release()
+        if self.image is not None:
+            subprocess.run(
+                ["docker", "image", "rm", "-f", self.image],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            )
+            self.image = None
 
 
 def _status(found: re.Match | None) -> str:
@@ -445,11 +509,13 @@ def validate_pr(
     test_cmds: list[str],
     language: str | None = None,
     timeout: int = 600,
+    fresh_stages: bool = False,
 ) -> ValidationOutcome:
     """Run the two-stage validation and return the resulting outcome.
 
     Re-uses a shared sandbox across PRs; the `git reset --hard` at the top of
-    each stage script guarantees a clean working tree.
+    each stage script guarantees a clean working tree. With `fresh_stages`, each
+    stage instead runs in a new container from a snapshot of the prepared sandbox.
 
     `language` is the LanguageHint value (e.g. "python", "go") used as a
     fallback when test_cmds doesn't name a known runner. Almost always the
@@ -474,207 +540,219 @@ def validate_pr(
             status="failed",
             reason="no system python3 for the grader launcher in the bootstrap image",
         )
-    clock = _Stopwatch()
+    try:
+        clock = _Stopwatch()
+        host = _StageHost(sandbox, fresh=fresh_stages)
 
-    def read_base(path: str) -> str | None:
-        shown = sandbox.exec(
-            f"git -C /workspace show {base_commit}:{shlex.quote(path)} 2>/dev/null", timeout=30
-        )
-        return shown.stdout if shown.ok else None
+        def read_base(path: str) -> str | None:
+            shown = sandbox.exec(
+                f"git -C /workspace show {base_commit}:{shlex.quote(path)} 2>/dev/null", timeout=30
+            )
+            return shown.stdout if shown.ok else None
 
-    # npm/yarn scripts and jest/mocha/vitest settings resolved against base, once.
-    test_cmds = freeze_node_commands(test_cmds, read_base)
+        # npm/yarn scripts and jest/mocha/vitest settings resolved against base, once.
+        test_cmds = freeze_node_commands(test_cmds, read_base)
 
-    # Stage 1: pre-fix (apply test_patch only) — captures the "buggy" baseline.
-    pre_script = _build_stage_script(
-        base_commit,
-        apply_patch=None,
-        apply_test_patch=test_patch,
-        test_cmds=test_cmds,
-        language=language,
-        staged=_stage(sandbox, test_patch=test_patch),
-        keep_collecting=True,
-        test_timeout=_test_timeout(timeout),
-    )
-    logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
-    pre = clock.run(sandbox, pre_script, timeout)
-    # Parse the FULL output — a real suite emits 100k+ chars of per-test lines;
-    # truncating to 20k elided the test section and zeroed F2P detection.
-    pre_log = pre.truncated(max_chars=5_000_000)
-    pre_status = parse_logs(test_cmds, _slice_test_output(pre_log), language=language)
-
-    if _UNSAFE_IMAGE in pre_log:
-        return ValidationOutcome(
+        # Stage 1: pre-fix (apply test_patch only) — captures the "buggy" baseline.
+        stage = host.stage()
+        pre_script = _build_stage_script(
+            base_commit,
+            apply_patch=None,
+            apply_test_patch=test_patch,
             test_cmds=test_cmds,
-            status="failed",
-            reason="unsafe image: a path root runs code from is writable by the test user",
-            pre_log=pre_log,
+            language=language,
+            staged=_stage(stage, test_patch=test_patch),
+            keep_collecting=True,
+            test_timeout=_test_timeout(timeout),
         )
-    rebuilt = _REBUILD_RE.search(pre_log)
-    if not rebuilt or rebuilt.group(1) != "ok":
-        return ValidationOutcome(
+        logger.info("validate_pr: running pre-fix stage at %s", base_commit[:12])
+        pre = clock.run(stage, pre_script, timeout)
+        # Parse the FULL output — a real suite emits 100k+ chars of per-test lines;
+        # truncating to 20k elided the test section and zeroed F2P detection.
+        pre_log = pre.truncated(max_chars=5_000_000)
+        pre_status = parse_logs(test_cmds, _slice_test_output(pre_log), language=language)
+
+        if _UNSAFE_IMAGE in pre_log:
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason="unsafe image: a path root runs code from is writable by the test user",
+                pre_log=pre_log,
+            )
+        rebuilt = _REBUILD_RE.search(pre_log)
+        if not rebuilt or rebuilt.group(1) != "ok":
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason=f"base tree does not survive the submission rebuild ({_status(rebuilt)})",
+                pre_log=pre_log,
+            )
+
+        # If the test_patch itself failed to apply, no point continuing.
+        if "error: patch failed" in pre_log.lower() or "patch does not apply" in pre_log.lower():
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason="test_patch failed to apply at base_commit",
+                pre_log=pre_log,
+            )
+
+        # Stage 2: post-fix (apply both patch and test_patch).
+        stage = host.stage()
+        post_script = _build_stage_script(
+            base_commit,
+            apply_patch=patch,
+            apply_test_patch=test_patch,
             test_cmds=test_cmds,
-            status="failed",
-            reason=f"base tree does not survive the submission rebuild ({_status(rebuilt)})",
-            pre_log=pre_log,
+            language=language,
+            staged=_stage(stage, patch=patch, test_patch=test_patch),
+            test_timeout=_test_timeout(timeout),
         )
+        logger.info("validate_pr: running post-fix stage")
+        post = clock.run(stage, post_script, timeout)
+        post_log = post.truncated(max_chars=5_000_000)
+        post_status = parse_logs(test_cmds, _slice_test_output(post_log), language=language)
 
-    # If the test_patch itself failed to apply, no point continuing.
-    if "error: patch failed" in pre_log.lower() or "patch does not apply" in pre_log.lower():
-        return ValidationOutcome(
-            test_cmds=test_cmds,
-            status="failed",
-            reason="test_patch failed to apply at base_commit",
-            pre_log=pre_log,
-        )
+        rebuilt = _REBUILD_RE.search(post_log)
+        if rebuilt and rebuilt.group(1) != "ok":
+            # The grader would drop part of the fix, or refuse it: the oracle
+            # could never score 1 (e.g. it edits a path the grader treats as a test).
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason=f"gold patch does not survive the submission rebuild ({_status(rebuilt)})",
+                pre_log=pre_log,
+                post_log=post_log,
+            )
+        if "error: patch failed" in post_log.lower() or "patch does not apply" in post_log.lower():
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason="gold patch failed to apply at base_commit",
+                pre_log=pre_log,
+                post_log=post_log,
+            )
 
-    # Stage 2: post-fix (apply both patch and test_patch).
-    post_script = _build_stage_script(
-        base_commit,
-        apply_patch=patch,
-        apply_test_patch=test_patch,
-        test_cmds=test_cmds,
-        language=language,
-        staged=_stage(sandbox, patch=patch, test_patch=test_patch),
-        test_timeout=_test_timeout(timeout),
-    )
-    logger.info("validate_pr: running post-fix stage")
-    post = clock.run(sandbox, post_script, timeout)
-    post_log = post.truncated(max_chars=5_000_000)
-    post_status = parse_logs(test_cmds, _slice_test_output(post_log), language=language)
+        # Repeat the post-fix stage; a test is tracked only if every run agrees.
+        reruns = []
+        for attempt in range(2, POST_FIX_RUNS + 1):
+            logger.info("validate_pr: post-fix rerun %d/%d", attempt, POST_FIX_RUNS)
+            stage = host.stage()
+            if host.fresh:
+                _stage(stage, patch=patch, test_patch=test_patch)
+            rerun = clock.run(stage, post_script, timeout).truncated(max_chars=5_000_000)
+            reruns.append(parse_logs(test_cmds, _slice_test_output(rerun), language=language))
+        flaky = flaky_tests([post_status, *reruns])
+        if flaky:
+            logger.info("validate_pr: dropping %d flaky test(s)", len(flaky))
 
-    rebuilt = _REBUILD_RE.search(post_log)
-    if rebuilt and rebuilt.group(1) != "ok":
-        # The grader would drop part of the fix, or refuse it: the oracle
-        # could never score 1 (e.g. it edits a path the grader treats as a test).
-        return ValidationOutcome(
-            test_cmds=test_cmds,
-            status="failed",
-            reason=f"gold patch does not survive the submission rebuild ({_status(rebuilt)})",
-            pre_log=pre_log,
-            post_log=post_log,
-        )
-    if "error: patch failed" in post_log.lower() or "patch does not apply" in post_log.lower():
-        return ValidationOutcome(
-            test_cmds=test_cmds,
-            status="failed",
-            reason="gold patch failed to apply at base_commit",
-            pre_log=pre_log,
-            post_log=post_log,
-        )
+        # Compute F2P / P2P. Both sets are over the union of test names seen.
+        #
+        # F2P counts ERROR->PASSED as well as FAILED->PASSED: a new test that
+        # references a symbol the fix introduces *errors* (import/collection
+        # failure) at base_commit rather than asserting-failing. Restricting F2P
+        # to FAILED-only silently drops these, killing otherwise-valid candidates
+        # on `no_fail_to_pass`. Both transitions mean "broken at base, fixed by
+        # the gold patch" — the FAIL_TO_PASS contract.
+        fail_to_pass: list[str] = []
+        pass_to_pass: list[str] = []
+        for tname, pre_st in pre_status.items():
+            if tname in flaky:
+                continue
+            post_st = post_status.get(tname)
+            if pre_st in ("FAILED", "ERROR") and post_st == "PASSED":
+                fail_to_pass.append(tname)
+            elif pre_st == "PASSED" and post_st == "PASSED":
+                pass_to_pass.append(tname)
+        # A test module that can't be imported at base, typically because it
+        # imports what the fix adds, has no test IDs there: pytest reports one
+        # file-level ERROR. Go JSON likewise reports a package-level ERROR only
+        # with explicit build-failure evidence; its tests use package::test IDs.
+        # In either case, only tests from that exact unit can be inferred.
+        uncollected = {
+            name for name, st in pre_status.items() if st == "ERROR" and "::" not in name
+        }
+        promoted: dict[str, int] = {}
+        for tname, post_st in post_status.items():
+            if tname in pre_status or tname in flaky or post_st != "PASSED":
+                continue
+            module = tname.split("::", 1)[0]
+            if module in uncollected:
+                fail_to_pass.append(tname)
+                promoted[module] = promoted.get(module, 0) + 1
+        if promoted:
+            logger.info(
+                "validate_pr: fail-to-pass tests inferred from base collection/build errors: %s",
+                promoted,
+            )
 
-    # Repeat the post-fix stage; a test is tracked only if every run agrees.
-    reruns = []
-    for attempt in range(2, POST_FIX_RUNS + 1):
-        logger.info("validate_pr: post-fix rerun %d/%d", attempt, POST_FIX_RUNS)
-        rerun = clock.run(sandbox, post_script, timeout).truncated(max_chars=5_000_000)
-        reruns.append(parse_logs(test_cmds, _slice_test_output(rerun), language=language))
-    flaky = flaky_tests([post_status, *reruns])
-    if flaky:
-        logger.info("validate_pr: dropping %d flaky test(s)", len(flaky))
-
-    # Compute F2P / P2P. Both sets are over the union of test names seen.
-    #
-    # F2P counts ERROR->PASSED as well as FAILED->PASSED: a new test that
-    # references a symbol the fix introduces *errors* (import/collection
-    # failure) at base_commit rather than asserting-failing. Restricting F2P
-    # to FAILED-only silently drops these, killing otherwise-valid candidates
-    # on `no_fail_to_pass`. Both transitions mean "broken at base, fixed by
-    # the gold patch" — the FAIL_TO_PASS contract.
-    fail_to_pass: list[str] = []
-    pass_to_pass: list[str] = []
-    for tname, pre_st in pre_status.items():
-        if tname in flaky:
-            continue
-        post_st = post_status.get(tname)
-        if pre_st in ("FAILED", "ERROR") and post_st == "PASSED":
-            fail_to_pass.append(tname)
-        elif pre_st == "PASSED" and post_st == "PASSED":
-            pass_to_pass.append(tname)
-    # A test module that can't be imported at base, typically because it
-    # imports what the fix adds, has no test IDs there: pytest reports one
-    # file-level ERROR. Go JSON likewise reports a package-level ERROR only
-    # with explicit build-failure evidence; its tests use package::test IDs.
-    # In either case, only tests from that exact unit can be inferred.
-    uncollected = {name for name, st in pre_status.items() if st == "ERROR" and "::" not in name}
-    promoted: dict[str, int] = {}
-    for tname, post_st in post_status.items():
-        if tname in pre_status or tname in flaky or post_st != "PASSED":
-            continue
-        module = tname.split("::", 1)[0]
-        if module in uncollected:
-            fail_to_pass.append(tname)
-            promoted[module] = promoted.get(module, 0) + 1
-    if promoted:
+        # Diagnostics: when yield is poor, this tells us whether the suite even
+        # ran (test counts) and where transitions went — distinguishing "genuine
+        # non-bugfix PR" from "validation didn't detect the failing test".
         logger.info(
-            "validate_pr: fail-to-pass tests inferred from base collection/build errors: %s",
-            promoted,
+            "validate_pr: parsed pre=%d post=%d tests; f2p=%d p2p=%d (pre statuses: %s)",
+            len(pre_status),
+            len(post_status),
+            len(fail_to_pass),
+            len(pass_to_pass),
+            {s: sum(1 for v in pre_status.values() if v == s) for s in set(pre_status.values())},
         )
 
-    # Diagnostics: when yield is poor, this tells us whether the suite even
-    # ran (test counts) and where transitions went — distinguishing "genuine
-    # non-bugfix PR" from "validation didn't detect the failing test".
-    logger.info(
-        "validate_pr: parsed pre=%d post=%d tests; f2p=%d p2p=%d (pre statuses: %s)",
-        len(pre_status),
-        len(post_status),
-        len(fail_to_pass),
-        len(pass_to_pass),
-        {s: sum(1 for v in pre_status.values() if v == s) for s in set(pre_status.values())},
-    )
+        if not fail_to_pass:
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason="no fail-to-pass tests after validation",
+                fail_to_pass=fail_to_pass,
+                pass_to_pass=pass_to_pass,
+                pre_log=pre_log,
+                post_log=post_log,
+                flaky=sorted(flaky),
+            )
 
-    if not fail_to_pass:
-        return ValidationOutcome(
+        mutants = _validate_mutants(
+            sandbox=sandbox,
+            host=host,
+            base_commit=base_commit,
+            patch=patch,
+            test_patch=test_patch,
             test_cmds=test_cmds,
-            status="failed",
-            reason="no fail-to-pass tests after validation",
-            fail_to_pass=fail_to_pass,
-            pass_to_pass=pass_to_pass,
-            pre_log=pre_log,
-            post_log=post_log,
-            flaky=sorted(flaky),
+            language=language,
+            timeout=timeout,
+            targets=sorted(fail_to_pass),
+            tracked=sorted(fail_to_pass) + sorted(pass_to_pass),
+            post_status=post_status,
+            clock=clock,
         )
-
-    mutants = _validate_mutants(
-        sandbox=sandbox,
-        base_commit=base_commit,
-        patch=patch,
-        test_patch=test_patch,
-        test_cmds=test_cmds,
-        language=language,
-        timeout=timeout,
-        targets=sorted(fail_to_pass),
-        tracked=sorted(fail_to_pass) + sorted(pass_to_pass),
-        post_status=post_status,
-        clock=clock,
-    )
-    timing = measure(clock.samples, clock.copies)
-    timing, checked = fit_runs(timing, mutants is not None)
-    mutants = mutants if checked else None
-    if timing is not None and timing.over_cap:
+        timing = measure(clock.samples, clock.copies)
+        timing, checked = fit_runs(timing, mutants is not None)
+        mutants = mutants if checked else None
+        if timing is not None and timing.over_cap:
+            return ValidationOutcome(
+                test_cmds=test_cmds,
+                status="failed",
+                reason=(
+                    f"grading would need a {timing.needed_verifier_timeout} s verifier timeout, "
+                    "over the cap"
+                ),
+                pre_log=pre_log,
+                post_log=post_log,
+                flaky=sorted(flaky),
+                timing=timing,
+            )
         return ValidationOutcome(
             test_cmds=test_cmds,
-            status="failed",
-            reason=(
-                f"grading would need a {timing.needed_verifier_timeout} s verifier timeout, "
-                "over the cap"
-            ),
+            status="verified",
+            fail_to_pass=sorted(fail_to_pass),
+            pass_to_pass=sorted(pass_to_pass),
             pre_log=pre_log,
             post_log=post_log,
             flaky=sorted(flaky),
             timing=timing,
+            mutants=mutants,
         )
-    return ValidationOutcome(
-        test_cmds=test_cmds,
-        status="verified",
-        fail_to_pass=sorted(fail_to_pass),
-        pass_to_pass=sorted(pass_to_pass),
-        pre_log=pre_log,
-        post_log=post_log,
-        flaky=sorted(flaky),
-        timing=timing,
-        mutants=mutants,
-    )
+    finally:
+        host.close()
 
 
 def flaky_tests(runs: list[dict[str, str]]) -> set[str]:
@@ -696,6 +774,7 @@ def _read_workspace_file(sandbox: DockerSandbox, path: str) -> str | None:
 def _validate_mutants(
     *,
     sandbox: DockerSandbox,
+    host: _StageHost | None = None,
     base_commit: str,
     patch: str,
     test_patch: str,
@@ -720,7 +799,7 @@ def _validate_mutants(
     seed = hashlib.sha256(f"{base_commit}\0{test_patch}".encode()).hexdigest()
 
     def read(path: str) -> str | None:
-        return _read_workspace_file(sandbox, path)
+        return _read_workspace_file(host.reader() if host else sandbox, path)
 
     # Python through its own AST; Go, Rust and JS/TS through tree-sitter.
     mutants = make_mutants(
@@ -738,17 +817,18 @@ def _validate_mutants(
     )
     if mutants is None:
         return None
+    stage = host.stage() if host else sandbox
     script = _build_stage_script(
         base_commit,
         apply_patch=patch,
         apply_test_patch=test_patch,
         test_cmds=test_cmds,
         language=language,
-        staged=_stage(sandbox, patch=patch, test_patch=test_patch, mutants=mutants),
+        staged=_stage(stage, patch=patch, test_patch=test_patch, mutants=mutants),
         test_timeout=_test_timeout(timeout),
     )
     logger.info("validate_pr: running the mutant stage (%d tests)", len(mutants.ids))
-    output = clock.run(sandbox, script, timeout).truncated(max_chars=5_000_000)
+    output = clock.run(stage, script, timeout).truncated(max_chars=5_000_000)
     exit_code = _EXIT_RE.search(output)
     fixed = parse_logs(test_cmds, _slice_test_output(output), language=language)
     kept = validated(mutants, fixed=post_status, fixed_with_mutants=fixed, tracked=tracked)

@@ -1426,6 +1426,7 @@ class PRRuntimePipeline:
                             test_cmds=targeted_cmds,
                             language=self.bootstrap.language.value,
                             timeout=self.options.validation_timeout_sec,
+                            fresh_stages=self.options.fresh_validation_stages,
                         )
                         fail_to_pass = outcome.fail_to_pass
                         pass_to_pass = outcome.pass_to_pass
