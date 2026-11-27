@@ -81,6 +81,7 @@ Sequential. `0001-<name>.md`, `0002-<name>.md`, …. Never reuse a number. If an
 | 0032 | `optimization_synth` / `frontiersmith` | implemented in 0.9.3; experimental | [0032-frontiersmith-recipe.md](0032-frontiersmith-recipe.md) | Local campaign; dataset unpublished |
 | 0033 | Evidence-based quality review | implemented; experimental, opt-in | [0033-evidence-based-quality-review.md](0033-evidence-based-quality-review.md) | Bounded pilot; see RFC measurements |
 | 0034 | `trajectory_to_env` | experimental implementation | [0034-trajectory-to-env.md](0034-trajectory-to-env.md) | Local smoke run; dataset unpublished |
+| 0035 | `pr_runtime` per-candidate environments | draft | [0035-pr-runtime-per-candidate-environments.md](0035-pr-runtime-per-candidate-environments.md) | n/a |
 
 <!-- Update this table whenever a new RFC lands or an RFC's status changes. -->
 
